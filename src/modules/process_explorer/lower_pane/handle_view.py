@@ -6,7 +6,7 @@ import logging
 import threading
 from typing import List
 
-from PyQt6.QtCore import QMetaObject, Qt
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                               QTableWidgetItem, QHeaderView, QLabel)
 
@@ -76,8 +76,11 @@ def _query_handles(pid: int) -> List[dict]:
 
 
 class HandleView(QWidget):
+    _handles_ready = pyqtSignal(object)  # emits List[dict] from background thread
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._handles_ready.connect(self._populate)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._label = QLabel("Select a process to view handles")
@@ -103,11 +106,10 @@ class HandleView(QWidget):
         except Exception as e:
             logger.warning("Handle query failed for %d: %s", pid, e)
             handles = []
-        # Marshal back to main thread via Qt event
-        QMetaObject.invokeMethod(self, "_populate",
-                                 Qt.ConnectionType.QueuedConnection,
-                                 ctypes.py_object(handles))
+        # Marshal back to main thread via signal (thread-safe)
+        self._handles_ready.emit(handles)
 
+    @pyqtSlot(object)
     def _populate(self, handles: List[dict]):
         self._table.setRowCount(len(handles))
         for r, h in enumerate(handles):
