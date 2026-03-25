@@ -1,9 +1,11 @@
 # src/modules/process_explorer/lower_pane/thread_view.py
 from __future__ import annotations
 import logging
+import threading
 from typing import Optional
 
 import psutil
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
 
 logger = logging.getLogger(__name__)
@@ -12,8 +14,11 @@ _HEADERS = ["TID", "CPU%", "User Time", "System Time"]
 
 
 class ThreadView(QWidget):
+    _data_ready = pyqtSignal(int, object)  # (pid, threads)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._data_ready.connect(self._populate)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
@@ -26,16 +31,24 @@ class ThreadView(QWidget):
 
     def load_pid(self, pid: int):
         self._pid = pid
-        self._refresh()
+        self._table.setRowCount(0)
+        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
 
     def _refresh(self):
-        self._table.setRowCount(0)
-        if self._pid is None:
-            return
+        if self._pid is not None:
+            self.load_pid(self._pid)
+
+    def _load(self, pid: int):
         try:
-            threads = psutil.Process(self._pid).threads()
+            threads = psutil.Process(pid).threads()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return
+            threads = []
+        self._data_ready.emit(pid, threads)
+
+    @pyqtSlot(int, object)
+    def _populate(self, pid: int, threads: list):
+        if pid != self._pid:
+            return  # stale result
         self._table.setRowCount(len(threads))
         for r, t in enumerate(threads):
             for c, val in enumerate([

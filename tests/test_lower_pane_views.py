@@ -1,4 +1,5 @@
 # tests/test_lower_pane_views.py
+import time
 from unittest.mock import patch, MagicMock
 import socket
 
@@ -14,6 +15,14 @@ def _make_conn(pid, sock_type=socket.SOCK_STREAM,
     return c
 
 
+def _drain(qapp, ms=100):
+    """Process Qt events for up to ms milliseconds, letting background threads deliver signals."""
+    deadline = time.monotonic() + ms / 1000
+    while time.monotonic() < deadline:
+        qapp.processEvents()
+        time.sleep(0.005)
+
+
 def test_network_view_filters_by_pid(qapp):
     from modules.process_explorer.lower_pane.network_view import NetworkView
     view = NetworkView()
@@ -21,6 +30,7 @@ def test_network_view_filters_by_pid(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
                return_value=conns):
         view.load_pid(1234)
+        _drain(qapp)
     assert view._table.rowCount() == 1
 
 
@@ -34,6 +44,7 @@ def test_network_view_tcp_udp_label(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
                return_value=conns):
         view.load_pid(1)
+        _drain(qapp)
     assert view._table.item(0, 0).text() == "TCP"
     assert view._table.item(1, 0).text() == "UDP"
 
@@ -45,6 +56,7 @@ def test_network_view_access_denied_clears_table(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
                side_effect=psutil.AccessDenied(0)):
         view.load_pid(1234)
+        _drain(qapp)
     assert view._table.rowCount() == 0
 
 
@@ -57,6 +69,7 @@ def test_thread_view_populates_rows(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(1234)
+        _drain(qapp)
     assert view._table.rowCount() == 1
     assert view._table.item(0, 0).text() == "100"
 
@@ -68,6 +81,7 @@ def test_thread_view_no_such_process(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                side_effect=psutil.NoSuchProcess(1234)):
         view.load_pid(1234)
+        _drain(qapp)
     assert view._table.rowCount() == 0
 
 
@@ -80,6 +94,8 @@ def test_thread_view_refresh_reuses_pid(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(5678)
+        _drain(qapp)
         view._refresh()
+        _drain(qapp)
     assert view._pid == 5678
     assert view._table.rowCount() == 1

@@ -4,8 +4,10 @@ import ctypes
 import ctypes.wintypes
 import logging
 import os
-from typing import List, Tuple
+import threading
+from typing import List, Optional, Tuple
 
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                               QTableWidgetItem, QHeaderView)
 
@@ -47,8 +49,12 @@ def _get_dll_list(pid: int) -> List[Tuple[str, str, int, int]]:
 
 
 class DllView(QWidget):
+    _data_ready = pyqtSignal(int, object)  # (pid, dlls)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._data_ready.connect(self._populate)
+        self._pid: Optional[int] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
@@ -59,12 +65,22 @@ class DllView(QWidget):
         layout.addWidget(self._table)
 
     def load_pid(self, pid: int):
+        self._pid = pid
         self._table.setRowCount(0)
+        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
+
+    def _load(self, pid: int):
         try:
             dlls = _get_dll_list(pid)
         except Exception as e:
             logger.warning("DLL enum failed for pid %d: %s", pid, e)
-            return
+            dlls = []
+        self._data_ready.emit(pid, dlls)
+
+    @pyqtSlot(int, object)
+    def _populate(self, pid: int, dlls: list):
+        if pid != self._pid:
+            return  # stale result
         self._table.setRowCount(len(dlls))
         for r, (name, path, base, size) in enumerate(dlls):
             for c, val in enumerate([name, path, hex(base), str(size), "", ""]):

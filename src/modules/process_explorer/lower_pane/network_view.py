@@ -2,9 +2,11 @@
 from __future__ import annotations
 import logging
 import socket
-from typing import Optional
+import threading
+from typing import List, Optional
 
 import psutil
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
 
 logger = logging.getLogger(__name__)
@@ -13,8 +15,11 @@ _HEADERS = ["Protocol", "Local Address", "Local Port", "Remote Address", "Remote
 
 
 class NetworkView(QWidget):
+    _data_ready = pyqtSignal(int, object)  # (pid, rows)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._data_ready.connect(self._populate)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
@@ -27,17 +32,24 @@ class NetworkView(QWidget):
 
     def load_pid(self, pid: int):
         self._pid = pid
-        self._refresh()
-
-    def _refresh(self):
         self._table.setRowCount(0)
-        if self._pid is None:
-            return
+        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
+
+    def _load(self, pid: int):
         try:
             conns = psutil.net_connections()
+            rows = [c for c in conns if c.pid == pid]
         except psutil.AccessDenied:
-            return
-        rows = [c for c in conns if c.pid == self._pid]
+            rows = []
+        except Exception as e:
+            logger.warning("net_connections failed: %s", e)
+            rows = []
+        self._data_ready.emit(pid, rows)
+
+    @pyqtSlot(int, object)
+    def _populate(self, pid: int, rows: list):
+        if pid != self._pid:
+            return  # stale result from a previous selection
         self._table.setRowCount(len(rows))
         for r, conn in enumerate(rows):
             proto = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
