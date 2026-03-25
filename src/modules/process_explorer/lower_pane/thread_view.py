@@ -1,6 +1,5 @@
 # src/modules/process_explorer/lower_pane/thread_view.py
 from __future__ import annotations
-import ctypes
 import logging
 from typing import Optional
 

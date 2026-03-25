@@ -1,6 +1,7 @@
 # src/modules/process_explorer/lower_pane/network_view.py
 from __future__ import annotations
 import logging
+import socket
 from typing import Optional
 
 import psutil
@@ -40,7 +41,7 @@ class NetworkView(QWidget):
         rows = [c for c in conns if c.pid == self._pid]
         self._table.setRowCount(len(rows))
         for r, conn in enumerate(rows):
-            proto = "TCP" if conn.type.name == "SOCK_STREAM" else "UDP"
+            proto = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
             laddr = conn.laddr.ip if conn.laddr else ""
             lport = str(conn.laddr.port) if conn.laddr else ""
             raddr = conn.raddr.ip if conn.raddr else ""
