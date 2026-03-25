@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
@@ -72,9 +72,29 @@ class ProcessTreeModel(QAbstractItemModel):
             old.status         = new_node.status
 
         if changed:
-            top_left = self.index(0, 0)
-            bot_right = self.index(self.rowCount() - 1, len(COLUMNS) - 1)
-            self.dataChanged.emit(top_left, bot_right)
+            if self._flat_mode:
+                count = len(self._snapshot)
+                if count > 0:
+                    top_left = self.index(0, 0)
+                    bot_right = self.index(count - 1, len(COLUMNS) - 1)
+                    self.dataChanged.emit(top_left, bot_right)
+            else:
+                # Emit per-node so child rows are included, not just roots
+                for pid in changed:
+                    node = self._snapshot.get(pid)
+                    if node is None:
+                        continue
+                    parent_node = self._snapshot.get(node.parent_pid)
+                    siblings = (parent_node.children
+                                if parent_node and parent_node.pid != node.pid
+                                else self._roots)
+                    try:
+                        row = siblings.index(node)
+                    except ValueError:
+                        continue
+                    tl = self.createIndex(row, 0, node)
+                    br = self.createIndex(row, len(COLUMNS) - 1, node)
+                    self.dataChanged.emit(tl, br)
 
     # ── QAbstractItemModel required overrides ─────────────────────────
 
