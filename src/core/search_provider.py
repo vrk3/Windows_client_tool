@@ -32,9 +32,13 @@ class SearchResult:
     relevance: float
 
 class SearchProvider(ABC):
+    # Set this in each subclass so SearchEngine can filter by module
+    module_name: str = ""
+
     @abstractmethod
     def search(self, query: SearchQuery) -> List[SearchResult]:
         ...
+
     @abstractmethod
     def get_filterable_fields(self) -> List[FilterField]:
         ...

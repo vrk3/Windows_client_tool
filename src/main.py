@@ -66,6 +66,12 @@ def main():
     # Start modules (calls on_start before create_widget)
     app.start()
 
+    # Register each module's search provider with the search engine
+    for module in app.module_registry.modules:
+        provider = module.get_search_provider()
+        if provider is not None:
+            app.search.register_provider(provider)
+
     # Create and show main window
     window = MainWindow(app)
 

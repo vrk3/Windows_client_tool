@@ -34,6 +34,9 @@ class SearchEngine:
     def execute(self, query: SearchQuery) -> List[SearchResult]:
         results: List[SearchResult] = []
         for provider in self._providers:
+            # If sources filter is set, skip providers whose module isn't listed
+            if query.sources and provider.module_name and provider.module_name not in query.sources:
+                continue
             try:
                 results.extend(provider.search(query))
             except Exception:

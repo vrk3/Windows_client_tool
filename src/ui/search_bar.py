@@ -28,7 +28,12 @@ class SearchBar(QWidget):
         self._input = QLineEdit()
         self._input.setPlaceholderText("Search all logs, events, recommendations...")
         self._input.textChanged.connect(self._on_text_changed)
+        self._input.returnPressed.connect(self._emit_search)
         layout.addWidget(self._input, stretch=1)
+
+        self._search_btn = QPushButton("Search")
+        self._search_btn.clicked.connect(self._emit_search)
+        layout.addWidget(self._search_btn)
 
         self._regex_cb = QCheckBox("Regex")
         layout.addWidget(self._regex_cb)

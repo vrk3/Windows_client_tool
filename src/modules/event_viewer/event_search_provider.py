@@ -9,6 +9,8 @@ from core.types import LogEntry
 class EventViewerSearchProvider(SearchProvider):
     """Search provider for Event Viewer entries."""
 
+    module_name = "EventViewer"
+
     def __init__(self):
         self._entries: List[LogEntry] = []
 
@@ -53,10 +55,6 @@ class EventViewerSearchProvider(SearchProvider):
 
         # Type filter
         if query.types and entry.level not in query.types:
-            return False
-
-        # Source filter
-        if query.sources and entry.source not in query.sources:
             return False
 
         return True

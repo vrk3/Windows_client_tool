@@ -9,6 +9,8 @@ from core.types import LogEntry
 class PerfMonSearchProvider(SearchProvider):
     """Search provider for PerfMon alert history."""
 
+    module_name = "PerfMon"
+
     def __init__(self):
         self._alerts: List[LogEntry] = []
 

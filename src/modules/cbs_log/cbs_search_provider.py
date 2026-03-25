@@ -8,6 +8,8 @@ from core.types import LogEntry
 class CBSSearchProvider(SearchProvider):
     """Search provider for CBS log entries."""
 
+    module_name = "CBS"
+
     def __init__(self):
         self._entries: List[LogEntry] = []
 
@@ -50,14 +52,9 @@ class CBSSearchProvider(SearchProvider):
         if query.types and entry.level not in query.types:
             return False
 
-        if query.sources and entry.source not in query.sources:
-            return False
-
         return True
 
     def get_filterable_fields(self) -> List[FilterField]:
-        sources = list(set(e.source for e in self._entries))
         return [
-            FilterField(name="source", label="Source", values=sorted(sources)),
             FilterField(name="level", label="Level", values=["Error", "Warning", "Info"]),
         ]

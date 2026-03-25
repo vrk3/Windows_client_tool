@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import List
 
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
@@ -8,6 +7,8 @@ from core.types import LogEntry
 
 class CrashDumpSearchProvider(SearchProvider):
     """Search provider for Crash Dump entries."""
+
+    module_name = "CrashDumps"
 
     def __init__(self):
         self._entries: List[LogEntry] = []
@@ -31,39 +32,29 @@ class CrashDumpSearchProvider(SearchProvider):
         return results
 
     def _matches(self, entry: LogEntry, query: SearchQuery) -> bool:
-        # Text filter
         if query.text:
-            text = query.text
             haystack = f"{entry.source} {entry.level} {entry.message}"
             if query.regex_enabled:
                 try:
-                    if not re.search(text, haystack, re.IGNORECASE):
+                    if not re.search(query.text, haystack, re.IGNORECASE):
                         return False
                 except re.error:
                     return False
             else:
-                if text.lower() not in haystack.lower():
+                if query.text.lower() not in haystack.lower():
                     return False
 
-        # Date filter
         if query.date_from and entry.timestamp < query.date_from:
             return False
         if query.date_to and entry.timestamp > query.date_to:
             return False
 
-        # Type filter
         if query.types and entry.level not in query.types:
-            return False
-
-        # Source filter
-        if query.sources and entry.source not in query.sources:
             return False
 
         return True
 
     def get_filterable_fields(self) -> List[FilterField]:
-        sources = list(set(e.source for e in self._entries))
         return [
-            FilterField(name="source", label="Source", values=sorted(sources)),
             FilterField(name="level", label="Level", values=["Error", "Warning", "Info"]),
         ]

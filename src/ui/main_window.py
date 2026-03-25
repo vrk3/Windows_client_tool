@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         # Search results (hidden by default)
         self._search_results = SearchResultsTable(self)
         self._search_results.setVisible(False)
+        self._search_results.result_activated.connect(self._on_result_activated)
         self._layout.addWidget(self._search_results)
 
         # Status bar
@@ -215,13 +216,23 @@ class MainWindow(QMainWindow):
         if not text.strip():
             self._search_results.setVisible(False)
             return
+        # build_query always includes current date/type/source filter state
         query = self._filter_panel.build_query(text, regex)
         results = self._app.search.execute(query)
         self._search_results.set_results(results)
-        self._search_results.setVisible(True)
+        self._search_results.setVisible(bool(results))
+        count = len(results)
+        self._status_bar.showMessage(
+            f"Search: {count} result{'s' if count != 1 else ''} for '{text}'"
+        )
 
     def _on_filter_toggled(self, expanded: bool):
         self._filter_panel.setVisible(expanded)
+
+    def _on_result_activated(self, result):
+        from ui.search_result_detail import SearchResultDetail
+        dlg = SearchResultDetail(result, self)
+        dlg.exec()
 
     def _clear_search(self):
         self._search_bar.clear()

@@ -5,8 +5,8 @@ def test_build_query_defaults():
     panel = FilterPanel()
     query = panel.build_query("test search")
     assert query.text == "test search"
-    assert "Error" in query.types
-    assert "Warning" in query.types
+    # All types checked by default → empty list means "no type filter, show all"
+    assert query.types == []
     assert query.regex_enabled is False
 
 
@@ -20,5 +20,5 @@ def test_build_query_with_regex():
 def test_build_query_sources_default_checked():
     panel = FilterPanel()
     query = panel.build_query("")
-    assert "EventViewer" in query.sources
-    assert "CBS" in query.sources
+    # All sources checked by default → empty list means "no source filter, search all"
+    assert query.sources == []
