@@ -1,0 +1,105 @@
+# src/modules/process_explorer/process_actions.py
+from __future__ import annotations
+import ctypes
+import logging
+from typing import List, Tuple
+
+import psutil
+
+logger = logging.getLogger(__name__)
+
+# psutil priority constants (Windows)
+PRIORITY_LEVELS = {
+    "idle":         psutil.IDLE_PRIORITY_CLASS,
+    "below_normal": psutil.BELOW_NORMAL_PRIORITY_CLASS,
+    "normal":       psutil.NORMAL_PRIORITY_CLASS,
+    "above_normal": psutil.ABOVE_NORMAL_PRIORITY_CLASS,
+    "high":         psutil.HIGH_PRIORITY_CLASS,
+    "realtime":     psutil.REALTIME_PRIORITY_CLASS,
+}
+
+_ntdll = ctypes.windll.ntdll
+
+
+def kill_process(pid: int) -> Tuple[bool, str]:
+    try:
+        psutil.Process(pid).kill()
+        return True, ""
+    except psutil.NoSuchProcess:
+        return False, f"Process {pid} is no longer running."
+    except psutil.AccessDenied:
+        return False, f"Access denied — run as administrator."
+    except Exception as e:
+        return False, str(e)
+
+
+def kill_tree(pid: int) -> Tuple[bool, List[str]]:
+    """Kill process and all descendants. Returns (all_ok, list_of_errors)."""
+    errors = []
+    try:
+        proc = psutil.Process(pid)
+        children = proc.children(recursive=True)
+        for child in children:
+            ok, err = kill_process(child.pid)
+            if not ok:
+                errors.append(f"PID {child.pid}: {err}")
+        ok, err = kill_process(pid)
+        if not ok:
+            errors.append(f"PID {pid}: {err}")
+    except psutil.NoSuchProcess:
+        errors.append(f"PID {pid} is no longer running.")
+    return len(errors) == 0, errors
+
+
+def suspend_process(pid: int) -> Tuple[bool, str]:
+    try:
+        handle = ctypes.windll.kernel32.OpenProcess(0x0800, False, pid)  # PROCESS_SUSPEND_RESUME
+        if not handle:
+            return False, f"Could not open process {pid}."
+        status = _ntdll.NtSuspendProcess(handle)
+        ctypes.windll.kernel32.CloseHandle(handle)
+        if status != 0:
+            return False, f"NtSuspendProcess returned 0x{status:08X}"
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def resume_process(pid: int) -> Tuple[bool, str]:
+    try:
+        handle = ctypes.windll.kernel32.OpenProcess(0x0800, False, pid)
+        if not handle:
+            return False, f"Could not open process {pid}."
+        status = _ntdll.NtResumeProcess(handle)
+        ctypes.windll.kernel32.CloseHandle(handle)
+        if status != 0:
+            return False, f"NtResumeProcess returned 0x{status:08X}"
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def set_priority(pid: int, level: str) -> Tuple[bool, str]:
+    if level not in PRIORITY_LEVELS:
+        return False, f"Unknown priority '{level}'. Valid: {list(PRIORITY_LEVELS)}"
+    try:
+        psutil.Process(pid).nice(PRIORITY_LEVELS[level])
+        return True, ""
+    except psutil.NoSuchProcess:
+        return False, f"Process {pid} is no longer running."
+    except psutil.AccessDenied:
+        return False, "Access denied — run as administrator."
+    except Exception as e:
+        return False, str(e)
+
+
+def set_affinity(pid: int, cores: List[int]) -> Tuple[bool, str]:
+    try:
+        psutil.Process(pid).cpu_affinity(cores)
+        return True, ""
+    except psutil.NoSuchProcess:
+        return False, f"Process {pid} is no longer running."
+    except psutil.AccessDenied:
+        return False, "Access denied — run as administrator."
+    except Exception as e:
+        return False, str(e)
