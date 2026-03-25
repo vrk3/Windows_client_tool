@@ -6,8 +6,7 @@ from typing import List
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget,
                               QListWidget, QLineEdit, QHBoxLayout,
-                              QPushButton, QLabel, QCheckBox, QFileDialog)
-from PyQt6.QtCore import Qt
+                              QPushButton, QFileDialog)
 
 from core.worker import Worker
 

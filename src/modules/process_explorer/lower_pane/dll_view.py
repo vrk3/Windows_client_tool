@@ -4,11 +4,10 @@ import ctypes
 import ctypes.wintypes
 import logging
 import os
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
-                              QTableWidgetItem, QHeaderView, QLabel)
-from PyQt6.QtCore import Qt
+                              QTableWidgetItem, QHeaderView)
 
 logger = logging.getLogger(__name__)
 

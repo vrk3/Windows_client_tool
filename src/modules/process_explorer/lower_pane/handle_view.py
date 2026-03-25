@@ -4,11 +4,11 @@ import ctypes
 import ctypes.wintypes
 import logging
 import threading
-from typing import List, NamedTuple, Optional
+from typing import List
 
+from PyQt6.QtCore import QMetaObject, Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                               QTableWidgetItem, QHeaderView, QLabel)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,6 @@ class HandleView(QWidget):
             logger.warning("Handle query failed for %d: %s", pid, e)
             handles = []
         # Marshal back to main thread via Qt event
-        from PyQt6.QtCore import QMetaObject, Qt
         QMetaObject.invokeMethod(self, "_populate",
                                  Qt.ConnectionType.QueuedConnection,
                                  ctypes.py_object(handles))
