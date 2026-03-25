@@ -38,7 +38,8 @@ class MemoryMapView(QWidget):
         for r, m in enumerate(maps):
             perms = getattr(m, "perms", "")
             private = self._fmt(getattr(m, "private", 0))
-            for c, val in enumerate([m.path, self._fmt(m.rss), "—", perms, private]):
+            size = self._fmt(getattr(m, "size", 0)) if getattr(m, "size", 0) else "—"
+            for c, val in enumerate([m.path, self._fmt(m.rss), size, perms, private]):
                 item = QTableWidgetItem(val)
                 # Highlight W^X (writable+executable) in yellow
                 if perms and "w" in perms and "x" in perms:

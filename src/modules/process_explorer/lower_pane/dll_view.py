@@ -6,7 +6,6 @@ import logging
 import os
 from typing import List, Optional, Tuple
 
-import psutil
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                               QTableWidgetItem, QHeaderView, QLabel)
 from PyQt6.QtCore import Qt
