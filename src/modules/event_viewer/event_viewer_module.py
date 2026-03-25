@@ -5,6 +5,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QHBoxLayout, QSplitter, QVBoxLayout, QWidget, QComboBox, QLabel, QProgressBar
 
 from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 from core.worker import Worker
 from ui.log_table_widget import LogTableWidget
@@ -20,6 +21,7 @@ class EventViewerModule(BaseModule):
     icon = "event_viewer"
     description = "Windows Event Log viewer (System, Application, Security)"
     requires_admin = False
+    group = ModuleGroup.DIAGNOSE
 
     def __init__(self):
         super().__init__()

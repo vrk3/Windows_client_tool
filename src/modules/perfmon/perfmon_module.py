@@ -8,6 +8,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QHBoxLayout
 
 from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 from core.types import LogEntry
 from modules.perfmon.perfmon_collector import PerfMonStore, collect_snapshot
@@ -28,6 +29,7 @@ class PerfMonModule(BaseModule):
     icon = "perfmon"
     description = "Real-time performance monitoring with historical graphs and alerts"
     requires_admin = False
+    group = ModuleGroup.DIAGNOSE
 
     def __init__(self):
         super().__init__()

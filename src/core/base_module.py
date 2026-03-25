@@ -10,6 +10,7 @@ class BaseModule(ABC):
     icon: str
     description: str
     requires_admin: bool
+    group: str
 
     def __init__(self):
         self._workers: List = []

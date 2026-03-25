@@ -1,0 +1,7 @@
+class ModuleGroup:
+    DIAGNOSE = "DIAGNOSE"
+    SYSTEM = "SYSTEM"
+    MANAGE = "MANAGE"
+    OPTIMIZE = "OPTIMIZE"
+    TOOLS = "TOOLS"
+    PROCESS = "PROCESS"
