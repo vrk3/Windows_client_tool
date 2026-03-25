@@ -67,6 +67,7 @@ class VTClient:
     def __init__(self, api_key: str):
         self._api_key = api_key
         self._cache: Dict[str, VTResult] = {}
+        self._pending: Dict[str, str] = {}   # analysis_id → sha256
 
     def check(self, sha256: str) -> VTResult:
         if sha256 in self._cache:
@@ -75,19 +76,27 @@ class VTClient:
         self._cache[sha256] = result
         return result
 
-    def submit_file(self, path: str) -> Optional[str]:
-        """Upload file to VT for analysis. Returns analysis ID or None."""
+    def submit_file(self, path: str, sha256: str = "") -> Optional[str]:
+        """Upload file to VT for analysis. Returns analysis ID or None.
+
+        Pass ``sha256`` so the result can later be cached under the correct key
+        when ``poll_analysis`` completes.
+        """
         try:
             with open(path, "rb") as f:
-                resp = requests.post(
-                    f"{_VT_API_BASE}/files",
-                    headers={"x-apikey": self._api_key},
-                    files={"file": f},
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                return resp.json()["data"]["id"]
-        except Exception as e:
+                file_data = f.read()
+            resp = requests.post(
+                f"{_VT_API_BASE}/files",
+                headers={"x-apikey": self._api_key},
+                files={"file": (path, file_data)},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            analysis_id: str = resp.json()["data"]["id"]
+            if sha256:
+                self._pending[analysis_id] = sha256
+            return analysis_id
+        except (requests.RequestException, OSError) as e:
             logger.error("VT file submission failed: %s", e)
             return None
 
@@ -106,8 +115,14 @@ class VTClient:
             stats = data["attributes"]["stats"]
             malicious = stats.get("malicious", 0)
             total = sum(stats.values())
-            return VTResult(found=True, sha256="", malicious=malicious, total=total,
-                            score=f"{malicious}/{total}")
-        except Exception as e:
+            # Try to recover sha256 from the response or from the pending map
+            sha256 = (data.get("meta", {}).get("file_info", {}).get("sha256", "")
+                      or self._pending.pop(analysis_id, ""))
+            result = VTResult(found=True, sha256=sha256, malicious=malicious,
+                              total=total, score=f"{malicious}/{total}")
+            if sha256:
+                self._cache[sha256] = result
+            return result
+        except requests.RequestException as e:
             logger.error("VT poll failed: %s", e)
             return None
