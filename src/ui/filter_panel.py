@@ -1,4 +1,6 @@
-from PyQt6.QtCore import pyqtSignal
+from datetime import datetime, timedelta
+
+from PyQt6.QtCore import QDate, QTime, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -27,22 +29,29 @@ class FilterPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
 
-        # Date range
+        # Date range — default to last 24 hours
+        now = datetime.now()
+        yesterday = now - timedelta(hours=24)
+
         date_row = QHBoxLayout()
         date_row.addWidget(QLabel("Date:"))
         self._date_from = QDateEdit()
         self._date_from.setCalendarPopup(True)
+        self._date_from.setDate(QDate(yesterday.year, yesterday.month, yesterday.day))
         date_row.addWidget(self._date_from)
         date_row.addWidget(QLabel("to"))
         self._date_to = QDateEdit()
         self._date_to.setCalendarPopup(True)
+        self._date_to.setDate(QDate(now.year, now.month, now.day))
         date_row.addWidget(self._date_to)
 
         date_row.addWidget(QLabel("Time:"))
         self._time_from = QTimeEdit()
+        self._time_from.setTime(QTime(yesterday.hour, yesterday.minute))
         date_row.addWidget(self._time_from)
         date_row.addWidget(QLabel("to"))
         self._time_to = QTimeEdit()
+        self._time_to.setTime(QTime(now.hour, now.minute))
         date_row.addWidget(self._time_to)
         date_row.addStretch()
         layout.addLayout(date_row)

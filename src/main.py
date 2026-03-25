@@ -46,7 +46,24 @@ def main():
     # Install global exception handler (after logging is set up)
     sys.excepthook = _global_exception_handler
 
-    # Start modules first (calls on_start before create_widget)
+    # Register all data modules
+    from modules.event_viewer.event_viewer_module import EventViewerModule
+    from modules.cbs_log.cbs_module import CBSLogModule
+    from modules.dism_log.dism_module import DISMLogModule
+    from modules.windows_update.wu_module import WindowsUpdateModule
+    from modules.reliability.reliability_module import ReliabilityModule
+    from modules.crash_dumps.crash_dump_module import CrashDumpModule
+    from modules.perfmon.perfmon_module import PerfMonModule
+
+    app.module_registry.register(EventViewerModule())
+    app.module_registry.register(CBSLogModule())
+    app.module_registry.register(DISMLogModule())
+    app.module_registry.register(WindowsUpdateModule())
+    app.module_registry.register(ReliabilityModule())
+    app.module_registry.register(CrashDumpModule())
+    app.module_registry.register(PerfMonModule())
+
+    # Start modules (calls on_start before create_widget)
     app.start()
 
     # Create and show main window
