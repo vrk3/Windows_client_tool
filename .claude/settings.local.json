@@ -3,7 +3,35 @@
     "allow": [
       "Bash(rm src/gui.py src/log_reader.py)",
       "Bash(rm -rf src/__pycache__)",
-      "Bash(python -m pytest ../tests/test_events.py -v)"
+      "Bash(python -m pytest ../tests/test_events.py -v)",
+      "Bash(python -c \":*)",
+      "Bash(.venv/Scripts/python.exe -m pip show pywin32)",
+      "Bash(.venv/Scripts/pip.exe install:*)",
+      "Bash(.venv/Scripts/python.exe -c \"import win32evtlog; print\\(''win32evtlog OK''\\)\")",
+      "Bash(powershell.exe -Command \"Get-Process python* 2>&1\" 2>&1)",
+      "Bash(powershell.exe -Command \"Get-Content '$env:TEMP\\\\\\\\wtweaker_error.txt' | Select-Object -Last 40\" 2>&1)",
+      "Bash(find . -name requirements*.txt -o -name .venv -type d)",
+      "Bash(else echo:*)",
+      "Bash(fi)",
+      "Bash(bash \"C:\\\\Users\\\\iorda\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.5\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh\" --project-dir \"C:/Users/iorda/OneDrive/Documents/Visual Studio 2022/TEMP/Windows_client_tool\")",
+      "Bash(cat \"C:/Users/iorda/OneDrive/Documents/Visual Studio 2022/TEMP/Windows_client_tool/.superpowers/brainstorm/\"*/.server-info)",
+      "Bash(python -m pip install pytest -q)",
+      "Bash(python -m pytest ../tests/test_module_groups.py -v)",
+      "Bash(python -m pytest ../tests/test_module_registry.py -v)",
+      "Bash(python -m pytest ../tests/ -v --ignore=../tests/test_search_providers.py)",
+      "Bash(python -m pytest ../tests/test_process_node.py -v)",
+      "Bash(python -m pytest ../tests/test_color_scheme.py -v)",
+      "Bash(python -m pytest ../tests/test_process_collector.py -v)",
+      "Bash(python -m pytest ../tests/test_process_tree_model.py -v)",
+      "Bash(python -m pytest ../tests/test_process_actions.py -v)",
+      "Bash(python -m pytest ../tests/test_process_tree_model.py ../tests/test_virustotal_client.py -v)",
+      "Bash(python -m pytest ../tests/test_virustotal_client.py -v)",
+      "Bash(python -m pytest ../tests/test_strings_view.py -v)",
+      "Bash(python -m pytest ../tests/test_lower_pane_views.py -v)",
+      "Bash(python -m pytest ../tests/test_lower_pane_views.py ../tests/test_strings_view.py -v)",
+      "Bash(python -m pytest ../tests/test_process_explorer_integration.py -v)",
+      "Bash(python -m pytest ../tests/ -v --tb=short -q)",
+      "Bash(python main.py)"
     ]
   }
 }
