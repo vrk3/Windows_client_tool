@@ -3,7 +3,7 @@
 **Project:** Windows 11 Tweaker/Optimizer
 **Sub-project:** #1 — Core Framework & GUI Shell
 **Date:** 2026-03-25
-**Status:** In Review
+**Status:** Approved
 
 ---
 
@@ -181,10 +181,10 @@ class EventBus:
     def unsubscribe(self, event_type: str, callback: Callable) -> None:
         """Remove a callback registration."""
 
-    def publish(self, event_type: str, data: dict) -> None:
-        """Publish an event synchronously (same thread)."""
+    def publish(self, event_type: str, data: object) -> None:
+        """Publish an event synchronously (same thread). Data should be a typed dataclass from events.py."""
 
-    def publish_async(self, event_type: str, data: dict) -> None:
+    def publish_async(self, event_type: str, data: object) -> None:
         """Publish an event marshaled to the main thread via QMetaObject.invokeMethod."""
 ```
 
@@ -278,7 +278,9 @@ Single `config.json` file in `%APPDATA%/WindowsTweaker/`:
     "theme": "dark",
     "window_size": [1400, 900],
     "start_minimized": false,
-    "check_admin_on_start": true
+    "check_admin_on_start": true,
+    "log_level": "INFO",
+    "shortcuts": {}
   },
   "modules": {
     "enabled": ["data_collection", "process_explorer", "ai_learning"],
@@ -419,7 +421,7 @@ Workers must cooperate with cancellation by checking `self.is_cancelled()` at re
 2. Emits the `cancelled` signal (not `result` or `error`)
 3. Cleans up any partial state
 
-Modules can cancel all their workers via a `cancel_all()` helper, and the ModuleRegistry calls this automatically during `on_stop()`.
+**Worker tracking:** `BaseModule` includes a `_workers: List[Worker]` attribute and a `cancel_all_workers()` method that iterates and cancels them. Modules append workers to this list when submitting to the thread pool. `ModuleRegistry` calls `cancel_all_workers()` automatically during `on_stop()`.
 
 ---
 
