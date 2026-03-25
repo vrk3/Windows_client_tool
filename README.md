@@ -1,6 +1,6 @@
 # Windows 11 Tweaker/Optimizer
-# This project provides a GUI to analyze Windows logs, monitor processes, and offer AI-driven optimization suggestions.
-#
+# This project provides a GUI to analyze Windows logs, monitor processes
+
 # Author: Auto-generated
 # Date: 2026-03-23
 #
