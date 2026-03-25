@@ -1,0 +1,5 @@
+# Requirements for the project
+# pip install pyqt6
+# pip install requests
+# pip install psutil
+# pip install python-llama

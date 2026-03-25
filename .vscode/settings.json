@@ -1,0 +1,15 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^python src/main\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "C:/Program\\": true,
+        "C:\\Program": true,
+        "/^cmd /c \"C:\\\\Program Files\\\\Python312\\\\python\\.exe\" src\\\\main\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "&": true
+    }
+}
