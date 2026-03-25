@@ -17,6 +17,9 @@ from core.admin_utils import is_admin, restart_as_admin
 from core.base_module import BaseModule
 from ui.status_bar import AppStatusBar
 from ui.toolbar import DynamicToolbar
+from ui.search_bar import SearchBar
+from ui.filter_panel import FilterPanel
+from ui.search_results import SearchResultsTable
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,21 @@ class MainWindow(QMainWindow):
         # Toolbar
         self._toolbar = DynamicToolbar(self)
         self.addToolBar(self._toolbar)
+
+        # Search bar
+        self._search_bar = SearchBar(self)
+        self._search_bar.search_requested.connect(self._on_search)
+        self._search_bar.filter_toggled.connect(self._on_filter_toggled)
+        self._toolbar.addWidget(self._search_bar)
+
+        # Filter panel (hidden by default)
+        self._filter_panel = FilterPanel(self)
+        self._layout.addWidget(self._filter_panel)
+
+        # Search results (hidden by default)
+        self._search_results = SearchResultsTable(self)
+        self._search_results.setVisible(False)
+        self._layout.addWidget(self._search_results)
 
         # Status bar
         self._status_bar = AppStatusBar(self)
@@ -158,6 +176,17 @@ class MainWindow(QMainWindow):
         # F5 refresh
         QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
 
+        # Ctrl+F focus search
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
+            self._search_bar.focus_search
+        )
+        # Ctrl+Shift+F focus search with filters
+        QShortcut(QKeySequence("Ctrl+Shift+F"), self).activated.connect(
+            self._search_bar.focus_search_with_filters
+        )
+        # Escape clears search
+        QShortcut(QKeySequence("Escape"), self).activated.connect(self._clear_search)
+
     def _next_tab(self):
         idx = (self._tabs.currentIndex() + 1) % max(self._tabs.count(), 1)
         self._tabs.setCurrentIndex(idx)
@@ -181,6 +210,23 @@ class MainWindow(QMainWindow):
     def _toggle_theme(self):
         new_theme = self._app.theme.toggle()
         self._app.config.set("app.theme", new_theme)
+
+    def _on_search(self, text: str, regex: bool):
+        if not text.strip():
+            self._search_results.setVisible(False)
+            return
+        query = self._filter_panel.build_query(text, regex)
+        results = self._app.search.execute(query)
+        self._search_results.set_results(results)
+        self._search_results.setVisible(True)
+
+    def _on_filter_toggled(self, expanded: bool):
+        self._filter_panel.setVisible(expanded)
+
+    def _clear_search(self):
+        self._search_bar.clear()
+        self._search_results.setVisible(False)
+        self._filter_panel.setVisible(False)
 
     def closeEvent(self, event):
         size = self.size()
