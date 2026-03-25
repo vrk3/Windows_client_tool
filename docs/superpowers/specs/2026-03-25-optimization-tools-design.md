@@ -264,12 +264,15 @@ modules/tweaks/
   tweaks_module.py
   tweak_engine.py
   tweak_search_provider.py
+  app_catalog.py             <- installable app catalog + detection
+  preset_manager.py          <- export/import preset logic
   definitions/
     privacy.json
     performance.json
-    bloatware.json
+    telemetry.json
     ui_tweaks.json
     services.json
+    app_catalog.json         <- curated installable app list
 ```
 
 **Tweak definition format** (B3 fix — `undo_steps` removed; `BackupService` is the sole undo mechanism):
@@ -313,20 +316,134 @@ All AppX-removal tweaks must have `"risk": "high"` and a `"warning"` field:
 4. Call `app.backup.record_steps(tweak_id, step_records, rp_id)` on success
 5. On any failure: surface error, mark restore point partial
 
-**UI:**
-- Category tabs: Privacy | Performance | Bloatware | UI Tweaks | Services
-- Each tab: scrollable list of `TweakRow` — checkbox, name, risk badge (colour-coded), current status (Applied / Not Applied / Unknown), description tooltip
-- AppX tweaks show a permanent ⚠ icon with warning text
+**UI tabs: Privacy | Performance | Apps | UI Tweaks | Services | Telemetry**
+
+Each tweak tab (Privacy, Performance, UI Tweaks, Services, Telemetry):
+- Scrollable list of `TweakRow` — checkbox, name, risk badge, current status (Applied / Not Applied / Unknown), description tooltip
 - Bottom bar: "Apply Selected (N)" + progress bar + "Restore Manager" link
 - Status detected on activate (reads live registry/service state vs tweak target)
-- `group = ModuleGroup.OPTIMIZE`
+- **Preset toolbar above all tabs**: `Preset: [Name v] [Load] [Save As...] [Export...] [Import...]`
 
-**Initial tweak library:**
-- Privacy: Disable telemetry, disable activity history, disable location, disable advertising ID, disable app diagnostics, disable suggested content, disable tips/tricks
-- Performance: Disable Superfetch/SysMain, high performance power plan, disable Search indexing, disable visual effects, disable transparency
-- Bloatware: Remove OneDrive, remove Cortana, remove Xbox apps, remove Teams stub, remove 3D Viewer, remove Maps, remove Weather *(all risk: high)*
-- UI: Dark mode, show file extensions, show hidden files, disable taskbar News/Weather, classic right-click menu (Win11)
-- Services: Disable WU delivery optimization, disable Remote Registry, disable Print Spooler (optional), disable Fax
+**Telemetry tab** (dedicated, expanded):
+- Disable DiagTrack, utcsvc, AllowTelemetry=0, AllowDeviceNameInTelemetry=0
+- Disable Connected User Experiences, CEIP, Error Reporting (WerSvc), Inventory Collector
+- Optional: block telemetry domains via HOSTS file entries (toggleable, backed up first)
+
+`group = ModuleGroup.OPTIMIZE`
+
+---
+
+#### Apps Tab — Full App Manager
+
+Replaces static Bloatware list with a live, interactive app manager.
+
+**Layout (wireframe):**
+```
+Preset toolbar (shared, above all tabs)
+--------------------------------------------------------------
+Search: [___________]  Category: [All v]  Show: [All v]
+
+INSTALLED (detected on this machine)
+  [x] 3D Viewer       Microsoft    Installed     risk:high
+  [x] Cortana         Microsoft    Installed     risk:high
+  [ ] OneDrive        Microsoft    Installed     PROTECTED
+  [x] Xbox Game Bar   Microsoft    Installed     risk:high
+
+AVAILABLE TO INSTALL (winget catalog)
+  [ ] 7-Zip           7-Zip        Not installed
+  [x] VLC             VideoLAN     Not installed
+  [ ] VS Code         Microsoft    INSTALLED
+  [x] Notepad++       Notepad++    Not installed
+
+[Apply Changes: remove 3, install 2]  [Reset All]
+```
+
+**Installed apps section:**
+- Sources: `Get-AppxPackage` (AppX) + registry Uninstall keys (Win32)
+- Checked = queued for removal; unchecked = leave alone
+- 🔒 Protected apps: checkbox disabled, cannot be queued
+- Right-click → "Protect from removal" / "Remove protection"
+- Protection stored in config: `tweaks.protected_apps: ["Microsoft.OneDriveSync", ...]`
+
+**Installable catalog (`app_catalog.json`):**
+```json
+{"id":"vlc","name":"VLC Media Player","publisher":"VideoLAN",
+ "category":"Media","winget_id":"VideoLAN.VLC",
+ "description":"Free open-source multimedia player."}
+```
+Detection on activate: `winget list` → already-installed catalog apps show ✅, checkbox disabled.
+
+Categories: Browsers | Development | Media | Productivity | System Tools | Security | Utilities | Communication
+
+**Initial catalog:**
+- Browsers: Firefox, Brave, Chrome
+- Development: VS Code, Git, Windows Terminal, Python, Node.js, Docker Desktop
+- Media: VLC, Spotify, Audacity, HandBrake
+- Productivity: LibreOffice, Obsidian, Notion
+- System Tools: 7-Zip, CPU-Z, HWMonitor, CrystalDiskInfo, TreeSize Free
+- Security: Malwarebytes, Bitwarden, KeePassXC
+- Utilities: Notepad++, Everything, Greenshot, ShareX, WinSCP, PuTTY
+
+**Apply Changes flow:**
+1. Backup all AppX packages being removed via `backup_appx_package()`
+2. Each removal: `winget uninstall <id>` or `Remove-AppxPackage` — streamed to log panel
+3. Each install: `winget install <id> --silent --accept-package-agreements` — streamed
+4. Progress bar: N/M operations complete
+
+---
+
+#### Preset System
+
+**Preset toolbar** sits above all tabs, always visible. Scope covers all tabs simultaneously.
+
+**Preset format:**
+```json
+{
+  "name": "Corporate Standard", "version": 1, "created": "2026-03-25T14:32:00",
+  "tweaks": {
+    "privacy":     ["disable_location", "disable_ad_id"],
+    "performance": ["disable_superfetch", "high_perf_power_plan"],
+    "telemetry":   ["disable_diagtrack", "disable_utcsvc", "telemetry_zero"],
+    "ui_tweaks":   ["show_file_extensions", "show_hidden_files"],
+    "services":    ["disable_remote_registry"]
+  },
+  "apps": {
+    "remove":    ["Microsoft.3DViewer", "Microsoft.XboxGameBar"],
+    "install":   ["VideoLAN.VLC", "7zip.7zip"],
+    "protected": ["Microsoft.OneDriveSync", "Microsoft.Office.OneNote"]
+  }
+}
+```
+
+**Actions:**
+- **Load**: populates all checkboxes from preset — does NOT apply, user reviews then clicks Apply
+- **Save As**: saves current state across all tabs as named preset
+- **Export**: scope dialog — "This tab only" | "All tabs" | "Full (tweaks + apps)" → `.json` or `.zip`
+- **Import**: imports `.json` or `.zip`; appears in dropdown immediately
+- **Delete**: removes user preset (built-ins protected)
+
+**Built-in read-only presets:**
+- `Minimal` — telemetry off only, no app changes
+- `Privacy Focused` — all privacy + telemetry tweaks, no app changes
+- `Developer Machine` — VS Code, Git, Windows Terminal, 7-Zip installed; telemetry off; WSL enabled
+- `Corporate Hardened` — telemetry off, remote registry off, delivery optimization off, no consumer apps
+
+**Protected apps in presets:** Any `remove` entry matching the user's protected list is skipped with a notification: "OneDrive is protected on this machine and was excluded from the removal queue."
+
+**Storage:**
+```
+%APPDATA%/WindowsTweaker/presets/       <- user presets
+src/modules/tweaks/definitions/builtins/ <- built-in read-only presets
+```
+
+---
+
+**Full tweak library:**
+- Privacy: Activity history, location, advertising ID, app diagnostics, suggested content, tips/tricks, app launch tracking, Cortana web search, Bing in Start Menu, background app access
+- Performance: Superfetch/SysMain, high perf power plan, Search indexing, visual effects, transparency, adjust for best performance
+- Telemetry: DiagTrack, utcsvc, AllowTelemetry=0, CEIP, Error Reporting, Inventory Collector, Application Compatibility, optional HOSTS block
+- UI Tweaks: Dark mode, file extensions, hidden files, taskbar News/Weather, classic right-click (Win11), Snap suggestions, Chat/Meet Now icons, search highlights
+- Services: Delivery optimization, Remote Registry, Print Spooler (optional), Fax, Bluetooth (optional), Xbox services (XboxGipSvc, XblAuthManager, XblGameSave, XboxNetApiSvc)
 
 ### 4.2 Cleanup
 
@@ -630,12 +747,20 @@ src/
       tweaks_module.py
       tweak_engine.py
       tweak_search_provider.py
+      app_catalog.py
+      preset_manager.py
       definitions/
         privacy.json
         performance.json
-        bloatware.json
+        telemetry.json
         ui_tweaks.json
         services.json
+        app_catalog.json
+        builtins/
+          minimal.json
+          privacy_focused.json
+          developer_machine.json
+          corporate_hardened.json
     cleanup/
       __init__.py
       cleanup_module.py
