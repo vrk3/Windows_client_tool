@@ -49,3 +49,33 @@ def test_set_affinity_success():
 def test_priority_levels_complete():
     assert "idle" in PRIORITY_LEVELS
     assert "realtime" in PRIORITY_LEVELS
+
+
+def test_set_affinity_empty_cores():
+    ok, err = set_affinity(1234, [])
+    assert ok is False
+    assert "at least one" in err
+
+
+def test_kill_tree_success():
+    import psutil
+    mock_child = MagicMock()
+    mock_child.pid = 5678
+    mock_proc = MagicMock()
+    mock_proc.children.return_value = [mock_child]
+    with patch("modules.process_explorer.process_actions.psutil.Process", return_value=mock_proc):
+        with patch("modules.process_explorer.process_actions.kill_process", return_value=(True, "")) as mock_kill:
+            ok, errors = kill_tree(1234)
+    assert ok is True
+    assert errors == []
+
+
+def test_suspend_resume_not_windows_guard():
+    """suspend/resume return False with error message when _ntdll is None."""
+    with patch("modules.process_explorer.process_actions._ntdll", None):
+        ok, err = suspend_process(1234)
+        assert ok is False
+        assert "Windows" in err
+        ok, err = resume_process(1234)
+        assert ok is False
+        assert "Windows" in err

@@ -2,23 +2,33 @@
 from __future__ import annotations
 import ctypes
 import logging
+import sys
 from typing import List, Tuple
 
 import psutil
 
 logger = logging.getLogger(__name__)
 
-# psutil priority constants (Windows)
-PRIORITY_LEVELS = {
-    "idle":         psutil.IDLE_PRIORITY_CLASS,
-    "below_normal": psutil.BELOW_NORMAL_PRIORITY_CLASS,
-    "normal":       psutil.NORMAL_PRIORITY_CLASS,
-    "above_normal": psutil.ABOVE_NORMAL_PRIORITY_CLASS,
-    "high":         psutil.HIGH_PRIORITY_CLASS,
-    "realtime":     psutil.REALTIME_PRIORITY_CLASS,
-}
+_PROCESS_SUSPEND_RESUME = 0x0800
 
-_ntdll = ctypes.windll.ntdll
+# psutil priority constants (Windows-only)
+if sys.platform == "win32":
+    PRIORITY_LEVELS = {
+        "idle":         psutil.IDLE_PRIORITY_CLASS,
+        "below_normal": psutil.BELOW_NORMAL_PRIORITY_CLASS,
+        "normal":       psutil.NORMAL_PRIORITY_CLASS,
+        "above_normal": psutil.ABOVE_NORMAL_PRIORITY_CLASS,
+        "high":         psutil.HIGH_PRIORITY_CLASS,
+        "realtime":     psutil.REALTIME_PRIORITY_CLASS,
+    }
+    _ntdll = ctypes.windll.ntdll
+    _ntdll.NtSuspendProcess.argtypes = [ctypes.c_void_p]
+    _ntdll.NtSuspendProcess.restype  = ctypes.c_long
+    _ntdll.NtResumeProcess.argtypes  = [ctypes.c_void_p]
+    _ntdll.NtResumeProcess.restype   = ctypes.c_long
+else:
+    PRIORITY_LEVELS = {}
+    _ntdll = None
 
 
 def kill_process(pid: int) -> Tuple[bool, str]:
@@ -28,7 +38,7 @@ def kill_process(pid: int) -> Tuple[bool, str]:
     except psutil.NoSuchProcess:
         return False, f"Process {pid} is no longer running."
     except psutil.AccessDenied:
-        return False, f"Access denied — run as administrator."
+        return False, "Access denied — run as administrator."
     except Exception as e:
         return False, str(e)
 
@@ -42,9 +52,11 @@ def kill_tree(pid: int) -> Tuple[bool, List[str]]:
         for child in children:
             ok, err = kill_process(child.pid)
             if not ok:
+                logger.warning("kill_tree: child PID %d failed: %s", child.pid, err)
                 errors.append(f"PID {child.pid}: {err}")
         ok, err = kill_process(pid)
         if not ok:
+            logger.warning("kill_tree: root PID %d failed: %s", pid, err)
             errors.append(f"PID {pid}: {err}")
     except psutil.NoSuchProcess:
         errors.append(f"PID {pid} is no longer running.")
@@ -52,12 +64,16 @@ def kill_tree(pid: int) -> Tuple[bool, List[str]]:
 
 
 def suspend_process(pid: int) -> Tuple[bool, str]:
+    if _ntdll is None:
+        return False, "Suspend is only supported on Windows."
     try:
-        handle = ctypes.windll.kernel32.OpenProcess(0x0800, False, pid)  # PROCESS_SUSPEND_RESUME
+        handle = ctypes.windll.kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME, False, pid)
         if not handle:
             return False, f"Could not open process {pid}."
-        status = _ntdll.NtSuspendProcess(handle)
-        ctypes.windll.kernel32.CloseHandle(handle)
+        try:
+            status = _ntdll.NtSuspendProcess(handle)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
         if status != 0:
             return False, f"NtSuspendProcess returned 0x{status:08X}"
         return True, ""
@@ -66,12 +82,16 @@ def suspend_process(pid: int) -> Tuple[bool, str]:
 
 
 def resume_process(pid: int) -> Tuple[bool, str]:
+    if _ntdll is None:
+        return False, "Resume is only supported on Windows."
     try:
-        handle = ctypes.windll.kernel32.OpenProcess(0x0800, False, pid)
+        handle = ctypes.windll.kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME, False, pid)
         if not handle:
             return False, f"Could not open process {pid}."
-        status = _ntdll.NtResumeProcess(handle)
-        ctypes.windll.kernel32.CloseHandle(handle)
+        try:
+            status = _ntdll.NtResumeProcess(handle)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
         if status != 0:
             return False, f"NtResumeProcess returned 0x{status:08X}"
         return True, ""
@@ -94,6 +114,8 @@ def set_priority(pid: int, level: str) -> Tuple[bool, str]:
 
 
 def set_affinity(pid: int, cores: List[int]) -> Tuple[bool, str]:
+    if not cores:
+        return False, "Affinity mask must contain at least one CPU core."
     try:
         psutil.Process(pid).cpu_affinity(cores)
         return True, ""
