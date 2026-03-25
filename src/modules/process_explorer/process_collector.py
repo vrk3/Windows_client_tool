@@ -92,6 +92,7 @@ class ProcessCollector(QObject):
         self._timer.timeout.connect(self._tick)
         self._thread_pool = None
         self._first = True
+        self._busy = False
 
     def set_thread_pool(self, pool):
         self._thread_pool = pool
@@ -111,8 +112,9 @@ class ProcessCollector(QObject):
         self._timer.stop()
 
     def _tick(self):
-        if self._thread_pool is None:
+        if self._thread_pool is None or self._busy:
             return
+        self._busy = True
         service_names = self._service_names
 
         def do_work(worker):
@@ -124,6 +126,7 @@ class ProcessCollector(QObject):
         self._thread_pool.start(w)
 
     def _on_snapshot(self, new_snapshot: Dict[int, ProcessNode]):
+        self._busy = False
         if self._first:
             self._snapshot = new_snapshot
             self._first = False

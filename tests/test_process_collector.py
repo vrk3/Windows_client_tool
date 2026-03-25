@@ -3,7 +3,8 @@ from modules.process_explorer.process_collector import ProcessCollector, build_s
 
 
 def _mock_proc(pid, name, ppid=0, user="testuser", status="running",
-               exe="", cmdline="", cpu=0.0, rss=0, vms=0):
+               exe="", cmdline=None, cpu=0.0, rss=0, vms=0):
+    cmdline = cmdline if cmdline is not None else []
     p = MagicMock()
     p.info = {
         "pid": pid, "name": name, "ppid": ppid, "username": user,
