@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm src/gui.py src/log_reader.py)",
+      "Bash(rm -rf src/__pycache__)"
+    ]
+  }
+}

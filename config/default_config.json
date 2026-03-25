@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "app": {
+    "theme": "dark",
+    "window_size": [1400, 900],
+    "start_minimized": false,
+    "check_admin_on_start": true,
+    "log_level": "INFO",
+    "shortcuts": {}
+  },
+  "modules": {
+    "enabled": [],
+    "data_collection": {},
+    "process_explorer": {},
+    "ai_learning": {
+      "ollama_url": "http://localhost:11434",
+      "ollama_model": "llama3",
+      "use_remote": false
+    }
+  },
+  "learning": {
+    "local_db_path": "history.db",
+    "sync_enabled": false,
+    "sync_url": ""
+  },
+  "search": {
+    "presets": {}
+  }
+}
