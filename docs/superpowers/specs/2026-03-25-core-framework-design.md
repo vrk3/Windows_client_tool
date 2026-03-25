@@ -3,7 +3,7 @@
 **Project:** Windows 11 Tweaker/Optimizer
 **Sub-project:** #1 — Core Framework & GUI Shell
 **Date:** 2026-03-25
-**Status:** Approved
+**Status:** In Review
 
 ---
 
@@ -68,6 +68,32 @@ The application follows a modular host architecture. The shell provides the wind
 - **ThemeManager** — Dark/light theme support
 - **SearchEngine** — Global search across all modules with filtering
 
+### Service Container (App Singleton)
+
+All core services are accessed through the `App` singleton. This is the single dependency injection point for the entire application. Modules receive the `App` instance in their lifecycle methods.
+
+```python
+class App:
+    """Singleton that owns all core services. Created once in main.py."""
+    instance: ClassVar[Optional['App']] = None
+
+    event_bus: EventBus
+    config: ConfigManager
+    search: SearchEngine
+    theme: ThemeManager
+    logger: LoggingService
+    module_registry: ModuleRegistry
+    thread_pool: QThreadPool
+
+    @classmethod
+    def get(cls) -> 'App':
+        """Access the singleton. Only use when constructor injection is not possible."""
+        assert cls.instance is not None, "App not initialized"
+        return cls.instance
+```
+
+Modules receive the `App` instance via `on_start(app)` (see Section 2). Direct use of `App.get()` is discouraged — it exists only for cases where constructor injection is impractical (e.g., deep utility functions).
+
 ---
 
 ## Section 2: Module System
@@ -82,6 +108,7 @@ class BaseModule(ABC):
     icon: str                    # Path to icon for the tab
     description: str             # Shown in module manager
     requires_admin: bool         # Whether this module needs elevated privileges
+    app: 'App'                   # Set by ModuleRegistry before on_start()
 
     @abstractmethod
     def create_widget(self) -> QWidget:
@@ -96,8 +123,9 @@ class BaseModule(ABC):
         """Called when this module's tab loses focus."""
 
     @abstractmethod
-    def on_start(self) -> None:
-        """Called at app startup after all modules are registered."""
+    def on_start(self, app: 'App') -> None:
+        """Called at app startup. Use app.event_bus, app.config, app.search, etc.
+        Store app reference: self.app = app"""
 
     @abstractmethod
     def on_stop(self) -> None:
@@ -118,6 +146,11 @@ class BaseModule(ABC):
     def get_status_info(self) -> str:
         """Text shown in status bar when this module is active."""
         return ""
+
+    def get_search_provider(self) -> Optional['SearchProvider']:
+        """Return a SearchProvider if this module supports global search.
+        ModuleRegistry auto-registers it with the SearchEngine."""
+        return None
 ```
 
 ### ModuleRegistry
@@ -164,11 +197,50 @@ class EventBus:
 
 ### Event Types
 
-Event types are string constants defined in a shared `events.py` file. This gives a single place to see all inter-module communication.
+Event types are string constants defined in a shared `events.py` file, alongside dataclass definitions for each event's payload. This gives a single place to see all inter-module communication and provides type safety:
+
+```python
+# events.py
+from dataclasses import dataclass
+from datetime import datetime
+from typing import List
+
+# Event name constants
+LOG_ERRORS_FOUND = "log.errors_found"
+AI_RECOMMENDATION_READY = "ai.recommendation_ready"
+AI_RECOMMENDATION_APPLIED = "ai.recommendation_applied"
+CONFIG_CHANGED = "config.changed"
+MODULE_ERROR = "module.error"
+
+# Typed payloads
+@dataclass
+class LogErrorsFoundData:
+    source: str
+    errors: List[dict]
+    timestamp: datetime
+
+@dataclass
+class RecommendationReadyData:
+    module: str
+    summary: str
+    details: dict
+
+@dataclass
+class ConfigChangedData:
+    key: str
+    old_value: Any
+    new_value: Any
+```
+
+Publishers construct the appropriate dataclass; subscribers receive it as the `data` parameter. This catches schema mismatches early and provides IDE autocomplete.
+
+### Error Isolation
+
+The EventBus catches exceptions per-subscriber, logs them via LoggingService, and continues notifying remaining subscribers. A buggy subscriber never breaks the event pipeline or prevents other subscribers from being notified.
 
 ### Threading
 
-- `publish()` is synchronous (same thread)
+- `publish()` is synchronous (same thread), with per-subscriber try/except
 - `publish_async()` uses `QMetaObject.invokeMethod` to safely marshal events to the main thread — critical since data collection and process monitoring run on background threads
 
 ---
@@ -201,6 +273,7 @@ Single `config.json` file in `%APPDATA%/WindowsTweaker/`:
 
 ```json
 {
+  "version": 1,
   "app": {
     "theme": "dark",
     "window_size": [1400, 900],
@@ -228,9 +301,20 @@ Single `config.json` file in `%APPDATA%/WindowsTweaker/`:
 }
 ```
 
+### Versioning & Migration
+
+The config file includes a `"version"` field (starting at 1). On load, ConfigManager checks the version and runs migration functions sequentially if the file is outdated (e.g., v1->v2, v2->v3). Migrations are defined as a list of `(from_version, migration_fn)` tuples in `config_manager.py`.
+
+### Persistence Safety
+
+- **Atomic writes:** `save()` writes to a temporary file (`config.json.tmp`) in the same directory, then renames it over the original. This prevents corruption if the app crashes mid-write.
+- **Auto-save:** Debounced save 2 seconds after the last `set()` call. Also saves on clean shutdown via `on_stop()`.
+- **Corruption recovery:** On load, if `config.json` is invalid JSON, fall back to `config.json.bak` (the previous good version). If both are corrupt, reset to defaults and show a warning notification to the user.
+- **Backup:** Before each save, copy the current `config.json` to `config.json.bak`.
+
 ### Rationale
 
-JSON over YAML or TOML. IT pros can hand-edit it if needed, and Python's `json` module has no dependencies. Config changes emit events on the EventBus so modules can react to live setting changes.
+JSON over YAML or TOML. IT pros can hand-edit it if needed, and Python's `json` module has no dependencies. Config changes emit events on the EventBus (using `ConfigChangedData`) so modules can react to live setting changes.
 
 ---
 
@@ -252,7 +336,9 @@ Windows_client_tool/
 │   │   ├── events.py               # Event type constants
 │   │   ├── admin_utils.py          # UAC elevation checks
 │   │   ├── search_engine.py        # SearchEngine, SearchQuery, SearchResult
-│   │   └── search_provider.py      # SearchProvider ABC, FilterField
+│   │   ├── search_provider.py      # SearchProvider ABC, FilterField
+│   │   ├── types.py                # Shared data models (LogEntry, ProcessInfo, etc.)
+│   │   └── worker.py               # Worker, WorkerSignals base classes
 │   ├── ui/
 │   │   ├── __init__.py
 │   │   ├── main_window.py          # Shell window with tabs
@@ -309,13 +395,65 @@ class WorkerSignals(QObject):
     result = pyqtSignal(object)
     error = pyqtSignal(str)
     progress = pyqtSignal(int)
+    cancelled = pyqtSignal()
 
 class Worker(QRunnable):
     """Wraps any callable for thread pool execution.
-    Emits signals for result/error/progress."""
+    Emits signals for result/error/progress/cancelled."""
+
+    def cancel(self) -> None:
+        """Request cancellation. The worker's callable must check is_cancelled()."""
+        self._cancelled = True
+
+    def is_cancelled(self) -> bool:
+        """Check if cancellation has been requested."""
+        return self._cancelled
 ```
 
-Each module that needs background work creates Workers and submits them to the shared thread pool. The core framework provides the Worker base class and the pool.
+Each module that needs background work creates Workers and submits them to the shared thread pool (`app.thread_pool`). The core framework provides the Worker base class and the pool.
+
+### Cancellation Contract
+
+Workers must cooperate with cancellation by checking `self.is_cancelled()` at reasonable intervals inside their work loop. When cancelled:
+1. The worker stops as soon as practical
+2. Emits the `cancelled` signal (not `result` or `error`)
+3. Cleans up any partial state
+
+Modules can cancel all their workers via a `cancel_all()` helper, and the ModuleRegistry calls this automatically during `on_stop()`.
+
+---
+
+## Section 6b: Logging Service
+
+Wraps Python's built-in `logging` module with app-specific configuration.
+
+### API
+
+Modules obtain a logger via Python's standard mechanism:
+
+```python
+import logging
+logger = logging.getLogger("module.data_collection")
+logger.info("Parsed 1,234 events from System log")
+```
+
+The `LoggingService` configures the root logger at startup — modules do not configure logging themselves.
+
+### Configuration
+
+- **Log file location:** `%APPDATA%/WindowsTweaker/logs/app.log`
+- **Rotation:** `RotatingFileHandler` — 5 MB per file, 5 backup files (25 MB total max)
+- **Console output:** Also logs to stderr at DEBUG level during development
+- **Format:** `%(asctime)s [%(levelname)s] %(name)s: %(message)s`
+- **Default level:** INFO (configurable via `config.json` at `"app.log_level"`)
+
+### Log Levels by Convention
+
+- **DEBUG** — Verbose internal state (event bus dispatches, config reads)
+- **INFO** — Normal operations (module started, log file parsed, search executed)
+- **WARNING** — Recoverable issues (module failed to start, config corrupted and fell back to backup)
+- **ERROR** — Failures that affect functionality (unhandled exception in module, Ollama connection failed)
+- **CRITICAL** — App-level failures (cannot create config directory, Qt initialization failed)
 
 ---
 
@@ -340,6 +478,27 @@ Each module that needs background work creates Workers and submits them to the s
 - If a module throws during `on_start()`, it gets disabled with an error badge on its tab
 - Other modules keep running
 - Module errors are logged and shown in the notification tray
+
+---
+
+## Section 7b: Keyboard Shortcuts
+
+IT professionals expect keyboard-driven workflows. The core framework defines these global shortcuts:
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+F` | Focus the global search bar |
+| `Ctrl+Shift+F` | Focus search bar and expand filter panel |
+| `Escape` | Close filter panel / clear search / return focus to active module |
+| `Ctrl+Tab` | Next module tab |
+| `Ctrl+Shift+Tab` | Previous module tab |
+| `Ctrl+1..9` | Switch directly to module tab 1-9 |
+| `Ctrl+,` | Open Settings dialog |
+| `F5` | Refresh active module's data |
+| `Ctrl+E` | Export current view (context-dependent per module) |
+| `Ctrl+Shift+C` | Copy selected rows/data to clipboard |
+
+Modules can register additional shortcuts via `get_toolbar_actions()` and `get_menu_actions()`. Shortcuts are shown in tooltips and menu items. All shortcuts are configurable via the Settings dialog (stored in `config.json` under `"app.shortcuts"`).
 
 ---
 
@@ -463,13 +622,70 @@ Integration test:
 
 ## Dependencies
 
+Core framework dependencies only:
+
 ```
 PyQt6>=6.6
 psutil>=5.9
-requests>=2.31
 ```
 
-`python-llama` from the original requirements.txt is deferred to Sub-project #4 (AI & Learning System).
+Sub-project dependencies (installed but used by their respective modules):
+- `requests>=2.31` — Used by Process Explorer (VirusTotal) and AI & Learning (Ollama HTTP API)
+- `python-llama` — Deferred to Sub-project #4 (AI & Learning System)
+
+---
+
+## Project Structure Addendum
+
+### Shared Types
+
+A `core/types.py` file provides shared data models used across module boundaries:
+
+```python
+# core/types.py — shared types for cross-module data
+@dataclass
+class LogEntry:
+    timestamp: datetime
+    source: str
+    level: str          # Error, Warning, Info, Debug
+    message: str
+    raw: dict           # Original data from source
+
+@dataclass
+class ProcessInfo:
+    pid: int
+    name: str
+    cpu_percent: float
+    memory_bytes: int
+    # Extended in Sub-project #3
+
+@dataclass
+class Recommendation:
+    id: str
+    summary: str
+    details: str
+    confidence: float
+    source_entries: List[LogEntry]
+```
+
+These are defined as minimal stubs in Sub-project #1 and extended by later sub-projects.
+
+### System Tray
+
+The app supports minimize-to-system-tray behavior via `QSystemTrayIcon`. The tray icon shows:
+- A badge count for unread notifications/recommendations
+- Right-click menu: Show/Hide, Settings, Exit
+- Balloon notifications for high-priority events (e.g., critical errors found)
+
+System tray behavior is configurable (can be disabled in settings).
+
+### Migration from Existing Code
+
+The existing `src/gui.py` and `src/log_reader.py` are placeholder files that will be replaced (not extended) by the new structure. `gui.py` is superseded by `ui/main_window.py`. `log_reader.py` is superseded by the Data Collection module in Sub-project #2.
+
+### Packaging
+
+Intended distribution is a single-folder PyInstaller build (not single-file, to allow QSS theme files and config templates to be accessible). An MSI wrapper can be added later for enterprise deployment. All file paths use relative references from the app root to support this model.
 
 ---
 
