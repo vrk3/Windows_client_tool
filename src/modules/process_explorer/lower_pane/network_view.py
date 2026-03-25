@@ -6,7 +6,6 @@ from typing import Optional
 
 import psutil
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
-from PyQt6.QtCore import Qt
 
 logger = logging.getLogger(__name__)
 

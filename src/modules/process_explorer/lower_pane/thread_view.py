@@ -22,18 +22,25 @@ class ThreadView(QWidget):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table)
+        self._pid: Optional[int] = None
 
     def load_pid(self, pid: int):
+        self._pid = pid
+        self._refresh()
+
+    def _refresh(self):
         self._table.setRowCount(0)
+        if self._pid is None:
+            return
         try:
-            threads = psutil.Process(pid).threads()
+            threads = psutil.Process(self._pid).threads()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return
         self._table.setRowCount(len(threads))
         for r, t in enumerate(threads):
             for c, val in enumerate([
                 str(t.id),
-                "—",                          # cpu% per-thread not available via psutil
+                "—",  # TODO: Win32 OpenThread for per-thread CPU%
                 f"{t.user_time:.3f}s",
                 f"{t.system_time:.3f}s",
             ]):
