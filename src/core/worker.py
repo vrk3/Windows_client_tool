@@ -30,3 +30,20 @@ class Worker(QRunnable):
 
     def is_cancelled(self) -> bool:
         return self._cancelled
+
+
+class COMWorker(Worker):
+    """Worker subclass that initialises COM STA on the thread before running.
+
+    Use this for any worker that calls win32com.client or pythoncom objects
+    (Windows Update Session, Schedule.Service, etc.). Wraps run() with
+    CoInitialize/CoUninitialize so callers never need to repeat this pattern.
+    """
+
+    def run(self) -> None:
+        import pythoncom
+        pythoncom.CoInitialize()
+        try:
+            super().run()
+        finally:
+            pythoncom.CoUninitialize()
