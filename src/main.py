@@ -60,6 +60,17 @@ def main():
     from modules.treesize.treesize_module import TreeSizeModule
     from modules.quick_fix.quick_fix_module import QuickFixModule
     from modules.updates.updates_module import UpdatesModule
+    # Batch B — System group
+    from modules.hardware_inventory.hardware_module import HardwareModule
+    from modules.network_diagnostics.network_module import NetworkDiagnosticsModule
+    from modules.security_dashboard.security_module import SecurityDashboardModule
+    from modules.driver_manager.driver_module import DriverModule
+    # Batch B — Manage group
+    from modules.startup_manager.startup_module import StartupModule
+    from modules.scheduled_tasks.tasks_module import TasksModule
+    from modules.windows_features.features_module import WindowsFeaturesModule
+    from modules.certificate_viewer.cert_module import CertModule
+    from modules.gpresult.gpresult_module import GPResultModule
 
     app.module_registry.register(EventViewerModule())
     app.module_registry.register(CBSLogModule())
@@ -74,6 +85,15 @@ def main():
     app.module_registry.register(TreeSizeModule())
     app.module_registry.register(QuickFixModule())
     app.module_registry.register(UpdatesModule())
+    app.module_registry.register(HardwareModule())
+    app.module_registry.register(NetworkDiagnosticsModule())
+    app.module_registry.register(SecurityDashboardModule())
+    app.module_registry.register(DriverModule())
+    app.module_registry.register(StartupModule())
+    app.module_registry.register(TasksModule())
+    app.module_registry.register(WindowsFeaturesModule())
+    app.module_registry.register(CertModule())
+    app.module_registry.register(GPResultModule())
 
     # Start modules
     app.start()
