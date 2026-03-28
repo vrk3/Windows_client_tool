@@ -31,7 +31,10 @@
       "Bash(python -m pytest ../tests/test_lower_pane_views.py ../tests/test_strings_view.py -v)",
       "Bash(python -m pytest ../tests/test_process_explorer_integration.py -v)",
       "Bash(python -m pytest ../tests/ -v --tb=short -q)",
-      "Bash(python main.py)"
+      "Bash(python main.py)",
+      "Bash(.venv/Scripts/python.exe -m pip show pyinstaller)",
+      "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --specpath \"build\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)",
+      "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)"
     ]
   }
 }
