@@ -65,22 +65,19 @@ def main():
     app.module_registry.register(PerfMonModule())
     app.module_registry.register(ProcessExplorerModule())
 
-    # Start modules (calls on_start before create_widget)
+    # Start modules
     app.start()
 
-    # Register each module's search provider with the search engine
+    # Register search providers
     for module in app.module_registry.modules:
         provider = module.get_search_provider()
         if provider is not None:
             app.search.register_provider(provider)
 
-    # Create and show main window
+    # Create window and register all modules (uses new register_module API)
     window = MainWindow(app)
-
-    # Add module tabs (after on_start so modules have app reference)
     for module in app.module_registry.modules:
-        enabled = module not in app.module_registry.disabled_modules
-        window.add_module_tab(module, enabled=enabled)
+        window.register_module(module)
 
     window.show()
     sys.exit(qt_app.exec())

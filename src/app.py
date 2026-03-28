@@ -4,6 +4,7 @@ from typing import ClassVar, Optional
 
 from PyQt6.QtCore import QThreadPool
 
+from core.backup_service import BackupService
 from core.config_manager import ConfigManager
 from core.event_bus import EventBus
 from core.logging_service import LoggingService
@@ -20,12 +21,18 @@ def _get_app_data_dir() -> str:
     return app_dir
 
 
+def _get_resource_dir() -> str:
+    """Return the base directory for bundled resources (PyInstaller or source tree)."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS  # type: ignore[attr-defined]
+    # Running from source: resources live one level above src/
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
+
 def _get_default_config() -> dict:
     """Load default config from config/default_config.json."""
     import json
-    config_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "config", "default_config.json"
-    )
+    config_path = os.path.join(_get_resource_dir(), "config", "default_config.json")
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -57,9 +64,9 @@ class App:
         self.logger = LoggingService(log_dir=log_dir, log_level=log_level)
         self.logger.setup()
 
-        styles_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "ui", "styles"
-        )
+        self.backup = BackupService(data_dir=self._app_data_dir)
+
+        styles_dir = os.path.join(_get_resource_dir(), "ui", "styles")
         self.theme = ThemeManager(styles_dir=styles_dir)
 
         self.search = SearchEngine(config_manager=self.config)
@@ -80,6 +87,7 @@ class App:
     def shutdown(self) -> None:
         """Stop modules, save config, shut down logging."""
         self.module_registry.stop_all()
+        self.backup.close()
         self.config.save()
         self.logger.shutdown()
         self.thread_pool.waitForDone(5000)
