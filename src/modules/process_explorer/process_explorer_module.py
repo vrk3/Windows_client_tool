@@ -37,7 +37,7 @@ class ProcessExplorerModule(BaseModule):
     icon = "process_explorer"
     description = "Real-time process tree with Sysinternals-level detail"
     requires_admin = False
-    group = ModuleGroup.PROCESS
+    group = ModuleGroup.TOOLS
 
     def __init__(self):
         super().__init__()
