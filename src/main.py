@@ -55,6 +55,11 @@ def main():
     from modules.crash_dumps.crash_dump_module import CrashDumpModule
     from modules.perfmon.perfmon_module import PerfMonModule
     from modules.process_explorer.process_explorer_module import ProcessExplorerModule
+    from modules.tweaks.tweaks_module import TweaksModule
+    from modules.cleanup.cleanup_module import CleanupModule
+    from modules.treesize.treesize_module import TreeSizeModule
+    from modules.quick_fix.quick_fix_module import QuickFixModule
+    from modules.updates.updates_module import UpdatesModule
 
     app.module_registry.register(EventViewerModule())
     app.module_registry.register(CBSLogModule())
@@ -64,6 +69,11 @@ def main():
     app.module_registry.register(CrashDumpModule())
     app.module_registry.register(PerfMonModule())
     app.module_registry.register(ProcessExplorerModule())
+    app.module_registry.register(TweaksModule())
+    app.module_registry.register(CleanupModule())
+    app.module_registry.register(TreeSizeModule())
+    app.module_registry.register(QuickFixModule())
+    app.module_registry.register(UpdatesModule())
 
     # Start modules
     app.start()
