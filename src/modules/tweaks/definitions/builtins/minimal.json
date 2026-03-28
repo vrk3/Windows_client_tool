@@ -1,0 +1,1 @@
+{"name":"Minimal","version":1,"builtin":true,"description":"Telemetry off only, no app changes.","tweaks":{"telemetry":["disable_diagtrack","disable_utcsvc","telemetry_zero","disable_device_name_telemetry"]},"apps":{"remove":[],"install":[],"protected":[]}}

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "show_file_extensions",
+    "name": "Show File Extensions",
+    "description": "Makes Explorer show file extensions for all file types.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"HideFileExt","data":0,"kind":"DWORD"}]
+  },
+  {
+    "id": "show_hidden_files",
+    "name": "Show Hidden Files",
+    "description": "Makes Explorer show hidden files and folders.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Hidden","data":1,"kind":"DWORD"}]
+  },
+  {
+    "id": "classic_right_click",
+    "name": "Restore Classic Context Menu (Win11)",
+    "description": "Restores the full right-click context menu in Windows 11.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\CLASSES\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32","value":"","data":"","kind":"SZ"}]
+  },
+  {
+    "id": "disable_taskbar_news",
+    "name": "Disable Taskbar News and Weather Widget",
+    "description": "Removes the News and Weather button from the taskbar.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Feeds","value":"ShellFeedsTaskbarViewMode","data":2,"kind":"DWORD"}]
+  },
+  {
+    "id": "disable_snap_suggestions",
+    "name": "Disable Snap Suggestions",
+    "description": "Turns off the snap layout hover suggestions.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"EnableSnapAssistFlyout","data":0,"kind":"DWORD"}]
+  },
+  {
+    "id": "disable_search_highlights",
+    "name": "Disable Search Highlights",
+    "description": "Removes the featured/trending highlights from Windows Search.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings","value":"IsDynamicSearchBoxEnabled","data":0,"kind":"DWORD"}]
+  },
+  {
+    "id": "dark_mode",
+    "name": "Enable Dark Mode",
+    "description": "Switches Windows and apps to dark mode.",
+    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"AppsUseLightTheme","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"SystemUsesLightTheme","data":0,"kind":"DWORD"}
+    ]
+  }
+]

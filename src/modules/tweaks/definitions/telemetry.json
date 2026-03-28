@@ -1,0 +1,61 @@
+[
+  {
+    "id": "disable_diagtrack",
+    "name": "Disable DiagTrack Service",
+    "description": "Disables the Connected User Experiences and Telemetry service.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"DiagTrack","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_utcsvc",
+    "name": "Disable UTC Service",
+    "description": "Disables the Universal Telemetry Client service.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"utcsvc","start_type":"disabled"}]
+  },
+  {
+    "id": "telemetry_zero",
+    "name": "Set Telemetry Level to 0 (Security)",
+    "description": "Sets AllowTelemetry to 0.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"AllowTelemetry","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\DataCollection","value":"AllowTelemetry","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_device_name_telemetry",
+    "name": "Disable Device Name in Telemetry",
+    "description": "Prevents sending device name with telemetry data.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"AllowDeviceNameInTelemetry","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_wersvc",
+    "name": "Disable Windows Error Reporting",
+    "description": "Stops the Windows Error Reporting service.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"WerSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_ceip",
+    "name": "Disable Customer Experience Improvement Program",
+    "description": "Disables CEIP scheduled tasks.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator\" /disable"},
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip\" /disable"}
+    ]
+  },
+  {
+    "id": "disable_inventory_collector",
+    "name": "Disable Application Compatibility Inventory Collector",
+    "description": "Disables the app compatibility telemetry scheduled task.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser\" /disable"}
+    ]
+  }
+]

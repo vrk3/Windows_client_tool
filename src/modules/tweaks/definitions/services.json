@@ -1,0 +1,35 @@
+[
+  {
+    "id": "disable_delivery_optimization",
+    "name": "Disable Delivery Optimization",
+    "description": "Stops peer-to-peer Windows Update sharing.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"DoSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_remote_registry",
+    "name": "Disable Remote Registry",
+    "description": "Prevents remote access to the registry.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"RemoteRegistry","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_xbox_services",
+    "name": "Disable Xbox Services",
+    "description": "Disables all Xbox-related background services.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"XboxGipSvc","start_type":"disabled"},
+      {"type":"service","name":"XblAuthManager","start_type":"disabled"},
+      {"type":"service","name":"XblGameSave","start_type":"disabled"},
+      {"type":"service","name":"XboxNetApiSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_fax",
+    "name": "Disable Fax Service",
+    "description": "Disables the Windows Fax and Scan service.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"Fax","start_type":"disabled"}]
+  }
+]

@@ -1,0 +1,87 @@
+[
+  {
+    "id": "disable_activity_history",
+    "name": "Disable Activity History",
+    "description": "Stops Windows from storing activity history for Timeline.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System","value":"PublishUserActivities","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System","value":"EnableActivityFeed","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_location",
+    "name": "Disable Location Services",
+    "description": "Disables the Windows location platform.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\LocationAndSensors","value":"DisableLocation","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_advertising_id",
+    "name": "Disable Advertising ID",
+    "description": "Prevents apps from using your advertising ID.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_app_diagnostics",
+    "name": "Disable App Diagnostics",
+    "description": "Prevents apps from accessing diagnostic information.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy","value":"LetAppsGetDiagnosticInfo","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_cortana_web_search",
+    "name": "Disable Cortana Web Search in Start",
+    "description": "Removes web search results from the Start menu search.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"DisableWebSearch","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"ConnectedSearchUseWeb","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_bing_start",
+    "name": "Disable Bing in Start Menu",
+    "description": "Removes Bing search suggestions from the Start menu.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search","value":"BingSearchEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_app_launch_tracking",
+    "name": "Disable App Launch Tracking",
+    "description": "Stops Windows tracking which apps you launch.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_TrackProgs","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_suggested_content",
+    "name": "Disable Suggested Content",
+    "description": "Removes Microsoft promotional content from Settings.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338393Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-353694Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-353696Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_background_apps",
+    "name": "Disable Background App Access (Global)",
+    "description": "Prevents all apps from running in the background.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy","value":"LetAppsRunInBackground","data":2,"kind":"DWORD"}
+    ]
+  }
+]

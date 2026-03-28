@@ -1,0 +1,41 @@
+[
+  {
+    "id": "disable_superfetch",
+    "name": "Disable SysMain (Superfetch)",
+    "description": "Stops the SysMain service that preloads app data into RAM.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"SysMain","start_type":"disabled"}]
+  },
+  {
+    "id": "high_perf_power_plan",
+    "name": "Set High Performance Power Plan",
+    "description": "Switches to the High Performance power plan.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"command","cmd":"powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"}]
+  },
+  {
+    "id": "disable_search_indexing",
+    "name": "Disable Windows Search Indexing",
+    "description": "Stops the Windows Search service.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"WSearch","start_type":"disabled"}]
+  },
+  {
+    "id": "visual_effects_best_performance",
+    "name": "Adjust Visual Effects for Best Performance",
+    "description": "Disables animations and transparency for maximum speed.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects","value":"VisualFXSetting","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_transparency",
+    "name": "Disable Transparency Effects",
+    "description": "Disables Acrylic/blur transparency in the shell.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"EnableTransparency","data":0,"kind":"DWORD"}
+    ]
+  }
+]
