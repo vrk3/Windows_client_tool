@@ -6,3 +6,4 @@ class ModuleGroup:
     MANAGE   = "MANAGE"
     OPTIMIZE = "OPTIMIZE"
     TOOLS    = "TOOLS"
+    PROCESS  = "PROCESS"
