@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('src/ui/styles/dark.qss', 'ui/styles'), ('src/ui/styles/light.qss', 'ui/styles')]
+datas = [('src/ui/styles/dark.qss', 'ui/styles'), ('src/ui/styles/light.qss', 'ui/styles'), ('config/default_config.json', 'config')]
 binaries = []
 hiddenimports = ['modules.event_viewer.event_viewer_module', 'modules.cbs_log.cbs_module', 'modules.dism_log.dism_module', 'modules.windows_update.wu_module', 'modules.reliability.reliability_module', 'modules.crash_dumps.crash_dump_module', 'modules.perfmon.perfmon_module', 'modules.process_explorer.process_explorer_module', 'win32service', 'win32serviceutil', 'win32security', 'win32api', 'win32con']
 tmp_ret = collect_all('psutil')

@@ -1,6 +1,12 @@
 {
   "permissions": {
     "allow": [
+      "Bash(git *)",
+      "Bash(python -m pytest*)",
+      "Bash(python -c *)",
+      "Bash(mkdir*)",
+      "Bash(ls *)",
+      "Bash(cd *)",
       "Bash(rm src/gui.py src/log_reader.py)",
       "Bash(rm -rf src/__pycache__)",
       "Bash(python -m pytest ../tests/test_events.py -v)",
@@ -34,7 +40,9 @@
       "Bash(python main.py)",
       "Bash(.venv/Scripts/python.exe -m pip show pyinstaller)",
       "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --specpath \"build\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)",
-      "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)"
+      "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)",
+      "Bash(python -c \"from app import App; print\\(''OK''\\)\")",
+      "Bash(.venv/Scripts/pyinstaller.exe --onefile --windowed --name \"WinClientTool\" --distpath \"C:/Users/iorda/OneDrive/1 Personal/WinClientTool\" --workpath \"build/pyinstaller\" --paths \"src\" --add-data \"src/ui/styles/dark.qss;ui/styles\" --add-data \"src/ui/styles/light.qss;ui/styles\" --add-data \"config/default_config.json;config\" --hidden-import \"modules.event_viewer.event_viewer_module\" --hidden-import \"modules.cbs_log.cbs_module\" --hidden-import \"modules.dism_log.dism_module\" --hidden-import \"modules.windows_update.wu_module\" --hidden-import \"modules.reliability.reliability_module\" --hidden-import \"modules.crash_dumps.crash_dump_module\" --hidden-import \"modules.perfmon.perfmon_module\" --hidden-import \"modules.process_explorer.process_explorer_module\" --hidden-import \"win32service\" --hidden-import \"win32serviceutil\" --hidden-import \"win32security\" --hidden-import \"win32api\" --hidden-import \"win32con\" --collect-all \"psutil\" src/main.py)"
     ]
   }
 }
