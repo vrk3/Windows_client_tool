@@ -111,6 +111,21 @@ self.app.thread_pool.start(w)
 
 Always track workers in `self._workers` and call `worker.signals.progress.emit()` from within the worker function (not from outside).
 
+For WMI/COM operations use `COMWorker` (calls `pythoncom.CoInitialize()` automatically) instead of plain `Worker`.
+
+**First-load guard pattern** — trigger data load on first `on_activate()`, not in `create_widget()`:
+
+```python
+def __init__(self):
+    super().__init__()
+    self._loaded = False
+
+def on_activate(self):
+    if not self._loaded:
+        self._loaded = True
+        self._load_data()
+```
+
 ### Widget Lifetime Guards
 When a worker fires after its host widget has been deleted (e.g., user switched tabs), Qt objects accessed in the result callback may be invalid. Guard with `sip.isdeleted()`:
 
@@ -138,8 +153,16 @@ Pub/sub for loose coupling between modules. Use `app.event_bus.publish("topic", 
 ### Tweak System (`src/modules/tweaks/`)
 JSON definition files in `src/modules/tweaks/definitions/` define registry/script tweaks. Each entry has `steps[]` with `type: "registry"` (key, data, kind) or `type: "powershell"`. `tweak_engine.py` applies and reverts them. App catalog (`app_catalog.json`) detects installed apps. Restore points created automatically before applying tweaks.
 
-### Cleanup Scanner Pattern (`src/modules/cleanup/cleanup_scanner.py`)
-Scanner functions return `List[ScanItem]` with `path`, `name`, `size`, `safety` ("safe"/"caution"/"danger"). `ScanResult` holds the list. The cleanup module wraps scanners in `_ScanTab` with grouped tree view and age filtering.
+### Cleanup Module (`src/modules/cleanup/`)
+**Scanner** (`cleanup_scanner.py`): functions take `min_age_days: int = 0` and return `ScanResult`. `ScanItem` fields: `path`, `size`, `is_dir`, `selected`, `safety` ("safe"/"caution"/"danger") — **no `name` field** (passing `name=` raises `TypeError`).
+
+**8-tab structure** in `cleanup_module.py`:
+- `_ScanTab(QWidget)` — reusable tab wrapping a `{fn: label}` scanners dict; exposes `freed_bytes = pyqtSignal(int)` and `auto_scan()` (no-op if already scanned)
+- `_BrowserCleanupTab(QWidget)` — uses `EnhancedBrowserScanner` from `browser_scanner.py`; same `freed_bytes` signal
+- `_LargeItemsTab(QWidget)` — wraps `_ScanTab` + DISM "Component Cleanup" button (runs `dism /Online /Cleanup-Image /StartComponentCleanup` in background)
+- `_OverviewTab(QWidget)` — table of all groups; "Scan All" parallelises workers; "Clean All Safe" deletes safe items
+- `CleanupModule.on_activate()` triggers `_overview.auto_scan()`; `QTabWidget.currentChanged` wires each tab's `auto_scan()` for lazy first-load
+- Session freed counter aggregates all `freed_bytes` signals via `_on_freed(nbytes)`
 
 ### UI Patterns
 
@@ -176,3 +199,4 @@ Note: EventViewer, CBS, DISM, WU, Reliability, and CrashDumps are embedded in Di
 - `win32serviceutil` (pywin32) requires `pythoncom.CoInitialize()` before use in worker threads; use `COMWorker` instead of `Worker` for WMI/COM operations
 - Do NOT call UI-creating methods (`_load_data()`, `_setup_table()`) from `on_start` — use `on_activate` instead since `on_start` runs before `create_widget`
 - CBS.log and DISM.log use a regex pattern that matches a specific format — if logs are empty, the log files may use a different format or be UTF-16 encoded (the base parser handles this but the per-line regex may not match all lines)
+- **Windows 11 quirks**: CBS.log may not exist as a text file — Windows 11 stores CBS data in `CbsPersist_*.cab` files under `C:\Windows\Logs\CBS\`. The DiagnoseModule's CBS tab uses 7z to extract the log from the most recent cab if the text file is absent. DISM.log similarly may not exist; the DISM tab falls back to `Get-HotFix` (no admin required) to show installed updates.
