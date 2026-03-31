@@ -23,8 +23,8 @@ def _get_drives():
 
 
 class TreeSizeModule(BaseModule):
-    name = "treesize"
-    icon = "📁"
+    name = "Tree Size"
+    icon = "📊"
     description = "Visualise disk usage by folder and file size"
     requires_admin = False
     group = ModuleGroup.TOOLS

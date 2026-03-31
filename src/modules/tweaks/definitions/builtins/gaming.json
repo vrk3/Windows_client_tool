@@ -1,0 +1,44 @@
+{
+  "name": "Gaming",
+  "version": 1,
+  "builtin": true,
+  "description": "Maximize gaming performance: HAGS, Game Mode, remove recording overhead, CPU/GPU priority boosts, and network latency reduction.",
+  "tweaks": {
+    "gaming": [
+      "disable_game_dvr",
+      "enable_game_mode",
+      "enable_hags_gaming",
+      "disable_fullscreen_optimizations",
+      "disable_mouse_acceleration",
+      "boost_gpu_cpu_priority_games",
+      "disable_xbox_game_bar_overlay",
+      "disable_power_throttling_gaming",
+      "remove_network_throttling_cap",
+      "boost_foreground_games",
+      "ultimate_perf_gaming"
+    ],
+    "performance": [
+      "high_perf_power_plan",
+      "instant_menu_response",
+      "disable_startup_delay",
+      "disable_superfetch",
+      "enable_hags"
+    ],
+    "services": [
+      "disable_xbox_services",
+      "disable_delivery_optimization",
+      "disable_diagnostics_hub"
+    ],
+    "network": [
+      "disable_qos_reserved_bandwidth",
+      "optimise_dns_cache",
+      "shorten_tcp_keepalive"
+    ],
+    "ui_tweaks": [
+      "disable_taskbar_news",
+      "disable_taskbar_widgets",
+      "disable_snap_suggestions"
+    ]
+  },
+  "apps": {}
+}

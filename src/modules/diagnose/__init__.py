@@ -1,0 +1,1 @@
+from modules.diagnose.diagnose_module import DiagnoseModule

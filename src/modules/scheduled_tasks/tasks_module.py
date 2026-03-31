@@ -21,7 +21,7 @@ TASK_COLS = ["Name", "Status", "Last Run", "Last Result", "Next Run", "Author", 
 
 
 class TasksModule(BaseModule):
-    name = "scheduled_tasks"
+    name = "Scheduled Tasks"
     icon = "📅"
     description = "View and manage scheduled tasks"
     requires_admin = False
@@ -39,7 +39,9 @@ class TasksModule(BaseModule):
         self.app = app
 
     def on_activate(self) -> None:
-        pass
+        if not getattr(self, "_tasks_loaded", False) and hasattr(self, "_tasks_load_fn"):
+            self._tasks_loaded = True
+            self._tasks_load_fn()
 
     def on_deactivate(self) -> None:
         pass
@@ -326,4 +328,5 @@ class TasksModule(BaseModule):
         delete_btn.clicked.connect(lambda: _run_task_action(_delete_task))
         export_btn.clicked.connect(lambda: _run_task_action(lambda t: _export_xml(t)))
 
+        self._tasks_load_fn = load_folder_tree
         return w

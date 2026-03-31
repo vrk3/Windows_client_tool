@@ -4,7 +4,7 @@ from typing import List, Tuple, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTreeWidget, QTreeWidgetItem, QSplitter, QPlainTextEdit, QLabel,
-    QLineEdit, QProgressBar, QHeaderView, QSizePolicy, QFrame)
+    QLineEdit, QProgressBar, QHeaderView, QSizePolicy, QFrame, QMessageBox)
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtGui import QColor, QFont
 
@@ -80,8 +80,8 @@ def _disable_feature(name: str, output_cb) -> int:
 
 
 class WindowsFeaturesModule(BaseModule):
-    name = "windows_features"
-    icon = "🪟"
+    name = "Windows Features"
+    icon = "🧩"
     description = "Enable or disable Windows optional features"
     requires_admin = True
     group = ModuleGroup.MANAGE
@@ -273,8 +273,33 @@ class WindowsFeaturesModule(BaseModule):
         refresh_btn.clicked.connect(load_features)
         tree.itemClicked.connect(on_item_clicked)
         filter_edit.textChanged.connect(lambda txt: populate(features_ref[0], txt))
-        enable_btn.clicked.connect(lambda: _run_feature_action(_enable_feature, "Enable"))
-        disable_btn.clicked.connect(lambda: _run_feature_action(_disable_feature, "Disable"))
+
+        def _confirm_enable():
+            feat_name = selected_name_ref[0]
+            if not feat_name:
+                return
+            reply = QMessageBox.warning(
+                w, "Change Windows Feature",
+                f"Enable '{feat_name}'?\n\nThis requires administrator privileges.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                _run_feature_action(_enable_feature, "Enable")
+
+        def _confirm_disable():
+            feat_name = selected_name_ref[0]
+            if not feat_name:
+                return
+            reply = QMessageBox.warning(
+                w, "Change Windows Feature",
+                f"Disable '{feat_name}'?\n\nThis requires administrator privileges.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                _run_feature_action(_disable_feature, "Disable")
+
+        enable_btn.clicked.connect(_confirm_enable)
+        disable_btn.clicked.connect(_confirm_disable)
 
         return w
 

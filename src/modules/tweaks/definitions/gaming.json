@@ -1,0 +1,122 @@
+[
+  {
+    "id": "disable_game_dvr",
+    "name": "Disable Xbox Game DVR / App Capture",
+    "description": "Disables background game capture and clip recording. Reduces CPU/GPU overhead during gaming.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\System\\GameConfigStore","value":"GameDVR_Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR","value":"AppCaptureEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_game_mode",
+    "name": "Enable Windows Game Mode",
+    "description": "Prioritizes CPU and GPU resources for the active game. Suppresses Windows Update installs and driver notifications during gameplay.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"AllowAutoGameMode","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"AutoGameModeEnabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_hags_gaming",
+    "name": "Enable Hardware-Accelerated GPU Scheduling (HAGS)",
+    "description": "GPU manages its own VRAM scheduling — reduces CPU-GPU latency and improves frame pacing. Requires NVIDIA 10xx+, AMD RX 5000+, Intel 12th gen+. Reboot required.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers","value":"HwSchMode","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_fullscreen_optimizations",
+    "name": "Disable Fullscreen Optimizations Globally",
+    "description": "Disables DWM fullscreen optimizations which can cause micro-stutters in some games. Per-game override is also available via .exe properties.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\System\\GameConfigStore","value":"GameDVR_FSEBehaviorMode","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\System\\GameConfigStore","value":"GameDVR_FSEBehavior","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_mouse_acceleration",
+    "name": "Disable Mouse Acceleration (Enhance Pointer Precision)",
+    "description": "Disables the mouse acceleration curve for raw, consistent input. Highly recommended for FPS games.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseSpeed","data":"0","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold1","data":"0","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold2","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "boost_gpu_cpu_priority_games",
+    "name": "Boost GPU & CPU Priority for Games",
+    "description": "Sets Multimedia Class Scheduler to grant maximum GPU and CPU priority to game processes. Reduces stutters in CPU-limited scenarios.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games","value":"GPU Priority","data":8,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games","value":"Priority","data":6,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games","value":"Scheduling Category","data":"High","kind":"SZ"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile","value":"SystemResponsiveness","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_nvidia_telemetry",
+    "name": "Disable NVIDIA Telemetry Services",
+    "description": "Disables NVIDIA's telemetry and update nag services. Does not affect GPU drivers or performance.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"NvTelemetryContainer","start_type":"disabled"},
+      {"type":"service","name":"NvNetworkService","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "ultimate_perf_gaming",
+    "name": "Activate Ultimate Performance Power Plan",
+    "description": "Unlocks and activates the Ultimate Performance power plan — prevents all CPU throttling. Ideal for desktop gaming rigs. Not recommended for laptops.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61"},
+      {"type":"command","cmd":"powercfg /setactive e9a42b02-d5df-448d-aa00-03f14749eb61"}
+    ]
+  },
+  {
+    "id": "disable_xbox_game_bar_overlay",
+    "name": "Disable Xbox Game Bar Overlay (Win+G)",
+    "description": "Fully disables the Xbox Game Bar overlay. Different from Game DVR — this removes the entire overlay UI (Win+G). Frees ~50 MB RAM during gaming.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"UseNexusForGameBarEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"ShowStartupPanel","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR","value":"AllowGameDVR","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_power_throttling_gaming",
+    "name": "Disable CPU Power Throttling",
+    "description": "Disables Windows CPPC2 power throttling that can reduce CPU frequency for background processes. Ensures your game always gets full CPU power budget.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "remove_network_throttling_cap",
+    "name": "Remove Network Throttling Cap for Games",
+    "description": "Removes the Windows multimedia network throttling limit (10 packets/ms) that can cause latency spikes in online games. Sets the limit to the maximum (0xFFFFFFFF).",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile","value":"NetworkThrottlingIndex","data":4294967295,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_foreground_games",
+    "name": "Maximum CPU Time-Slice for Foreground App",
+    "description": "Sets Win32PrioritySeparation to maximum foreground boost (short, variable quanta, full boost). The active game window gets more CPU time slices, reducing micro-stutters.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
+    ]
+  }
+]

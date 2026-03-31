@@ -104,7 +104,7 @@ def _parse_gpresult_xml(xml_path: str) -> dict:
 
 
 class GPResultModule(BaseModule):
-    name = "gpresult"
+    name = "Group Policy"
     icon = "📋"
     description = "Group Policy result viewer"
     requires_admin = False

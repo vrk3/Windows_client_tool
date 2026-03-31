@@ -50,6 +50,7 @@ class AppCatalog:
             result = subprocess.run(
                 ["winget", "list", "--accept-source-agreements"],
                 capture_output=True, text=True, timeout=30, check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return self._parse_winget_list(result.stdout)
         except Exception as e:
@@ -84,6 +85,7 @@ class AppCatalog:
                 ["powershell", "-NoProfile", "-Command",
                  "Get-AppxPackage | Select-Object -ExpandProperty Name"],
                 capture_output=True, text=True, timeout=20, check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return self._parse_appx_list(result.stdout)
         except Exception as e:
@@ -147,6 +149,7 @@ class AppCatalog:
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", cmd],
             capture_output=True, text=True, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if on_output:
             for line in (result.stdout + result.stderr).splitlines():
@@ -159,6 +162,7 @@ class AppCatalog:
             proc = subprocess.Popen(
                 args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             for line in proc.stdout:
                 if on_output:

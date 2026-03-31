@@ -98,24 +98,40 @@ class SystemTrayManager:
 
     def _setup_menu(self):
         menu = QMenu()
-        show_action = QAction("Show/Hide", self._window)
+        show_action = QAction("Show / Hide", self._window)
         show_action.triggered.connect(self._toggle_window)
         menu.addAction(show_action)
         menu.addSeparator()
         exit_action = QAction("Exit", self._window)
-        exit_action.triggered.connect(self._window.close)
+        exit_action.triggered.connect(self._force_quit)
         menu.addAction(exit_action)
         self._tray.setContextMenu(menu)
 
     def show(self) -> None:
         self._tray.show()
 
+    def connect_activated(self, slot) -> None:
+        """Connect the tray icon's activated signal to an external slot."""
+        self._tray.activated.connect(slot)
+
     def _toggle_window(self):
         if self._window.isVisible():
             self._window.hide()
         else:
             self._window.show()
+            self._window.raise_()
             self._window.activateWindow()
+
+    def _force_quit(self):
+        """Quit regardless of minimize-to-tray setting."""
+        from PyQt6.QtWidgets import QApplication
+        self._tray.hide()
+        # Trigger window's normal close path (saves config, stops modules)
+        if self._window:
+            self._window._app.config.set(
+                "app.minimize_to_tray", False
+            )
+            self._window.close()
 
     def show_balloon(self, title: str, message: str, icon_type=None) -> None:
         if icon_type is None:

@@ -113,7 +113,8 @@ class TweakEngine:
     def _apply_service(self, step: Dict, rp_id: str) -> StepRecord:
         import win32service
         name = step["name"]
-        new_start = _START_TYPE_MAP.get(step.get("start_type", "manual"), 3)
+        _st = step.get("start_type", "manual")
+        new_start = int(_st) if isinstance(_st, int) else _START_TYPE_MAP.get(str(_st).lower(), 3)
 
         self._backup.backup_service_state(name, rp_id)
         before = None
@@ -137,16 +138,21 @@ class TweakEngine:
 
     def _apply_command(self, step: Dict) -> StepRecord:
         cmd = step["cmd"]
-        subprocess.run(cmd, shell=True, check=False, capture_output=True)
+        subprocess.run(
+            cmd, shell=True, check=False, capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
         return StepRecord("command", cmd, None, None)
 
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]
         self._backup.backup_appx_package(pkg, rp_id)
         subprocess.run(
-            ["powershell", "-Command",
+            ["powershell", "-NoProfile", "-Command",
              f"Get-AppxPackage '{pkg}' | Remove-AppxPackage"],
-            check=False, capture_output=True)
+            check=False, capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
         return StepRecord("appx", pkg, pkg, None)
 
     def detect_status(self, tweak: Dict) -> str:
@@ -170,7 +176,8 @@ class TweakEngine:
                 current = config[1]
                 win32service.CloseServiceHandle(hs)
                 win32service.CloseServiceHandle(hscm)
-                expected = _START_TYPE_MAP.get(step.get("start_type", ""), -1)
+                _st = step.get("start_type", "")
+                expected = int(_st) if isinstance(_st, int) else _START_TYPE_MAP.get(str(_st).lower(), -1)
                 return "applied" if current == expected else "not_applied"
         except OSError:
             return "unknown"

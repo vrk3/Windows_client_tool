@@ -2,10 +2,10 @@
 import logging
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
+    QApplication, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
     QSplitter, QStackedWidget, QVBoxLayout, QWidget,
 )
 
@@ -17,6 +17,7 @@ from ui.toolbar import DynamicToolbar
 from ui.search_bar import SearchBar
 from ui.filter_panel import FilterPanel
 from ui.search_results import SearchResultsTable
+from ui.notification_tray import SystemTrayManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,10 @@ class MainWindow(QMainWindow):
         self._module_map: Dict[str, BaseModule] = {}
         self._module_widgets: Dict[str, QWidget] = {}
         self._active_module: Optional[BaseModule] = None
+        self._module_refresh_timers: Dict[str, QTimer] = {}
+        self._auto_refresh_paused: bool = self._app.config.get(
+            "app.auto_refresh_paused", False
+        )
 
         central = QWidget()
         root_layout = QVBoxLayout(central)
@@ -68,6 +73,11 @@ class MainWindow(QMainWindow):
         self._search_bar.filter_toggled.connect(self._on_filter_toggled)
         self._toolbar.addWidget(self._search_bar)
 
+        pause_text = "\u23f8 Pause Refresh" if not self._auto_refresh_paused else "\u25b6 Resume Refresh"
+        self._pause_refresh_action = QAction(pause_text, self)
+        self._pause_refresh_action.triggered.connect(self._toggle_auto_refresh_pause)
+        self._toolbar.addAction(self._pause_refresh_action)
+
         self._filter_panel = FilterPanel(self)
         self._filter_panel.setVisible(False)
         root_layout.insertWidget(root_layout.indexOf(splitter), self._filter_panel)
@@ -78,7 +88,9 @@ class MainWindow(QMainWindow):
 
         self._setup_menus()
         self._setup_shortcuts()
+        self._setup_tray()
         self._sidebar.module_selected.connect(self._on_module_selected)
+        self._schedule_update_check()
 
     def _restore_window_size(self) -> None:
         size = self._app.config.get("app.window_size", [1400, 900])
@@ -109,12 +121,21 @@ class MainWindow(QMainWindow):
 
     def register_module(self, module: BaseModule) -> None:
         """Register a module: create its widget, add to sidebar and stack."""
-        widget = module.create_widget()
+        enabled = module not in self._app.module_registry.disabled_modules
+        if enabled:
+            widget = module.create_widget()
+        else:
+            placeholder = QLabel(
+                f"⚠️ {module.name} requires administrator privileges.\n\n"
+                "Restart the application as Administrator to enable this module."
+            )
+            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            placeholder.setWordWrap(True)
+            widget = placeholder
         self._stack.addWidget(widget)
         self._module_map[module.name] = module
         self._module_widgets[module.name] = widget
 
-        enabled = module not in self._app.module_registry.disabled_modules
         self._sidebar.add_module(
             group=module.group,
             name=module.name,
@@ -138,7 +159,12 @@ class MainWindow(QMainWindow):
         self.register_module(module)
 
     def _on_module_selected(self, name: str) -> None:
+        # Stop previous module's refresh timer
         if self._active_module is not None:
+            prev_name = self._active_module.name
+            if prev_name in self._module_refresh_timers:
+                self._module_refresh_timers[prev_name].stop()
+                del self._module_refresh_timers[prev_name]
             try:
                 self._active_module.on_deactivate()
             except Exception:
@@ -155,8 +181,46 @@ class MainWindow(QMainWindow):
             module.on_activate()
         except Exception:
             logger.exception("Error activating %s", name)
+
+        # Start auto-refresh timer if configured and not paused
+        interval = module.get_refresh_interval()
+        if interval is not None and not self._auto_refresh_paused:
+            self._start_module_refresh_timer(module, interval)
+
         self._toolbar.set_module_actions(module.get_toolbar_actions())
         self._status_bar.set_module_info(module.get_status_info())
+
+    def _start_module_refresh_timer(self, module: BaseModule, interval: int) -> None:
+        """Start an auto-refresh QTimer for a module."""
+        timer = QTimer()
+        timer.setInterval(interval)
+        refresh_method = getattr(module, "refresh_data", None) or module.on_activate
+        timer.timeout.connect(refresh_method)
+        timer.start()
+        self._module_refresh_timers[module.name] = timer
+
+    def _toggle_auto_refresh_pause(self) -> None:
+        """Globally pause or resume all module auto-refresh timers."""
+        self._auto_refresh_paused = not self._auto_refresh_paused
+        self._app.config.set("app.auto_refresh_paused", self._auto_refresh_paused)
+
+        if self._auto_refresh_paused:
+            # Stop all active timers
+            for timer in self._module_refresh_timers.values():
+                timer.stop()
+            self._pause_refresh_action.setText("\u25b6 Resume Refresh")
+        else:
+            # Restart timer for current module
+            module = self._active_module
+            if module is not None:
+                interval = module.get_refresh_interval()
+                if interval is not None:
+                    # Stop any existing timer before starting a new one
+                    if module.name in self._module_refresh_timers:
+                        self._module_refresh_timers[module.name].stop()
+                        del self._module_refresh_timers[module.name]
+                    self._start_module_refresh_timer(module, interval)
+            self._pause_refresh_action.setText("\u23f8 Pause Refresh")
 
     def _setup_menus(self) -> None:
         menu_bar = self.menuBar()
@@ -189,6 +253,76 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+F"), self).activated.connect(
             self._search_bar.focus_search_with_filters)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._clear_search)
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(self._open_command_palette)
+
+    def _setup_tray(self) -> None:
+        from PyQt6.QtWidgets import QStyle
+        icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        self._tray_manager = SystemTrayManager(self, icon)
+        self._tray_manager.show()
+        self._tray_manager.connect_activated(self._on_tray_activated)
+
+    def _on_tray_activated(self, reason) -> None:
+        from PyQt6.QtWidgets import QSystemTrayIcon
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+
+    def _open_command_palette(self) -> None:
+        from ui.command_palette import CommandPalette
+        modules = list(self._module_map.values())
+        palette = CommandPalette(modules, self._navigate_to_module, self)
+        # Centre near top of main window
+        geo = self.geometry()
+        pw = palette.sizeHint().width() or 480
+        x = geo.x() + (geo.width() - pw) // 2
+        y = geo.y() + 80
+        palette.move(x, y)
+        palette.exec()
+
+    def _navigate_to_module(self, name: str) -> None:
+        self._sidebar.select(name)
+        self._on_module_selected(name)
+
+    def _schedule_update_check(self) -> None:
+        """Run the update check once in the background 3 seconds after startup."""
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(3000, self._run_update_check)
+
+    def _run_update_check(self) -> None:
+        from core.worker import Worker
+        from core.update_checker import UpdateChecker
+        from modules.about.about_module import _APP_VERSION
+        _GITHUB_REPO = "your-user/windows-client-tool"  # update when published
+
+        def _check(_w):
+            return UpdateChecker(_GITHUB_REPO, _APP_VERSION).check()
+
+        worker = Worker(_check)
+        worker.signals.result.connect(self._on_update_result)
+        from PyQt6.QtCore import QThreadPool
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_update_result(self, result) -> None:
+        if result.error or not result.update_available:
+            return
+        self._tray_manager.show_balloon(
+            "Update Available",
+            f"Version {result.latest_version} is available. "
+            f"Current: {result.current_version}",
+        )
+        logger.info(
+            "Update available: %s → %s (%s)",
+            result.current_version, result.latest_version, result.release_url,
+        )
+
+    def show_notification(self, title: str, message: str) -> None:
+        """Public helper for modules to show a tray balloon notification."""
+        self._tray_manager.show_balloon(title, message)
 
     def _refresh_current(self) -> None:
         if self._active_module:
@@ -238,6 +372,19 @@ class MainWindow(QMainWindow):
         self._filter_panel.setVisible(False)
 
     def closeEvent(self, event) -> None:
+        # Stop all refresh timers
+        for timer in self._module_refresh_timers.values():
+            timer.stop()
+        self._module_refresh_timers.clear()
+
+        if self._app.config.get("app.minimize_to_tray", False):
+            event.ignore()
+            self.hide()
+            self._tray_manager.show_balloon(
+                "Still Running",
+                "Windows Tweaker is minimized to the tray. Double-click to restore.",
+            )
+            return
         size = self.size()
         self._app.config.set("app.window_size", [size.width(), size.height()])
         self._app.shutdown()

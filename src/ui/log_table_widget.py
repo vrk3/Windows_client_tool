@@ -3,6 +3,12 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
+try:
+    import sip
+    _widget_is_valid = lambda w: not sip.isdeleted(w)
+except ImportError:
+    _widget_is_valid = lambda w: True  # fallback: assume valid
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel, QAction
 from PyQt6.QtWidgets import (
@@ -71,6 +77,8 @@ class LogTableWidget(QWidget):
 
     def set_entries(self, entries: List[LogEntry]) -> None:
         """Replace all entries in the table."""
+        if not _widget_is_valid(self._status):
+            return
         self._entries = list(entries)
         self._model.removeRows(0, self._model.rowCount())
         for entry in entries:
@@ -80,6 +88,8 @@ class LogTableWidget(QWidget):
 
     def append_entries(self, entries: List[LogEntry]) -> None:
         """Add entries to existing table data."""
+        if not _widget_is_valid(self._status):
+            return
         self._entries.extend(entries)
         for entry in entries:
             row = self._make_row(entry)
@@ -87,6 +97,8 @@ class LogTableWidget(QWidget):
         self._status.setText(f"{len(self._entries)} entries")
 
     def clear(self) -> None:
+        if not _widget_is_valid(self._status):
+            return
         self._model.removeRows(0, self._model.rowCount())
         self._entries.clear()
         self._status.setText("0 entries")

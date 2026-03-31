@@ -47,12 +47,7 @@ def main():
     sys.excepthook = _global_exception_handler
 
     # Register all data modules
-    from modules.event_viewer.event_viewer_module import EventViewerModule
-    from modules.cbs_log.cbs_module import CBSLogModule
-    from modules.dism_log.dism_module import DISMLogModule
-    from modules.windows_update.wu_module import WindowsUpdateModule
-    from modules.reliability.reliability_module import ReliabilityModule
-    from modules.crash_dumps.crash_dump_module import CrashDumpModule
+    from modules.dashboard.dashboard_module import DashboardModule
     from modules.perfmon.perfmon_module import PerfMonModule
     from modules.process_explorer.process_explorer_module import ProcessExplorerModule
     from modules.tweaks.tweaks_module import TweaksModule
@@ -71,13 +66,33 @@ def main():
     from modules.windows_features.features_module import WindowsFeaturesModule
     from modules.certificate_viewer.cert_module import CertModule
     from modules.gpresult.gpresult_module import GPResultModule
+    # Batch C — Tools group
+    from modules.performance_tuner.perf_tuner_module import PerfTunerModule
+    from modules.power_boot.power_module import PowerBootModule
+    from modules.network_extras.net_extras_module import NetExtrasModule
+    from modules.shared_resources.shares_module import SharesModule
+    from modules.env_vars.env_vars_module import EnvVarsModule
+    from modules.registry_explorer.registry_module import RegistryExplorerModule
+    from modules.software_inventory.software_module import SoftwareModule
+    from modules.remote_tools.remote_module import RemoteToolsModule
+    from modules.disk_health.disk_health_module import DiskHealthModule
+    from modules.restore_manager.restore_module import RestoreManagerModule
+    # Track 2 — New Tool Modules
+    from modules.services_manager.services_module import ServicesModule
+    from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
+    from modules.firewall_rules.firewall_manager_module import FirewallManagerModule
+    from modules.local_users.users_module import LocalUsersModule
+    from modules.system_report.report_module import SystemReportModule
+    from modules.about.about_module import AboutModule
+    from modules.boot_analyzer.boot_analyzer_module import BootAnalyzerModule
+    from modules.diagnose.diagnose_module import DiagnoseModule
+    from modules.duplicate_finder.duplicate_finder_module import DuplicateFinderModule
+    from modules.hosts_editor.hosts_editor_module import HostsEditorModule
+    from modules.store_apps.store_apps_module import StoreAppsModule
 
-    app.module_registry.register(EventViewerModule())
-    app.module_registry.register(CBSLogModule())
-    app.module_registry.register(DISMLogModule())
-    app.module_registry.register(WindowsUpdateModule())
-    app.module_registry.register(ReliabilityModule())
-    app.module_registry.register(CrashDumpModule())
+    app.module_registry.register(DashboardModule())
+    app.module_registry.register(DiagnoseModule())
+    # EventViewer, CBS, DISM, WU, Reliability, CrashDumps — embedded in DiagnoseModule
     app.module_registry.register(PerfMonModule())
     app.module_registry.register(ProcessExplorerModule())
     app.module_registry.register(TweaksModule())
@@ -94,6 +109,28 @@ def main():
     app.module_registry.register(WindowsFeaturesModule())
     app.module_registry.register(CertModule())
     app.module_registry.register(GPResultModule())
+    # Batch C
+    app.module_registry.register(PerfTunerModule())
+    app.module_registry.register(PowerBootModule())
+    app.module_registry.register(NetExtrasModule())
+    app.module_registry.register(SharesModule())
+    app.module_registry.register(EnvVarsModule())
+    app.module_registry.register(RegistryExplorerModule())
+    app.module_registry.register(SoftwareModule())
+    app.module_registry.register(RemoteToolsModule())
+    app.module_registry.register(DiskHealthModule())
+    app.module_registry.register(RestoreManagerModule())
+    # Track 2
+    app.module_registry.register(ServicesModule())
+    app.module_registry.register(WifiAnalyzerModule())
+    app.module_registry.register(FirewallManagerModule())
+    app.module_registry.register(LocalUsersModule())
+    app.module_registry.register(SystemReportModule())
+    app.module_registry.register(AboutModule())
+    app.module_registry.register(BootAnalyzerModule())
+    app.module_registry.register(DuplicateFinderModule())
+    app.module_registry.register(HostsEditorModule())
+    app.module_registry.register(StoreAppsModule())
 
     # Start modules
     app.start()

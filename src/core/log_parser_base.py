@@ -27,15 +27,27 @@ class LogParserBase(ABC):
         except OSError:
             return 0
 
+    def _detect_encoding(self) -> str:
+        """Return 'utf-16' if the file starts with a UTF-16 BOM, else 'utf-8'."""
+        try:
+            with open(self._file_path, "rb") as f:
+                bom = f.read(2)
+            if bom in (b"\xff\xfe", b"\xfe\xff"):
+                return "utf-16"
+        except OSError:
+            pass
+        return "utf-8"
+
     def parse(self, progress_callback: Optional[Callable[[int], None]] = None) -> List[LogEntry]:
         """Parse the log file and return entries. Runs on worker thread."""
         if not self.file_exists():
             logger.warning("Log file not found: %s", self._file_path)
             return []
 
+        encoding = self._detect_encoding()
         entries = []
         try:
-            with open(self._file_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(self._file_path, "r", encoding=encoding, errors="replace") as f:
                 lines = f.readlines()
 
             total = len(lines)

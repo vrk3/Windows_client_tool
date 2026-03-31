@@ -30,6 +30,7 @@ class _CertTab(QWidget):
         self._store_name = store_name
         self._store_location = store_location
         self._certs: List[CertInfo] = []
+        self._loaded = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -80,6 +81,7 @@ class _CertTab(QWidget):
         self._view_btn.setEnabled(has_sel)
 
     def _load(self):
+        self._loaded = True
         self._refresh_btn.setEnabled(False)
         self._status.setText("Loading...")
         self._progress.show()
@@ -197,20 +199,24 @@ class _CertTab(QWidget):
 
 
 class CertModule(BaseModule):
-    name = "certificate_viewer"
-    icon = "🔑"
+    name = "Certificates"
+    icon = "🔐"
     description = "View installed certificates"
     requires_admin = False
     group = ModuleGroup.MANAGE
 
     def create_widget(self) -> QWidget:
-        tabs = QTabWidget()
+        self._tabs = QTabWidget()
         for label, store_name, store_location in STORES:
-            tabs.addTab(_CertTab(store_name, store_location), label)
-        return tabs
+            self._tabs.addTab(_CertTab(store_name, store_location), label)
+        return self._tabs
 
     def on_activate(self) -> None:
-        pass
+        if not hasattr(self, "_tabs"):
+            return
+        tab = self._tabs.currentWidget()
+        if isinstance(tab, _CertTab) and not tab._loaded:
+            tab._load()
 
     def on_deactivate(self) -> None:
         pass

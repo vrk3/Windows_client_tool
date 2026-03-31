@@ -6,22 +6,22 @@ from typing import List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QLabel,
-    QProgressBar, QFileDialog,
+    QProgressBar, QFileDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.worker import Worker
+from core.worker import COMWorker
 from modules.driver_manager.driver_reader import DriverInfo, fetch_drivers
 
-COLUMNS = ["Device Name", "Class", "Version", "Date", "Publisher", "Signed", "Status"]
+COLUMNS = ["Device Name", "Class", "Version", "Date", "Publisher", "Provider", "Signed", "Status"]
 
 
 class DriverModule(BaseModule):
-    name = "driver_manager"
-    icon = "📜"
+    name = "Driver Manager"
+    icon = "🖨️"
     description = "View and manage installed drivers"
     requires_admin = False
     group = ModuleGroup.SYSTEM
@@ -46,12 +46,14 @@ class DriverModule(BaseModule):
         self._refresh_btn = QPushButton("Refresh")
         export_btn = QPushButton("Export CSV")
         devmgr_btn = QPushButton("Open Device Manager")
+        self._backup_btn = QPushButton("Backup Drivers")
         self._filter_edit = QLineEdit()
         self._filter_edit.setPlaceholderText("Filter by name or class...")
         self._status_lbl = QLabel("Click Refresh to load drivers.")
         toolbar.addWidget(self._refresh_btn)
         toolbar.addWidget(export_btn)
         toolbar.addWidget(devmgr_btn)
+        toolbar.addWidget(self._backup_btn)
         toolbar.addWidget(QLabel("Filter:"))
         toolbar.addWidget(self._filter_edit, 1)
         toolbar.addWidget(self._status_lbl)
@@ -70,11 +72,15 @@ class DriverModule(BaseModule):
             self._table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSortingEnabled(True)
+        self._table.horizontalHeader().setSortIndicatorShown(True)
+        self._table.horizontalHeader().sectionClicked.connect(self._on_header_click)
         layout.addWidget(self._table, 1)
 
         self._refresh_btn.clicked.connect(self._do_refresh)
         export_btn.clicked.connect(self._do_export)
         devmgr_btn.clicked.connect(self._open_devmgr)
+        self._backup_btn.clicked.connect(self._backup_drivers)
         self._filter_edit.textChanged.connect(
             lambda txt: self._populate(self._drivers_ref[0], txt)
         )
@@ -85,7 +91,8 @@ class DriverModule(BaseModule):
         self.app = app
 
     def on_activate(self) -> None:
-        pass
+        if not self._drivers_ref[0]:
+            self._do_refresh()
 
     def on_deactivate(self) -> None:
         pass
@@ -97,6 +104,11 @@ class DriverModule(BaseModule):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _on_header_click(self, logical_index: int) -> None:
+        if self._table is not None:
+            order = self._table.sortOrder()
+            self._table.sortItems(logical_index, order)
+
     def _populate(self, drivers: List[DriverInfo], filter_text: str = "") -> None:
         if self._table is None:
             return
@@ -107,9 +119,14 @@ class DriverModule(BaseModule):
         ]
         self._table.setRowCount(len(visible))
         for r, d in enumerate(visible):
+            provider = (
+                "Microsoft"
+                if "microsoft" in d.publisher.lower()
+                else "Third-Party"
+            )
             items = [
                 d.device_name, d.driver_class, d.version, d.date,
-                d.publisher, "✓" if d.signed else "✗", d.flags,
+                d.publisher, provider, "✓" if d.signed else "✗", d.flags,
             ]
             for c, val in enumerate(items):
                 item = QTableWidgetItem(str(val))
@@ -130,8 +147,7 @@ class DriverModule(BaseModule):
         if self._table:
             self._table.setRowCount(0)
 
-        # Worker passes itself as first arg — use a wrapper
-        worker = Worker(lambda _w: fetch_drivers())
+        worker = COMWorker(lambda _w: fetch_drivers())
 
         def on_result(data: List[DriverInfo]) -> None:
             self._drivers_ref[0] = data
@@ -174,12 +190,71 @@ class DriverModule(BaseModule):
             writer = csv.writer(f)
             writer.writerow(COLUMNS)
             for d in self._drivers_ref[0]:
+                prov = (
+                    "Microsoft"
+                    if "microsoft" in d.publisher.lower()
+                    else "Third-Party"
+                )
                 writer.writerow([
                     d.device_name, d.driver_class, d.version, d.date,
-                    d.publisher, d.signed, d.flags,
+                    d.publisher, prov, d.signed, d.flags,
                 ])
         if self._status_lbl:
             self._status_lbl.setText(f"Exported to {os.path.basename(path)}")
 
     def _open_devmgr(self) -> None:
         subprocess.Popen(["mmc", "devmgmt.msc"])
+
+    def _backup_drivers(self) -> None:
+        """Export all third-party drivers to a user-selected folder using pnputil."""
+        if self._widget is None:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self._widget, "Select Backup Folder"
+        )
+        if not folder:
+            return
+        self._backup_btn.setEnabled(False)
+        self._refresh_btn.setEnabled(False)
+        if self._status_lbl:
+            self._status_lbl.setText(f"Exporting drivers to {folder}...")
+        if self._progress:
+            self._progress.show()
+
+        def do_backup(_worker):
+            result = subprocess.run(
+                ["pnputil", "/export-driver", "*", folder],
+                capture_output=True, text=True, timeout=300,
+            )
+            return result.stdout + result.stderr, result.returncode
+
+        worker = Worker(do_backup)
+        worker.signals.result.connect(self._on_backup_done)
+        worker.signals.error.connect(self._on_backup_error)
+        self._workers.append(worker)
+        if self.app and hasattr(self.app, "thread_pool"):
+            self.app.thread_pool.start(worker)
+        else:
+            QThreadPool.globalInstance().start(worker)
+
+    def _on_backup_done(self, result) -> None:
+        output, returncode = result
+        self._backup_btn.setEnabled(True)
+        self._refresh_btn.setEnabled(True)
+        if self._progress:
+            self._progress.hide()
+        if returncode == 0:
+            count = output.strip().count("\n")
+            msg = f"Driver backup complete — exported to selected folder."
+        else:
+            msg = f"Driver backup finished with code {returncode}."
+        if self._status_lbl:
+            self._status_lbl.setText(msg)
+
+    def _on_backup_error(self, err_str: str) -> None:
+        self._backup_btn.setEnabled(True)
+        self._refresh_btn.setEnabled(True)
+        if self._progress:
+            self._progress.hide()
+        if self._status_lbl:
+            self._status_lbl.setText(f"Backup error: {err_str}")

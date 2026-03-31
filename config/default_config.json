@@ -4,6 +4,7 @@
     "theme": "dark",
     "window_size": [1400, 900],
     "start_minimized": false,
+    "minimize_to_tray": false,
     "check_admin_on_start": true,
     "log_level": "INFO",
     "shortcuts": {}

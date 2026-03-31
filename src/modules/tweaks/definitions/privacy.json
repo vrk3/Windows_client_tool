@@ -21,7 +21,7 @@
   {
     "id": "disable_advertising_id",
     "name": "Disable Advertising ID",
-    "description": "Prevents apps from using your advertising ID.",
+    "description": "Prevents apps from using your advertising ID for targeted ads.",
     "category": "Privacy", "risk": "low", "requires_admin": false,
     "steps": [
       {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo","value":"Enabled","data":0,"kind":"DWORD"}
@@ -66,8 +66,8 @@
   },
   {
     "id": "disable_suggested_content",
-    "name": "Disable Suggested Content",
-    "description": "Removes Microsoft promotional content from Settings.",
+    "name": "Disable Suggested Content in Settings",
+    "description": "Removes Microsoft promotional content and tips from the Settings app.",
     "category": "Privacy", "risk": "low", "requires_admin": false,
     "steps": [
       {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338393Enabled","data":0,"kind":"DWORD"},
@@ -78,10 +78,208 @@
   {
     "id": "disable_background_apps",
     "name": "Disable Background App Access (Global)",
-    "description": "Prevents all apps from running in the background.",
+    "description": "Prevents all apps from running in the background globally.",
     "category": "Privacy", "risk": "medium", "requires_admin": true,
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy","value":"LetAppsRunInBackground","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_camera_access",
+    "name": "Disable App Camera Access",
+    "description": "Blocks all apps from accessing the camera via policy.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy","value":"LetAppsAccessCamera","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_microphone_access",
+    "name": "Disable App Microphone Access",
+    "description": "Blocks all apps from accessing the microphone via policy.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy","value":"LetAppsAccessMicrophone","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_autoplay",
+    "name": "Disable AutoPlay",
+    "description": "Disables AutoPlay for all drives and media — prevents malware auto-launch from USB.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers","value":"DisableAutoplay","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_wifi_sense",
+    "name": "Disable Wi-Fi Sense",
+    "description": "Prevents Windows from auto-connecting to open/suggested Wi-Fi networks.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\WcmSvc\\wifinetworkmanager\\config","value":"AutoConnectAllowedOEM","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_lockscreen_spotlight",
+    "name": "Disable Lock Screen Spotlight / Tips",
+    "description": "Removes Windows Spotlight ads and tips from the lock screen.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"RotatingLockScreenEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"RotatingLockScreenOverlayEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_preinstalled_apps",
+    "name": "Disable Silent App Installations",
+    "description": "Prevents Windows from silently installing Microsoft-promoted or sponsored apps.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SilentInstalledAppsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"PreInstalledAppsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"OemPreInstalledAppsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_smartscreen_app",
+    "name": "Disable SmartScreen for Apps & Files",
+    "description": "Disables the SmartScreen reputation filter for downloaded apps. Medium risk — removes a security layer.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System","value":"EnableSmartScreen","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_password_reveal",
+    "name": "Disable Password Reveal Button",
+    "description": "Hides the eye icon in password fields — useful in shared/public environments.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CredUI","value":"DisablePasswordReveal","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_clipboard_cloud_sync",
+    "name": "Disable Clipboard Cloud Sync",
+    "description": "Disables cross-device clipboard sync to Microsoft servers. Your local clipboard still works normally.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Clipboard","value":"EnableClipboardHistory","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Clipboard","value":"CloudClipboardAutomaticUpload","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_typing_personalization",
+    "name": "Disable Typing Insights & Inking Personalization",
+    "description": "Stops Windows collecting typing samples to personalise autocorrect and word suggestions. Removes a quiet background data upload.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\InputPersonalization","value":"RestrictImplicitInkCollection","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\InputPersonalization","value":"RestrictImplicitTextCollection","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\InputPersonalization\\TrainedDataStore","value":"HarvestContacts","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Personalization\\Settings","value":"AcceptedPrivacyPolicy","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_find_my_device",
+    "name": "Disable Find My Device",
+    "description": "Prevents Windows from periodically sending your location to Microsoft for the Find My Device feature.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\FindMyDevice","value":"AllowFindMyDevice","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_online_speech_recognition",
+    "name": "Disable Online Speech Recognition",
+    "description": "Prevents Windows from sending microphone audio to Microsoft cloud servers for speech processing.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Speech_OneCore\\Settings\\OnlineSpeechPrivacy","value":"HasAccepted","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_account_notification_ads",
+    "name": "Disable Microsoft Account Notification Ads",
+    "description": "Suppresses Microsoft account sign-in suggestions and promotional notifications shown in Settings and the Start menu.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338387Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338388Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-310093Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_recall_disable",
+    "name": "Disable Windows Recall",
+    "description": "Disables Windows Recall — an AI-powered snapshot feature that captures activity history. Requires Windows 11 24H2 or later. Restart required.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI","value":"DisableAIDataAnalysis","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_copilot_disable",
+    "name": "Disable Windows Copilot",
+    "description": "Disables the Windows Copilot (AI assistant) sidebar. On keyboards with a Copilot key, this prevents it from launching. Restart required.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"script","command":"powershell -Command \"if (Test-Path '$env:windir\\System32\\WindowsCopilotLauncher.exe') { Rename-Item -Path '$env:windir\\System32\\WindowsCopilotLauncher.exe' -NewName 'WindowsCopilotLauncher.exe.bak' -Force }\"","revert_command":"powershell -Command \"if (Test-Path '$env:windir\\System32\\WindowsCopilotLauncher.exe.bak') { Rename-Item -Path '$env:windir\\System32\\WindowsCopilotLauncher.exe.bak' -NewName 'WindowsCopilotLauncher.exe' -Force }\""}
+    ]
+  },
+  {
+    "id": "win11_energy_recommendations",
+    "name": "Disable Energy Recommendations",
+    "description": "Disables Windows 11 24H2 Energy Recommendations feature that suggests power settings. Restart required.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization","value":"EnergyRecommendations","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_chat_disable",
+    "name": "Disable Chat and Meet Now",
+    "description": "Removes the Chat icon from the Windows 11 taskbar and disables Meet Now. Restart required.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Communications","value":"ConfigureChat","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_snap_disable",
+    "name": "Disable Snap Assist",
+    "description": "Disables Windows 11 Snap Assist suggestions that appear when dragging windows. Restart may be required.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"SnapAssist","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_start_recommended",
+    "name": "Remove Recommended from Start Menu",
+    "description": "Hides the Recommended section from the Windows 11 Start Menu, showing only pinned apps.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338389Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_sudo_disable",
+    "name": "Disable Sudo for Windows",
+    "description": "Disables the Sudo.exe feature introduced in Windows 11 24H2. This prevents elevated commands from running via 'sudo' in the terminal. Restart required.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Sudo","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "win11_dynamic_lighting",
+    "name": "Disable Dynamic Lighting",
+    "description": "Disables Windows 11 Dynamic Lighting RGB sync feature that communicates with connected devices. Restart may be required.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Lighting\\Transport","value":"DisableDyncamicLighting","data":1,"kind":"DWORD"}
     ]
   }
 ]

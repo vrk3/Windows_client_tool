@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget,
-    QHeaderView, QProgressBar, QLabel,
+    QHeaderView, QProgressBar, QLabel, QMessageBox,
 )
 from PyQt6.QtCore import QThreadPool
 
@@ -147,6 +147,13 @@ class _StartupTab(QWidget):
     def _disable_selected(self):
         e = self._selected_entry()
         if e and self._disable_fn:
+            reply = QMessageBox.question(
+                self, "Disable Startup Item",
+                f"Disable '{e.name}'?\n\nThis will prevent it from starting automatically.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
             try:
                 self._disable_fn(e.name)
                 self._status.setText(f"Disabled: {e.name}")
@@ -156,7 +163,7 @@ class _StartupTab(QWidget):
 
 
 class StartupModule(BaseModule):
-    name = "startup_manager"
+    name = "Startup Manager"
     icon = "🚀"
     description = "Manage startup programs and services"
     requires_admin = False
@@ -194,10 +201,14 @@ class StartupModule(BaseModule):
             "Browser Extensions",
         )
 
+        self._startup_tabs = tabs
         return tabs
 
     def on_activate(self) -> None:
-        pass
+        if hasattr(self, "_startup_tabs"):
+            tab = self._startup_tabs.currentWidget()
+            if hasattr(tab, "_load") and hasattr(tab, "_status") and tab._status.text() == "":
+                tab._load()
 
     def on_deactivate(self) -> None:
         pass

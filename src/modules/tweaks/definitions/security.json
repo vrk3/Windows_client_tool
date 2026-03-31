@@ -1,0 +1,167 @@
+[
+  {
+    "id": "disable_remote_desktop",
+    "name": "Disable Remote Desktop (RDP)",
+    "description": "Prevents inbound RDP connections. Closes port 3389. Recommended unless you actively use RDP to connect to this machine.",
+    "category": "Security", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server","value":"fDenyTSConnections","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp","value":"UserAuthentication","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_remote_assistance",
+    "name": "Disable Remote Assistance",
+    "description": "Prevents anyone from remotely controlling this machine via Remote Assistance (msra.exe).",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance","value":"fAllowToGetHelp","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_uac_max",
+    "name": "Set UAC to Maximum Level",
+    "description": "Enables the highest UAC prompt level — always prompt, even for built-in admins. Best practice on any workstation.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"EnableLUA","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"ConsentPromptBehaviorAdmin","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"PromptOnSecureDesktop","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_llmnr",
+    "name": "Disable LLMNR (Link-Local Multicast Name Resolution)",
+    "description": "LLMNR is exploited by MITM attacks (Responder tool). Disable unless you're on a legacy network that requires it.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient","value":"EnableMulticast","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_netbios_tcpip",
+    "name": "Disable NetBIOS over TCP/IP (via policy)",
+    "description": "Disables NetBIOS name resolution. Removes NBT-NS, which is used in Responder/MITM attacks on local networks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"NodeType","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_firewall_all_profiles",
+    "name": "Ensure Windows Firewall is Enabled (All Profiles)",
+    "description": "Enables Windows Firewall for Domain, Private, and Public profiles. Safe default — should never be disabled.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile","value":"EnableFirewall","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\StandardProfile","value":"EnableFirewall","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile","value":"EnableFirewall","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_smb1",
+    "name": "Disable SMBv1 Protocol",
+    "description": "Disables the legacy SMBv1 protocol exploited by WannaCry/EternalBlue. Safe on any modern Windows — SMBv2/3 handles all modern file sharing.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters","value":"SMB1","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "powershell_restricted_policy",
+    "name": "Set PowerShell Execution Policy to RemoteSigned",
+    "description": "Requires downloaded scripts to be signed by a trusted publisher. Allows local scripts. Balanced security without breaking automation.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell","value":"EnableScripts","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell","value":"ExecutionPolicy","data":"RemoteSigned","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "enable_ps_script_block_logging",
+    "name": "Enable PowerShell Script Block Logging",
+    "description": "Logs all PowerShell script blocks to the Windows event log. Invaluable for detecting malicious scripts. Slight overhead on PS-heavy systems.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging","value":"EnableScriptBlockLogging","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_wpad",
+    "name": "Disable WPAD Auto-Proxy Discovery",
+    "description": "Prevents Windows from auto-discovering proxy settings via WPAD. WPAD is exploited for MITM proxy injection attacks on untrusted networks.",
+    "category": "Security", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings","value":"AutoDetect","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_office_macros",
+    "name": "Disable Office Macros (if Office installed)",
+    "description": "Blocks all VBA macros in Office documents except those digitally signed. #1 attack vector for corporate malware. No impact if you never use macros.",
+    "category": "Security", "risk": "medium", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Word\\Security","value":"VBAWarnings","data":3,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Excel\\Security","value":"VBAWarnings","data":3,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\PowerPoint\\Security","value":"VBAWarnings","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_sticky_keys_backdoor",
+    "name": "Harden Accessibility Feature Backdoor (Sticky Keys)",
+    "description": "Replaces the Sticky Keys / Ease of Access shortcut executables with a disabled flag. These are abused to get a SYSTEM shell from the login screen.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe","value":"Debugger","data":"","kind":"SZ"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\utilman.exe","value":"Debugger","data":"","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_autorun_all_drives",
+    "name": "Disable AutoRun on All Drive Types",
+    "description": "Prevents AutoRun from executing content on USB drives, CDs, DVDs, and network shares. Blocks a classic malware delivery vector.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoDriveTypeAutoRun","data":255,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoDriveTypeAutoRun","data":255,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "restrict_anonymous_access",
+    "name": "Restrict Anonymous Network Access (Null Sessions)",
+    "description": "Prevents unauthenticated users from enumerating shares, user accounts, and SAM data over the network. Hardens against network reconnaissance attacks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"RestrictAnonymous","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"RestrictAnonymousSAM","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "require_ctrl_alt_del",
+    "name": "Require Ctrl+Alt+Del at Login",
+    "description": "Forces the secure attention sequence before the login prompt. Prevents spoofed login screens from harvesting credentials.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"DisableCAD","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "clear_pagefile_on_shutdown",
+    "name": "Clear Pagefile on Shutdown",
+    "description": "Zeros the pagefile during a clean shutdown. Prevents sensitive data (passwords, keys, tokens) from being recovered from the pagefile after shutdown. Adds ~30 seconds to shutdown time.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"ClearPageFileAtShutdown","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "require_smb_signing",
+    "name": "Require SMB Signing on Workstation",
+    "description": "Mandates cryptographic signing on all outbound SMB connections. Blocks SMB relay attacks where an attacker intercepts and replays authentication tokens on the local network.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"RequireSecuritySignature","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"EnableSecuritySignature","data":1,"kind":"DWORD"}
+    ]
+  }
+]

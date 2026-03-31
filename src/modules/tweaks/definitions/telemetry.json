@@ -15,8 +15,8 @@
   },
   {
     "id": "telemetry_zero",
-    "name": "Set Telemetry Level to 0 (Security)",
-    "description": "Sets AllowTelemetry to 0.",
+    "name": "Set Telemetry Level to 0 (Security only)",
+    "description": "Restricts Windows telemetry to the minimum — only critical security data. Enterprise feature; on Home this sets level 1.",
     "category": "Telemetry", "risk": "low", "requires_admin": true,
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"AllowTelemetry","data":0,"kind":"DWORD"},
@@ -26,7 +26,7 @@
   {
     "id": "disable_device_name_telemetry",
     "name": "Disable Device Name in Telemetry",
-    "description": "Prevents sending device name with telemetry data.",
+    "description": "Prevents sending the computer's name with telemetry data.",
     "category": "Telemetry", "risk": "low", "requires_admin": true,
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"AllowDeviceNameInTelemetry","data":0,"kind":"DWORD"}
@@ -35,14 +35,14 @@
   {
     "id": "disable_wersvc",
     "name": "Disable Windows Error Reporting",
-    "description": "Stops the Windows Error Reporting service.",
+    "description": "Stops Windows from sending crash reports to Microsoft.",
     "category": "Telemetry", "risk": "low", "requires_admin": true,
     "steps": [{"type":"service","name":"WerSvc","start_type":"disabled"}]
   },
   {
     "id": "disable_ceip",
     "name": "Disable Customer Experience Improvement Program",
-    "description": "Disables CEIP scheduled tasks.",
+    "description": "Disables CEIP scheduled tasks that collect usage statistics.",
     "category": "Telemetry", "risk": "low", "requires_admin": true,
     "steps": [
       {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator\" /disable"},
@@ -51,11 +51,58 @@
   },
   {
     "id": "disable_inventory_collector",
-    "name": "Disable Application Compatibility Inventory Collector",
-    "description": "Disables the app compatibility telemetry scheduled task.",
+    "name": "Disable Application Compatibility Telemetry",
+    "description": "Disables the app compatibility appraiser scheduled task that collects installed software data.",
     "category": "Telemetry", "risk": "low", "requires_admin": true,
     "steps": [
       {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser\" /disable"}
+    ]
+  },
+  {
+    "id": "disable_feedback_requests",
+    "name": "Disable Feedback Requests",
+    "description": "Stops Windows from asking for periodic feedback and satisfaction surveys.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"DoNotShowFeedbackNotifications","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Siuf\\Rules","value":"NumberOfSIUFInPeriod","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_consumer_features",
+    "name": "Disable Microsoft Consumer Features",
+    "description": "Prevents Windows from automatically installing promoted and sponsored apps.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent","value":"DisableWindowsConsumerFeatures","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_spynet",
+    "name": "Disable Defender SpyNet / MAPS Reporting",
+    "description": "Stops Windows Defender from submitting file samples to Microsoft's cloud. Medium risk — reduces cloud-based threat detection.",
+    "category": "Telemetry", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet","value":"SpynetReporting","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet","value":"SubmitSamplesConsent","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_maps_autoupdate",
+    "name": "Disable Maps Auto-Download",
+    "description": "Prevents Windows Maps from automatically downloading map data in the background.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Maps","value":"AutoDownloadAndUpdateMapData","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_mdm_enrollment",
+    "name": "Disable Automatic MDM Enrollment",
+    "description": "Prevents Windows from automatically enrolling in Mobile Device Management (corporate device management).",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CurrentVersion\\MDM","value":"DisableRegistration","data":1,"kind":"DWORD"}
     ]
   }
 ]

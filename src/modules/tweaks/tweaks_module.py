@@ -27,6 +27,9 @@ _CATEGORY_FILES = {
     "Telemetry":   "telemetry.json",
     "UI Tweaks":   "ui_tweaks.json",
     "Services":    "services.json",
+    "Gaming":      "gaming.json",
+    "Security":    "security.json",
+    "Network":     "network.json",
 }
 
 

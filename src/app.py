@@ -1,3 +1,5 @@
+"""Application services for the Windows Client Tool."""
+
 import os
 import sys
 from typing import ClassVar, Optional
@@ -32,6 +34,7 @@ def _get_resource_dir() -> str:
 def _get_default_config() -> dict:
     """Load default config from config/default_config.json."""
     import json
+
     config_path = os.path.join(_get_resource_dir(), "config", "default_config.json")
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -66,7 +69,7 @@ class App:
 
         self.backup = BackupService(data_dir=self._app_data_dir)
 
-        styles_dir = os.path.join(_get_resource_dir(), "ui", "styles")
+        styles_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "styles")
         self.theme = ThemeManager(styles_dir=styles_dir)
 
         self.search = SearchEngine(config_manager=self.config)

@@ -95,8 +95,8 @@ class _FixCard(QFrame):
 
 
 class QuickFixModule(BaseModule):
-    name = "quick_fix"
-    icon = "🔨"
+    name = "Quick Fix"
+    icon = "🔧"
     description = "One-click system repair and maintenance tools"
     requires_admin = True
     group = ModuleGroup.TOOLS

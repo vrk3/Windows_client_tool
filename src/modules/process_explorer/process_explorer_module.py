@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class ProcessExplorerModule(BaseModule):
     name = "Process Explorer"
-    icon = "process_explorer"
+    icon = "🔬"
     description = "Real-time process tree with Sysinternals-level detail"
     requires_admin = False
     group = ModuleGroup.PROCESS

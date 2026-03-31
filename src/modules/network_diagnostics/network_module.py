@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QSizePolicy,
     QAbstractItemView,
+    QStackedWidget,
 )
 
 from core.base_module import BaseModule
@@ -306,7 +307,16 @@ def _build_port_scanner_card() -> _ToolCard:
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.setMinimumHeight(140)
-    layout.addWidget(table)
+
+    # Empty state overlay for table
+    table_stack = QStackedWidget()
+    table_stack.addWidget(table)
+    empty_label = QLabel("No open ports found")
+    empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    empty_label.setStyleSheet("color: #888; font-size: 13px;")
+    empty_label.setMinimumHeight(140)
+    table_stack.addWidget(empty_label)
+    layout.addWidget(table_stack)
 
     # Cancellation flag — mutable list so lambda can write it
     _cancelled = [False]
@@ -335,6 +345,7 @@ def _build_port_scanner_card() -> _ToolCard:
 
         _cancelled[0] = False
         table.setRowCount(0)
+        table_stack.setCurrentIndex(0)
         progress_bar.setValue(0)
         scan_btn.setEnabled(False)
         stop_btn.setEnabled(True)
@@ -383,6 +394,7 @@ def _build_port_scanner_card() -> _ToolCard:
                 table.setItem(r, 0, QTableWidgetItem(str(port)))
                 table.setItem(r, 1, QTableWidgetItem(state))
                 table.setItem(r, 2, QTableWidgetItem(service))
+            table_stack.setCurrentIndex(0 if open_ports else 1)
             cancelled_msg = " (cancelled)" if _cancelled[0] else ""
             status_label.setText(f"Found {len(open_ports)} open port(s){cancelled_msg}.")
             scan_btn.setEnabled(True)
@@ -577,7 +589,7 @@ def _build_adapter_card() -> _ToolCard:
 # NetworkDiagnosticsModule
 # ---------------------------------------------------------------------------
 class NetworkDiagnosticsModule(BaseModule):
-    name = "network_diagnostics"
+    name = "Network Diagnostics"
     icon = "🌐"
     description = "Network diagnostic tools"
     requires_admin = False

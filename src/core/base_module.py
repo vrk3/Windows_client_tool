@@ -1,43 +1,214 @@
+"""Base class for all application modules.
+
+Provides common functionality for module lifecycle management, worker tracking,
+and metadata for the application shell. All module-specific functionality should
+extend this abstract base class.
+"""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional
 from PyQt6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
+    from core.app import App
     from core.search_provider import SearchProvider
 
+    class App(App):
+        """App class stub for type hints."""
+
+        @property
+        def thread_pool(self) -> object:
+            from PyQt6.QtCore import QThreadPool
+
+            return QThreadPool.globalInstance()
+
+        @property
+        def config(self) -> object:
+            from core.config_manager import ConfigManager
+
+            return ConfigManager.__new__(ConfigManager)
+
+
 class BaseModule(ABC):
+    """Abstract base class for all Windows Tweaker modules.
+
+    Attributes:
+        name: Human-readable module identifier (e.g., "Dashboard", "Event Viewer")
+        icon: Emoji icon for sidebar representation
+        description: Short description shown in help/context menus
+        requires_admin: Whether module needs elevated privileges to function
+        group: Logical grouping for sidebar organization (OVERVIEW, DIAGNOSE, TOOLS, etc.)
+
+    Lifecycle:
+        1. Instance created during module registration
+        2. on_start(app) called when app initializes
+        3. create_widget() produces the main UI widget
+        4. on_activate() called when widget becomes visible
+        5. on_deactivate() called when widget is hidden
+        6. on_stop() called before app shutdown for cleanup
+    """
+
     name: str
     icon: str
     description: str
-    requires_admin: bool
+    requires_admin: bool = False
     group: str
 
-    def __init__(self):
-        self._workers: List = []
-        self.app = None
+    def __init__(self) -> None:
+        """Initialize module state.
 
-    @abstractmethod
-    def create_widget(self) -> QWidget: ...
-    @abstractmethod
-    def on_activate(self) -> None: ...
-    @abstractmethod
-    def on_deactivate(self) -> None: ...
-    @abstractmethod
-    def on_start(self, app) -> None: ...
-    @abstractmethod
-    def on_stop(self) -> None: ...
+        Sets up internal tracking for worker threads and app reference.
+        """
+        self._workers: List[object] = []
+        self.app: Optional[App]
 
-    def get_config_schema(self) -> dict:
+    def create_widget(self) -> QWidget:
+        """Create and return the module's main widget.
+
+        Called once during app initialization. Must return a QWidget instance
+        or raise an appropriate exception if creation fails.
+
+        Returns:
+            QWidget: The module's primary UI component.
+
+        Raises:
+            RuntimeError: If widget cannot be created
+        """
+        raise NotImplementedError(
+            f"Module '{self.name}' must implement create_widget()"
+        )
+
+    def on_activate(self) -> None:
+        """Called when module widget becomes visible.
+
+        Performs any necessary initialization: starting background timers,
+        loading initial data, or setting up event handlers. Override in
+        subclasses for module-specific behavior.
+        """
+        pass
+
+    def on_deactivate(self) -> None:
+        """Called when module widget is hidden.
+
+        Performs cleanup that should be reversed when the module is reactivated:
+        stop timers, disconnect event handlers, clear cached data. Override
+        in subclasses if needed.
+        """
+        pass
+
+    def on_start(self, app: App) -> None:
+        """Called when application starts.
+
+        Store reference to app instance for accessing shared services like
+        config manager, theme manager, worker pool, etc. Override for
+        app-dependent initialization.
+
+        Args:
+            app: The App singleton instance
+        """
+        self.app = app
+
+    def on_stop(self) -> None:
+        """Called when application stops/shuts down.
+
+        Perform shutdown cleanup: explicitly stop workers, release resources,
+        save any final state, and prevent background operations. Override
+        to ensure thorough cleanup (currently relies on cancel_all_workers).
+        """
+        self.cancel_all_workers()
+
+    def get_config_schema(self) -> dict[str, object]:
+        """Return module-specific configuration schema.
+
+        Returns:
+            dict: Configuration keys defined by this module (empty by default)
+
+        Example:
+            return {
+                "dashboard.auto_refresh_interval": int,
+                "updates.check_on_start": bool,
+            }
+        """
         return {}
-    def get_toolbar_actions(self) -> list:
+
+    def get_toolbar_actions(self) -> List[Callable[[], object]]:
+        """Return toolbar actions for this module.
+
+        Returns:
+            list: Actions to add to main toolbar (empty by default)
+
+        Example:
+            actions = [
+                QAction("Refresh", self),
+                QAction("Export CSV", self),
+            ]
+        """
         return []
-    def get_menu_actions(self) -> list:
+
+    def get_menu_actions(self) -> List[Callable[[], object]]:
+        """Return context menu actions for this module.
+
+        Returns:
+            list: Actions to add to module's context menu (empty by default)
+
+        Example:
+            actions = [
+                QAction("Clear View", self),
+                QAction("Export...", self),
+            ]
+        """
         return []
+
     def get_status_info(self) -> str:
+        """Return brief status message for status bar.
+
+        Returns:
+            str: Short status text shown in app status bar when module active
+                 (empty string by default)
+
+        Example:
+            return f"Event Viewer — {count} events loaded"
+        """
         return ""
-    def get_search_provider(self) -> Optional["SearchProvider"]:
+
+    def get_search_provider(self) -> Optional[SearchProvider]:
+        """Return search provider for this module's content.
+
+        Returns:
+            SearchProvider or None: Provider for indexing/searching module data
+        """
         return None
+
     def cancel_all_workers(self) -> None:
+        """Cancel and clean up all running background workers.
+
+        Calls cancel() on each tracked worker to prevent blocking or
+        unauthorized background operations after shutdown.
+        """
         for worker in self._workers:
             worker.cancel()
         self._workers.clear()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        """Return auto-refresh interval in milliseconds, or None to disable.
+
+        Modules that support auto-refresh should override this.
+        The timer calls refresh_data() if available, otherwise on_activate().
+        """
+        return None
+
+    def refresh_data(self) -> None:
+        """Refresh module data.
+
+        Called by the global auto-refresh timer. Override in modules that
+        need a dedicated refresh (rather than the full on_activate behavior).
+        By default, calls on_activate().
+        """
+        self.on_activate()
+
+    @property
+    def workers(self) -> List[object]:
+        """Convenience property: return module's worker list."""
+        return list(self._workers)

@@ -6,12 +6,9 @@ from PyQt6.QtWidgets import QVBoxLayout, QWidget, QTabWidget, QLabel
 
 logger = logging.getLogger(__name__)
 
-try:
-    import pyqtgraph as pg
-    HAS_PYQTGRAPH = True
-except ImportError:
-    HAS_PYQTGRAPH = False
-    logger.warning("pyqtgraph not installed — charts disabled")
+HAS_PYQTGRAPH = False  # pyqtgraph bundling is complex with PyInstaller — charts disabled
+# To re-enable: pip install pyqtgraph and set to True (requires numpy + PyInstaller hooks)
+logger.warning("pyqtgraph charts disabled — install pyqtgraph manually for live charts")
 
 
 class RealTimeChart(QWidget):

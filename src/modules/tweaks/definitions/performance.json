@@ -2,28 +2,38 @@
   {
     "id": "disable_superfetch",
     "name": "Disable SysMain (Superfetch)",
-    "description": "Stops the SysMain service that preloads app data into RAM.",
+    "description": "Stops the SysMain service that preloads app data into RAM. Beneficial on SSDs where it adds unnecessary I/O.",
     "category": "Performance", "risk": "medium", "requires_admin": true,
     "steps": [{"type":"service","name":"SysMain","start_type":"disabled"}]
   },
   {
     "id": "high_perf_power_plan",
     "name": "Set High Performance Power Plan",
-    "description": "Switches to the High Performance power plan.",
+    "description": "Switches to the High Performance power plan — CPU never throttles.",
     "category": "Performance", "risk": "low", "requires_admin": true,
     "steps": [{"type":"command","cmd":"powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"}]
   },
   {
+    "id": "ultimate_performance_plan",
+    "name": "Enable Ultimate Performance Power Plan",
+    "description": "Unlocks and activates the hidden Ultimate Performance plan. Maximum CPU/memory throughput. Not recommended on laptops (battery drain).",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61"},
+      {"type":"command","cmd":"powercfg /setactive e9a42b02-d5df-448d-aa00-03f14749eb61"}
+    ]
+  },
+  {
     "id": "disable_search_indexing",
     "name": "Disable Windows Search Indexing",
-    "description": "Stops the Windows Search service.",
+    "description": "Stops the Windows Search indexing service. Reduces background I/O. Search still works, just slower for the first query.",
     "category": "Performance", "risk": "medium", "requires_admin": true,
     "steps": [{"type":"service","name":"WSearch","start_type":"disabled"}]
   },
   {
     "id": "visual_effects_best_performance",
     "name": "Adjust Visual Effects for Best Performance",
-    "description": "Disables animations and transparency for maximum speed.",
+    "description": "Disables animations and shadows for maximum UI responsiveness.",
     "category": "Performance", "risk": "low", "requires_admin": false,
     "steps": [
       {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects","value":"VisualFXSetting","data":2,"kind":"DWORD"}
@@ -32,10 +42,109 @@
   {
     "id": "disable_transparency",
     "name": "Disable Transparency Effects",
-    "description": "Disables Acrylic/blur transparency in the shell.",
+    "description": "Disables Acrylic/blur transparency in the shell — frees GPU resources.",
     "category": "Performance", "risk": "low", "requires_admin": false,
     "steps": [
       {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"EnableTransparency","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_hibernate",
+    "name": "Disable Hibernation",
+    "description": "Removes hiberfil.sys (frees 4–16 GB on C:). Safe if you never use Hibernate or Fast Startup. Reboot required.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"command","cmd":"powercfg /h off"}]
+  },
+  {
+    "id": "disable_ntfs_8dot3",
+    "name": "Disable NTFS 8.3 Short Filenames",
+    "description": "Stops NTFS generating legacy 8.3 names. Reduces file create overhead on SSDs with many files.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisable8dot3NameCreation","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ntfs_last_access",
+    "name": "Disable NTFS Last Access Timestamp",
+    "description": "Stops NTFS updating the last-access time on every file read — reduces write I/O on busy directories.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableLastAccessUpdate","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_hags",
+    "name": "Enable Hardware-Accelerated GPU Scheduling (HAGS)",
+    "description": "GPU manages its own VRAM scheduling — reduces CPU-GPU latency. Requires NVIDIA 10xx+, AMD RX 5000+, or Intel 12th gen+. Reboot required.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers","value":"HwSchMode","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_page_combining",
+    "name": "Disable Memory Page Combining",
+    "description": "Stops Windows combining identical memory pages in background. Reduces latency spikes caused by page re-splitting on write.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePageCombining","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_multimedia_scheduling",
+    "name": "Boost Multimedia Scheduling Responsiveness",
+    "description": "Tells the Multimedia Class Scheduler to dedicate more CPU time to foreground tasks — reduces stutters in audio/video apps.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile","value":"SystemResponsiveness","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "instant_menu_response",
+    "name": "Remove Menu Animation Delay",
+    "description": "Sets the context menu pop-up delay to 0 ms — menus appear instantly instead of fading in after a short pause.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MenuShowDelay","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_startup_delay",
+    "name": "Remove Startup App Launch Delay",
+    "description": "Eliminates the artificial delay Windows adds before launching startup programs. Apps registered in the startup folder open immediately after login.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize","value":"StartupDelayInMSec","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_edge_preload",
+    "name": "Disable Microsoft Edge Startup Boost & Preloading",
+    "description": "Stops Edge from loading in the background at boot and on every new tab. Frees 100–300 MB RAM if you don't use Edge as your primary browser.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\MicrosoftEdge\\Main","value":"AllowPrelaunch","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"StartupBoostEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"BackgroundModeEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "keep_kernel_in_ram",
+    "name": "Keep OS Kernel in RAM (No Paging)",
+    "description": "Prevents the Windows kernel from being swapped to the pagefile. Improves kernel response time on systems with 8 GB+ RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePagingExecutive","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_foreground_cpu_priority",
+    "name": "Boost Foreground App CPU Priority",
+    "description": "Sets Win32PrioritySeparation to favour foreground applications with shorter, variable quanta and maximum boost. Makes the active window feel more responsive.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
     ]
   }
 ]

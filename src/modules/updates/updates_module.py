@@ -133,13 +133,12 @@ class _AppUpdatesTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        log = self._log
-
         def _run_all(worker):
-            install_all_updates(lambda line: log.appendPlainText(line))
+            install_all_updates(lambda line: worker.signals.log_line.emit(line))
             return None
 
         w = Worker(_run_all)
+        w.signals.log_line.connect(self._log.appendPlainText)
         w.signals.result.connect(self._on_update_done)
         w.signals.error.connect(self._on_error)
         QThreadPool.globalInstance().start(w)
@@ -153,17 +152,16 @@ class _AppUpdatesTab(QWidget):
         self._progress.setValue(0)
         self._progress.show()
 
-        log = self._log
-        progress = self._progress
-
         def _run(worker):
             for i, wid in enumerate(ids):
-                log.appendPlainText(f"Updating {wid}...")
-                install_update(wid, lambda line: log.appendPlainText(line))
-                progress.setValue(i + 1)
+                worker.signals.log_line.emit(f"Updating {wid}...")
+                install_update(wid, lambda line: worker.signals.log_line.emit(line))
+                worker.signals.progress.emit(i + 1)
             return None
 
         w = Worker(_run)
+        w.signals.log_line.connect(self._log.appendPlainText)
+        w.signals.progress.connect(self._progress.setValue)
         w.signals.result.connect(self._on_update_done)
         w.signals.error.connect(self._on_error)
         QThreadPool.globalInstance().start(w)
@@ -289,13 +287,12 @@ class _WinUpdatesTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        log = self._log
-
         def _run(worker):
-            install_updates(selected, lambda line: log.appendPlainText(line))
+            install_updates(selected, lambda line: worker.signals.log_line.emit(line))
             return None
 
         w = COMWorker(_run)
+        w.signals.log_line.connect(self._log.appendPlainText)
         w.signals.result.connect(self._on_install_done)
         w.signals.error.connect(self._on_error)
         QThreadPool.globalInstance().start(w)
@@ -399,8 +396,8 @@ class _ScheduleTab(QWidget):
 # ---------------------------------------------------------------------------
 
 class UpdatesModule(BaseModule):
-    name = "updates"
-    icon = "updates"
+    name = "Updates"
+    icon = "🔄"
     description = "App and Windows update management"
     requires_admin = True
     group = ModuleGroup.TOOLS

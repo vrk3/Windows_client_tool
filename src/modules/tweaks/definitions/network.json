@@ -1,0 +1,78 @@
+[
+  {
+    "id": "disable_qos_reserved_bandwidth",
+    "name": "Remove QoS Reserved Bandwidth Limit",
+    "description": "By default Windows reserves 20% of bandwidth for QoS/DSCP traffic. Removing this reservation allows all apps to use the full connection speed.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Psched","value":"NonBestEffortLimit","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ipv6",
+    "name": "Disable IPv6",
+    "description": "Disables IPv6 on all network adapters. Removes the IPv6 attack surface and can reduce DNS lookup delays on networks without IPv6 infrastructure. Reboot required.",
+    "category": "Network", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"DisabledComponents","data":255,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_network_location_wizard",
+    "name": "Disable Network Location Pop-up",
+    "description": "Suppresses the 'Do you want your PC to be discoverable?' pop-up that appears every time you connect to a new network.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Network\\NewNetworkWindowOff","value":"","data":"","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "optimise_dns_cache",
+    "name": "Optimise DNS Cache TTL",
+    "description": "Sets the DNS client cache max TTL to 86400 s (24 h) and negative cache to 300 s. Reduces repeat DNS lookups for frequently visited domains.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxCacheTtl","data":86400,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxNegativeCacheTtl","data":300,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_network_discovery_services",
+    "name": "Disable Network Discovery (SSDP / UPnP)",
+    "description": "Stops the SSDP Discovery, UPnP Host, and Function Discovery services that broadcast this machine's presence on the LAN. Reduces attack surface on public or untrusted networks.",
+    "category": "Network", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"FDResPub","start_type":"disabled"},
+      {"type":"service","name":"SSDPSRV","start_type":"disabled"},
+      {"type":"service","name":"upnphost","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_lmhosts_lookup",
+    "name": "Disable LMHosts Name Resolution",
+    "description": "Disables the legacy LMHosts file used for NetBIOS name resolution. No modern application relies on this — disabling it reduces NetBIOS query broadcast noise.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"EnableLMHOSTS","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "shorten_tcp_keepalive",
+    "name": "Shorten TCP KeepAlive Interval",
+    "description": "Reduces the TCP KeepAlive interval from 2 hours to 5 minutes. Detects dead connections faster, which improves resilience for apps that hold long-lived TCP sockets.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"KeepAliveTime","data":300000,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"KeepAliveInterval","data":1000,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_tcp_timestamps",
+    "name": "Disable TCP Timestamps",
+    "description": "Disables the TCP timestamp option (RFC 1323). Timestamps can expose system uptime to network peers and marginally increase per-packet overhead. Low security improvement; mainly for hardening.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"Tcp1323Opts","data":0,"kind":"DWORD"}
+    ]
+  }
+]

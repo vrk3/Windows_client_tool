@@ -1,0 +1,44 @@
+{
+  "name": "Balanced",
+  "version": 1,
+  "builtin": true,
+  "description": "Sensible defaults: improve responsiveness and reduce tracking without aggressive changes. Good starting point for most users.",
+  "tweaks": {
+    "privacy": [
+      "disable_advertising_id",
+      "disable_activity_history",
+      "disable_bing_start",
+      "disable_app_launch_tracking",
+      "disable_suggested_content",
+      "disable_clipboard_cloud_sync"
+    ],
+    "telemetry": [
+      "telemetry_zero",
+      "disable_feedback_requests",
+      "disable_inventory_collector"
+    ],
+    "performance": [
+      "disable_startup_delay",
+      "instant_menu_response",
+      "disable_ntfs_last_access"
+    ],
+    "services": [
+      "disable_delivery_optimization",
+      "disable_fax",
+      "disable_downloaded_maps_manager"
+    ],
+    "ui_tweaks": [
+      "show_file_extensions",
+      "show_hidden_files",
+      "disable_taskbar_news",
+      "disable_search_highlights",
+      "disable_copilot_button",
+      "disable_taskbar_widgets",
+      "disable_snap_suggestions",
+      "always_show_tray_icons",
+      "disable_start_recommendations",
+      "enable_numlock_on_boot"
+    ]
+  },
+  "apps": {}
+}

@@ -1,9 +1,83 @@
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-*.egg-info/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+.Python
+pip-log.txt
+
+# ── Distribution / packaging ──────────────────────────────────────────────────
 dist/
 build/
+*.egg-info/
+*.egg
+MANIFEST
+
+# ── Virtual environments ──────────────────────────────────────────────────────
 .venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Testing & coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+
+# ── Type checking ─────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+
+# ── Linting / formatting ──────────────────────────────────────────────────────
+.ruff_cache/
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# ── Windows OS artifacts ──────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Database / cache files ────────────────────────────────────────────────────
 *.db
+*.sqlite
+*.sqlite3
+
+# ── PyInstaller ───────────────────────────────────────────────────────────────
+# dist/ and build/ already covered above.
+# WinClientTool.spec is intentionally tracked (build config).
+
+# ── Project-specific runtime artifacts ───────────────────────────────────────
+config/user_config.json

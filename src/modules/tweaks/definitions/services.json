@@ -2,21 +2,21 @@
   {
     "id": "disable_delivery_optimization",
     "name": "Disable Delivery Optimization",
-    "description": "Stops peer-to-peer Windows Update sharing.",
+    "description": "Stops peer-to-peer Windows Update sharing with other PCs on your network/internet.",
     "category": "Services", "risk": "low", "requires_admin": true,
     "steps": [{"type":"service","name":"DoSvc","start_type":"disabled"}]
   },
   {
     "id": "disable_remote_registry",
     "name": "Disable Remote Registry",
-    "description": "Prevents remote access to the registry.",
+    "description": "Prevents remote access to the registry — hardens the system against network attacks.",
     "category": "Services", "risk": "low", "requires_admin": true,
     "steps": [{"type":"service","name":"RemoteRegistry","start_type":"disabled"}]
   },
   {
     "id": "disable_xbox_services",
     "name": "Disable Xbox Services",
-    "description": "Disables all Xbox-related background services.",
+    "description": "Disables all Xbox-related background services. Medium risk if you use Xbox app or Game Pass.",
     "category": "Services", "risk": "medium", "requires_admin": true,
     "steps": [
       {"type":"service","name":"XboxGipSvc","start_type":"disabled"},
@@ -28,8 +28,100 @@
   {
     "id": "disable_fax",
     "name": "Disable Fax Service",
-    "description": "Disables the Windows Fax and Scan service.",
+    "description": "Disables the Windows Fax and Scan service — safe on machines without fax hardware.",
     "category": "Services", "risk": "low", "requires_admin": true,
     "steps": [{"type":"service","name":"Fax","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_print_spooler",
+    "name": "Disable Print Spooler",
+    "description": "Disables the print spooler. Only use if no printer is attached. Also mitigates PrintNightmare.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"Spooler","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_bluetooth_support",
+    "name": "Disable Bluetooth Support Service",
+    "description": "Disables Bluetooth. Safe if you have no Bluetooth devices paired.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"bthserv","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_wmpnetwork",
+    "name": "Disable Windows Media Player Network Sharing",
+    "description": "Disables the WMP network sharing / DLNA streaming service.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"WMPNetworkSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_tablet_input",
+    "name": "Disable Touch Keyboard & Handwriting Service",
+    "description": "Disables the touch keyboard service. Safe on desktops and non-touchscreen laptops.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"TabletInputService","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_secondary_logon",
+    "name": "Disable Secondary Logon",
+    "description": "Disables the 'Run as different user' feature. Reduces attack surface.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"seclogon","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_superfetch_service",
+    "name": "Disable Windows Search Service",
+    "description": "Disables Windows Search indexing service. Reduces background disk activity.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"WSearch","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_themes_service",
+    "name": "Disable Windows Themes Service",
+    "description": "Disables visual theme rendering — use only on headless/server machines without a real GUI need.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [{"type":"service","name":"Themes","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_connected_devices_platform",
+    "name": "Disable Connected Devices Platform (CDPSvc)",
+    "description": "Disables the service used for cross-device experiences (Phone Link, clipboard sync, etc.). Safe if you don't use Windows cross-device features.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"CDPSvc","start_type":"disabled"},
+      {"type":"service","name":"CDPUserSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_alljoyn_router",
+    "name": "Disable AllJoyn Router Service",
+    "description": "Disables the AllJoyn Router, a legacy IoT device connectivity bridge. Unused by standard desktop apps.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"AJRouter","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_downloaded_maps_manager",
+    "name": "Disable Downloaded Maps Manager",
+    "description": "Disables the service managing offline map downloads. Safe if you never use the Windows Maps app.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"MapsBroker","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_hyper_v_guest_services",
+    "name": "Disable Hyper-V Guest Integration Services",
+    "description": "Disables Hyper-V heartbeat, VSS, shutdown and time-sync integration services. These run even on physical machines. Safe unless this machine is a Hyper-V guest VM.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"vmicheartbeat","start_type":"disabled"},
+      {"type":"service","name":"vmicvss","start_type":"disabled"},
+      {"type":"service","name":"vmicshutdown","start_type":"disabled"},
+      {"type":"service","name":"vmictimesync","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_diagnostics_hub",
+    "name": "Disable Diagnostics Hub Standard Collector",
+    "description": "Disables the diagnostics data collection service used mainly by Visual Studio profiling. No effect on normal usage.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"diagnosticshub.standardcollector.service","start_type":"disabled"}]
   }
 ]

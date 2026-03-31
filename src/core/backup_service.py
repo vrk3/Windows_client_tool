@@ -114,8 +114,11 @@ class BackupService:
             return
         safe = key_path.replace("\\", "_").replace("/", "_")[:80]
         out = os.path.join(folder, "registry", f"{safe}.reg")
-        subprocess.run(["reg", "export", key_path, out, "/y"],
-                       capture_output=True, check=False)
+        subprocess.run(
+            ["reg", "export", key_path, out, "/y"],
+            capture_output=True, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
 
     def backup_service_state(self, service_name: str, restore_point_id: str) -> None:
         folder = self._get_restore_point_folder(restore_point_id)
@@ -191,8 +194,11 @@ class BackupService:
             before = (json.loads(row["before_value"])
                       if row["before_value"] else None)
             if step_type == "registry":
-                subprocess.run(["reg", "import", target],
-                               check=True, capture_output=True)
+                subprocess.run(
+                    ["reg", "import", target],
+                    check=True, capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
             elif step_type == "service":
                 import win32service
                 hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)
@@ -207,7 +213,9 @@ class BackupService:
                 subprocess.run(
                     ["winget", "install", target, "--silent",
                      "--accept-package-agreements"],
-                    check=False, capture_output=True)
+                    check=False, capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
             elif step_type == "file":
                 src = before["src"]
                 dest = before["dest"]

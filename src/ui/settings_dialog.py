@@ -56,6 +56,12 @@ class SettingsDialog(QDialog):
         )
         general_layout.addRow("Check Admin on Start:", self._admin_check)
 
+        self._tray_check = QCheckBox()
+        self._tray_check.setChecked(
+            self._app.config.get("app.minimize_to_tray", False)
+        )
+        general_layout.addRow("Minimize to Tray on Close:", self._tray_check)
+
         layout.addWidget(general_group)
 
         # Module manager
@@ -83,6 +89,7 @@ class SettingsDialog(QDialog):
         self._app.config.set(
             "app.check_admin_on_start", self._admin_check.isChecked()
         )
+        self._app.config.set("app.minimize_to_tray", self._tray_check.isChecked())
         self._app.theme.apply_theme(self._theme_combo.currentText())
         self._app.logger.set_level(self._log_level_combo.currentText())
         self._app.config.save()

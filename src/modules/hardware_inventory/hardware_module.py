@@ -106,8 +106,8 @@ class _LoadingTab(QWidget):
 
 
 class HardwareModule(BaseModule):
-    name = "hardware_inventory"
-    icon = "🖥"
+    name = "Hardware Info"
+    icon = "🖥️"
     description = "Hardware and system information"
     requires_admin = False
     group = ModuleGroup.SYSTEM
@@ -224,10 +224,14 @@ class HardwareModule(BaseModule):
 
         export_btn.clicked.connect(do_export)
 
+        self._hw_tabs = tabs
         return outer
 
     def on_activate(self) -> None:
-        pass
+        if hasattr(self, "_hw_tabs"):
+            tab = self._hw_tabs.currentWidget()
+            if hasattr(tab, "_load") and hasattr(tab, "_status") and tab._status.text() == "Click Refresh to load.":
+                tab._load()
 
     def on_deactivate(self) -> None:
         pass
