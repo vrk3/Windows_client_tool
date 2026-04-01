@@ -1,11 +1,11 @@
 # Windows 11 Tweaker/Optimizer
 # This project provides a GUI to analyze Windows logs, monitor processes
 
-# Author: Auto-generated
+# Author: YES :)
 # Date: 2026-03-23
 #
 # Usage:
-#   python src/main.py
+#  Windows Admin Client tool 
 #
 # Dependencies are listed in requirements.txt.
 #
@@ -14,7 +14,6 @@
 #   - PerfMon data collection
 #   - CBS logs and Windows dumps
 #   - Process Explorer-like view
-#   - AI recommendations via Ollama
-#   - Learning system to track fixes
+#   - And much more 
 #
-# TODO: Implement full functionality.
+# TODO: Still a work in progress 
