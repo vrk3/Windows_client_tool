@@ -22,7 +22,9 @@
       "instant_menu_response",
       "disable_startup_delay",
       "disable_superfetch",
-      "enable_hags"
+      "enable_hags",
+      "keep_kernel_in_ram",
+      "boost_multimedia_scheduling"
     ],
     "services": [
       "disable_xbox_services",

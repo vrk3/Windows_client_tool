@@ -481,7 +481,7 @@ class TweaksModule(BaseModule):
 
         def _worker_fn(worker):
             for i, tweak in enumerate(tweaks_to_apply):
-                if worker.is_cancelled():
+                if worker.is_cancelled:
                     break
                 self._engine.apply_tweak(
                     tweak, rp_id,
@@ -519,7 +519,7 @@ class TweaksModule(BaseModule):
 
         def _worker_fn(worker):
             for tweak in all_tweaks:
-                if worker.is_cancelled():
+                if worker.is_cancelled:
                     break
                 status = self._engine.detect_status(tweak)
                 self._signals.status_detected.emit(tweak["id"], status)

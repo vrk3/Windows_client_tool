@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QPushButton, QLabel, QFrame, QProgressBar, QSizePolicy,
                               QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                               QGroupBox, QFormLayout)
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from core.base_module import BaseModule
@@ -33,7 +33,9 @@ class _StatusCard(QFrame):
         self._title_lbl = QLabel(title)
         font = self._title_lbl.font()
         font.setBold(True)
-        font.setPointSize(font.pointSize() + 1)
+        _pt = font.pointSize()
+        if _pt > 0:
+            font.setPointSize(_pt + 1)
         self._title_lbl.setFont(font)
         layout.addWidget(self._title_lbl)
 
@@ -78,6 +80,10 @@ class SecurityDashboardModule(BaseModule):
     requires_admin = True
     group = ModuleGroup.SYSTEM
 
+    def __init__(self):
+        super().__init__()
+        self._workers: list = []
+
     def create_widget(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -88,7 +94,9 @@ class SecurityDashboardModule(BaseModule):
         self._banner = QLabel("Security Status")
         font = self._banner.font()
         font.setBold(True)
-        font.setPointSize(font.pointSize() + 2)
+        _pt = font.pointSize()
+        if _pt > 0:
+            font.setPointSize(_pt + 2)
         self._banner.setFont(font)
         refresh_btn = QPushButton("Refresh")
         self._progress = QProgressBar()
@@ -112,6 +120,7 @@ class SecurityDashboardModule(BaseModule):
             self._banner.setText("Security Status — Loading...")
 
             worker = COMWorker(lambda _w: get_all_security_status())
+            self._workers.append(worker)
 
             def on_result(data: dict):
                 refresh_btn.setEnabled(True)
@@ -318,15 +327,18 @@ class SecurityDashboardModule(BaseModule):
 
         w_sig = Worker(load_sig)
         w_sig.signals.result.connect(on_sig_result)
-        QThreadPool.globalInstance().start(w_sig)
+        self._workers.append(w_sig)
+        self.thread_pool.start(w_sig)
 
         w_ep = Worker(load_ep)
         w_ep.signals.result.connect(on_ep_result)
-        QThreadPool.globalInstance().start(w_ep)
+        self._workers.append(w_ep)
+        self.thread_pool.start(w_ep)
 
         w_events = Worker(load_events)
         w_events.signals.result.connect(on_events_result)
-        QThreadPool.globalInstance().start(w_events)
+        self._workers.append(w_events)
+        self.thread_pool.start(w_events)
 
     def _update_sig_card(self, data):
         if data is None:
@@ -497,7 +509,8 @@ class SecurityDashboardModule(BaseModule):
         w.signals.result.connect(on_result)
         w.signals.error.connect(lambda _: (self._quick_scan_btn.setEnabled(True),
                                            self._action_status_lbl.setText("Error running scan.")))
-        QThreadPool.globalInstance().start(w)
+        self._workers.append(w)
+        self.thread_pool.start(w)
 
     def _do_update_definitions(self):
         self._update_defs_btn.setEnabled(False)
@@ -526,7 +539,8 @@ class SecurityDashboardModule(BaseModule):
         w.signals.result.connect(on_result)
         w.signals.error.connect(lambda _: (self._update_defs_btn.setEnabled(True),
                                            self._action_status_lbl.setText("Error updating definitions.")))
-        QThreadPool.globalInstance().start(w)
+        self._workers.append(w)
+        self.thread_pool.start(w)
 
     def on_activate(self) -> None:
         if not getattr(self, "_security_loaded", False) and hasattr(self, "_security_load_fn"):
@@ -534,7 +548,7 @@ class SecurityDashboardModule(BaseModule):
             self._security_load_fn()
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_start(self, app) -> None:
         self.app = app

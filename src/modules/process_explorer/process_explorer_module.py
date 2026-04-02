@@ -61,6 +61,7 @@ class ProcessExplorerModule(BaseModule):
         # Fetch service names once in background
         w = Worker(self._fetch_service_names)
         w.signals.result.connect(lambda names: self._collector.set_service_names(names))
+        self._workers.append(w)
         app.thread_pool.start(w)
 
     @staticmethod
@@ -197,6 +198,7 @@ class ProcessExplorerModule(BaseModule):
     def on_deactivate(self) -> None:
         if self._collector:
             self._collector.stop()
+        self.cancel_all_workers()
 
     def on_stop(self) -> None:
         if self._collector:
@@ -360,6 +362,7 @@ class ProcessExplorerModule(BaseModule):
 
         w = Worker(do_check)
         w.signals.result.connect(self._on_vt_result)
+        self._workers.append(w)
         if self.app:
             self.app.thread_pool.start(w)
 

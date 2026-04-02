@@ -27,6 +27,7 @@ class BootAnalyzerModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._widget: Optional[QWidget] = None
+        self._worker: Optional[Worker] = None
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -82,6 +83,12 @@ class BootAnalyzerModule(BaseModule):
 
     def on_start(self, app) -> None:
         self.app = app
+
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()
+
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
 
     def get_status_info(self) -> str:
         return "Boot Analyzer — boot time optimization"
@@ -169,6 +176,7 @@ class BootAnalyzerModule(BaseModule):
 
         self._worker = Worker(do_analyze)
         self._worker.signals.result.connect(self._display_info)
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _display_info(self, info: dict) -> None:

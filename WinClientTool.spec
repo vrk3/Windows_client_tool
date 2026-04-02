@@ -1,19 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
 
-datas = [('src/ui/styles/dark.qss', 'ui/styles'), ('src/ui/styles/light.qss', 'ui/styles'), ('config/default_config.json', 'config')]
-binaries = []
-hiddenimports = ['modules.event_viewer.event_viewer_module', 'modules.cbs_log.cbs_module', 'modules.dism_log.dism_module', 'modules.windows_update.wu_module', 'modules.reliability.reliability_module', 'modules.crash_dumps.crash_dump_module', 'modules.perfmon.perfmon_module', 'modules.process_explorer.process_explorer_module', 'win32service', 'win32serviceutil', 'win32security', 'win32api', 'win32con']
-tmp_ret = collect_all('psutil')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+import os
 
+project_root = os.path.dirname(os.path.abspath(SPEC))
 
 a = Analysis(
-    ['src\\main.py'],
-    pathex=['src'],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=hiddenimports,
+    ['C:\\Users\\iorda\\OneDrive\\Documents\\Visual Studio 2022\\TEMP\\Windows_client_tool\\src\\main.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        (os.path.join(project_root, 'config'), 'config'),
+        (os.path.join(project_root, 'src', 'ui', 'styles'), 'ui/styles'),
+        (os.path.join(project_root, 'src', 'modules', 'tweaks', 'definitions'), 'modules/tweaks/definitions'),
+    ],
+    hiddenimports=[
+        'PyQt6', 'PyQt6.QtCore', 'PyQt6.QtWidgets', 'PyQt6.QtGui',
+        'pywin32', 'pywin32_bootstrap',
+        'win32api', 'win32con', 'win32gui', 'win32process', 'win32service', 'win32evtlog',
+        'win32com', 'win32com.client',
+        'PIL', 'PIL._imaging',
+        'requests', 'urllib3', 'charset_normalizer', 'idna',
+        'numpy', 'numpy.core', 'numpy._core', 'numpy._core.multiarray',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -26,20 +34,26 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='WinClientTool',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='WinClientTool',
 )

@@ -5,7 +5,7 @@ from typing import List, Tuple, Optional
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTreeWidget, QTreeWidgetItem, QSplitter, QPlainTextEdit, QLabel,
     QLineEdit, QProgressBar, QHeaderView, QSizePolicy, QFrame, QMessageBox)
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from core.base_module import BaseModule
@@ -85,6 +85,10 @@ class WindowsFeaturesModule(BaseModule):
     description = "Enable or disable Windows optional features"
     requires_admin = True
     group = ModuleGroup.MANAGE
+
+    def __init__(self):
+        super().__init__()
+        self._workers: list = []
 
     def create_widget(self) -> QWidget:
         w = QWidget()
@@ -219,7 +223,8 @@ class WindowsFeaturesModule(BaseModule):
 
             worker.signals.result.connect(on_result)
             worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._workers.append(worker)
+            self.thread_pool.start(worker)
 
         def on_item_clicked(item: QTreeWidgetItem, col: int) -> None:
             feat_name = item.text(0)
@@ -234,7 +239,8 @@ class WindowsFeaturesModule(BaseModule):
             worker = Worker(lambda _w: _get_feature_info(feat_name))
             worker.signals.result.connect(lambda info: detail_lbl.setText(info[:500]))
             worker.signals.error.connect(lambda e: detail_lbl.setText(f"Error: {e}"))
-            QThreadPool.globalInstance().start(worker)
+            self._workers.append(worker)
+            self.thread_pool.start(worker)
 
         def _run_feature_action(action_fn, action_name: str) -> None:
             feat_name = selected_name_ref[0]
@@ -267,7 +273,8 @@ class WindowsFeaturesModule(BaseModule):
 
             worker.signals.result.connect(on_done)
             worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._workers.append(worker)
+            self.thread_pool.start(worker)
 
         # Wire up signals
         refresh_btn.clicked.connect(load_features)
@@ -307,7 +314,7 @@ class WindowsFeaturesModule(BaseModule):
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_start(self, app) -> None:
         self.app = app

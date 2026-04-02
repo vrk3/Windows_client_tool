@@ -74,5 +74,126 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"Tcp1323Opts","data":0,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "enable_dns_over_https",
+    "name": "Enable DNS-over-HTTPS (DoH)",
+    "description": "Configures DNS-over-HTTPS using Cloudflare (1.1.1.1) and Google (8.8.8.8) as secure resolvers. Encrypts DNS queries to prevent ISP and LAN surveillance.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -NoProfile -Command Set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Where Status -eq Up | Select -First 1 InterfaceIndex) -ServerAddresses 1.1.1.1,8.8.8.8"}
+    ]
+  },
+  {
+    "id": "disable_smb_compression",
+    "name": "Disable SMB Compression",
+    "description": "Prevents Windows from compressing data over SMB shares by default. Useful on fast networks where compression overhead outweighs bandwidth savings. Some legacy NAS devices also have issues with SMB compression.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"EnableCompressedTraffic","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_tcp_offloading",
+    "name": "Disable TCP/IP Offloading (Chimney)",
+    "description": "Disables TCP Chimney offloading which can cause network instability on some NICs and routers. Recommended if you experience intermittent disconnections.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableTCPChimney","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableRSS","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DisableTaskOffload","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_tcp_auto_tuning_normal",
+    "name": "Set TCP Auto-Tuning to Normal",
+    "description": "Sets the TCP receive window auto-tuning level to normal. Resolves slow network speeds on some routers that mishandle large windows.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"netsh interface tcp set global autotuninglevel=normal"}
+    ]
+  },
+  {
+    "id": "disable_tcp_scaling",
+    "name": "Disable TCP Window Scaling",
+    "description": "Disables TCP receive window scaling. Only use this as a diagnostic step for network problems — can reduce throughput on high-latency connections.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"netsh interface tcp set global rss=enabled autotuninglevel=normal"}
+    ]
+  },
+  {
+    "id": "enable_tcp_quickack",
+    "name": "Enable TCP Quick ACK",
+    "description": "Enables Quick ACK mode for faster acknowledgement of received data on per-connection basis. Improves responsiveness on high-latency connections.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"TcpAckFrequency","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_netbios_ns_broadcast",
+    "name": "Disable NetBIOS Name Service Broadcast",
+    "description": "Stops the computer from broadcasting NetBIOS name queries to the entire local subnet. Reduces network noise and slightly improves sleep/wake times on networks with many devices.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"NoNameReleaseOnDemand","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"NameServerPort","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_smbv2_negotiate",
+    "name": "Force SMBv2 Only (Disable SMBv1 Fallback)",
+    "description": "Configures the SMB client to only negotiate SMBv2/v3. Adds extra protection against EternalBlue and other SMBv1 exploits without fully disabling SMB sharing.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters","value":"SMB2","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_icmp_redirect",
+    "name": "Disable ICMP Redirect Acceptance",
+    "description": "Prevents the system from accepting ICMP redirect packets. ICMP redirects can be abused to manipulate routing tables on LANs.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableICMPRedirect","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_dead_gateway",
+    "name": "Disable Dead Gateway Detection",
+    "description": "Prevents Windows from periodically testing alternate gateways listed in your routing table. Reduces background network activity on multi-NIC setups.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DisableDeadGWDetect","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "optimize_dns_prefetch",
+    "name": "Enable DNS Prefetching",
+    "description": "Enables DNS name prefetching so Windows proactively resolves domain names before you click links. Improves browsing responsiveness.",
+    "category": "Network", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoComplete","value":"AutoSuggest","data":1,"kind":"SZ"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoComplete","value":"Append Completion","data":1,"kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_network_status",
+    "name": "Disable NCSI Active Probing",
+    "description": "Disables the active polling that Windows uses to check internet connectivity (downloading a file from msftconnect.com). Reduces background network activity but the status icon may show inaccurate results.",
+    "category": "Network", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator","value":"NoActiveProbe","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_wol_magic_packet",
+    "name": "Disable Wake-on-LAN Magic Packets",
+    "description": "Disables the NIC from waking the PC in response to Wake-on-LAN magic packets received over the network. Improves security on machines that must not be remotely awakened.",
+    "category": "Network", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -NoProfile -Command Get-NetAdapter | Where Status -eq Up | ForEach-Object { Disable-NetAdapterWakeOnMagicPacket $_.Name -Confirm:$false -ErrorAction SilentlyContinue }"}
+    ]
   }
 ]

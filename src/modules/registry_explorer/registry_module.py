@@ -39,6 +39,7 @@ class RegistryExplorerModule(BaseModule):
         super().__init__()
         self._widget: QWidget | None = None
         self._model: RegistryTreeModel | None = None
+        self._workers: list = []
 
     def create_widget(self) -> QWidget:
         root = QWidget()
@@ -214,7 +215,7 @@ class RegistryExplorerModule(BaseModule):
                 return results
             stack = [node]
             while stack:
-                if worker.is_cancelled():
+                if worker.is_cancelled:
                     break
                 n = stack.pop()
                 if text.lower() in n.name.lower():

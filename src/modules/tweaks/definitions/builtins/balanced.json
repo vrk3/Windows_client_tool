@@ -10,22 +10,31 @@
       "disable_bing_start",
       "disable_app_launch_tracking",
       "disable_suggested_content",
-      "disable_clipboard_cloud_sync"
+      "disable_clipboard_cloud_sync",
+      "disable_handwriting_personalization",
+      "disable_peer_updates"
     ],
     "telemetry": [
       "telemetry_zero",
       "disable_feedback_requests",
-      "disable_inventory_collector"
+      "disable_inventory_collector",
+      "disable_telemetry_tasks",
+      "disable_wersvc"
     ],
     "performance": [
       "disable_startup_delay",
       "instant_menu_response",
-      "disable_ntfs_last_access"
+      "disable_ntfs_last_access",
+      "disable_transparency",
+      "disable_ntfs_8dot3",
+      "boost_multimedia_scheduling"
     ],
     "services": [
       "disable_delivery_optimization",
       "disable_fax",
-      "disable_downloaded_maps_manager"
+      "disable_downloaded_maps_manager",
+      "disable_diagnostics_hub",
+      "disable_remote_registry"
     ],
     "ui_tweaks": [
       "show_file_extensions",
@@ -37,7 +46,20 @@
       "disable_snap_suggestions",
       "always_show_tray_icons",
       "disable_start_recommendations",
-      "enable_numlock_on_boot"
+      "enable_numlock_on_boot",
+      "open_explorer_this_pc",
+      "disable_quick_access"
+    ],
+    "security": [
+      "disable_remote_desktop",
+      "disable_remote_assistance",
+      "disable_smb1",
+      "require_ctrl_alt_del",
+      "disable_wpad"
+    ],
+    "network": [
+      "optimise_dns_cache",
+      "disable_qos_reserved_bandwidth"
     ]
   },
   "apps": {}

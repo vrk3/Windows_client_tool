@@ -330,6 +330,7 @@ class _DiskHealthWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers = []
+        self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -408,13 +409,18 @@ class _DiskHealthWidget(QWidget):
         w.signals.result.connect(on_result)
         w.signals.error.connect(on_error)
         self._workers.append(w)
-        QThreadPool.globalInstance().start(w)
+        self._thread_pool.start(w)
 
     def _clear_cards(self) -> None:
         while self._cards_layout.count() > 1:
             item = self._cards_layout.takeAt(0)
             if item and item.widget():
                 item.widget().deleteLater()
+
+    def cancel_all_workers(self) -> None:
+        for w in self._workers:
+            w._cancelled = True
+        self._workers.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -429,7 +435,8 @@ class DiskHealthModule(BaseModule):
     group = ModuleGroup.SYSTEM
 
     def create_widget(self) -> QWidget:
-        return _DiskHealthWidget()
+        self._widget = _DiskHealthWidget()
+        return self._widget
 
     def on_start(self, app) -> None:
         self.app = app
@@ -441,7 +448,8 @@ class DiskHealthModule(BaseModule):
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        if hasattr(self, "_widget"):
+            self._widget.cancel_all_workers()
 
     def get_status_info(self) -> str:
         return "Disk Health"

@@ -4,7 +4,7 @@ from typing import List, Dict
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
     QProgressBar, QSizePolicy)
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -122,10 +122,12 @@ def _fill_table(table: QTableWidget, rows: List[Dict], columns: List[str]):
 
 
 class _RefreshTab(QWidget):
-    def __init__(self, loader_fn, columns, parent=None):
+    def __init__(self, loader_fn, columns, thread_pool, parent=None):
         super().__init__(parent)
         self._loader = loader_fn
         self._columns = columns
+        self._thread_pool = thread_pool
+        self._worker: Optional[Worker] = None
         layout = QVBoxLayout(self)
         toolbar = QHBoxLayout()
         self._refresh_btn = QPushButton("Refresh")
@@ -148,7 +150,7 @@ class _RefreshTab(QWidget):
         self._status.setText("Loading...")
         self._progress.show()
         loader = self._loader
-        worker = Worker(lambda _w: loader())
+        self._worker = Worker(lambda _w: loader())
         def on_result(rows):
             self._refresh_btn.setEnabled(True)
             self._progress.hide()
@@ -158,9 +160,14 @@ class _RefreshTab(QWidget):
             self._refresh_btn.setEnabled(True)
             self._progress.hide()
             self._status.setText(f"Error: {err}")
-        worker.signals.result.connect(on_result)
-        worker.signals.error.connect(on_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker.signals.result.connect(on_result)
+        self._worker.signals.error.connect(on_error)
+        self._thread_pool.start(self._worker)
+
+    def cancel_all(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel()
+            self._worker = None
 
 
 class SharesModule(BaseModule):
@@ -172,26 +179,33 @@ class SharesModule(BaseModule):
 
     def create_widget(self) -> QWidget:
         tabs = QTabWidget()
+        tp = self.thread_pool
         tabs.addTab(
-            _RefreshTab(get_shares, ["Name", "Type", "Path", "Comment", "Max Users", "Current Users"]),
+            _RefreshTab(get_shares, ["Name", "Type", "Path", "Comment", "Max Users", "Current Users"], tp),
             "Network Shares"
         )
         tabs.addTab(
-            _RefreshTab(get_sessions, ["Client", "User", "Opens", "Connected (sec)", "Idle (sec)"]),
+            _RefreshTab(get_sessions, ["Client", "User", "Opens", "Connected (sec)", "Idle (sec)"], tp),
             "Connected Sessions"
         )
         tabs.addTab(
-            _RefreshTab(get_mapped_drives, ["Drive", "Remote Path", "Status", "Type"]),
+            _RefreshTab(get_mapped_drives, ["Drive", "Remote Path", "Status", "Type"], tp),
             "Mapped Drives"
         )
         self._shares_tabs = tabs
         return tabs
 
     def on_start(self, app=None): pass
-    def on_stop(self): pass
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
     def on_activate(self):
         if hasattr(self, "_shares_tabs"):
             tab = self._shares_tabs.currentWidget()
             if hasattr(tab, "_load") and hasattr(tab, "_status") and tab._status.text() == "Click Refresh to load.":
                 tab._load()
-    def on_deactivate(self): pass
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()
+        if hasattr(self, "_shares_tabs"):
+            tab = self._shares_tabs.currentWidget()
+            if hasattr(tab, "cancel_all"):
+                tab.cancel_all()

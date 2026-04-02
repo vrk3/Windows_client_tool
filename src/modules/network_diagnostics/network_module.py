@@ -35,6 +35,9 @@ from modules.network_diagnostics import network_tools
 
 logger = logging.getLogger(__name__)
 
+# Module-level registry of canceller functions for network tool workers
+_worker_cancellers: list = []
+
 # ---------------------------------------------------------------------------
 # Helper: common port-to-service names
 # ---------------------------------------------------------------------------
@@ -67,6 +70,7 @@ class _ToolCard(QFrame):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
+        self._worker: Optional[Worker] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -112,6 +116,7 @@ def _build_ping_card() -> _ToolCard:
     content = QWidget()
     layout = QVBoxLayout(content)
     layout.setContentsMargins(8, 8, 8, 8)
+    card: Optional[_ToolCard] = None  # defined early so closures can capture it
 
     # Input row
     row = QHBoxLayout()
@@ -136,6 +141,7 @@ def _build_ping_card() -> _ToolCard:
     layout.addWidget(result_box)
 
     def _run_ping() -> None:
+        nonlocal card
         host = host_edit.text().strip()
         if not host:
             result_box.setPlainText("Please enter a host.")
@@ -143,12 +149,13 @@ def _build_ping_card() -> _ToolCard:
         count = count_spin.value()
         ping_btn.setEnabled(False)
         result_box.setPlainText("Running ping…")
-
         worker = Worker(lambda _w: network_tools.ping(host, count))
+        card._worker = worker
         worker.signals.result.connect(lambda txt: result_box.setPlainText(txt))
         worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}"))
         worker.signals.result.connect(lambda _: ping_btn.setEnabled(True))
         worker.signals.error.connect(lambda _: ping_btn.setEnabled(True))
+        _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
         QThreadPool.globalInstance().start(worker)
 
     ping_btn.clicked.connect(_run_ping)
@@ -161,6 +168,7 @@ def _build_traceroute_card() -> _ToolCard:
     content = QWidget()
     layout = QVBoxLayout(content)
     layout.setContentsMargins(8, 8, 8, 8)
+    card: Optional[_ToolCard] = None  # defined early so closures can capture it
 
     # Input row
     row = QHBoxLayout()
@@ -185,6 +193,7 @@ def _build_traceroute_card() -> _ToolCard:
     layout.addWidget(table)
 
     def _run_trace() -> None:
+        nonlocal card
         host = host_edit.text().strip()
         if not host:
             status_label.setText("Please enter a host.")
@@ -193,7 +202,7 @@ def _build_traceroute_card() -> _ToolCard:
         table.setRowCount(0)
         status_label.setText("Tracing route… (this may take up to 30s)")
 
-        worker = Worker(lambda _w: network_tools.traceroute(host))
+        card._worker = Worker(lambda _w: network_tools.traceroute(host))
 
         def _on_result(hops):
             table.setRowCount(0)
@@ -206,19 +215,22 @@ def _build_traceroute_card() -> _ToolCard:
             status_label.setText(f"Done — {len(hops)} hops.")
             trace_btn.setEnabled(True)
 
-        worker.signals.result.connect(_on_result)
-        worker.signals.error.connect(lambda e: (status_label.setText(f"Error: {e}"), trace_btn.setEnabled(True)))
-        QThreadPool.globalInstance().start(worker)
+        card._worker.signals.result.connect(_on_result)
+        card._worker.signals.error.connect(lambda e: (status_label.setText(f"Error: {e}"), trace_btn.setEnabled(True)))
+        _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
+        QThreadPool.globalInstance().start(card._worker)
 
     trace_btn.clicked.connect(_run_trace)
 
-    return _ToolCard("Traceroute", content, expanded=False)
+    card = _ToolCard("Traceroute", content, expanded=False)
+    return card
 
 
 def _build_dns_card() -> _ToolCard:
     content = QWidget()
     layout = QVBoxLayout(content)
     layout.setContentsMargins(8, 8, 8, 8)
+    card: Optional[_ToolCard] = None
 
     row = QHBoxLayout()
     row.addWidget(QLabel("Host:"))
@@ -240,6 +252,7 @@ def _build_dns_card() -> _ToolCard:
     layout.addWidget(result_box)
 
     def _run_dns() -> None:
+        nonlocal card
         host = host_edit.text().strip()
         if not host:
             result_box.setPlainText("Please enter a host.")
@@ -248,16 +261,18 @@ def _build_dns_card() -> _ToolCard:
         lookup_btn.setEnabled(False)
         result_box.setPlainText("Looking up…")
 
-        worker = Worker(lambda _w: network_tools.dns_lookup(host, rtype))
-        worker.signals.result.connect(lambda txt: result_box.setPlainText(txt))
-        worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}"))
-        worker.signals.result.connect(lambda _: lookup_btn.setEnabled(True))
-        worker.signals.error.connect(lambda _: lookup_btn.setEnabled(True))
-        QThreadPool.globalInstance().start(worker)
+        card._worker = Worker(lambda _w: network_tools.dns_lookup(host, rtype))
+        card._worker.signals.result.connect(lambda txt: result_box.setPlainText(txt))
+        card._worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}"))
+        card._worker.signals.result.connect(lambda _: lookup_btn.setEnabled(True))
+        card._worker.signals.error.connect(lambda _: lookup_btn.setEnabled(True))
+        _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
+        QThreadPool.globalInstance().start(card._worker)
 
     lookup_btn.clicked.connect(_run_dns)
 
-    return _ToolCard("DNS Lookup", content, expanded=False)
+    card = _ToolCard("DNS Lookup", content, expanded=False)
+    return card
 
 
 def _build_port_scanner_card() -> _ToolCard:
@@ -482,7 +497,9 @@ def _build_connections_card() -> _ToolCard:
     # Initial load
     _refresh()
 
-    return _ToolCard("Active Connections", content, expanded=False)
+    card = _ToolCard("Active Connections", content, expanded=False)
+    card._auto_timer = auto_timer
+    return card
 
 
 def _build_wifi_card() -> _ToolCard:
@@ -606,13 +623,25 @@ class NetworkDiagnosticsModule(BaseModule):
         self.app = app
 
     def on_stop(self) -> None:
+        self._cancel_all_cards()
         self.cancel_all_workers()
 
     def on_activate(self) -> None:
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        self._cancel_all_cards()
+
+    def _cancel_all_cards(self) -> None:
+        if not hasattr(self, "_cards"):
+            return
+        for card in self._cards:
+            if card is None:
+                continue
+            if hasattr(card, "_worker") and card._worker is not None:
+                card._worker.cancel()
+            if hasattr(card, "_auto_timer") and card._auto_timer is not None:
+                card._auto_timer.stop()
 
     def create_widget(self) -> QWidget:
         # Outer container
@@ -636,13 +665,16 @@ class NetworkDiagnosticsModule(BaseModule):
         inner_layout.setSpacing(8)
 
         # Add all tool cards
-        inner_layout.addWidget(_build_ping_card())
-        inner_layout.addWidget(_build_traceroute_card())
-        inner_layout.addWidget(_build_dns_card())
-        inner_layout.addWidget(_build_port_scanner_card())
-        inner_layout.addWidget(_build_connections_card())
-        inner_layout.addWidget(_build_wifi_card())
-        inner_layout.addWidget(_build_adapter_card())
+        cards: list = []
+        cards.append(_build_ping_card())
+        cards.append(_build_traceroute_card())
+        cards.append(_build_dns_card())
+        cards.append(_build_port_scanner_card())
+        cards.append(_build_connections_card())
+        cards.append(_build_wifi_card())
+        cards.append(_build_adapter_card())
+        for c in cards:
+            inner_layout.addWidget(c)
 
         # Push cards to the top
         inner_layout.addStretch(1)
@@ -650,5 +682,6 @@ class NetworkDiagnosticsModule(BaseModule):
         scroll.setWidget(inner)
         outer_layout.addWidget(scroll, 1)
 
+        self._cards = cards
         self._widget = outer
         return outer

@@ -21,6 +21,7 @@ a = Analysis(
         'win32com', 'win32com.client',
         'PIL', 'PIL._imaging',
         'requests', 'urllib3', 'charset_normalizer', 'idna',
+        'numpy', 'numpy.core', 'numpy._core', 'numpy._core.multiarray',
     ],
     hookspath=[],
     hooksconfig={},

@@ -35,6 +35,7 @@ class DriverModule(BaseModule):
         self._filter_edit: Optional[QLineEdit] = None
         self._refresh_btn: Optional[QPushButton] = None
         self._drivers_ref: list = [[]]  # [list of DriverInfo]
+        self._sort_col: int = -1
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -105,9 +106,17 @@ class DriverModule(BaseModule):
     # ------------------------------------------------------------------
 
     def _on_header_click(self, logical_index: int) -> None:
-        if self._table is not None:
-            order = self._table.sortOrder()
-            self._table.sortItems(logical_index, order)
+        if self._table is None:
+            return
+        hdr = self._table.horizontalHeader()
+        if logical_index == self._sort_col:
+            # Toggle order when clicking the same column
+            order = hdr.sortIndicatorOrder()
+            order = Qt.SortOrder.DescendingOrder if order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
+        else:
+            order = Qt.SortOrder.AscendingOrder
+        self._sort_col = logical_index
+        self._table.sortItems(logical_index, order)
 
     def _populate(self, drivers: List[DriverInfo], filter_text: str = "") -> None:
         if self._table is None:

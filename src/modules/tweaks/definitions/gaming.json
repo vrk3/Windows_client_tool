@@ -118,5 +118,71 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_game_broadcast",
+    "name": "Disable Xbox Game Broadcast",
+    "description": "Prevents Xbox Game Bar from broadcasting your gaming session to Xbox Live or other streaming platforms.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR","value":"BroadcastEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_game_tips",
+    "name": "Disable Xbox Game Tips",
+    "description": "Removes Xbox Game Bar tips and prompts that appear during gaming sessions.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"ShowGameModeNotifications","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_gpu_scheduling_auto",
+    "name": "Set Hardware-Accelerated GPU Scheduling to Auto",
+    "description": "Sets HAGS to auto mode (2) which lets Windows decide based on GPU capability. Use this to revert a previous Force On/Off tweak.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers","value":"HwSchMode","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_directx_agility",
+    "name": "Disable DirectX Agility SDK",
+    "description": "Prevents apps from using the latest DirectX Agility SDK which may override your GPU driver settings. Useful if you pinned a specific driver version.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\DirectX","value":"UserModeSdkVersion","data":"0.0.0.0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_gpu_preemption",
+    "name": "Disable GPU Memory Preemption",
+    "description": "Disables GPU preemption so the GPU never interrupts a rendering task to service lower-priority work. Can reduce micro-stutters in compute-heavy games.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers\\ scheduler","value":"EnablePreemption","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_latency_tolerance_unmanaged",
+    "name": "Set Power Platform Policy to Unmanaged",
+    "description": "Sets the power profile policy to unmanaged (0) so the CPU never limits performance based on background activity. Maximum CPU performance at all times.",
+    "category": "Gaming", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerPlatformUtility","value":"PlatformUtilityManaged","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_xbox_overlay",
+    "name": "Disable All Xbox Game Bar Overlays",
+    "description": "Completely disables all Xbox Game Bar overlay components — removes Win+G shortcut functionality and the entire overlay UI.",
+    "category": "Gaming", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"AllowGameDVR","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\GameBar","value":"UseNexusForGameBarEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR","value":"AppCaptureEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR","value":"AllowGameDVR","data":0,"kind":"DWORD"}
+    ]
   }
 ]

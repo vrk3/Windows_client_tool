@@ -204,7 +204,7 @@ class RemoteToolsModule(BaseModule):
             with ThreadPoolExecutor(max_workers=50) as pool:
                 futures = {pool.submit(_ping_host, h): h for h in hosts}
                 for fut in as_completed(futures):
-                    if worker.is_cancelled():
+                    if worker.is_cancelled:
                         break
                     h = futures[fut]
                     alive = fut.result()

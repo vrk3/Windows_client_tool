@@ -123,5 +123,148 @@
     "description": "Disables the diagnostics data collection service used mainly by Visual Studio profiling. No effect on normal usage.",
     "category": "Services", "risk": "low", "requires_admin": true,
     "steps": [{"type":"service","name":"diagnosticshub.standardcollector.service","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_edge_update",
+    "name": "Disable Microsoft Edge Update Service",
+    "description": "Disables automatic Edge browser updates. Safe if you manually manage Edge. Not recommended if Edge is your primary browser.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"edgeupdate","start_type":"disabled"},
+      {"type":"service","name":"edgeupdatem","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_biometric_service",
+    "name": "Disable Windows Biometric Service",
+    "description": "Disables the biometric framework. Safe to disable if you do not use Windows Hello, fingerprint login, or any biometric authentication apps.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"WbioSrvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_geolocation_service",
+    "name": "Disable Geolocation Service",
+    "description": "Disables the Windows location platform that provides location to apps. Safe if you never use location-aware features.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"lfsvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_parental_controls",
+    "name": "Disable Windows Parental Controls Service",
+    "description": "Disables the Windows Parental Controls service. Safe if you manage parental controls via other means or don't use them.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"WpcMonSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_windows_camera",
+    "name": "Disable Windows Camera Service",
+    "description": "Disables the Windows Camera service (wmpcsvc). Safe if you don't use the Camera app or Windows Hello face recognition.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"wmpcsvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_windows_defender_spynet",
+    "name": "Disable Windows Defender SpyNet Membership",
+    "description": "Disables joining Microsoft SpyNet — the community-based threat reporting network. Reduces cloud lookup overhead.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet","value":"SpyNetReporting","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet","value":"DisableGenericApproach","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_clipboard_service",
+    "name": "Disable Clipboard Service",
+    "description": "Disables the Windows clipboard service and history. The basic clipboard still works (Ctrl+C/Ctrl+V). Restart required.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"cbdhsvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_windows_update_au_svc",
+    "name": "Disable Windows Update Automatic Updates Service",
+    "description": "Sets the Windows Update service to Manual and disables automatic update checks. Use with caution — your system may miss critical security patches.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"wuauserv","start_type":"disabled"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU","value":"NoAutoUpdate","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_windows_insider_service",
+    "name": "Disable Windows Insider Service",
+    "description": "Disables the Windows Insider program service. Prevents Insider builds and associated background activity on non-Insider machines.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"wisvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_broadcast_support_service",
+    "name": "Disable COM+ System Application Service",
+    "description": "Disables the COM+ system application service which manages Component Services. Required for some developer tools and certain system features — safe to disable on standard desktop machines.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"COMSysApp","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_ip_helper_audit",
+    "name": "Disable IP Helper (IPv6 Transition)",
+    "description": "Disables the IP Helper service that provides automatic IPv6 tunnel connectivity. Safe to disable if you don't use Teredo, ISATAP, or DirectAccess.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"iphlpsvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_phone_service",
+    "name": "Disable Phone Service",
+    "description": "Disables the Phone Service that manages telephony on Windows 10/11. Safe to disable if you never make VoIP calls through the Phone app.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"PhoneSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_pim_index_service",
+    "name": "Disable Contact Data Indexing Service",
+    "description": "Disables background indexing of contact data for the People app. Reduces disk activity on systems with many contacts.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"service","name":"PimIndexMaintenanceSvc","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_user_service",
+    "name": "Disable User Manager Service",
+    "description": "Disables the User Manager service that manages multi-user sessions and appContainer restrictions. May break fast user switching.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [{"type":"service","name":"UserManager","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_nv_container",
+    "name": "Disable NVIDIA Container",
+    "description": "Disables background NVIDIA Container processes that track GPU usage and telemetry. Safe to disable if you don't use GeForce Experience.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"NvContainerLocalSystem","start_type":"disabled"}]
+  },
+  {
+    "id": "disable_windows_search_diags",
+    "name": "Disable Windows Search Diagnostics Collection",
+    "description": "Disables the diagnostics collection for Windows Search. Search functionality remains intact.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowSearchToUseLocation","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_wuauserv_manual",
+    "name": "Set Windows Update to Manual Only",
+    "description": "Switches Windows Update to manual trigger — no automatic downloads or installs. You control when updates are checked. Check manually or via this app's Updates module.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"wuauserv","start_type":"manual"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU","value":"AUOptions","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_appx_updates",
+    "name": "Disable Automatic AppX Package Updates",
+    "description": "Stops the Microsoft Store from automatically updating installed apps. Use with caution — security updates for Store apps will be skipped.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate","value":"SetDisableUXWUAccess","data":1,"kind":"DWORD"},
+      {"type":"service","name":"wservice","start_type":"disabled"}
+    ]
   }
 ]

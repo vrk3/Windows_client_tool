@@ -95,6 +95,16 @@ class DiskTreeModel(QAbstractItemModel):
         self._roots.clear()
         self.endResetModel()
 
+    def replace_node(self, new_node: "DiskNode") -> None:
+        """Replace a stub node (same path) with the fully-scanned version in-place."""
+        for i, root in enumerate(self._roots):
+            if root.path == new_node.path:
+                # Notify view that this row is about to change
+                idx = self.index(i, 0)
+                self.dataChanged.emit(idx, self.index(i, self.columnCount() - 1))
+                self._roots[i] = new_node
+                return
+
     # ── helpers ─────────────────────────────────────────────────────────────
 
     def _visible_children(self, node: DiskNode) -> List[DiskNode]:
@@ -172,3 +182,31 @@ class DiskTreeModel(QAbstractItemModel):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         return None
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """Sort the model by the given column. order: AscendingOrder or DescendingOrder."""
+        reverse = order == Qt.SortOrder.DescendingOrder
+
+        def get_key(node: DiskNode):
+            if column == COL_NAME:
+                return node.name.lower()
+            elif column == COL_SIZE:
+                return node.size
+            elif column == COL_PCT:
+                ps = node.parent.size if node.parent else node.size
+                return (node.size / ps * 100) if ps > 0 else 0.0
+            elif column == COL_FILES:
+                return node.file_count
+            elif column == COL_MODIFIED:
+                return node.last_modified or 0
+            return ""
+
+        def do_sort(nodes: List[DiskNode]) -> List[DiskNode]:
+            return sorted(nodes, key=get_key, reverse=reverse)
+
+        self.layoutAboutToBeChanged.emit()
+        self._roots = do_sort(self._roots)
+        for root in self._roots:
+            if root.children:
+                root.children = do_sort(root.children)
+        self.layoutChanged.emit()

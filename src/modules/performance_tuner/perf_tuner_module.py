@@ -107,7 +107,7 @@ class PerfTunerModule(BaseModule):
         def work(worker):
             results = {}
             for i, check in enumerate(checks):
-                if worker.is_cancelled():
+                if worker.is_cancelled:
                     break
                 try:
                     results[check["id"]] = check["detect"]()

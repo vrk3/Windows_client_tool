@@ -45,7 +45,7 @@ class BackupService:
         self._backup_dir = os.path.join(data_dir, "backups")
         os.makedirs(self._backup_dir, exist_ok=True)
         self._db_path = os.path.join(data_dir, "tweaks.db")
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._create_tables()
 

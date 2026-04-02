@@ -1,1 +1,51 @@
-{"name":"Privacy Focused","version":1,"builtin":true,"description":"All privacy and telemetry tweaks, no app changes.","tweaks":{"privacy":["disable_activity_history","disable_location","disable_advertising_id","disable_app_diagnostics","disable_cortana_web_search","disable_bing_start","disable_app_launch_tracking","disable_suggested_content"],"telemetry":["disable_diagtrack","disable_utcsvc","telemetry_zero","disable_device_name_telemetry","disable_wersvc","disable_ceip"]},"apps":{"remove":[],"install":[],"protected":[]}}
+{
+  "name": "Privacy Focused",
+  "version": 1,
+  "builtin": true,
+  "description": "All privacy and telemetry tweaks, no app changes.",
+  "tweaks": {
+    "privacy": [
+      "disable_activity_history",
+      "disable_location",
+      "disable_advertising_id",
+      "disable_app_diagnostics",
+      "disable_cortana_web_search",
+      "disable_bing_start",
+      "disable_app_launch_tracking",
+      "disable_suggested_content",
+      "disable_clipboard_cloud_sync",
+      "disable_handwriting_personalization",
+      "disable_peer_updates",
+      "disable_spotlight_cloud",
+      "disable_cortana",
+      "disable_remote_cortana",
+      "disable_one_sync",
+      "disable_wallet_service",
+      "disable_auto_correct",
+      "disable_ink_workspace",
+      "disable_windows_insider",
+      "disable_tailored_experiences",
+      "disable_feedback_hub",
+      "disable_diagnostic_data_viewer",
+      "win11_recall_disable",
+      "win11_copilot_disable",
+      "win11_chat_disable"
+    ],
+    "telemetry": [
+      "disable_diagtrack",
+      "disable_utcsvc",
+      "telemetry_zero",
+      "disable_device_name_telemetry",
+      "disable_wersvc",
+      "disable_ceip",
+      "disable_telemetry_tasks",
+      "disable_diag_track_blocking",
+      "disable_auto_logger",
+      "disable_feedback_requests",
+      "disable_office_telemetry",
+      "disable_edge_telemetry",
+      "disable_mdm_enrollment"
+    ]
+  },
+  "apps": {"remove": [], "install": [], "protected": []}
+}

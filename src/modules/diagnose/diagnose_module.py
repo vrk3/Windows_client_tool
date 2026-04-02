@@ -332,6 +332,8 @@ class DiagnoseModule(BaseModule):
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
+        if self._active_search:
+            self._active_search.cancel()
         if self._search_timer:
             self._search_timer.stop()
 

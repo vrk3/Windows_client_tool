@@ -34,6 +34,7 @@ class StoreAppsModule(BaseModule):
         super().__init__()
         self._widget: Optional[QWidget] = None
         self._apps: List[dict] = []
+        self._worker: Optional[Worker] = None
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -91,6 +92,12 @@ class StoreAppsModule(BaseModule):
         self.app = app
         # Don't auto-load here — _progress is created in create_widget() which runs after on_start
 
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()
+
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
+
     def get_status_info(self) -> str:
         return f"Store Apps — {len(self._apps)} installed"
 
@@ -123,6 +130,7 @@ class StoreAppsModule(BaseModule):
         self._worker = Worker(do_load)
         self._worker.signals.result.connect(self._on_apps_loaded)
         self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _on_apps_loaded(self, apps: List[dict]):
@@ -186,6 +194,7 @@ class StoreAppsModule(BaseModule):
         self._worker = Worker(do_uninstall)
         self._worker.signals.result.connect(lambda res: self._on_uninstall_done(res, name))
         self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _on_uninstall_done(self, result, name):

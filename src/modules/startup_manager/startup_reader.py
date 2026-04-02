@@ -1,9 +1,12 @@
+import logging
 import os
 import glob
 import json
 import winreg
 from dataclasses import dataclass
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 ENABLED_BYTES = bytes([0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
 DISABLED_BYTES = bytes([0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
@@ -132,8 +135,8 @@ def get_scheduled_task_entries() -> List[StartupEntry]:
                 source="task",
                 extra=f"Last: {str(task.LastRunTime)[:10]}",
             ))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load scheduled task entries: %s", e)
     return entries
 
 
@@ -173,8 +176,8 @@ def get_service_entries() -> List[StartupEntry]:
             except Exception:
                 continue
         win32service.CloseServiceHandle(scm)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load service entries: %s", e)
     return entries
 
 

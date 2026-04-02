@@ -202,6 +202,109 @@ def clear_print_queue(output_cb: Callable[[str], None]) -> None:
     output_cb("Print queue cleared.")
 
 
+def run_disk_cleanup(output_cb: Callable[[str], None]) -> None:
+    """Run cleanmgr /d C: /sagerun:1 with predefined cleanup."""
+    output_cb("Starting Disk Cleanup on C: ...")
+    try:
+        # Use predefined SAGERUN value to auto-select recommended cleanup
+        rc = _run_cmd(
+            ["cleanmgr", "/d", "C:", "/sagerun:1", "/lowdisk"],
+            output_cb
+        )
+        if rc == 0:
+            output_cb("Disk Cleanup completed.")
+        else:
+            output_cb(f"Disk Cleanup exited with code {rc}. Run cleanmgr manually for more options.")
+    except Exception as e:
+        output_cb(f"Could not run Disk Cleanup: {e}")
+
+
+def reset_perf_counters(output_cb: Callable[[str], None]) -> None:
+    """Rebuild performance counter registry keys."""
+    output_cb("Rebuilding performance counters...")
+    try:
+        rc = _run_cmd(
+            ["lodctr", "/r"],
+            output_cb
+        )
+        output_cb("Performance counters rebuilt.")
+    except Exception as e:
+        output_cb(f"Error rebuilding counters: {e}")
+
+
+def clear_prefetch(output_cb: Callable[[str], None]) -> None:
+    """Clear the Windows Prefetch folder."""
+    prefetch_dir = r"C:\Windows\Prefetch"
+    output_cb(f"Clearing Prefetch folder: {prefetch_dir}")
+    count = 0
+    for f in _glob.glob(os.path.join(prefetch_dir, "*.pf")):
+        try:
+            os.remove(f)
+            count += 1
+        except OSError as e:
+            output_cb(f"Skip {f}: {e}")
+    output_cb(f"Cleared {count} Prefetch files.")
+
+
+def clear_recent_files(output_cb: Callable[[str], None]) -> None:
+    """Clear recent documents and Explorer jump list."""
+    recent = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Recent")
+    output_cb(f"Clearing Recent files: {recent}")
+    count = 0
+    for f in _glob.glob(os.path.join(recent, "*.lnk")):
+        try:
+            os.remove(f)
+            count += 1
+        except OSError as e:
+            output_cb(f"Skip {f}: {e}")
+    # Also clear thumbnail cache
+    thumb_dir = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Windows\Explorer")
+    thumb_files = [f for f in _glob.glob(os.path.join(thumb_dir, "thumbcache_*.db"))]
+    output_cb(f"Clearing {len(thumb_files)} thumbnail cache entries")
+    for f in thumb_files:
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+    output_cb(f"Cleared {count} Recent shortcuts.")
+
+
+def network_reset(output_cb: Callable[[str], None]) -> None:
+    """Reset all network adapters via netsh."""
+    output_cb("Resetting all network adapters...")
+    _run_cmd(["netsh", "winsock", "reset"], output_cb)
+    _run_cmd(["netsh", "int", "ip", "reset"], output_cb)
+    output_cb("Network adapters reset. REBOOT REQUIRED.")
+
+
+def check_wu_updates(output_cb: Callable[[str], None]) -> None:
+    """Trigger Windows Update scan using PowerShell."""
+    output_cb("Checking for Windows updates (this may take a minute)...")
+    script = (
+        "$UpdateSession = New-Object -ComObject Microsoft.Update.Session; "
+        "$UpdateSearcher = $UpdateSession.CreateUpdateSearcher(); "
+        "try { "
+        "  $Result = $UpdateSearcher.Search('IsInstalled=0'); "
+        f"  $count = $Result.Updates.Count; "
+        "  if ($count -eq 0) { 'All updates are installed.' } "
+        "  else { \"$count update(s) available:\"; "
+        "    foreach ($u in $Result.Updates) { \"  - $($u.Title)\" } } "
+        "} catch { 'Error checking updates: ' + $_.Exception.Message }"
+    )
+    _run_cmd(
+        ["powershell", "-NoProfile", "-Command", script],
+        output_cb
+    )
+
+
+def restart_print_spooler(output_cb: Callable[[str], None]) -> None:
+    """Restart the Print Spooler service."""
+    _stop_service("Spooler", output_cb)
+    time.sleep(1)
+    _start_service("Spooler", output_cb)
+    output_cb("Print Spooler restarted.")
+
+
 ALL_ACTIONS: List[FixAction] = [
     # System Repairs
     FixAction("sfc", "SFC Scan", "Scan and repair protected Windows files",
@@ -210,6 +313,11 @@ ALL_ACTIONS: List[FixAction] = [
               "System Repairs", fn=run_dism),
     FixAction("chkdsk", "CHKDSK Schedule", "Schedule disk check for next reboot",
               "System Repairs", reboot_required=True, fn=run_chkdsk),
+    FixAction("cleanmgr", "Disk Cleanup", "Run Windows Disk Cleanup on C: drive",
+              "System Repairs", fn=run_disk_cleanup),
+    FixAction("perf_reset", "Reset Performance Counters",
+              "Rebuild corrupted performance counter registry keys",
+              "System Repairs", reboot_required=False, fn=reset_perf_counters),
     # Cache & UI
     FixAction("icon_cache", "Rebuild Icon Cache", "Delete and rebuild Windows icon cache",
               "Cache & UI", fn=rebuild_icon_cache),
@@ -217,6 +325,10 @@ ALL_ACTIONS: List[FixAction] = [
               "Cache & UI", fn=clear_thumbnail_cache),
     FixAction("explorer", "Restart Explorer", "Kill and restart Windows Explorer",
               "Cache & UI", fn=restart_explorer),
+    FixAction("prefetch_clear", "Clear Prefetch", "Clear the Windows Prefetch cache",
+              "Cache & UI", reboot_required=False, fn=clear_prefetch),
+    FixAction("recent_clear", "Clear Recent Files", "Clear recent documents and jump lists",
+              "Cache & UI", fn=clear_recent_files),
     # Network
     FixAction("flush_dns", "Flush DNS", "Clear the DNS resolver cache",
               "Network", fn=flush_dns),
@@ -226,6 +338,8 @@ ALL_ACTIONS: List[FixAction] = [
               "Network", reboot_required=True, fn=reset_tcpip),
     FixAction("ip_renew", "IP Release/Renew", "Release and renew IP address",
               "Network", fn=ip_release_renew),
+    FixAction("network_reset", "Network Reset", "Reset all network adapters to default (reboot required)",
+              "Network", reboot_required=True, fn=network_reset),
     # Windows Update
     FixAction("wu_reset", "Reset Windows Update",
               "Stop WU services, clear caches, restart",
@@ -233,8 +347,13 @@ ALL_ACTIONS: List[FixAction] = [
     FixAction("wu_dlls", "Re-register WU DLLs",
               "Re-register all Windows Update DLL files",
               "Windows Update", fn=reregister_wu_dlls),
+    FixAction("wu_scan", "Check for Updates", "Manually trigger Windows Update scan",
+              "Windows Update", fn=check_wu_updates),
     # Print
     FixAction("print_queue", "Clear Print Queue",
               "Stop Spooler, delete print jobs, restart",
               "Print", fn=clear_print_queue),
+    FixAction("print_spooler_restart", "Restart Print Spooler",
+              "Stop and restart the Print Spooler service",
+              "Print", reboot_required=False, fn=restart_print_spooler),
 ]

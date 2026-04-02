@@ -146,5 +146,105 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_defragement_schedule",
+    "name": "Disable Scheduled Defragmentation",
+    "description": "Disables the Windows scheduled disk defragmentation task. Not needed on SSDs — defragmenting an SSD causes unnecessary wear with no performance benefit.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Defrag\\ScheduledDefrag\" /disable"}
+    ]
+  },
+  {
+    "id": "enable_trim_ssd",
+    "name": "Ensure TRIM is Enabled for SSD",
+    "description": "Confirms NTFS TRIM is enabled so the SSD knows which data blocks are unused and can erase them during idle. Required for proper SSD performance over time.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"fsutil behavior set DisableDeleteNotify 0"}
+    ]
+  },
+  {
+    "id": "disable_storage_sense",
+    "name": "Disable Storage Sense",
+    "description": "Disables Storage Sense which automatically frees disk space by deleting temp files and older downloads. You control cleanup manually.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StorageProxy","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "increase_mft_zone",
+    "name": "Increase MFT Reserved Zone",
+    "description": "Increases the NTFS Master File Table reserved zone to reduce fragmentation of frequently accessed files on NTFS volumes.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"fsutil behavior set MftZone 4"}
+    ]
+  },
+  {
+    "id": "disable_large_system_cache",
+    "name": "Disable Large System Cache",
+    "description": "Keeps the file system cache memory-limited. Default Windows behaviour. Only change this if you have specifically benchmarked the large system cache as beneficial for your workload.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"LargeSystemCache","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "optimize_file_system_cache",
+    "name": "Optimize File System Cache Size",
+    "description": "Sets the file system cache to a balanced 512 MB working set. Prevents excessive RAM consumption by the cache on systems with limited memory.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"SystemCache","data":102400,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_deferred_flush",
+    "name": "Disable Deferred Write Caching",
+    "description": "Disables the Windows deferred write flusher that batches disk writes. Can improve responsiveness on battery but may risk data loss on power failure.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePagingExecutive","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_iocost_priority_high",
+    "name": "Set Storage I/O Priority to High",
+    "description": "Gives foreground apps higher priority over background processes for storage I/O. Reduces stutters when background tasks are accessing the disk.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"IoPriority","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_prefetch",
+    "name": "Disable Prefetch",
+    "description": "Disables the Prefetch mechanism that preloads frequently used applications into memory. Reduces disk activity but may slow application launch times on HDDs.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters","value":"EnablePrefetcher","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters","value":"EnableSuperfetch","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_read_ahead",
+    "name": "Disable Read-Ahead",
+    "description": "Disables the NTFS read-ahead optimisation that pre-reads sequential file data. Recommended for random-access workloads.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"EnableReadahead","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_power_throttling_off",
+    "name": "Disable All CPU Power Throttling",
+    "description": "Disables Windows CPPC2 (Collaborative Processor Performance Control) power throttling for all processes. CPU always runs at full rated speed regardless of workload classification.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":1,"kind":"DWORD"}
+    ]
   }
 ]

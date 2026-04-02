@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem, QTabWidget, QSplitter, QProgressBar, QFileDialog,
     QPlainTextEdit,
 )
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -113,18 +113,19 @@ class GPResultModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._lock = threading.Lock()
+        self._worker: Optional[Worker] = None
 
     def on_activate(self) -> None:
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_start(self, app) -> None:
         self.app = app
 
     def on_stop(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def create_widget(self, parent=None) -> QWidget:
         w = QWidget(parent)
@@ -218,10 +219,11 @@ class GPResultModule(BaseModule):
                 progress.hide()
                 status_lbl.setText(f"Error: {err_str}")
 
-            worker = Worker(run_gpresult)
-            worker.signals.result.connect(on_result)
-            worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._worker = Worker(run_gpresult)
+            self._worker.signals.result.connect(on_result)
+            self._worker.signals.error.connect(on_error)
+            self._workers.append(self._worker)
+            self.thread_pool.start(self._worker)
 
         def do_export():
             path, _ = QFileDialog.getSaveFileName(w, "Export HTML", "gpresult.html", "HTML (*.html)")

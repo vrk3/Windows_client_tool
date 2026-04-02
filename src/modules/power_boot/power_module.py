@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLabel, QTabWidget, QListWidget, QCheckBox, QSpinBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QListWidgetItem,
 )
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -168,6 +168,10 @@ class PowerBootModule(BaseModule):
     requires_admin = True
     group = ModuleGroup.TOOLS
 
+    def __init__(self):
+        super().__init__()
+        self._worker: Optional[Worker] = None
+
     def create_widget(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -260,10 +264,11 @@ class PowerBootModule(BaseModule):
                 status_lbl.setText(f"Error: {err}")
                 set_plan_btn.setEnabled(True)
 
-            worker = Worker(_run_load)
-            worker.signals.result.connect(on_result)
-            worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._worker = Worker(_run_load)
+            self._worker.signals.result.connect(on_result)
+            self._worker.signals.error.connect(on_error)
+            self._workers.append(self._worker)
+            self.thread_pool.start(self._worker)
 
         def set_plan():
             item = plan_list.currentItem()
@@ -335,7 +340,7 @@ class PowerBootModule(BaseModule):
             refresh_boot_btn.setEnabled(False)
             boot_status.setText("Loading...")
 
-            worker = Worker(lambda _w: get_boot_entries())
+            self._worker = Worker(lambda _w: get_boot_entries())
 
             def on_result(entries):
                 refresh_boot_btn.setEnabled(True)
@@ -354,9 +359,10 @@ class PowerBootModule(BaseModule):
                 refresh_boot_btn.setEnabled(True)
                 boot_status.setText(f"Error: {err}")
 
-            worker.signals.result.connect(on_result)
-            worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._worker.signals.result.connect(on_result)
+            self._worker.signals.error.connect(on_error)
+            self._workers.append(self._worker)
+            self.thread_pool.start(self._worker)
 
         refresh_boot_btn.clicked.connect(load_boot)
         set_timeout_btn.clicked.connect(
@@ -384,10 +390,10 @@ class PowerBootModule(BaseModule):
         pass
 
     def on_stop(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_activate(self) -> None:
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()

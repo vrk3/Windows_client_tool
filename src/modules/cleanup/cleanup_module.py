@@ -80,6 +80,8 @@ class _ScanTab(QWidget):
         self._cleaning = False
         self._scanned  = False
         self._pending_freed = 0
+        self._workers: list = []   # track ALL workers (scan + clean) for cancellation
+        self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
     # ── Setup ──
@@ -199,10 +201,11 @@ class _ScanTab(QWidget):
                 merged.total_size += r.total_size
             return merged, per
 
-        worker = Worker(_run)
-        worker.signals.result.connect(self._on_scan_result)
-        worker.signals.error.connect(self._on_scan_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(_run)
+        self._worker.signals.result.connect(self._on_scan_result)
+        self._worker.signals.error.connect(self._on_scan_error)
+        self._workers.append(self._worker)
+        self._thread_pool.start(self._worker)
 
     def _on_scan_result(self, data):
         merged, per_scanner = data
@@ -318,10 +321,11 @@ class _ScanTab(QWidget):
         def _run(_w):
             return cs.delete_items(selected, stop_wuauserv=wu)
 
-        worker = Worker(_run)
-        worker.signals.result.connect(self._on_clean_done)
-        worker.signals.error.connect(self._on_clean_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(_run)
+        self._worker.signals.result.connect(self._on_clean_done)
+        self._worker.signals.error.connect(self._on_clean_error)
+        self._workers.append(self._worker)
+        self._thread_pool.start(self._worker)
 
     def _on_clean_done(self, result: Tuple[int, int]):
         deleted, errors = result
@@ -375,6 +379,10 @@ class _ScanTab(QWidget):
     def _deselect_all(self):
         for i in range(self._tree.topLevelItemCount()):
             self._tree.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
+    def _cancel_all(self) -> None:
+        for w in self._workers:
+            w.cancel()
+        self._workers.clear()
 
     def _ctx_menu(self, pos):
         item = self._tree.itemAt(pos)
@@ -401,6 +409,8 @@ class _BrowserCleanupTab(QWidget):
         self._scanning = False
         self._cleaning = False
         self._scanned  = False
+        self._workers: list = []   # track ALL workers for cancellation
+        self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
     def _setup_ui(self):
@@ -460,10 +470,11 @@ class _BrowserCleanupTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        worker = Worker(lambda _w: bs.detect_browsers())
-        worker.signals.result.connect(self._on_scan_result)
-        worker.signals.error.connect(self._on_scan_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(lambda _w: bs.detect_browsers())
+        self._worker.signals.result.connect(self._on_scan_result)
+        self._worker.signals.error.connect(self._on_scan_error)
+        self._workers.append(self._worker)
+        self._thread_pool.start(self._worker)
 
     def _on_scan_result(self, browsers):
         self._scanning = False
@@ -568,10 +579,11 @@ class _BrowserCleanupTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        worker = Worker(lambda _w: bs.delete_selected(cats))
-        worker.signals.result.connect(self._on_clean_done)
-        worker.signals.error.connect(self._on_clean_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(lambda _w: bs.delete_selected(cats))
+        self._worker.signals.result.connect(self._on_clean_done)
+        self._worker.signals.error.connect(self._on_clean_error)
+        self._workers.append(self._worker)
+        self._thread_pool.start(self._worker)
 
     def _on_clean_done(self, result):
         freed, errors = result
@@ -600,6 +612,11 @@ class _BrowserCleanupTab(QWidget):
     def _deselect_all(self):
         for i in range(self._tree.topLevelItemCount()):
             self._tree.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
+
+    def _cancel_all(self) -> None:
+        for w in self._workers:
+            w.cancel()
+        self._workers.clear()
 
 
 # ── _LargeItemsTab ────────────────────────────────────────────────────────────
@@ -665,6 +682,8 @@ class _LargeItemsTab(QWidget):
 
         layout.addWidget(dism)
         self._dism_btn.clicked.connect(self._run_dism)
+        self._dism_worker: Optional[Worker] = None
+        self._dism_thread_pool = QThreadPool.globalInstance()
 
     def auto_scan(self):
         self._scan_tab.auto_scan()
@@ -692,10 +711,16 @@ class _LargeItemsTab(QWidget):
             self._dism_btn.setEnabled(True)
             self._dism_out.append(f"Error: {e}")
 
-        w = Worker(_do)
-        w.signals.result.connect(_done)
-        w.signals.error.connect(_err)
-        QThreadPool.globalInstance().start(w)
+        self._dism_worker = Worker(_do)
+        self._dism_worker.signals.result.connect(_done)
+        self._dism_worker.signals.error.connect(_err)
+        self._dism_thread_pool.start(self._dism_worker)
+
+    def _cancel_all(self) -> None:
+        self._scan_tab._cancel_all()
+        if self._dism_worker is not None:
+            self._dism_worker.cancel()
+            self._dism_worker = None
 
 
 # ── _OverviewTab ──────────────────────────────────────────────────────────────
@@ -739,6 +764,9 @@ class _OverviewTab(QWidget):
         self._pending  = 0
         self._scanning = False
         self._scanned  = False
+        self._scan_workers: list = []
+        self._worker: Optional[Worker] = None
+        self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
     def _setup_ui(self):
@@ -885,7 +913,8 @@ class _OverviewTab(QWidget):
             w = Worker(run_fn)
             w.signals.result.connect(res_fn)
             w.signals.error.connect(err_fn)
-            QThreadPool.globalInstance().start(w)
+            self._scan_workers.append(w)
+            self._thread_pool.start(w)
 
     def _scan_done(self):
         self._scanning = False
@@ -955,13 +984,18 @@ class _OverviewTab(QWidget):
             self._clean_btn.setEnabled(True)
             self._status.setText(f"Error: {e}")
 
-        worker = Worker(_run)
-        worker.signals.result.connect(_done)
-        worker.signals.error.connect(_err)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(_run)
+        self._worker.signals.result.connect(_done)
+        self._worker.signals.error.connect(_err)
+        self._thread_pool.start(self._worker)
 
-
-# ── CleanupModule ─────────────────────────────────────────────────────────────
+    def _cancel_all(self) -> None:
+        for w in self._scan_workers:
+            w.cancel()
+        self._scan_workers.clear()
+        if self._worker is not None:
+            self._worker.cancel()
+            self._worker = None
 
 class CleanupModule(BaseModule):
     name = "Cleanup"
@@ -1084,6 +1118,7 @@ class CleanupModule(BaseModule):
         self.app = app
 
     def on_stop(self) -> None:
+        self._cancel_all_tabs()
         self.cancel_all_workers()
 
     def on_activate(self) -> None:
@@ -1091,7 +1126,15 @@ class CleanupModule(BaseModule):
         self._overview.auto_scan()
 
     def on_deactivate(self) -> None:
-        self.cancel_all_workers()
+        self._cancel_all_tabs()
+
+    def _cancel_all_tabs(self) -> None:
+        for tab in (
+            self._overview, self._sys_tab, self._browser, self._app_tab,
+            self._wu_tab, self._logs_tab, self._large, self._dev_tab,
+        ):
+            if hasattr(tab, "_cancel_all"):
+                tab._cancel_all()
 
     def get_status_info(self) -> str:
         return "Cleanup"

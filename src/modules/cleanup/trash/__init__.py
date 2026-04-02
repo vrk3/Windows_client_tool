@@ -76,7 +76,7 @@ class TrashManager:
                 try:
                     if os.path.exists(item_path):
                         os.unlink(item_path)
-                except:
+                except Exception:
                     pass
         return [str(p) for p in trash_paths]
 

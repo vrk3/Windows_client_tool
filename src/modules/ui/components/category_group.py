@@ -285,5 +285,3 @@ class CategoryGroup(QWidget):
                     except SystemError:
                         pass
                 __import__("os").startfile(path)
-
-</div>

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QFrame, QScrollArea, QGridLayout,
 )
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from core.base_module import BaseModule
@@ -15,11 +15,15 @@ from modules.quick_fix.fix_actions import ALL_ACTIONS, FixAction
 
 
 class _FixCard(QFrame):
+    _line = pyqtSignal(str)   # marshals output to main thread
+
     def __init__(self, action: FixAction, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self._action = action
         self._running = False
+        self._worker = None   # track for cancellation
+        self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
     def _setup_ui(self):
@@ -61,6 +65,7 @@ class _FixCard(QFrame):
         layout.addWidget(self._output)
 
         self._run_btn.clicked.connect(self._run)
+        self._line.connect(self._output.appendPlainText)
 
     def _run(self):
         if self._running:
@@ -73,25 +78,36 @@ class _FixCard(QFrame):
         action = self._action
 
         def append(line: str):
-            self._output.appendPlainText(line)
+            self._line.emit(line)
 
-        def do_work():
+        def do_work(_w):
+            self._worker = _w
             action.fn(append)
 
-        # Worker passes itself as first argument to fn, so wrap with ignored param
-        worker = Worker(lambda _w: do_work())
-        worker.signals.result.connect(lambda _result: self._on_done())
-        worker.signals.error.connect(self._on_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = Worker(do_work)
+        self._worker.signals.result.connect(lambda _r: self._on_done())
+        self._worker.signals.error.connect(self._on_error)
+        self._thread_pool.start(self._worker)
 
     def _on_done(self):
         self._running = False
+        self._worker = None
         self._run_btn.setEnabled(True)
 
     def _on_error(self, error_str: str):
         self._running = False
+        self._worker = None
         self._run_btn.setEnabled(True)
         self._output.appendPlainText(f"ERROR: {error_str}")
+
+    def cancel(self) -> None:
+        """Cancel the running worker if any."""
+        if self._worker is not None and self._running:
+            self._worker.cancel()
+            self._running = False
+            self._worker = None
+            self._run_btn.setEnabled(True)
+            self._output.appendPlainText("Cancelled.")
 
 
 class QuickFixModule(BaseModule):
@@ -100,6 +116,10 @@ class QuickFixModule(BaseModule):
     description = "One-click system repair and maintenance tools"
     requires_admin = True
     group = ModuleGroup.TOOLS
+
+    def __init__(self):
+        super().__init__()
+        self._cards: list = []
 
     def create_widget(self) -> QWidget:
         outer = QWidget()
@@ -127,11 +147,14 @@ class QuickFixModule(BaseModule):
         for action in ALL_ACTIONS:
             categories.setdefault(action.category, []).append(action)
 
+        self._cards.clear()
         for cat_name, actions in categories.items():
             hdr = QLabel(cat_name)
             hdr_font = hdr.font()
             hdr_font.setBold(True)
-            hdr_font.setPointSize(hdr_font.pointSize() + 1)
+            _pt = hdr_font.pointSize()
+            if _pt > 0:
+                hdr_font.setPointSize(_pt + 1)
             hdr.setFont(hdr_font)
             content_layout.addWidget(hdr)
 
@@ -139,6 +162,7 @@ class QuickFixModule(BaseModule):
             grid.setSpacing(8)
             for i, action in enumerate(actions):
                 card = _FixCard(action)
+                self._cards.append(card)
                 grid.addWidget(card, i // 2, i % 2)
             content_layout.addLayout(grid)
 
@@ -159,10 +183,12 @@ class QuickFixModule(BaseModule):
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        for card in self._cards:
+            card.cancel()
 
     def on_start(self, app) -> None:
         self.app = app
 
     def on_stop(self) -> None:
+        self.on_deactivate()
         self.cancel_all_workers()

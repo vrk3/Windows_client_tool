@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QLabel,
     QProgressBar, QFileDialog, QMessageBox,
 )
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -184,7 +184,7 @@ class SoftwareModule(BaseModule):
             progress.show()
             table.setRowCount(0)
 
-            worker = Worker(lambda _w: fetch_software())
+            self._worker = Worker(lambda _w: fetch_software())
 
             def on_result(entries: List[SoftwareEntry]) -> None:
                 entries_ref[0] = entries
@@ -198,9 +198,10 @@ class SoftwareModule(BaseModule):
                 progress.hide()
                 status_lbl.setText(f"Error: {err}")
 
-            worker.signals.result.connect(on_result)
-            worker.signals.error.connect(on_error)
-            QThreadPool.globalInstance().start(worker)
+            self._worker.signals.result.connect(on_result)
+            self._worker.signals.error.connect(on_error)
+            self._workers.append(self._worker)
+            self.thread_pool.start(self._worker)
 
         def do_uninstall() -> None:
             rows = {idx.row() for idx in table.selectedIndexes()}
@@ -258,7 +259,7 @@ class SoftwareModule(BaseModule):
         pass
 
     def on_stop(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_activate(self) -> None:
         if not getattr(self, "_software_loaded", False) and hasattr(self, "_software_load_fn"):
@@ -266,4 +267,4 @@ class SoftwareModule(BaseModule):
             self._software_load_fn()
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()

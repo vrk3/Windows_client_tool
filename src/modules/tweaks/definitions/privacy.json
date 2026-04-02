@@ -281,5 +281,167 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Lighting\\Transport","value":"DisableDyncamicLighting","data":1,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_diagnostic_data_viewer",
+    "name": "Disable Diagnostic Data Viewer Access",
+    "description": "Prevents users from opening the Diagnostic Data Viewer which shows detailed Windows telemetry being sent to Microsoft.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection","value":"DisableDiagnosticDataViewer","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_feedback_hub",
+    "name": "Disable Feedback Hub",
+    "description": "Prevents the Feedback Hub app from collecting and sending user feedback to Microsoft.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Siuf\\Rules","value":"NumberOfSIUFInPeriod","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_tailored_experiences",
+    "name": "Disable Tailored Experiences",
+    "description": "Stops Windows from providing personalised tips, ads, and recommendations based on your diagnostic data.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Privacy","value":"TailoredExperiencesWithDiagnosticDataEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_handwriting_personalization",
+    "name": "Disable Handwriting Data Upload",
+    "description": "Prevents Windows from uploading your handwriting and inking samples to improve the recogniser. Your local handwriting model still works.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Input\\TIPC","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_peer_updates",
+    "name": "Disable P2P Windows Update",
+    "description": "Stops Windows from downloading update files from other PCs. Uses Microsoft servers only — may increase internet bandwidth usage but improves update privacy.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization","value":"DODownloadMode","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization","value":"DOPerMachineMode","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_media_discovery",
+    "name": "Disable Media Discovery Service",
+    "description": "Disables the service that indexes media content on the local network for media streaming. Reduces network discovery traffic.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"MDM","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_spotlight_cloud",
+    "name": "Disable Windows Spotlight Cloud Content",
+    "description": "Prevents Windows Spotlight from downloading new lock screen images from Microsoft's cloud. Existing cached images continue to display.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"ContentDeliveryAllowed","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"Soft Landing Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SystemPaneSuggestionsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_cortana",
+    "name": "Disable Cortana Completely",
+    "description": "Disables Cortana from the taskbar and prevents it from using any network. Requires restarting explorer.exe or rebooting.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowCortana","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\PolicyManager\\default\\Experience\\AllowCortana","value":"Value","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_remote_cortana",
+    "name": "Disable Cortana Internet Access",
+    "description": "Blocks Cortana from making internet connections. The search box still works for local searches but cloud features are disabled.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowCortana","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\cbdhsvc","value":"Start","data":4,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\cdpusersvc","value":"Start","data":4,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_one_sync",
+    "name": "Disable OneSync Service",
+    "description": "Disables the sync engine that synchronises mail, contacts, and calendar with Microsoft accounts. Safe if you use only local accounts or non-Microsoft cloud services.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"OneSyncSvc","start_type":"disabled"},
+      {"type":"service","name":"MessagingService","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_wallet_service",
+    "name": "Disable Windows Wallet Service",
+    "description": "Disables the Microsoft Wallet service that stores payment info and loyalty cards. Unused by most users.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"WalletService","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_digital_locker",
+    "name": "Disable Digital Locker (Adobe DRM Cache)",
+    "description": "Disables the Windows Digital Locker agent that caches license information for protected media content.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DigitalLocker","value":"DigitalLocker","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_auto_correct",
+    "name": "Disable Auto-Correct and Spelling Service",
+    "description": "Disables the cloud-backed spelling autocorrect, text prediction, and spell checker that sends typed content to Microsoft.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Input\\Settings","value":"InsightsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\TextInput\\Settings","value":"IsIGEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ink_workspace",
+    "name": "Disable Ink Workspace",
+    "description": "Disables the Ink Workspace that appears when a pen is detached or a tablet is used. Removes the pen shortcuts panel.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Applets\\SysTray","value":"PenWorkspace","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_windows_insider",
+    "name": "Disable Windows Insider Service",
+    "description": "Disables the Windows Insider service and stops receiving preview builds. Safe for non-Insider machines.",
+    "category": "Privacy", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"wisvc","start_type":"disabled"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate","value":"ManagePreviewBuildsPolicySettings","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_account_Info_service",
+    "name": "Disable Account Info Access (Per-User)",
+    "description": "Prevents apps from accessing account information such as name, picture, and email from your Microsoft account.",
+    "category": "Privacy", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DeviceAccess\\S-1-5-21-AccountInfo","value":"Value","data":"Deny","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_calendar_contacts_sync",
+    "name": "Disable Calendar and Contacts Cloud Sync",
+    "description": "Stops the Windows People app from syncing contacts and calendar with Microsoft cloud services.",
+    "category": "Privacy", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"PimIndexMaintenanceSvc","start_type":"disabled"}
+    ]
   }
 ]

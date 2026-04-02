@@ -104,5 +104,85 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CurrentVersion\\MDM","value":"DisableRegistration","data":1,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_diag_track_blocking",
+    "name": "Block DiagTrack Service (Block Task)",
+    "description": "Blocks the DiagTrack service from running at all by setting it to a blocked task. Stronger than just setting start_type=disabled.",
+    "category": "Telemetry", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"DiagTrack","start_type":"disabled"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Application Experience\\AitAgent\" /disable"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Application Experience\\ProgramDataUpdater\" /disable"}
+    ]
+  },
+  {
+    "id": "disable_auto_logger",
+    "name": "Disable Windows AutoLogger",
+    "description": "Disables the Windows AutoLogger that continuously writes telemetry to disk. Reduces write I/O and telemetry data collection.",
+    "category": "Telemetry", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"$acl = Get-Acl 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\WMI\\AutoLogger'; $rule = New-Object System.Security.AccessControl.RegistryAuditRule('Everyone','FullControl','None','None','Deny'); $acl.AddAuditRule($rule); Set-Acl -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\WMI\\AutoLogger' -AclObject $acl\""}
+    ]
+  },
+  {
+    "id": "disable_telemetry_tasks",
+    "name": "Disable All Telemetry Scheduled Tasks",
+    "description": "Disables the collection of telemetry via all Microsoft telemetry scheduled tasks across Application Experience, Customer Experience Improvement, and Windows Insider.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Application Experience\\AitAgent\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Application Experience\\ProgramDataUpdater\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Feedback\\Siuf\\DmClient\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Feedback\\Siuf\\DmClientOnScenarioDownload\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Windows Error Reporting\\QueueReporting\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_office_telemetry",
+    "name": "Disable Office Telemetry",
+    "description": "Disables the Office telemetry agent that logs document and add-in usage to Microsoft 365. Safe for personal and corporate environments without Office telemetry requirements.",
+    "category": "Telemetry", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Common","value":"SendCustomerData","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Common\\Feedback","value":" QuestionnaireEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Common\\Feedback","value":"AutomaticSending","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_edge_telemetry",
+    "name": "Disable Microsoft Edge Telemetry",
+    "description": "Disables Microsoft Edge browsing telemetry and personalised ad tracking via the UI. Does not affect Edge's security features.",
+    "category": "Telemetry", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppContainer\\Storage\\Microsoft.MicrosoftEdge\\Main","value":"CookiesAreBlocked","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Edge\\Main","value":"PersonalizationAdvertisingEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgePrivacyAdvertisingEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgeSendSiteInfoToSend","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_windows_security_telemetry",
+    "name": "Disable Windows Security Centre Telemetry",
+    "description": "Stops Windows Security health reports from being sent to Microsoft. The Security dashboard still works locally.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Reporting","value":"DisableGenericReports","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\SmartScreen","value":"ConfigureTelemetryReporting","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_winsetup_telemetry",
+    "name": "Disable Setup Telemetry",
+    "description": "Disables the Windows Setup Exploit Guard telemetry that is sent after feature updates.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsSetup","value":"DisableTelemetry","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\OSUpgrade","value":"AllowTelemetry","data":0,"kind":"DWORD"}
+    ]
   }
 ]

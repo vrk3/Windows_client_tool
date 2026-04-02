@@ -101,7 +101,7 @@ class ConfigManager:
                 filtered[key] = data[key]
         return filtered
 
-    def get_config(self) -> Dict# Dict[str, Any]]:
+    def get_config(self) -> Dict:
         """Get current configuration.
 
         Returns:
@@ -376,5 +376,3 @@ class ConfigManager:
             Settings dictionary.
         """
         return self._DEFAULT_CONFIG.get("settings", {})
-
-</div>

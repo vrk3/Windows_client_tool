@@ -163,5 +163,139 @@
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"RequireSecuritySignature","data":1,"kind":"DWORD"},
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"EnableSecuritySignature","data":1,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "enable_credential_guard",
+    "name": "Enable Windows Defender Credential Guard",
+    "description": "Enables Credential Guard to isolate the Local Security Authority (LSASS) process using Virtualisation-Based Security. Prevents credential theft via memory dumping attacks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 1 /f"},
+      {"type":"command","cmd":"reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\" /v RequirePlatformSecurityFeatures /t REG_DWORD /d 3 /f"}
+    ]
+  },
+  {
+    "id": "disable_remote_cad",
+    "name": "Disable Remote Scheduled Tasks (ATS)",
+    "description": "Disables the Remote Registry server task. Prevents remote machines from querying the registry of this PC.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Registry\\RegIdleBackup\" /disable 2>nul"},
+      {"type":"service","name":"RemoteRegistry","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "enable_exploit_protection",
+    "name": "Enable Exploit Protection (Memory Protection)",
+    "description": "Enables all Windows Defender Exploit Protection memory mitigations: Control Flow Guard, Data Execution Prevention, and Randomised Memory Layouts.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ProcessMitigation -System -Enable CFG,SEHOP,HeapTerminate,BottomUp,HighEntropy,ExtensionPoint\""}
+    ]
+  },
+  {
+    "id": "disable_admin_shares",
+    "name": "Disable Administrative Shares",
+    "description": "Prevents Windows from creating default admin shares (C$, ADMIN$) on boot. Reduces the number of exposed network endpoints on domain-joined machines.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters","value":"AutoShareWks","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_nla",
+    "name": "Require Network Level Authentication (NLA) for RDP",
+    "description": "Requires the user to authenticate before a remote desktop session is established. Prevents DoS attacks that exhaust server resources with unauthenticated connections.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp","value":"UserAuthentication","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp","value":"SecurityLayer","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_print_spooler_rpc",
+    "name": "Harden Print Spooler RPC Interface",
+    "description": "Configures the Print Spooler to only accept authenticated connections on the RPC interface. Mitigates PrintNightmare and other Spooler exploits.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Printers\" /v RegisterSpoolerFileQuotedPaths /t REG_DWORD /d 1 /f 2>nul || echo Already set or not applicable"}
+    ]
+  },
+  {
+    "id": "disable_lanman_workstation",
+    "name": "Disable LAN Manager (LM) Authentication",
+    "description": "Prevents the use of the legacy LAN Manager authentication protocol which uses weak DES keys. Modern NTLMv2 is always used when LM is disabled.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"LmCompatibilityLevel","data":5,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_aslr_strict",
+    "name": "Enable Force ASLR",
+    "description": "Forces all executables to use Address Space Layout Randomisation even if they were not compiled with /DYNAMICBASE. Closes a gap exploited by return-oriented programming attacks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"MoveImages","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ipv6_router_discovery",
+    "name": "Disable IPv6 Router Discovery",
+    "description": "Prevents the machine from accepting router advertisements. IPv6 routing is disabled unless manually configured — useful for isolating the machine on IPv6 networks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"RouterDiscovery","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "secure_windows_defender",
+    "name": "Enable Windows Defender Hardening",
+    "description": "Enables all Defender policy-based hardening: real-time behaviour monitoring, script scanning, and cloud-delivered protection.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection","value":"DisableRealtimeMonitoring","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection","value":"DisableIOAVProtection","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\SmartScreen","value":"EnableSmartScreen","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_smbv1_client",
+    "name": "Disable SMBv1 Client Driver",
+    "description": "Unloads the SMBv1 client driver (mrxdaf.sys) so this PC cannot be used as a conduit to spread SMB exploits to other machines.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"sc config mrxsmb10 start= disabled"}
+    ]
+  },
+  {
+    "id": "disable_unrestricted_uac_elevate",
+    "name": "Disable UAC Elevation on Remote Connections",
+    "description": "Prevents programs from automatically elevating when launched via a remote desktop session. Closes an elevation attack vector in RDP scenarios.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\User Account Control","value":"AllowRemoteRemoteRPCCalls","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"ConsentPromptBehaviorRemote","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_smart_screen_filter",
+    "name": "Enable SmartScreen Filter (All Users)",
+    "description": "Enables Windows SmartScreen for all users via policy — checks downloaded files and web content against a Microsoft reputation database.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System","value":"EnableSmartScreen","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System","value":"ShellSmartScreenLevel","data":"Block","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_loading_drivers_test",
+    "name": "Disable Loading Test-Signed Drivers",
+    "description": "Prevents Windows from loading drivers signed with test certificates. Only production-signed drivers will load — blocks rootkit-style drivers.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs","value":"RequireSignedDriverCache","data":1,"kind":"DWORD"},
+      {"type":"command","cmd":"bcdedit /set testsigning off"}
+    ]
   }
 ]

@@ -5,7 +5,7 @@ from typing import List, Tuple
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
     QLineEdit, QComboBox, QCheckBox, QPlainTextEdit, QSizePolicy, QGridLayout)
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -87,6 +87,10 @@ class NetExtrasModule(BaseModule):
     description = "HOSTS editor, DNS switcher, proxy, quick network actions"
     requires_admin = True
     group = ModuleGroup.TOOLS
+
+    def __init__(self):
+        super().__init__()
+        self._workers: list = []
 
     def create_widget(self) -> QWidget:
         tabs = QTabWidget()
@@ -328,13 +332,16 @@ class NetExtrasModule(BaseModule):
             worker = Worker(lambda _w: run_cmd_stream(cmd, lambda l: log.appendPlainText(l)))
             worker.signals.result.connect(lambda _: log.appendPlainText("Done."))
             worker.signals.error.connect(lambda e: log.appendPlainText(f"Error: {e}"))
-            QThreadPool.globalInstance().start(worker)
+            self._workers.append(worker)
+            self.thread_pool.start(worker)
 
         layout.addLayout(grid)
         layout.addWidget(log, 1)
         return w
 
     def on_start(self, app=None): pass
-    def on_stop(self): pass
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
     def on_activate(self): pass
-    def on_deactivate(self): pass
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()

@@ -1,1 +1,46 @@
-{"name":"Developer Machine","version":1,"builtin":true,"description":"Dev tools installed, telemetry off, dark mode.","tweaks":{"telemetry":["disable_diagtrack","disable_utcsvc","telemetry_zero"],"ui_tweaks":["show_file_extensions","show_hidden_files","dark_mode"]},"apps":{"remove":[],"install":["vscode","git","wt","7zip","notepadpp"],"protected":[]}}
+{
+  "name": "Developer Machine",
+  "version": 1,
+  "builtin": true,
+  "description": "Dev tools installed, telemetry off, optimised for performance.",
+  "tweaks": {
+    "telemetry": [
+      "disable_diagtrack",
+      "disable_utcsvc",
+      "telemetry_zero",
+      "disable_telemetry_tasks",
+      "disable_office_telemetry"
+    ],
+    "privacy": [
+      "disable_cortana",
+      "disable_bing_start",
+      "disable_feedback_hub",
+      "disable_tailored_experiences"
+    ],
+    "performance": [
+      "disable_startup_delay",
+      "instant_menu_response",
+      "boost_multimedia_scheduling",
+      "boost_foreground_cpu_priority",
+      "disable_ntfs_last_access"
+    ],
+    "services": [
+      "disable_delivery_optimization",
+      "disable_diagnostics_hub"
+    ],
+    "ui_tweaks": [
+      "show_file_extensions",
+      "show_hidden_files",
+      "show_protected_os_files",
+      "dark_mode",
+      "show_full_path_titlebar",
+      "open_explorer_this_pc",
+      "show_nav_pane_expanded"
+    ]
+  },
+  "apps": {
+    "remove": [],
+    "install": ["vscode", "git", "7zip", "notepadpp"],
+    "protected": []
+  }
+}

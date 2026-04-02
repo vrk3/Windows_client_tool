@@ -278,7 +278,7 @@ class EnhancedBrowserScanner:
         try:
             for entry in path.rglob("*"):
                 try:
-                    if entry.is_file(follow_symlinks=False):
+                    if entry.is_file():
                         total += entry.stat().st_size
                 except OSError:
                     pass

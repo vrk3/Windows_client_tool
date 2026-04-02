@@ -3,7 +3,9 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QTabWidget,
     QHeaderView, QProgressBar, QLabel, QMessageBox,
 )
-from PyQt6.QtCore import QThreadPool
+from PyQt6.QtCore import QThreadPool, Qt
+from PyQt6.QtGui import QFont
+from typing import Optional
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -32,7 +34,16 @@ class _StartupTab(QWidget):
         self._use_com = use_com
         self._read_only = read_only
         self._entries = []
+        self._worker: Optional[Worker] = None
+        self._thread_pool = QThreadPool.globalInstance()
+        self._loaded = False
         self._setup_ui()
+
+    def auto_scan(self):
+        """Auto-load on first activate (idempotent — no-op if already loaded)."""
+        if not self._loaded:
+            self._loaded = True
+            self._load()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -89,7 +100,16 @@ class _StartupTab(QWidget):
             self._on_selection_changed
         )
 
+    def _make_status_dot(self, enabled: bool) -> QLabel:
+        """Return a small colored dot label: green=enabled, red=disabled."""
+        color = "#44BB44" if enabled else "#DD3333"
+        text = "Enabled" if enabled else "Disabled"
+        lbl = QLabel(f"<span style='color:{color};'>&#x25CF;</span> {text}")
+        lbl.setStyleSheet("QLabel { background: transparent; padding: 2px 4px; }")
+        return lbl
+
     def _load(self):
+        self._loaded = True
         self._refresh_btn.setEnabled(False)
         self._status.setText("Loading...")
         self._progress.show()
@@ -97,10 +117,10 @@ class _StartupTab(QWidget):
 
         loader = self._loader
         WorkerClass = COMWorker if self._use_com else Worker
-        worker = WorkerClass(lambda _w: loader())
-        worker.signals.result.connect(self._on_result)
-        worker.signals.error.connect(self._on_error)
-        QThreadPool.globalInstance().start(worker)
+        self._worker = WorkerClass(lambda _w: loader())
+        self._worker.signals.result.connect(self._on_result)
+        self._worker.signals.error.connect(self._on_error)
+        self._thread_pool.start(self._worker)
 
     def _on_result(self, entries):
         self._entries = entries
@@ -110,9 +130,7 @@ class _StartupTab(QWidget):
         for r, e in enumerate(entries):
             self._table.setItem(r, 0, QTableWidgetItem(e.name))
             self._table.setItem(r, 1, QTableWidgetItem(e.command))
-            self._table.setItem(
-                r, 2, QTableWidgetItem("Enabled" if e.enabled else "Disabled")
-            )
+            self._table.setCellWidget(r, 2, self._make_status_dot(e.enabled))
             self._table.setItem(r, 3, QTableWidgetItem(e.extra))
         self._status.setText(f"{len(entries)} entries")
 
@@ -161,6 +179,11 @@ class _StartupTab(QWidget):
             except Exception as ex:
                 self._status.setText(f"Error: {ex}")
 
+    def _cancel_all(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel()
+            self._worker = None
+
 
 class StartupModule(BaseModule):
     name = "Startup Manager"
@@ -202,13 +225,19 @@ class StartupModule(BaseModule):
         )
 
         self._startup_tabs = tabs
+        tabs.currentChanged.connect(self._on_tab_changed)
         return tabs
+
+    def _on_tab_changed(self, index: int) -> None:
+        tab = self._startup_tabs.widget(index)
+        if hasattr(tab, "auto_scan"):
+            tab.auto_scan()
 
     def on_activate(self) -> None:
         if hasattr(self, "_startup_tabs"):
             tab = self._startup_tabs.currentWidget()
-            if hasattr(tab, "_load") and hasattr(tab, "_status") and tab._status.text() == "":
-                tab._load()
+            if hasattr(tab, "auto_scan"):
+                tab.auto_scan()
 
     def on_deactivate(self) -> None:
         pass

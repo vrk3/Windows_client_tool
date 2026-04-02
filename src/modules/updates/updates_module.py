@@ -29,6 +29,7 @@ class _AppUpdatesTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._updates: List[AppUpdate] = []
+        self._loaded = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -76,12 +77,19 @@ class _AppUpdatesTab(QWidget):
         self._update_sel_btn.clicked.connect(self._do_update_selected)
         self._update_all_btn.clicked.connect(self._do_update_all)
 
+    def auto_scan(self):
+        """Trigger a refresh if this tab hasn't been loaded yet."""
+        if not self._loaded:
+            self._loaded = True
+            self._do_refresh()
+
     # ------------------------------------------------------------------
     # Worker functions — Worker passes itself as first argument, so all
     # callables passed to Worker() must accept a leading `worker` param.
     # ------------------------------------------------------------------
 
     def _do_refresh(self):
+        self._loaded = True
         self._refresh_btn.setEnabled(False)
         self._update_sel_btn.setEnabled(False)
         self._update_all_btn.setEnabled(False)
@@ -181,6 +189,7 @@ class _WinUpdatesTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._updates: List[WindowsUpdate] = []
+        self._loaded = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -230,6 +239,12 @@ class _WinUpdatesTab(QWidget):
         self._refresh_btn.clicked.connect(self._do_refresh)
         self._install_btn.clicked.connect(self._do_install)
 
+    def auto_scan(self):
+        """Trigger a refresh if this tab hasn't been loaded yet."""
+        if not self._loaded:
+            self._loaded = True
+            self._do_refresh()
+
         # Check reboot on init
         try:
             if is_reboot_pending():
@@ -238,6 +253,7 @@ class _WinUpdatesTab(QWidget):
             pass
 
     def _do_refresh(self):
+        self._loaded = True
         self._refresh_btn.setEnabled(False)
         self._install_btn.setEnabled(False)
         self._status_lbl.setText("Searching for updates...")
@@ -402,15 +418,34 @@ class UpdatesModule(BaseModule):
     requires_admin = True
     group = ModuleGroup.TOOLS
 
+    def __init__(self):
+        super().__init__()
+        self._app_tab: Optional[_AppUpdatesTab] = None
+        self._win_tab: Optional[_WinUpdatesTab] = None
+        self._tabs: Optional[QTabWidget] = None
+
     def create_widget(self) -> QWidget:
-        tabs = QTabWidget()
-        tabs.addTab(_AppUpdatesTab(), "App Updates")
-        tabs.addTab(_WinUpdatesTab(), "Windows Updates")
-        tabs.addTab(_ScheduleTab(), "Schedule")
-        return tabs
+        self._tabs = QTabWidget()
+        self._app_tab = _AppUpdatesTab()
+        self._win_tab = _WinUpdatesTab()
+        self._tabs.addTab(self._app_tab, "App Updates")
+        self._tabs.addTab(self._win_tab, "Windows Updates")
+        self._tabs.addTab(_ScheduleTab(), "Schedule")
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+        return self._tabs
 
     def on_activate(self) -> None:
-        pass
+        idx = self._tabs.currentIndex() if self._tabs else 0
+        if idx == 0:
+            self._app_tab.auto_scan()
+        elif idx == 1:
+            self._win_tab.auto_scan()
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index == 0:
+            self._app_tab.auto_scan()
+        elif index == 1:
+            self._win_tab.auto_scan()
 
     def on_deactivate(self) -> None:
         pass

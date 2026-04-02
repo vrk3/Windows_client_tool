@@ -15,21 +15,6 @@ if TYPE_CHECKING:
     from core.app import App
     from core.search_provider import SearchProvider
 
-    class App(App):
-        """App class stub for type hints."""
-
-        @property
-        def thread_pool(self) -> object:
-            from PyQt6.QtCore import QThreadPool
-
-            return QThreadPool.globalInstance()
-
-        @property
-        def config(self) -> object:
-            from core.config_manager import ConfigManager
-
-            return ConfigManager.__new__(ConfigManager)
-
 
 class BaseModule(ABC):
     """Abstract base class for all Windows Tweaker modules.
@@ -62,7 +47,13 @@ class BaseModule(ABC):
         Sets up internal tracking for worker threads and app reference.
         """
         self._workers: List[object] = []
-        self.app: Optional[App]
+        self.app: Optional[object] = None
+
+    @property
+    def thread_pool(self) -> "QThreadPool":
+        """Return the shared QThreadPool instance for this app."""
+        from PyQt6.QtCore import QThreadPool
+        return QThreadPool.globalInstance()
 
     def create_widget(self) -> QWidget:
         """Create and return the module's main widget.

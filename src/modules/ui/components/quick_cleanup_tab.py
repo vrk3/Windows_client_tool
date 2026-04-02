@@ -75,8 +75,6 @@ class QuickCleanupTab(QWidget):
         
         self._scroll_area = scroll_area
         scroll_area.setWidget(content)
-        contentLayout = QVBoxLayout(content)
-        scroll_area.insert(content, 0)
 
         # Title bar with actions
         title_layout = QHBoxLayout()
@@ -147,7 +145,7 @@ class QuickCleanupTab(QWidget):
         self._scanning = True
         self._progress.show()
         self._status_label.setText("Refreshing stats...")
-        self._content_layout.insert(self._progress, 2)
+        self._content_layout.insertWidget(2, self._progress)
 
         total_items = 0
         total_size = 0
@@ -197,9 +195,6 @@ class QuickCleanupTab(QWidget):
         """Update dashboard with statistics."""
         if dashboard_layout is None:
             dashboard_layout = self._content_layout
-            # Re-setup UI after first scan
-            self._content_layout.insert(self._progress, 2)
-            dashboard_layout = self._content_layout[-2]
 
         total_size = sum(
             r.total_size for r in self._results.values()
@@ -215,5 +210,3 @@ class QuickCleanupTab(QWidget):
             self._status_label.setText(
                 f"{category_count} categories — {format_size(total_size)} found"
             )
-
-</div>

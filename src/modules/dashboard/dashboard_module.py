@@ -85,7 +85,9 @@ class _Card(QFrame):
         title_lbl = QLabel(title)
         font = title_lbl.font()
         font.setBold(True)
-        font.setPointSize(font.pointSize() - 1)
+        _pt = font.pointSize()
+        if _pt > 0:
+            font.setPointSize(_pt - 1)
         title_lbl.setFont(font)
         title_lbl.setStyleSheet("color: gray;")
         vbox.addWidget(title_lbl)

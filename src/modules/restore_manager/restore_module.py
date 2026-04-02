@@ -29,6 +29,7 @@ class RestoreManagerModule(BaseModule):
         super().__init__()
         self._widget: Optional[QWidget] = None
         self._restore_points: List[dict] = []
+        self._worker: Optional[Worker] = None
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -109,6 +110,12 @@ class RestoreManagerModule(BaseModule):
     def get_status_info(self) -> str:
         return f"Restore Manager — {len(self._restore_points)} points"
 
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()
+
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
+
     # ── implementation ──────────────────────────────────────────────────────
 
     def _load_restore_points(self):
@@ -140,6 +147,7 @@ class RestoreManagerModule(BaseModule):
         self._worker = Worker(do_load)
         self._worker.signals.result.connect(self._on_points_loaded)
         self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _on_points_loaded(self, points):
@@ -205,6 +213,7 @@ class RestoreManagerModule(BaseModule):
         self._worker = Worker(do_create)
         self._worker.signals.result.connect(self._on_created)
         self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _on_created(self, result):
