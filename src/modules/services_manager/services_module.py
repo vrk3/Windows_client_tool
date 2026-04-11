@@ -689,7 +689,7 @@ class ServicesModule(BaseModule):
     def on_stop(self): self.cancel_all_workers()
     def on_deactivate(self): pass
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 30_000
 
     def refresh_data(self) -> None:

@@ -98,7 +98,9 @@ class ProcessTreeModel(QAbstractItemModel):
 
     # ── QAbstractItemModel required overrides ─────────────────────────
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         if self._flat_mode:
             if not parent.isValid():
                 return len(self._snapshot)
@@ -108,10 +110,14 @@ class ProcessTreeModel(QAbstractItemModel):
         node: ProcessNode = parent.internalPointer()
         return len(node.children)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         return len(COLUMNS)
 
-    def index(self, row: int, col: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, col: int, parent: QModelIndex = None) -> QModelIndex:
+        if parent is None:
+            parent = QModelIndex()
         if self._flat_mode:
             nodes = list(self._snapshot.values())
             if 0 <= row < len(nodes):

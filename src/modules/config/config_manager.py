@@ -283,7 +283,7 @@ class ConfigManager:
         """
         return self._config.get("settings", {}).get("trash_retention_days", 30)
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         """Get auto-refresh interval in seconds.
 
         Returns:

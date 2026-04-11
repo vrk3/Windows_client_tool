@@ -1,6 +1,9 @@
+import logging
+logger = logging.getLogger(__name__)
+
 import os, datetime, subprocess, winreg
 import psutil
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
@@ -284,7 +287,7 @@ class NetExtrasModule(BaseModule):
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PROXY_KEY) as k:
                     def rv(name, default=""):
                         try: return winreg.QueryValueEx(k, name)[0]
-                        except: return default
+                        except Exception: return default
                     enable_cb.setChecked(bool(rv("ProxyEnable", 0)))
                     server_edit.setText(str(rv("ProxyServer", "")))
                     override_edit.setText(str(rv("ProxyOverride", "")))

@@ -115,7 +115,10 @@ class _OverviewTab(QWidget):
 
     def _update_row(self, group_name: str, total: int, safe: int, count: int):
         for row in range(self._table.rowCount()):
-            if self._table.item(row, 0).text() == group_name:
+            item = self._table.item(row, 0)
+            if item is None:
+                continue
+            if item.text() == group_name:
                 sz = QTableWidgetItem(cs.format_size(total))
                 sz.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 sz.setForeground(QColor("#5cb85c" if total == 0 else "#cccccc"))

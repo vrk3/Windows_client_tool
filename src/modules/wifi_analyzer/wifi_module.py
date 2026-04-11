@@ -274,6 +274,14 @@ class WifiAnalyzerModule(BaseModule):
         self._progress.hide()
 
     def _on_result(self, data: Dict):
+        try:
+            import sip
+            _valid = lambda w: w is not None and not sip.isdeleted(w)
+        except ImportError:
+            _valid = lambda w: w is not None
+
+        if not _valid(self._net_table):
+            return
         networks = data["networks"]
         interfaces = data["interfaces"]
         channel_map = data["channel_map"]

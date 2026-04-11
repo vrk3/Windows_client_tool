@@ -660,7 +660,7 @@ class NetworkDiagnosticsModule(BaseModule):
     def on_deactivate(self) -> None:
         self._cancel_all_cards()
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 15_000
 
     def refresh_data(self) -> None:

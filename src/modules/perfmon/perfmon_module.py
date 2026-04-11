@@ -232,7 +232,7 @@ class PerfMonModule(BaseModule):
     def get_search_provider(self) -> Optional[SearchProvider]:
         return self._search_provider
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 5000  # 5 seconds
 
     def refresh_data(self) -> None:

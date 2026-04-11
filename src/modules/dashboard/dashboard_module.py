@@ -353,7 +353,7 @@ class DashboardModule(BaseModule):
         if self._widget:
             self._widget._timer.stop()
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 5_000
 
     def refresh_data(self) -> None:

@@ -94,7 +94,6 @@ class _FixCard(QFrame):
         self._worker.signals.result.connect(lambda _r: self._on_done())
         self._worker.signals.error.connect(self._on_error)
         self._thread_pool.start(self._worker)
-        self._workers.append(self._worker)
 
     def _on_done(self):
         self._running = False

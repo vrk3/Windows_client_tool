@@ -117,7 +117,7 @@ class _CertTab(QWidget):
 
     def _stop(self):
         if self._worker is not None:
-            self._worker._cancelled = True
+            self._worker.cancel()
             self._worker = None
 
     def _on_finished(self):

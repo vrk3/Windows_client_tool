@@ -117,7 +117,7 @@ class EventViewerModule(BaseModule):
         count = len(self._table.get_entries()) if self._table else 0
         return f"Event Viewer — {count} events"
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 10000  # 10 seconds
 
     def refresh_data(self) -> None:

@@ -85,7 +85,7 @@ class SecurityDashboardModule(BaseModule):
         self._workers: list = []
         self._security_loaded = False
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 30_000
 
     def refresh_data(self) -> None:

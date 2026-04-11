@@ -333,7 +333,7 @@ class DiagnoseModule(BaseModule):
     def on_stop(self) -> None:
         self.cancel_all_workers()
 
-    def get_refresh_interval(self) -> int:
+    def get_refresh_interval(self) -> Optional[int]:
         return 60_000
 
     def refresh_data(self) -> None:

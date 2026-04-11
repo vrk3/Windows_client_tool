@@ -114,7 +114,9 @@ class DiskTreeModel(QAbstractItemModel):
 
     # ── QAbstractItemModel interface ─────────────────────────────────────────
 
-    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, column: int, parent: QModelIndex = None) -> QModelIndex:
+        if parent is None:
+            parent = QModelIndex()
         if not parent.isValid():
             src = self._roots
         else:
@@ -137,12 +139,16 @@ class DiskTreeModel(QAbstractItemModel):
             return QModelIndex()
         return self.createIndex(row, 0, p)
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         if not parent.isValid():
             return len(self._roots)
         return len(self._visible_children(parent.internalPointer()))
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         return len(COLUMNS)
 
     def headerData(self, section: int, orientation: Qt.Orientation,

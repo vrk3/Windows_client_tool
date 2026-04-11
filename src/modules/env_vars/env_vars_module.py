@@ -2,7 +2,7 @@
 import ctypes
 import logging
 import winreg
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (

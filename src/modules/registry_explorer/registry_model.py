@@ -71,7 +71,9 @@ class RegistryTreeModel(QAbstractItemModel):
             _Node(name, hive, "", None) for name, hive in _HIVES.items()
         ]
 
-    def index(self, row: int, col: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, col: int, parent: QModelIndex = None) -> QModelIndex:
+        if parent is None:
+            parent = QModelIndex()
         if not self.hasIndex(row, col, parent):
             return QModelIndex()
         if not parent.isValid():
@@ -97,7 +99,9 @@ class RegistryTreeModel(QAbstractItemModel):
             row = p.row()
         return self.createIndex(row, 0, p)
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         if parent.column() > 0:
             return 0
         if not parent.isValid():
@@ -105,7 +109,9 @@ class RegistryTreeModel(QAbstractItemModel):
         node: _Node = parent.internalPointer()
         return len(node.children())
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         return 1
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
@@ -118,7 +124,9 @@ class RegistryTreeModel(QAbstractItemModel):
             return node  # expose node for value-panel loading
         return None
 
-    def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+    def hasChildren(self, parent: QModelIndex = None) -> bool:
+        if parent is None:
+            parent = QModelIndex()
         if not parent.isValid():
             return bool(self._roots)
         node: _Node = parent.internalPointer()
