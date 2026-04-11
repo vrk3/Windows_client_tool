@@ -1,6 +1,6 @@
 # src/modules/performance_tuner/perf_tuner_module.py
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import (
