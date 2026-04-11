@@ -1,6 +1,7 @@
 import json
 import subprocess
 from datetime import datetime
+from typing import Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QPushButton, QLabel, QFrame, QProgressBar, QSizePolicy,
