@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer, QThreadPool
+from PyQt6 import sip
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -34,6 +35,8 @@ from core.worker import Worker
 from modules.network_diagnostics import network_tools
 
 logger = logging.getLogger(__name__)
+
+_widget_valid = lambda w: not sip.isdeleted(w)
 
 # Module-level registry of canceller functions for network tool workers
 _worker_cancellers: list = []
@@ -151,10 +154,10 @@ def _build_ping_card() -> _ToolCard:
         result_box.setPlainText("Running ping…")
         worker = Worker(lambda _w: network_tools.ping(host, count))
         card._worker = worker
-        worker.signals.result.connect(lambda txt: result_box.setPlainText(txt))
-        worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}"))
-        worker.signals.result.connect(lambda _: ping_btn.setEnabled(True))
-        worker.signals.error.connect(lambda _: ping_btn.setEnabled(True))
+        worker.signals.result.connect(lambda txt: result_box.setPlainText(txt) if _widget_valid(result_box) else None)
+        worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}") if _widget_valid(result_box) else None)
+        worker.signals.result.connect(lambda _: ping_btn.setEnabled(True) if _widget_valid(ping_btn) else None)
+        worker.signals.error.connect(lambda _: ping_btn.setEnabled(True) if _widget_valid(ping_btn) else None)
         _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
         QThreadPool.globalInstance().start(worker)
 
@@ -205,6 +208,7 @@ def _build_traceroute_card() -> _ToolCard:
         card._worker = Worker(lambda _w: network_tools.traceroute(host))
 
         def _on_result(hops):
+            if not _widget_valid(table): return
             table.setRowCount(0)
             for hop_num, ip, time_str in hops:
                 row_idx = table.rowCount()
@@ -212,11 +216,13 @@ def _build_traceroute_card() -> _ToolCard:
                 table.setItem(row_idx, 0, QTableWidgetItem(str(hop_num)))
                 table.setItem(row_idx, 1, QTableWidgetItem(ip))
                 table.setItem(row_idx, 2, QTableWidgetItem(time_str))
-            status_label.setText(f"Done — {len(hops)} hops.")
-            trace_btn.setEnabled(True)
+            if _widget_valid(status_label):
+                status_label.setText(f"Done — {len(hops)} hops.")
+            if _widget_valid(trace_btn):
+                trace_btn.setEnabled(True)
 
         card._worker.signals.result.connect(_on_result)
-        card._worker.signals.error.connect(lambda e: (status_label.setText(f"Error: {e}"), trace_btn.setEnabled(True)))
+        card._worker.signals.error.connect(lambda e: (status_label.setText(f"Error: {e}") if _widget_valid(status_label) else None, trace_btn.setEnabled(True) if _widget_valid(trace_btn) else None))
         _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
         QThreadPool.globalInstance().start(card._worker)
 
@@ -262,10 +268,10 @@ def _build_dns_card() -> _ToolCard:
         result_box.setPlainText("Looking up…")
 
         card._worker = Worker(lambda _w: network_tools.dns_lookup(host, rtype))
-        card._worker.signals.result.connect(lambda txt: result_box.setPlainText(txt))
-        card._worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}"))
-        card._worker.signals.result.connect(lambda _: lookup_btn.setEnabled(True))
-        card._worker.signals.error.connect(lambda _: lookup_btn.setEnabled(True))
+        card._worker.signals.result.connect(lambda txt: result_box.setPlainText(txt) if _widget_valid(result_box) else None)
+        card._worker.signals.error.connect(lambda e: result_box.setPlainText(f"Error: {e}") if _widget_valid(result_box) else None)
+        card._worker.signals.result.connect(lambda _: lookup_btn.setEnabled(True) if _widget_valid(lookup_btn) else None)
+        card._worker.signals.error.connect(lambda _: lookup_btn.setEnabled(True) if _widget_valid(lookup_btn) else None)
         _worker_cancellers.append(lambda: card._worker.cancel() if card._worker else None)
         QThreadPool.globalInstance().start(card._worker)
 
@@ -335,6 +341,7 @@ def _build_port_scanner_card() -> _ToolCard:
 
     # Cancellation flag — mutable list so lambda can write it
     _cancelled = [False]
+    progress_timer: Optional[QTimer] = None
 
     def _validate_range() -> bool:
         start = start_spin.value()
@@ -348,6 +355,7 @@ def _build_port_scanner_card() -> _ToolCard:
         return True
 
     def _run_scan() -> None:
+        nonlocal progress_timer
         if not _validate_range():
             return
         host = host_edit.text().strip()
@@ -395,12 +403,15 @@ def _build_port_scanner_card() -> _ToolCard:
 
         progress_timer.timeout.connect(_update_progress)
         progress_timer.start()
+        card._progress_timer = progress_timer
 
         worker = Worker(_worker_fn)
 
         def _on_result(open_ports) -> None:
+            if not _widget_valid(table): return
             progress_timer.stop()
-            progress_bar.setValue(100)
+            if _widget_valid(progress_bar):
+                progress_bar.setValue(100)
             table.setRowCount(0)
             for port, state in open_ports:
                 service = _WELL_KNOWN_PORTS.get(port, "")
@@ -409,31 +420,42 @@ def _build_port_scanner_card() -> _ToolCard:
                 table.setItem(r, 0, QTableWidgetItem(str(port)))
                 table.setItem(r, 1, QTableWidgetItem(state))
                 table.setItem(r, 2, QTableWidgetItem(service))
-            table_stack.setCurrentIndex(0 if open_ports else 1)
+            if _widget_valid(table_stack):
+                table_stack.setCurrentIndex(0 if open_ports else 1)
             cancelled_msg = " (cancelled)" if _cancelled[0] else ""
-            status_label.setText(f"Found {len(open_ports)} open port(s){cancelled_msg}.")
-            scan_btn.setEnabled(True)
-            stop_btn.setEnabled(False)
+            if _widget_valid(status_label):
+                status_label.setText(f"Found {len(open_ports)} open port(s){cancelled_msg}.")
+            if _widget_valid(scan_btn):
+                scan_btn.setEnabled(True)
+            if _widget_valid(stop_btn):
+                stop_btn.setEnabled(False)
 
         def _on_error(e: str) -> None:
             progress_timer.stop()
-            status_label.setText(f"Error: {e}")
-            scan_btn.setEnabled(True)
-            stop_btn.setEnabled(False)
+            if _widget_valid(status_label):
+                status_label.setText(f"Error: {e}")
+            if _widget_valid(scan_btn):
+                scan_btn.setEnabled(True)
+            if _widget_valid(stop_btn):
+                stop_btn.setEnabled(False)
 
         worker.signals.result.connect(_on_result)
         worker.signals.error.connect(_on_error)
         QThreadPool.globalInstance().start(worker)
 
     def _stop_scan() -> None:
+        nonlocal progress_timer
         _cancelled[0] = True
+        if progress_timer is not None:
+            progress_timer.stop()
         status_label.setText("Cancelling…")
         stop_btn.setEnabled(False)
 
     scan_btn.clicked.connect(_run_scan)
     stop_btn.clicked.connect(_stop_scan)
 
-    return _ToolCard("Port Scanner", content, expanded=False)
+    card = _ToolCard("Port Scanner", content, expanded=False)
+    return card
 
 
 def _build_connections_card() -> _ToolCard:
@@ -463,6 +485,7 @@ def _build_connections_card() -> _ToolCard:
     layout.addWidget(table)
 
     def _populate_table(conns) -> None:
+        if not _widget_valid(table): return
         table.setRowCount(0)
         for c in conns:
             r = table.rowCount()
@@ -472,12 +495,13 @@ def _build_connections_card() -> _ToolCard:
             table.setItem(r, 2, QTableWidgetItem(c["status"]))
             table.setItem(r, 3, QTableWidgetItem(c["pid"]))
             table.setItem(r, 4, QTableWidgetItem(c["process"]))
-        conn_count_label.setText(f"{len(conns)} connection(s)")
+        if _widget_valid(conn_count_label):
+            conn_count_label.setText(f"{len(conns)} connection(s)")
 
     def _refresh() -> None:
         worker = Worker(lambda _w: network_tools.get_connections())
         worker.signals.result.connect(_populate_table)
-        worker.signals.error.connect(lambda e: conn_count_label.setText(f"Error: {e}"))
+        worker.signals.error.connect(lambda e: conn_count_label.setText(f"Error: {e}") if _widget_valid(conn_count_label) else None)
         QThreadPool.globalInstance().start(worker)
 
     # Auto-refresh timer
@@ -584,16 +608,18 @@ def _build_adapter_card() -> _ToolCard:
         worker = Worker(lambda _w: network_tools.get_adapter_info())
 
         def _populate(adapters) -> None:
+            if not _widget_valid(table): return
             table.setRowCount(0)
             for a in adapters:
                 r = table.rowCount()
                 table.insertRow(r)
                 for col_idx, key in enumerate(cols):
                     table.setItem(r, col_idx, QTableWidgetItem(a.get(key, "")))
-            refresh_btn.setEnabled(True)
+            if _widget_valid(refresh_btn):
+                refresh_btn.setEnabled(True)
 
         worker.signals.result.connect(_populate)
-        worker.signals.error.connect(lambda e: (logger.error("Adapter info error: %s", e), refresh_btn.setEnabled(True)))
+        worker.signals.error.connect(lambda e: (logger.error("Adapter info error: %s", e), refresh_btn.setEnabled(True) if _widget_valid(refresh_btn) else None))
         QThreadPool.globalInstance().start(worker)
 
     refresh_btn.clicked.connect(_refresh)
@@ -613,7 +639,9 @@ class NetworkDiagnosticsModule(BaseModule):
     group = ModuleGroup.SYSTEM
 
     def __init__(self) -> None:
+        global _worker_cancellers
         super().__init__()
+        _worker_cancellers.clear()
         self._widget: Optional[QWidget] = None
 
     # ------------------------------------------------------------------
@@ -632,9 +660,23 @@ class NetworkDiagnosticsModule(BaseModule):
     def on_deactivate(self) -> None:
         self._cancel_all_cards()
 
-    def _cancel_all_cards(self) -> None:
+    def get_refresh_interval(self) -> int:
+        return 15_000
+
+    def refresh_data(self) -> None:
+        # Refresh the connections card if present
         if not hasattr(self, "_cards"):
             return
+        for card in self._cards:
+            if card is not None and hasattr(card, "_auto_timer"):
+                card._auto_timer.stop()
+                card._auto_timer.start()
+
+    def _cancel_all_cards(self) -> None:
+        global _worker_cancellers
+        if not hasattr(self, "_cards"):
+            return
+        _worker_cancellers.clear()
         for card in self._cards:
             if card is None:
                 continue
@@ -642,6 +684,8 @@ class NetworkDiagnosticsModule(BaseModule):
                 card._worker.cancel()
             if hasattr(card, "_auto_timer") and card._auto_timer is not None:
                 card._auto_timer.stop()
+            if hasattr(card, "_progress_timer") and card._progress_timer is not None:
+                card._progress_timer.stop()
 
     def create_widget(self) -> QWidget:
         # Outer container

@@ -1,6 +1,14 @@
 import os
 from typing import List, Optional
 
+
+def _widget_valid(w):
+    try:
+        import sip
+        return not sip.isdeleted(w)
+    except Exception:
+        return True
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QPlainTextEdit,
@@ -107,6 +115,8 @@ class _AppUpdatesTab(QWidget):
         QThreadPool.globalInstance().start(w)
 
     def _on_updates(self, updates: List[AppUpdate]):
+        if not _widget_valid(self._table) or not _widget_valid(self._status_lbl):
+            return
         self._updates = updates
         self._refresh_btn.setEnabled(True)
         self._progress.hide()
@@ -270,6 +280,8 @@ class _WinUpdatesTab(QWidget):
         QThreadPool.globalInstance().start(w)
 
     def _on_updates(self, updates: List[WindowsUpdate]):
+        if not _widget_valid(self._table) or not _widget_valid(self._status_lbl):
+            return
         self._updates = updates
         self._refresh_btn.setEnabled(True)
         self._progress.hide()
@@ -435,11 +447,7 @@ class UpdatesModule(BaseModule):
         return self._tabs
 
     def on_activate(self) -> None:
-        idx = self._tabs.currentIndex() if self._tabs else 0
-        if idx == 0:
-            self._app_tab.auto_scan()
-        elif idx == 1:
-            self._win_tab.auto_scan()
+        self._on_tab_changed(self._tabs.currentIndex() if self._tabs else 0)
 
     def _on_tab_changed(self, index: int) -> None:
         if index == 0:

@@ -34,7 +34,7 @@ class DriverModule(BaseModule):
         self._status_lbl: Optional[QLabel] = None
         self._filter_edit: Optional[QLineEdit] = None
         self._refresh_btn: Optional[QPushButton] = None
-        self._drivers_ref: list = [[]]  # [list of DriverInfo]
+        self._drivers_ref = None  # [list of DriverInfo]
         self._sort_col: int = -1
 
     def create_widget(self) -> QWidget:
@@ -85,6 +85,7 @@ class DriverModule(BaseModule):
         self._filter_edit.textChanged.connect(
             lambda txt: self._populate(self._drivers_ref[0], txt)
         )
+        self._drivers_ref = [[]]
 
         return self._widget
 

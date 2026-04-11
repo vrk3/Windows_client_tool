@@ -140,8 +140,10 @@ class EnhancedBrowserScanner:
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Browser candidate scan failed: {e}")
         return False
 
     def _chromium_profile_names(self, user_data: Path) -> List[str]:
@@ -154,8 +156,10 @@ class EnhancedBrowserScanner:
                     data = json.load(f)
                 cache = data.get("profile", {}).get("info_cache", {})
                 names = [k for k in cache if (user_data / k).is_dir()]
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Browser candidate scan failed: {e}")
 
         # Fallback to Default profile
         if not names and (user_data / "Default").is_dir():

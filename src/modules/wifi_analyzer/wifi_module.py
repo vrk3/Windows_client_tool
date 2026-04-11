@@ -255,7 +255,7 @@ class WifiAnalyzerModule(BaseModule):
 
     def _stop_scan(self):
         if self._scan_worker is not None:
-            self._scan_worker._cancelled = True
+            self._scan_worker.cancel()
             self._scan_worker = None
         self._progress.hide()
         self._scan_btn.setEnabled(True)

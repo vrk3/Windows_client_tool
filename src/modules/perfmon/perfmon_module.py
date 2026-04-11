@@ -201,6 +201,7 @@ class PerfMonModule(BaseModule):
     def on_deactivate(self) -> None:
         if hasattr(self, '_live_timer'):
             self._live_timer.stop()
+            self._live_timer.deleteLater()
 
         if self._timer:
             self._timer.stop()
@@ -210,6 +211,7 @@ class PerfMonModule(BaseModule):
     def on_stop(self) -> None:
         if hasattr(self, '_live_timer'):
             self._live_timer.stop()
+            self._live_timer.deleteLater()
         if self._timer:
             self._timer.stop()
             self._timer = None

@@ -55,6 +55,11 @@ class _FixCard(QFrame):
         self._run_btn.setFixedWidth(80)
         layout.addWidget(self._run_btn)
 
+        # Status label
+        self._status = QLabel("")
+        self._status.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(self._status)
+
         # Output
         self._output = QPlainTextEdit()
         self._output.setReadOnly(True)
@@ -74,6 +79,7 @@ class _FixCard(QFrame):
         self._run_btn.setEnabled(False)
         self._output.clear()
         self._output.show()
+        self._status.setText("Running...")
 
         action = self._action
 
@@ -88,16 +94,19 @@ class _FixCard(QFrame):
         self._worker.signals.result.connect(lambda _r: self._on_done())
         self._worker.signals.error.connect(self._on_error)
         self._thread_pool.start(self._worker)
+        self._workers.append(self._worker)
 
     def _on_done(self):
         self._running = False
         self._worker = None
         self._run_btn.setEnabled(True)
+        self._status.setText("")
 
     def _on_error(self, error_str: str):
         self._running = False
         self._worker = None
         self._run_btn.setEnabled(True)
+        self._status.setText("")
         self._output.appendPlainText(f"ERROR: {error_str}")
 
     def cancel(self) -> None:
@@ -120,6 +129,7 @@ class QuickFixModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._cards: list = []
+        self._workers: list = []
 
     def create_widget(self) -> QWidget:
         outer = QWidget()
@@ -185,6 +195,7 @@ class QuickFixModule(BaseModule):
     def on_deactivate(self) -> None:
         for card in self._cards:
             card.cancel()
+        self._workers.clear()
 
     def on_start(self, app) -> None:
         self.app = app

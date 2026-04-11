@@ -239,7 +239,7 @@ class DuplicateFinderModule(BaseModule):
 
     def _stop_scan(self):
         if self._worker is not None:
-            self._worker._cancelled = True
+            self._worker.cancel()
             self._worker = None
         self._scan_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)

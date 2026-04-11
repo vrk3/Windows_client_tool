@@ -332,6 +332,16 @@ class DiagnoseModule(BaseModule):
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
+
+    def get_refresh_interval(self) -> int:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        if self._tab_widget:
+            idx = self._tab_widget.currentIndex()
+            if idx >= 0:
+                tab_name = self._tab_widget.tabText(idx).split(" ", 1)[-1]
+                self._load_tab(tab_name, force=True)
         if self._active_search:
             self._active_search.cancel()
         if self._search_timer:

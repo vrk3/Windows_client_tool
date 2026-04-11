@@ -279,6 +279,7 @@ class TweaksModule(BaseModule):
         self._log_output: Optional[QTextEdit] = None
         self._tabs: Optional[QTabWidget] = None
         self._signals = _Signals()
+        self._tweaks_loaded = False
 
     # ------------------------------------------------------------------
     # BaseModule lifecycle
@@ -294,8 +295,10 @@ class TweaksModule(BaseModule):
         self.cancel_all_workers()
 
     def on_activate(self) -> None:
-        self._detect_statuses()
-        self._detect_apps()
+        if not self._tweaks_loaded:
+            self._tweaks_loaded = True
+            self._detect_statuses()
+            self._detect_apps()
 
     def on_deactivate(self) -> None:
         self.cancel_all_workers()

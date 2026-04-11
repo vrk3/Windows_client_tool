@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QLabel, QProgressBar, QLineEdit,
     QComboBox, QMessageBox, QTabWidget, QGroupBox, QFormLayout,
-    QScrollArea, QTextEdit,
+    QScrollArea, QTextEdit, QStackedWidget,
 )
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtGui import QColor
@@ -280,6 +280,10 @@ class ServicesModule(BaseModule):
     requires_admin = True
     group = ModuleGroup.MANAGE
 
+    def __init__(self):
+        super().__init__()
+        self._refreshing = False
+
     def create_widget(self) -> QWidget:
         outer = QWidget()
         layout = QVBoxLayout(outer)
@@ -356,7 +360,8 @@ class ServicesModule(BaseModule):
         layout = QVBoxLayout(self._list_tab)
         layout.setContentsMargins(0, 4, 0, 0)
 
-        # Columns: Display Name | Name | Status | Start Type | Impact
+        # Table stacked with empty state
+        self._table_stack = QStackedWidget()
         cols = ["Display Name", "Name", "Status", "Start Type", "Impact"]
         self._table = QTableWidget(0, len(cols))
         self._table.setHorizontalHeaderLabels(cols)
@@ -367,7 +372,12 @@ class ServicesModule(BaseModule):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setAlternatingRowColors(True)
-        layout.addWidget(self._table)
+        self._table_stack.addWidget(self._table)
+        empty_lbl = QLabel("No services match filter")
+        empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_lbl.setStyleSheet("color: #888; font-size: 13px;")
+        self._table_stack.addWidget(empty_lbl)
+        layout.addWidget(self._table_stack)
 
     def _setup_detail_tab(self):
         """Build the service details panel inside the detail tab."""
@@ -467,18 +477,6 @@ class ServicesModule(BaseModule):
         worker.signals.error.connect(self._on_error)
         QThreadPool.globalInstance().start(worker)
 
-    def _on_result(self, services: List[Dict]):
-        self._all_services = services
-        self._refresh_btn.setEnabled(True)
-        self._progress.hide()
-        self._apply_filter()
-        self._status_label.setText(f"{len(services)} service(s) loaded")
-
-    def _on_error(self, err: str):
-        self._refresh_btn.setEnabled(True)
-        self._progress.hide()
-        self._status_label.setText(f"Error: {err}")
-
     # ------------------------------------------------------------------
     # Filtering
     # ------------------------------------------------------------------
@@ -510,6 +508,7 @@ class ServicesModule(BaseModule):
                         item.setForeground(QColor(color))
                 item.setData(Qt.ItemDataRole.UserRole, svc["Name"])
                 self._table.setItem(r, c, item)
+        self._table_stack.setCurrentIndex(0 if rows else 1)
         self._status_label.setText(f"{len(rows)} / {len(self._all_services)} service(s)")
 
     def _on_selection_changed(self):
@@ -689,3 +688,35 @@ class ServicesModule(BaseModule):
     def on_start(self, app): self.app = app
     def on_stop(self): self.cancel_all_workers()
     def on_deactivate(self): pass
+
+    def get_refresh_interval(self) -> int:
+        return 30_000
+
+    def refresh_data(self) -> None:
+        if self._refreshing:
+            return
+        self._refreshing = True
+        self._do_refresh()
+
+    def _do_refresh(self):
+        self._refresh_btn.setEnabled(False)
+        self._status_label.setText("Loading...")
+        self._progress.show()
+        worker = COMWorker(lambda _w: get_services())
+        worker.signals.result.connect(self._on_result)
+        worker.signals.error.connect(self._on_error)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_result(self, services: List[Dict]):
+        self._all_services = services
+        self._refresh_btn.setEnabled(True)
+        self._progress.hide()
+        self._apply_filter()
+        self._status_label.setText(f"{len(services)} service(s) loaded")
+        self._refreshing = False
+
+    def _on_error(self, err: str):
+        self._refresh_btn.setEnabled(True)
+        self._progress.hide()
+        self._status_label.setText(f"Error: {err}")
+        self._refreshing = False

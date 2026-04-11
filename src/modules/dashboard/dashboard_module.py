@@ -149,7 +149,6 @@ class _DashboardWidget(QWidget):
         self._timer.timeout.connect(self._refresh)
         self._setup_ui()
         self._refresh()
-        self._timer.start()
 
     def _setup_ui(self) -> None:
         scroll = QScrollArea()
@@ -325,6 +324,7 @@ class DashboardModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._widget: _DashboardWidget | None = None
+        self._refreshing = False
 
     def create_widget(self) -> QWidget:
         if not _PSUTIL:
@@ -346,12 +346,22 @@ class DashboardModule(BaseModule):
             self._widget.stop_timer()
 
     def on_activate(self) -> None:
-        if self._widget:
+        if self._widget and not self._refreshing:
             self._widget._timer.start()
 
     def on_deactivate(self) -> None:
         if self._widget:
             self._widget._timer.stop()
+
+    def get_refresh_interval(self) -> int:
+        return 5_000
+
+    def refresh_data(self) -> None:
+        if self._refreshing or not self._widget:
+            return
+        self._refreshing = True
+        self._widget._refresh()
+        self._refreshing = False
 
     def get_status_info(self) -> str:
         return "Dashboard"

@@ -83,6 +83,14 @@ class SecurityDashboardModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._workers: list = []
+        self._security_loaded = False
+
+    def get_refresh_interval(self) -> int:
+        return 30_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_security_load_fn"):
+            self._security_load_fn()
 
     def create_widget(self) -> QWidget:
         w = QWidget()
