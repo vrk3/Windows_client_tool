@@ -68,6 +68,7 @@ class DebloatModule(BaseModule):
         self._tab_widget.addTab(self._build_apps_tab(), "Apps")
         self._tab_widget.addTab(self._build_tweaks_tab("tweak"), "Privacy & Telemetry")
         self._tab_widget.addTab(self._build_tweaks_tab("ai"), "AI & Navigation")
+        self._tab_widget.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self._tab_widget)
         return self._widget
@@ -347,6 +348,18 @@ class DebloatModule(BaseModule):
         return entry.get("package", "")
 
     # ------------------------------------------------------------------
+    # Tab lazy-loading
+    # ------------------------------------------------------------------
+
+    def _on_tab_changed(self, index: int) -> None:
+        tab_types = ["apps", "tweak", "ai"]
+        tab_type = tab_types[index] if index < len(tab_types) else None
+        if tab_type and tab_type != "apps":
+            table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
+            if table and table.rowCount() == 0:
+                self._populate_tweaks_table(tab_type)
+
+    # ------------------------------------------------------------------
     # Tweaks tabs
     # ------------------------------------------------------------------
 
@@ -378,6 +391,9 @@ class DebloatModule(BaseModule):
             self._ai_tweaks = tweaks
 
         table.setRowCount(0)
+        if not self._engine:
+            backup = BackupService(self.app._app_data_dir)
+            self._engine = TweakEngine(backup)
         engine = self._engine
 
         for tweak in tweaks:
@@ -391,11 +407,7 @@ class DebloatModule(BaseModule):
             table.setItem(row, 2, QTableWidgetItem(tweak.get("category", "")))
             table.setItem(row, 3, QTableWidgetItem(tweak.get("risk", "")))
 
-            # Detect status
-            if engine:
-                status = engine.detect_status(tweak)
-            else:
-                status = "unknown"
+            status = engine.detect_status(tweak)
             status_map = {
                 "applied": ("\u25cf Applied", QColor("#00cc44")),
                 "not_applied": ("\u25cb Not Applied", QColor("#e0e0e0")),
