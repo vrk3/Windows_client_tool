@@ -33,7 +33,7 @@ pyinstaller WinClientTool.spec -y --distpath dist
 pyinstaller WinClientTool-portable.spec -y --distpath dist
 ```
 
-For a clean rebuild of the portable, delete the cached PKG first:
+For a clean rebuild of the portable (e.g. after code changes), delete the cached PKG first:
 ```
 rm -f build/WinClientTool-portable/PYZ-00.toc build/WinClientTool-portable/PKG-00.toc
 pyinstaller WinClientTool-portable.spec -y --distpath dist
@@ -72,7 +72,7 @@ Each module declares:
 - `group` — one of `ModuleGroup.OVERVIEW/DIAGNOSE/SYSTEM/MANAGE/OPTIMIZE/TOOLS/PROCESS`
 - `requires_admin` — if True, module is disabled when not running elevated
 - `get_search_provider()` — returns a `SearchProvider` for cross-module search
-- `get_refresh_interval()` — return milliseconds for auto-refresh (or None to disable)
+- `get_refresh_interval()` — return `Optional[int]` milliseconds (e.g. `60_000`) or `None` to disable auto-refresh
 
 ### Background Workers (`src/core/worker.py`)
 
@@ -121,7 +121,7 @@ def on_activate(self):
         self._load_data()
 ```
 
-**Cross-thread widget access — CRITICAL**: Never call Qt widget methods directly from a worker thread. The SFC scan crash was caused by `self._output.appendPlainText(line)` inside a closure passed to a background action function. The fix: use a `pyqtSignal` on the widget class to marshal output to the main thread:
+**Cross-thread widget access — CRITICAL**: Never call Qt widget methods directly from a worker thread. Marshal via a `pyqtSignal`:
 
 ```python
 class _FixCard(QFrame):
@@ -139,7 +139,7 @@ class _FixCard(QFrame):
 
 ### Widget Lifetime Guards
 
-When a worker fires after its host widget has been deleted (e.g., user switched tabs), Qt objects accessed in the result callback may be invalid. Guard with `sip.isdeleted()`:
+When a worker fires after its host widget has been deleted (e.g. user switched tabs), guard with `sip.isdeleted()`:
 
 ```python
 try:
@@ -154,11 +154,9 @@ def set_entries(self, entries):
     # ... normal work ...
 ```
 
-This applies to `LogTableWidget.set_entries()`, `append_entries()`, and `clear()`.
-
 ### DiagnoseModule — Hub Pattern (`src/modules/diagnose/diagnose_module.py`)
 
-The `DiagnoseModule` embeds 6 diagnostic viewers as sub-tabs (Event Viewer, CBS Log, DISM Log, Windows Update, Reliability, Crash Dumps) with a unified search bar. These 6 modules are NOT registered as standalone sidebar entries — they exist only within the hub. Their standalone files (`event_viewer_module.py`, `cbs_module.py`, etc.) exist but are not imported in `main.py`.
+The `DiagnoseModule` embeds 6 diagnostic viewers as sub-tabs (Event Viewer, CBS Log, DISM Log, Windows Update, Reliability, Crash Dumps) with a unified search bar. These 6 modules are NOT registered as standalone sidebar entries — they exist only within the hub. Their standalone files exist but are not imported in `main.py`.
 
 - Tabs are lazy-loaded on first switch via `_load_tab()`; the `loaded` flag in `_tab_state` prevents re-parsing
 - `_build_tab_widget()` is a module-level factory that constructs each tab's UI — new diagnostic tabs should follow this pattern
@@ -168,11 +166,11 @@ The `DiagnoseModule` embeds 6 diagnostic viewers as sub-tabs (Event Viewer, CBS 
 ### TreeSize Module (`src/modules/treesize/`)
 
 Three key files:
-- `disk_scanner.py` — `DiskScanner` runs in a background thread, emits batches of `DiskNode` via `signals.batch_ready` every 500 nodes; `signals.progress` emits the running node count
-- `disk_tree_model.py` — `DiskTreeModel` (a `QAbstractItemModel`) receives batches via `add_batch()` on the main thread; it must override `sort()` for interactive column sorting in `QTreeView`
+- `disk_scanner.py` — `DiskScanner` runs in a background thread, emits batches of `DiskNode` via `signals.batch_ready` every 500 nodes
+- `disk_tree_model.py` — `DiskTreeModel` (a `QAbstractItemModel`) receives batches via `add_batch()` on the main thread; must override `sort()` for interactive column sorting
 - `treesize_module.py` — wires scanner signals to model mutations; uses `threading.Thread(daemon=True)` for the scanner
 
-`DiskTreeModel.sort()` is required because `QAbstractItemModel` does not implement sorting by default — it must be overridden to sort `self._roots` and each node's `children` list:
+`DiskTreeModel.sort()` is required because `QAbstractItemModel` does not implement sorting by default:
 
 ```python
 def sort(self, column: int, order: Qt.SortOrder = ...) -> None:
@@ -181,51 +179,72 @@ def sort(self, column: int, order: Qt.SortOrder = ...) -> None:
     self.layoutChanged.emit()
 ```
 
-Also call `hdr.setSortIndicatorShown(True)` and `self._tree.setSortingEnabled(True)` on the view.
-
 ### Cleanup Module (`src/modules/cleanup/`)
 
 **Scanner** (`cleanup_scanner.py`): functions take `min_age_days: int = 0` and return `ScanResult`. `ScanItem` fields: `path`, `size`, `is_dir`, `selected`, `safety` ("safe"/"caution"/"danger") — **no `name` field** (passing `name=` raises `TypeError`).
 
 **8-tab structure** in `cleanup_module.py`:
-- `_ScanTab(QWidget)` — reusable tab wrapping a `{fn: label}` scanners dict; exposes `freed_bytes = pyqtSignal(int)` and `auto_scan()` (no-op if already scanned). Tracks **all** workers (scan + clean) in a single `self._workers: list` to avoid losing the scan worker when a clean starts. Workers are appended in both `_do_scan()` and `_do_clean()`.
-- `_BrowserCleanupTab(QWidget)` — uses `EnhancedBrowserScanner` from `browser_scanner.py`; same `freed_bytes` signal; same `_workers` list pattern.
-- `_LargeItemsTab(QWidget)` — wraps `_ScanTab` + DISM "Component Cleanup" button (runs `dism /Online /Cleanup-Image /StartComponentCleanup` in background). Its `_cancel_all()` calls `self._scan_tab._cancel_all()` then `self._dism_worker.cancel()`.
-- `_OverviewTab(QWidget)` — table of all groups; "Scan All" parallelises workers; "Clean All Safe" deletes safe items. `_cancel_all()` iterates `self._scan_workers` list calling `w.cancel()` on each, then cancels `self._worker`.
+- `_ScanTab(QWidget)` — reusable tab wrapping a `{fn: label}` scanners dict; exposes `freed_bytes = pyqtSignal(int)` and `auto_scan()` (no-op if already scanned). Tracks **all** workers (scan + clean) in a single `self._workers: list`.
+- `_BrowserCleanupTab(QWidget)` — uses `EnhancedBrowserScanner` from `browser_scanner.py`; same signal and worker pattern.
+- `_LargeItemsTab(QWidget)` — wraps `_ScanTab` + DISM "Component Cleanup" button in background. Its `_cancel_all()` calls `self._scan_tab._cancel_all()` then `self._dism_worker.cancel()`.
+- `_OverviewTab(QWidget)` — table of all groups; "Scan All" parallelises workers; "Clean All Safe" deletes safe items. `_cancel_all()` iterates `self._scan_workers` list calling `w.cancel()` on each.
 - `CleanupModule.on_activate()` triggers `_overview.auto_scan()`; `QTabWidget.currentChanged` wires each tab's `auto_scan()` for lazy first-load
-- Session freed counter aggregates all `freed_bytes` signals via `_on_freed(nbytes)`
 
-### Auto-Refresh System (`MainWindow`)
+### QuickCleanupModule (`src/modules/cleanup/quick_cleanup_module.py`)
 
-`MainWindow._start_module_refresh_timer()` starts a `QTimer` for modules that return a non-None interval from `get_refresh_interval()`. The timer calls `refresh_data()` if available, otherwise `on_activate()`. All timers are stopped in `closeEvent()`. The toolbar has a "Pause/Resume Refresh" toggle that sets `self._auto_refresh_paused` and stops/restarts the current module's timer.
+Single-page dashboard with pie chart and auto-refresh. Uses `QuickCleanupTab` from `modules/ui/components/quick_cleanup_tab.py`.
 
-### Search System (`src/core/search_engine.py`, `src/core/search_provider.py`)
+- `_id_map` — maps category IDs to `(scanner_fn, safety)` tuples
+- `_adv_scanner_map` — maps advanced category IDs
+- `_do_scan_all()` — runs both main and advanced scanners in parallel via Workers
+- `_toggle_advanced()` — reveals/hides the advanced panel
+- `_build_one_click_panel()` — one-click maintenance actions (Flush DNS, Clear Event Logs, Compact WinSxS, Rebuild Icons, WU Deep Clean, Network Repair)
+- `get_refresh_interval()` returns `60_000` (60s auto-refresh)
+- `on_deactivate()` calls `stop_auto_refresh()` and `cancel()` to stop timers and workers
 
-Modules return a `SearchProvider` subclass from `get_search_provider()`. The engine aggregates results from all providers and sorts by relevance. Query filter: set `query.sources` to limit to specific modules. The DiagnoseModule has its own unified search that iterates per-tab providers — it does NOT use `app.search`.
+### DebloatModule (`src/modules/debloat/debloat_module.py`)
 
-### Event Bus (`src/core/event_bus.py`)
+3-tab module in `ModuleGroup.OPTIMIZE`, `requires_admin = True`:
+- **Apps tab** — scans installed UWP apps via `Get-AppxPackage` (using `debloat_scanner.py`), shows table with checkboxes, Apply Selected / Apply All Safe. Protected apps (Store, Terminal, Get Help, Calculator, Notepad, Alarms) highlighted orange and require confirmation before removal.
+- **Privacy & Telemetry tab** — loads tweak definitions from `privacy.json`, `telemetry.json`, `services.json`, `network.json`; shows status (Applied/Not Applied) per tweak; preset filters (Light, Full, Privacy-Focused, Custom)
+- **AI & Navigation tab** — loads `ai_features.json` and `navigation.json`; same UI pattern
 
-Pub/sub for loose coupling between modules. Use `app.event_bus.publish("topic", data)` and `subscribe("topic", handler)`. Available topics include module selection, theme changes, cleanup completions.
+Restore points created via `BackupService` before any apply operation. TweakEngine detects status for registry, service, appx, and scheduled_task step types.
+
+### PerfTunerModule UI Pattern (`src/modules/performance_tuner/perf_tuner_module.py`)
+
+Checklist-style table with 5 columns: ☑ Select | Name | Category | Risk | Status. Per-row Apply button. Preset buttons (Light, Aggressive, Custom) at top. This is the reference UI pattern for modules that present a list of togglable items.
+
+### QuickFixModule (`src/modules/quick_fix/quick_fix_module.py`)
+
+Uses `_FixCard` widget subclasses for each fix. Cards run in background Workers. `QuickFixModule._workers` (plural, on the module) tracks all workers. Individual cards track `self._worker` (singular) for cancellation. `_FixCard` does NOT have a `_workers` list.
 
 ### Tweak System (`src/modules/tweaks/`)
 
-JSON definition files in `src/modules/tweaks/definitions/` define registry/script tweaks. Each entry has `steps[]` with `type: "registry"` (key, data, kind) or `type: "powershell"`. `tweak_engine.py` applies and reverts them. App catalog (`app_catalog.json`) detects installed apps. Restore points created automatically before applying tweaks.
+JSON definition files in `src/modules/tweaks/definitions/` define registry/script tweaks. Each entry has `steps[]` with one of these types:
 
-### Command Palette
+| Step type | Fields | What it does |
+|-----------|--------|--------------|
+| `registry` | `key`, `value`, `data`, `kind` | Sets a registry value via `winreg` |
+| `service` | `name`, `start_type` | Changes service startup type via win32service |
+| `command` | `cmd` | Runs a shell command via `subprocess.run` with `CREATE_NO_WINDOW` |
+| `appx` | `package` | Removes a UWP app via `Get-AppxPackage \| Remove-AppxPackage` |
+| `scheduled_task` | `task_name` | Disables a scheduled task via `schtasks /change /tn ... /disable` |
 
-`MainWindow._open_command_palette()` opens a fuzzy-searchable command palette (`ui/command_palette.py`) bound to `Ctrl+P`. It lists all modules and navigates to the selected one.
+`tweak_engine.py` applies tweaks via `TweakEngine.apply_tweak()` and detects state via `TweakEngine.detect_status()` (returns `"applied"`, `"not_applied"`, or `"unknown"`). BackupService creates restore points automatically before applying.
 
-### Admin Restart
-
-`restart_as_admin()` (from `core.admin_utils`) relaunches the application with elevation via `shell.execute(runas)`. Shown in the admin banner at the top of the main window and in the File menu.
-
-### Triage / System Tray
-
-`SystemTrayManager` (`ui/notification_tray.py`) shows a tray icon with context menu. `MainWindow.closeEvent()` checks `app.config.get("app.minimize_to_tray")` — if true, hiding instead of closing shows a balloon notification.
+Key definition files:
+- `privacy.json` — privacy policy tweaks (47 entries)
+- `telemetry.json` — telemetry and diagnostics tweaks (19 entries)
+- `services.json` — service disable/enable tweaks (34 entries)
+- `debloat.json` — 90+ UWP app removal entries with `appx` step type
+- `ai_features.json` — Win11 24H2 AI feature tweaks (Click-to-Do, AI Hub, WSAIFabricSvc)
+- `navigation.json` — File Explorer navigation pane tweaks (Gallery, 3D Objects, Home, duplicate drives)
+- `definitions/builtins/*.json` — preset profiles (8 existing + 4 debloat presets)
 
 ## UI Patterns
 
-**Dark theme** — all modules use `#2d2d2d` backgrounds, `#3c3c3c` cards, `#e0e0e0` text. QSS styles are in `src/ui/styles/dark.qss`.
+**Dark theme** — all modules use `#2d2d2d` backgrounds, `#3c3c3c` cards, `#e0e0e0` text. QSS styles in `src/ui/styles/dark.qss`.
 
 **Error handling** — show errors in-module via `ErrorBanner` widget (`src/ui/error_banner.py`) or `QMessageBox`, not just logs.
 
@@ -234,6 +253,18 @@ JSON definition files in `src/modules/tweaks/definitions/` define registry/scrip
 **Confirmation dialogs** — always confirm destructive actions (delete, stop service, disable startup item, toggle Windows features).
 
 **Admin-gated modules** — `requires_admin = True` on the module class. `ModuleRegistry.start_all()` checks `is_admin()` and disables the module if not elevated.
+
+## Auto-Refresh System (`MainWindow`)
+
+`MainWindow._start_module_refresh_timer()` starts a `QTimer` for modules that return a non-None interval from `get_refresh_interval()`. The timer calls `refresh_data()` if available, otherwise `on_activate()`. All timers are stopped in `closeEvent()`. The toolbar has a "Pause/Resume Refresh" toggle.
+
+## Search System (`src/core/search_engine.py`, `src/core/search_provider.py`)
+
+Modules return a `SearchProvider` subclass from `get_search_provider()`. The engine aggregates results from all providers and sorts by relevance. `SearchProvider` is an ABC — subclasses must implement `search(query: SearchQuery) -> List[SearchResult]` and `get_filterable_fields() -> List[FilterField]`. DiagnoseModule has its own unified search that iterates per-tab providers — it does NOT use `app.search`.
+
+## Event Bus (`src/core/event_bus.py`)
+
+Pub/sub for loose coupling between modules. Use `app.event_bus.publish("topic", data)` and `subscribe("topic", handler)`. Available topics include module selection, theme changes, cleanup completions.
 
 ## Adding New Modules
 
@@ -245,32 +276,24 @@ app.module_registry.register(MyModule())
 
 Note: EventViewer, CBS, DISM, WU, Reliability, and CrashDumps are embedded in DiagnoseModule — do NOT register them as standalone modules.
 
-## PyInstaller Build Notes
-
-Two spec files:
-- `WinClientTool.spec` — onedir/folder build
-- `WinClientTool-portable.spec` — onefile/portable build
-
-Data files bundled: `config/` (at project root), `src/ui/styles/` (→ `ui/styles`), `src/modules/tweaks/definitions/` (→ `modules/tweaks/definitions`). Hidden imports cover PyQt6, pywin32, PIL, requests.
-
 ## Important Gotchas
 
-- `sys.stdout` is `None` in onefile windowed mode — always guard `sys.stdout.isatty()` with `hasattr(sys.stdout, 'isatty')`
+- `sys.stdout` is `None` in onefile windowed mode — guard with `hasattr(sys.stdout, 'isatty')`
 - `tempfile` module must be explicitly imported — PyInstaller may miss it
-- The walrus operator `:=` inside PyQt `addRow()` calls causes Python 3.12 parser failures — avoid it, use separate assignment lines
+- The walrus operator `:=` inside PyQt `addRow()` calls causes Python 3.12 parser failures — use separate assignment lines
 - `win32serviceutil` (pywin32) requires `pythoncom.CoInitialize()` before use in worker threads; use `COMWorker` instead of `Worker` for WMI/COM operations
 - Do NOT call UI-creating methods (`_load_data()`, `_setup_table()`) from `on_start` — use `on_activate` instead since `on_start` runs before `create_widget`
-- **Silent exception swallowing is forbidden** — `except Exception: pass` and bare `except: pass` silently hide errors from users who see only empty results. Always log exceptions with `logger.warning()` or `logger.error()`.
-- `QTableWidget.sortOrder()` does not exist in PyQt6 — use `self._table.horizontalHeader().sortIndicatorOrder()` to get the current sort direction.
-- CBS.log and DISM.log use a regex pattern that matches a specific format — if logs are empty, the log files may use a different format or be UTF-16 encoded (the base parser handles this but the per-line regex may not match all lines)
-- **Windows 11 quirks**: CBS.log may not exist as a text file — Windows 11 stores CBS data in `CbsPersist_*.cab` files under `C:\Windows\Logs\CBS\`. The DiagnoseModule's CBS tab uses 7z to extract the log from the most recent cab if the text file is absent. DISM.log similarly may not exist; the DISM tab falls back to `Get-HotFix` (no admin required) to show installed updates.
-- **Widget subclasses** (`_ScanTab`, `_RefreshTab`, `_ToolCard`, `_DiskCard`, `_FixCard`) are `QWidget`, NOT `BaseModule`. They need their own worker tracking (`self._workers: list`, `self._thread_pool`) and must expose a `cancel()` or `_cancel_all()` method that `on_deactivate()` can call.
+- **Silent exception swallowing is forbidden** — `except Exception: pass` and bare `except: pass` silently hide errors from users who see only empty results. Always log with `logger.warning()` or `logger.error()`.
+- `QTableWidget.sortOrder()` does not exist in PyQt6 — use `self._table.horizontalHeader().sortIndicatorOrder()` to get the current sort direction
+- **Windows 11 quirks**: CBS.log may not exist as a text file — Windows 11 stores CBS data in `CbsPersist_*.cab` files. The CBS tab uses 7z to extract from the most recent cab if the text file is absent. DISM.log similarly may not exist; DISM tab falls back to `Get-HotFix`.
+- **`get_refresh_interval()` return type** must be `Optional[int]` — some modules incorrectly declare `-> int:` which breaks type checking
+- **Widget subclasses** (`_ScanTab`, `_FixCard`, `_ToolCard`, `_DiskCard`) are `QWidget`, NOT `BaseModule`. They need their own `self._workers: list` and must expose a `cancel()` or `_cancel_all()` method for `on_deactivate()` to call.
 - **DiagnoseModule worker tracking**: `self._workers` covers per-tab loader workers; `_active_search` (a standalone `Worker`) must be cancelled separately in `on_stop()`.
-- **Timers in module-level helper functions** — if a `_ToolCard` or card helper creates a `QTimer` (e.g., auto-refresh in network diagnostics), store it on the card (`card._auto_timer = timer`) so `_cancel_all_cards()` can stop it on deactivation.
+- **Timers in card helpers** — if a `_ToolCard` or card helper creates a `QTimer`, store it on the card (`card._auto_timer = timer`) so `_cancel_all_cards()` can stop it on deactivation.
 
 ### Network Diagnostics `_ToolCard` Pattern (`src/modules/network_diagnostics/`)
 
-`_ToolCard` is a module-level `QFrame` subclass (not a `BaseModule`). Each card builder function must assign the return value to a local `card` variable BEFORE any closures that capture `nonlocal card` run. Always do:
+Each card builder function must assign the return value to a local `card` variable BEFORE any closures that capture `nonlocal card` run:
 
 ```python
 def _build_foo_card() -> _ToolCard:
@@ -284,22 +307,12 @@ def _build_foo_card() -> _ToolCard:
     return card
 ```
 
-Also add `card is not None` guard in `_cancel_all_cards()` to handle any stray `None` entries.
+Also add `card is not None` guard in `_cancel_all_cards()`.
 
 ### PerfMon Custom Charts (`src/modules/perfmon/perfmon_charts.py`)
 
-Charts are drawn with pure `QPainter` — no pyqtgraph or matplotlib. `_QtLineChart` is the core widget. **PyQt6 coordinate types are strict**: `drawText`, `drawLine`, `fillRect`, and `drawEllipse` all require `int` coordinates. Use `int()` casts on all computed positions — `QPointF.x()` returns float, which will raise `TypeError` in PyQt6.
+Charts are drawn with pure `QPainter` — no pyqtgraph or matplotlib. **PyQt6 coordinate types are strict**: `drawText`, `drawLine`, `fillRect`, and `drawEllipse` require `int` coordinates. Use `int()` casts on all computed positions.
 
 ### Cleanup Browser Scanner (`src/modules/cleanup/browser_scanner.py`)
 
-`pathlib.Path.is_file()` does NOT accept `follow_symlinks` keyword argument on all Python versions. Use `entry.is_file()` without arguments — symlink follow is the default.
-
-## PyInstaller Build Notes
-
-Two spec files:
-- `WinClientTool.spec` — onedir/folder build
-- `WinClientTool-portable.spec` — onefile/portable build
-
-Data files bundled: `config/` (at project root), `src/ui/styles/` (→ `ui/styles`), `src/modules/tweaks/definitions/` (→ `modules/tweaks/definitions`). Hidden imports cover PyQt6, pywin32, PIL, requests.
-
-## Important Gotchas
+`pathlib.Path.is_file()` does NOT accept `follow_symlinks` keyword argument. Use `entry.is_file()` without arguments.
