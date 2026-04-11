@@ -1,0 +1,497 @@
+"""DebloatModule — bloatware removal, privacy hardening, AI feature disabling."""
+import datetime
+import json
+import logging
+import os
+from typing import Dict, List, Optional
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemView, QCheckBox, QFrame, QGridLayout, QGroupBox,
+    QHeaderView, QLabel, QProgressBar, QPushButton, QScrollArea,
+    QSizePolicy, QStackedWidget, QStyle, QTableWidget, QTableWidgetItem,
+    QTabWidget, QVBoxLayout, QWidget, QMessageBox,
+)
+from PyQt6.QtGui import QColor
+
+from core.base_module import BaseModule
+from core.backup_service import BackupService
+from core.module_groups import ModuleGroup
+from core.search_provider import SearchProvider
+from core.worker import Worker
+from modules.debloat.debloat_scanner import (
+    get_installed_packages, PROTECTED_APPS, PROTECTED_REASONS,
+)
+from modules.debloat.debloat_search_provider import DebloatSearchProvider
+from modules.tweaks.tweak_engine import TweakEngine
+
+logger = logging.getLogger(__name__)
+
+
+class DebloatModule(BaseModule):
+    name = "Debloat"
+    icon = "\u26a1"
+    description = "Remove bloatware, disable telemetry, and harden privacy"
+    requires_admin = True
+    group = ModuleGroup.OPTIMIZE
+
+    def __init__(self):
+        super().__init__()
+        self._widget: Optional[QWidget] = None
+        self._engine: Optional[TweakEngine] = None
+        self._tab_widget: Optional[QTabWidget] = None
+        self._apps_table: Optional[QTableWidget] = None
+        self._tweaks_table: Optional[QTableWidget] = None
+        self._ai_table: Optional[QTableWidget] = None
+        self._installed_apps: List[str] = []
+        self._debloat_entries: Dict[str, dict] = {}
+        self._all_tweaks: List[dict] = []
+        self._ai_tweaks: List[dict] = []
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def create_widget(self) -> QWidget:
+        self._widget = QWidget()
+        layout = QVBoxLayout(self._widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        self._tab_widget = QTabWidget()
+        self._tab_widget.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #3c3c3c; border-radius: 4px; background: #252525; }
+            QTabBar::tab { background: #2d2d2d; color: #b0b0b0; padding: 6px 12px; margin-right: 2px; border: 1px solid #3c3c3c; border-bottom: none; border-radius: 4px 4px 0 0; }
+            QTabBar::tab:selected { background: #252525; color: #e0e0e0; font-weight: bold; }
+            QTabBar::tab:hover { background: #3c3c3c; }
+        """)
+
+        self._tab_widget.addTab(self._build_apps_tab(), "Apps")
+        self._tab_widget.addTab(self._build_tweaks_tab("tweak"), "Privacy & Telemetry")
+        self._tab_widget.addTab(self._build_tweaks_tab("ai"), "AI & Navigation")
+
+        layout.addWidget(self._tab_widget)
+        return self._widget
+
+    def _build_apps_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        self._apps_status = QLabel("Click 'Scan Apps' to detect installed bloatware")
+        self._apps_status.setStyleSheet("font-size: 13px; padding: 4px;")
+        layout.addWidget(self._apps_status)
+
+        btn_layout = QGridLayout()
+        self._scan_btn = QPushButton("Scan Apps")
+        self._scan_btn.clicked.connect(self._on_scan)
+        self._apply_selected_btn = QPushButton("Apply Selected")
+        self._apply_selected_btn.clicked.connect(self._on_apply_selected)
+        self._apply_selected_btn.setEnabled(False)
+        self._apply_all_btn = QPushButton("Apply All Safe")
+        self._apply_all_btn.clicked.connect(self._on_apply_all_safe)
+        self._apply_all_btn.setEnabled(False)
+        btn_layout.addWidget(self._scan_btn, 0, 0)
+        btn_layout.addWidget(self._apply_selected_btn, 0, 1)
+        btn_layout.addWidget(self._apply_all_btn, 0, 2)
+        layout.addLayout(btn_layout)
+
+        self._apps_progress = QProgressBar()
+        self._apps_progress.setVisible(False)
+        layout.addWidget(self._apps_progress)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        table_container = QWidget()
+        table_layout = QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+
+        self._apps_table = QTableWidget()
+        self._apps_table.setColumnCount(4)
+        self._apps_table.setHorizontalHeaderLabels(["\u2610", "App Name", "Category", "Status"])
+        self._apps_table.horizontalHeader().setStretchLastSection(True)
+        self._apps_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._apps_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._apps_table.itemChanged.connect(self._on_item_changed)
+        table_layout.addWidget(self._apps_table)
+
+        scroll.setWidget(table_container)
+        layout.addWidget(scroll)
+        return widget
+
+    def _build_tweaks_tab(self, tab_type: str) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        status_lbl = QLabel("Loading...")
+        status_lbl.setStyleSheet("font-size: 13px; padding: 4px;")
+        status_lbl.setObjectName(f"_status_{tab_type}")
+        layout.addWidget(status_lbl)
+
+        preset_layout = QGridLayout()
+        light_btn = QPushButton("Light Debloat")
+        full_btn = QPushButton("Full Debloat")
+        privacy_btn = QPushButton("Privacy-Focused")
+        custom_btn = QPushButton("Custom")
+        light_btn.clicked.connect(lambda: self._on_preset("light", tab_type))
+        full_btn.clicked.connect(lambda: self._on_preset("full", tab_type))
+        privacy_btn.clicked.connect(lambda: self._on_preset("privacy", tab_type))
+        custom_btn.clicked.connect(lambda: self._on_preset("custom", tab_type))
+        preset_layout.addWidget(light_btn, 0, 0)
+        preset_layout.addWidget(full_btn, 0, 1)
+        preset_layout.addWidget(privacy_btn, 0, 2)
+        preset_layout.addWidget(custom_btn, 0, 3)
+        layout.addLayout(preset_layout)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        table_container = QWidget()
+        table_layout = QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+
+        table = QTableWidget()
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels(["\u2610", "Tweak", "Category", "Risk", "Status"])
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setObjectName(f"_table_{tab_type}")
+        table_layout.addWidget(table)
+
+        scroll.setWidget(table_container)
+        layout.addWidget(scroll)
+
+        apply_btn = QPushButton("Apply Selected Tweaks")
+        apply_btn.clicked.connect(lambda: self._on_apply_tweaks(tab_type))
+        layout.addWidget(apply_btn)
+
+        return widget
+
+    def on_start(self, app) -> None:
+        self.app = app
+        backup = BackupService(app._app_data_dir)
+        self._engine = TweakEngine(backup)
+
+    def on_activate(self) -> None:
+        pass
+
+    def on_deactivate(self) -> None:
+        pass
+
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return None
+
+    def get_search_provider(self) -> Optional[SearchProvider]:
+        return DebloatSearchProvider()
+
+    # ------------------------------------------------------------------
+    # Apps tab
+    # ------------------------------------------------------------------
+
+    def _load_debloat_entries(self) -> Dict[str, dict]:
+        if not self._debloat_entries:
+            path = os.path.join(
+                os.path.dirname(__file__), "..", "tweaks", "definitions", "debloat.json"
+            )
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    entries = json.load(f)
+                self._debloat_entries = {e["id"]: e for e in entries}
+        return self._debloat_entries
+
+    def _on_scan(self) -> None:
+        self._scan_btn.setEnabled(False)
+        self._apps_status.setText("Scanning installed apps...")
+        w = Worker(self._do_scan)
+        w.signals.result.connect(self._on_scanned)
+        w.signals.error.connect(self._on_scan_error)
+        self._workers.append(w)
+        self.app.thread_pool.start(w)
+
+    def _do_scan(self, worker: Worker) -> Dict:
+        installed = get_installed_packages()
+        return {"installed": list(installed.keys())}
+
+    def _on_scanned(self, result: Dict) -> None:
+        self._scan_btn.setEnabled(True)
+        installed: List[str] = result.get("installed", [])
+        self._installed_apps = installed
+        self._apps_status.setText(
+            f"Scan complete \u2014 {len(installed)} bloatware app(s) detected"
+        )
+        self._populate_apps_table(installed)
+        self._apply_selected_btn.setEnabled(len(installed) > 0)
+        self._apply_all_btn.setEnabled(len(installed) > 0)
+
+    def _populate_apps_table(self, installed: List[str]) -> None:
+        self._apps_table.setRowCount(0)
+        entries = self._load_debloat_entries()
+
+        for entry in entries.values():
+            pkg = entry.get("package", "")
+            if pkg not in installed:
+                continue
+            row = self._apps_table.rowCount()
+            self._apps_table.insertRow(row)
+            chk = QTableWidgetItem()
+            chk.setCheckState(Qt.CheckState.Unchecked)
+            chk.setData(Qt.ItemDataRole.UserRole, entry["id"])
+            self._apps_table.setItem(row, 0, chk)
+            self._apps_table.setItem(row, 1, QTableWidgetItem(entry.get("name", pkg)))
+            self._apps_table.setItem(row, 2, QTableWidgetItem(entry.get("category", "")))
+            status_item = QTableWidgetItem("\u25cf Present")
+            status_item.setData(Qt.ItemDataRole.UserRole, entry["id"])
+            if pkg in PROTECTED_APPS:
+                status_item.setForeground(QColor("#ff8800"))
+            self._apps_table.setItem(row, 3, status_item)
+
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() == 0:
+            checked = sum(
+                1 for r in range(self._apps_table.rowCount())
+                if self._apps_table.item(r, 0).checkState() == Qt.CheckState.Checked
+            )
+            self._apply_selected_btn.setEnabled(checked > 0)
+
+    def _on_apply_selected(self) -> None:
+        selected_ids = []
+        for r in range(self._apps_table.rowCount()):
+            if self._apps_table.item(r, 0).checkState() != Qt.CheckState.Checked:
+                continue
+            entry_id = self._apps_table.item(r, 0).data(Qt.ItemDataRole.UserRole)
+            pkg = self._find_package(entry_id)
+            if pkg in PROTECTED_APPS:
+                reason = PROTECTED_REASONS.get(pkg, "This app may be required.")
+                reply = QMessageBox.warning(
+                    self._widget, "Protected App",
+                    f"{pkg}\n\n{reason}\n\nRemove anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    continue
+            selected_ids.append(entry_id)
+        if selected_ids:
+            self._do_apply_apps(selected_ids)
+
+    def _on_apply_all_safe(self) -> None:
+        selected_ids = []
+        for r in range(self._apps_table.rowCount()):
+            entry_id = self._apps_table.item(r, 3).data(Qt.ItemDataRole.UserRole)
+            pkg = self._find_package(entry_id)
+            if pkg not in PROTECTED_APPS:
+                selected_ids.append(entry_id)
+        if selected_ids:
+            self._do_apply_apps(selected_ids)
+
+    def _do_apply_apps(self, entry_ids: List[str]) -> None:
+        self._apply_selected_btn.setEnabled(False)
+        self._apply_all_btn.setEnabled(False)
+        self._apps_progress.setVisible(True)
+        self._apps_progress.setRange(0, len(entry_ids))
+        self._apps_progress.setValue(0)
+
+        def work(w: Worker):
+            backup = BackupService(self.app._app_data_dir)
+            engine = TweakEngine(backup)
+            rp_id = f"debloat_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup.create_restore_point(rp_id)
+            entries = self._load_debloat_entries()
+            success = 0
+            for i, eid in enumerate(entry_ids):
+                if w.is_cancelled:
+                    break
+                entry = entries.get(eid)
+                if entry:
+                    engine.apply_tweak(entry, rp_id)
+                    success += 1
+                w.signals.progress.emit(i + 1)
+            return {"success": success, "total": len(entry_ids)}
+
+        w = Worker(work)
+        w.signals.progress.connect(self._apps_progress.setValue)
+        w.signals.result.connect(self._on_apps_applied)
+        w.signals.error.connect(self._on_apply_error)
+        self._workers.append(w)
+        self.app.thread_pool.start(w)
+
+    def _on_apps_applied(self, result: Dict) -> None:
+        self._apps_progress.setVisible(False)
+        self._apply_selected_btn.setEnabled(True)
+        self._apply_all_btn.setEnabled(True)
+        QMessageBox.information(
+            self._widget, "Debloat Complete",
+            f"Removed {result['success']} of {result['total']} app(s).\n"
+            f"A restore point has been created.",
+        )
+        self._on_scan()
+
+    def _on_scan_error(self, err: str) -> None:
+        self._scan_btn.setEnabled(True)
+        self._apps_status.setText(f"Scan failed: {err}")
+        logger.error("Debloat scan error: %s", err)
+
+    def _on_apply_error(self, err: str) -> None:
+        self._apps_progress.setVisible(False)
+        self._apply_selected_btn.setEnabled(True)
+        self._apply_all_btn.setEnabled(True)
+        logger.error("Debloat apply error: %s", err)
+
+    def _find_package(self, entry_id: str) -> str:
+        entries = self._load_debloat_entries()
+        entry = entries.get(entry_id, {})
+        return entry.get("package", "")
+
+    # ------------------------------------------------------------------
+    # Tweaks tabs
+    # ------------------------------------------------------------------
+
+    def _load_tweak_definitions(self, tab_type: str) -> List[dict]:
+        if tab_type == "tweak":
+            files = ["privacy.json", "telemetry.json", "services.json", "network.json"]
+        else:
+            files = ["ai_features.json", "navigation.json"]
+
+        all_tweaks = []
+        base = os.path.join(os.path.dirname(__file__), "..", "tweaks", "definitions")
+        for fname in files:
+            path = os.path.join(base, fname)
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    all_tweaks.extend(json.load(f))
+        return all_tweaks
+
+    def _populate_tweaks_table(self, tab_type: str) -> None:
+        table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
+        status_lbl: QLabel = self._widget.findChild(QLabel, f"_status_{tab_type}")
+        if not table:
+            return
+
+        tweaks = self._load_tweak_definitions(tab_type)
+        if tab_type == "tweak":
+            self._all_tweaks = tweaks
+        else:
+            self._ai_tweaks = tweaks
+
+        table.setRowCount(0)
+        engine = self._engine
+
+        for tweak in tweaks:
+            row = table.rowCount()
+            table.insertRow(row)
+            chk = QTableWidgetItem()
+            chk.setCheckState(Qt.CheckState.Unchecked)
+            chk.setData(Qt.ItemDataRole.UserRole, tweak.get("id", ""))
+            table.setItem(row, 0, chk)
+            table.setItem(row, 1, QTableWidgetItem(tweak.get("name", "")))
+            table.setItem(row, 2, QTableWidgetItem(tweak.get("category", "")))
+            table.setItem(row, 3, QTableWidgetItem(tweak.get("risk", "")))
+
+            # Detect status
+            if engine:
+                status = engine.detect_status(tweak)
+            else:
+                status = "unknown"
+            status_map = {
+                "applied": ("\u25cf Applied", QColor("#00cc44")),
+                "not_applied": ("\u25cb Not Applied", QColor("#e0e0e0")),
+                "unknown": ("\u25cb Unknown", QColor("#888888")),
+            }
+            status_text, status_color = status_map.get(status, status_map["unknown"])
+            si = QTableWidgetItem(status_text)
+            si.setForeground(status_color)
+            si.setData(Qt.ItemDataRole.UserRole, tweak.get("id", ""))
+            table.setItem(row, 4, si)
+
+        if status_lbl:
+            status_lbl.setText(f"{len(tweaks)} tweak(s) loaded")
+
+    def _on_preset(self, preset: str, tab_type: str) -> None:
+        table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
+        if not table:
+            return
+
+        if tab_type == "tweak":
+            tweaks = self._all_tweaks
+        else:
+            tweaks = self._ai_tweaks
+
+        if preset == "light":
+            target_categories = {"Bing Apps", "Gaming", "Media"}
+        elif preset == "full":
+            target_categories = None  # all
+        elif preset == "privacy":
+            target_categories = {
+                "Privacy", "Telemetry", "Services", "AI Features", "Navigation Pane",
+                "Network", "Security",
+            }
+        else:  # custom - do nothing
+            return
+
+        for r in range(table.rowCount()):
+            item_id = table.item(r, 0).data(Qt.ItemDataRole.UserRole)
+            tweak = next((t for t in tweaks if t.get("id") == item_id), None)
+            if not tweak:
+                continue
+            category = tweak.get("category", "")
+            check = False
+            if target_categories is None:
+                check = True
+            elif category in target_categories:
+                check = True
+            table.item(r, 0).setCheckState(
+                Qt.CheckState.Checked if check else Qt.CheckState.Unchecked
+            )
+
+    def _on_apply_tweaks(self, tab_type: str) -> None:
+        table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
+        if not table:
+            return
+
+        selected_ids = []
+        for r in range(table.rowCount()):
+            if table.item(r, 0).checkState() == Qt.CheckState.Checked:
+                selected_ids.append(table.item(r, 0).data(Qt.ItemDataRole.UserRole))
+
+        if not selected_ids:
+            return
+
+        if tab_type == "tweak":
+            tweaks = self._all_tweaks
+        else:
+            tweaks = self._ai_tweaks
+
+        def work(w: Worker):
+            backup = BackupService(self.app._app_data_dir)
+            engine = TweakEngine(backup)
+            rp_id = f"debloat_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup.create_restore_point(rp_id)
+            success = 0
+            for eid in selected_ids:
+                if w.is_cancelled:
+                    break
+                tweak = next((t for t in tweaks if t.get("id") == eid), None)
+                if tweak:
+                    engine.apply_tweak(tweak, rp_id)
+                    success += 1
+            return {"success": success, "total": len(selected_ids)}
+
+        w = Worker(work)
+        w.signals.result.connect(self._on_tweaks_applied)
+        w.signals.error.connect(self._on_apply_error)
+        self._workers.append(w)
+        self.app.thread_pool.start(w)
+
+    def _on_tweaks_applied(self, result: Dict) -> None:
+        QMessageBox.information(
+            self._widget, "Tweaks Applied",
+            f"Applied {result['success']} of {result['total']} tweak(s).\n"
+            f"A restore point has been created.",
+        )
+        # Refresh tables
+        self._populate_tweaks_table("tweak")
+        self._populate_tweaks_table("ai")

@@ -83,6 +83,8 @@ class TweakEngine:
             return self._apply_command(step)
         elif step_type == "appx":
             return self._apply_appx(step, rp_id)
+        elif step_type == "scheduled_task":
+            return self._apply_scheduled_task(step, rp_id)
         logger.warning("Unknown step type: %s", step_type)
         return None
 
@@ -155,6 +157,29 @@ class TweakEngine:
         )
         return StepRecord("appx", pkg, pkg, None)
 
+    def _apply_scheduled_task(self, step: Dict, rp_id: str) -> StepRecord:
+        """Disable a scheduled task. Records the current state for revert."""
+        task_name = step["task_name"]
+        before = "Unknown"
+        try:
+            result = subprocess.run(
+                ["schtasks", "/query", "/tn", task_name, "/fo", "LIST"],
+                capture_output=True, text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            for line in result.stdout.splitlines():
+                if line.startswith("Status:"):
+                    before = line.split(":", 1)[1].strip()
+                    break
+        except Exception:
+            pass
+        subprocess.run(
+            ["schtasks", "/change", "/tn", task_name, "/disable"],
+            check=False, capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return StepRecord("scheduled_task", task_name, before, "Disabled")
+
     def detect_status(self, tweak: Dict) -> str:
         """Return 'applied' | 'not_applied' | 'unknown' from first step."""
         steps = tweak.get("steps", [])
@@ -179,6 +204,27 @@ class TweakEngine:
                 _st = step.get("start_type", "")
                 expected = int(_st) if isinstance(_st, int) else _START_TYPE_MAP.get(str(_st).lower(), -1)
                 return "applied" if current == expected else "not_applied"
+            elif step["type"] == "appx":
+                pkg = step["package"]
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     f"Get-AppxPackage '{pkg}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
+                    capture_output=True, text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                return "not_applied" if result.stdout.strip() else "applied"
+            elif step["type"] == "scheduled_task":
+                task_name = step["task_name"]
+                result = subprocess.run(
+                    ["schtasks", "/query", "/tn", task_name, "/fo", "LIST"],
+                    capture_output=True, text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                for line in result.stdout.splitlines():
+                    if line.startswith("Status:"):
+                        state = line.split(":", 1)[1].strip()
+                        return "applied" if state == "Disabled" else "not_applied"
+                return "unknown"
         except OSError:
             return "unknown"
         except Exception:

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "hide_gallery_from_nav",
+    "name": "Hide Gallery from Navigation Pane",
+    "description": "Removes the Gallery entry from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{e2a14b52-c05e-4287-a9d0-c520b63a2dee}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_3d_objects_from_nav",
+    "name": "Hide 3D Objects from Navigation Pane",
+    "description": "Removes the 3D Objects entry from This PC in File Explorer.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{0DB7E03F-A78C-4785-B8E2-BC63DB7D9759}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_home_from_nav",
+    "name": "Hide Home from Navigation Pane",
+    "description": "Removes the Home entry from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{262F7A5A-3AD3-4D50-B4D4-A1F6B0D5C89E}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_duplicate_drives",
+    "name": "Hide Duplicate Drive Letters",
+    "description": "Removes duplicate drive letter entries from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer", "value": "HideDriveLettersWithoutNetDrive", "data": 1, "kind": "DWORD"}]
+  }
+]

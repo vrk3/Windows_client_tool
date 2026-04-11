@@ -1,0 +1,40 @@
+[
+  {
+    "id": "disable_click_to_do",
+    "name": "Disable Click To Do",
+    "description": "Disables Windows 11 24H2 Click To Do AI feature that analyzes screen content.",
+    "category": "AI Features", "risk": "low", "requires_admin": true,
+    "steps": [{"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "value": "DisableClickToDo", "data": 1, "kind": "DWORD"}]
+  },
+  {
+    "id": "disable_ai_hub",
+    "name": "Disable AI Hub",
+    "description": "Removes the AI Hub entry from the Windows 11 Start menu.",
+    "category": "AI Features", "risk": "low", "requires_admin": true,
+    "steps": [{"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "value": "DisableAIHub", "data": 1, "kind": "DWORD"}]
+  },
+  {
+    "id": "disable_wsa_fabric",
+    "name": "Disable WSAIFabricSvc Service",
+    "description": "Disables the AI Fabric service that runs alongside Windows Subsystem for Android.",
+    "category": "AI Features", "risk": "medium", "requires_admin": true,
+    "steps": [{"type": "service", "name": "WSAIFabricSvc", "start_type": "disabled"}]
+  },
+  {
+    "id": "disable_copilot_edge",
+    "name": "Disable Copilot in Edge",
+    "description": "Disables Microsoft Copilot sidebar in Microsoft Edge.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge", "value": "Sidebar", "data": 0, "kind": "DWORD"},
+      {"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge", "value": "MicrosoftEdgeShowSidebarFactoryApp", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_paint_cocreator",
+    "name": "Disable AI Cocreator in Paint",
+    "description": "Disables the Cocreator AI image generation in Paint.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Applets\\Paint\\Settings", "value": "DisableAIFeatures", "data": 1, "kind": "DWORD"}]
+  }
+]

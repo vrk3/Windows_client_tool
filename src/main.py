@@ -53,6 +53,7 @@ def main():
     from modules.tweaks.tweaks_module import TweaksModule
     from modules.cleanup.cleanup_module import CleanupModule
     from modules.cleanup.quick_cleanup_module import QuickCleanupModule
+    from modules.debloat.debloat_module import DebloatModule
     from modules.treesize.treesize_module import TreeSizeModule
     from modules.quick_fix.quick_fix_module import QuickFixModule
     from modules.updates.updates_module import UpdatesModule
@@ -99,6 +100,7 @@ def main():
     app.module_registry.register(TweaksModule())
     app.module_registry.register(CleanupModule())
     app.module_registry.register(QuickCleanupModule())
+    app.module_registry.register(DebloatModule())
     app.module_registry.register(TreeSizeModule())
     app.module_registry.register(QuickFixModule())
     app.module_registry.register(UpdatesModule())

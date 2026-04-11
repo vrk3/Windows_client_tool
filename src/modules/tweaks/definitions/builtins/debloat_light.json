@@ -1,0 +1,14 @@
+{
+  "name": "Light Debloat",
+  "version": 1,
+  "builtin": true,
+  "description": "Remove Bing apps, Xbox gaming bloat, Solitaire, and Clipchamp — safe for all users. Keeps all system utilities.",
+  "tweaks": {
+    "Bing Apps": ["remove_bing_weather", "remove_bing_news", "remove_bing_sports", "remove_bing_finance", "remove_bing_travel", "remove_bing_food", "remove_bing_health", "remove_bing_translator", "remove_bing_search"],
+    "Gaming": ["remove_xbox_gaming_overlay", "remove_xbox_app", "remove_xbox_console"],
+    "Media": ["remove_clipchamp", "remove_solitaire"]
+  },
+  "apps": {
+    "remove": ["Microsoft.BingWeather", "Microsoft.BingNews", "Microsoft.BingSports", "Microsoft.BingFinance", "Microsoft.BingTravel", "Microsoft.BingFoodAndDrink", "Microsoft.BingHealthAndFitness", "Microsoft.BingTranslator", "Microsoft.BingSearch", "Microsoft.XboxGameOverlay", "Microsoft.XboxApp", "Microsoft.XboxConsoleCompanion", "Clipchamp.Clipchamp", "Microsoft.MicrosoftSolitaireCollection"]
+  }
+}

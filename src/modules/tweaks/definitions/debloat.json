@@ -1,0 +1,458 @@
+[
+  {
+    "id": "remove_bing_weather", "name": "Bing Weather", "description": "Weather app with ad-powered news feed.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingWeather",
+    "steps": [{"type": "appx", "package": "Microsoft.BingWeather", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_news", "name": "Microsoft News", "description": "News aggregator with Microsoft Start integration.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingNews",
+    "steps": [{"type": "appx", "package": "Microsoft.BingNews", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_finance", "name": "Bing Finance", "description": "Finance tracking app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingFinance",
+    "steps": [{"type": "appx", "package": "Microsoft.BingFinance", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_sports", "name": "Bing Sports", "description": "Sports news and scores.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingSports",
+    "steps": [{"type": "appx", "package": "Microsoft.BingSports", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_travel", "name": "Bing Travel", "description": "Travel planning app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingTravel",
+    "steps": [{"type": "appx", "package": "Microsoft.BingTravel", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_food", "name": "Bing Food & Drink", "description": "Food and drink recipes app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingFoodAndDrink",
+    "steps": [{"type": "appx", "package": "Microsoft.BingFoodAndDrink", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_health", "name": "Bing Health & Fitness", "description": "Health tracking app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingHealthAndFitness",
+    "steps": [{"type": "appx", "package": "Microsoft.BingHealthAndFitness", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_translator", "name": "Bing Translator", "description": "Translation app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingTranslator",
+    "steps": [{"type": "appx", "package": "Microsoft.BingTranslator", "action": "remove"}]
+  },
+  {
+    "id": "remove_bing_search", "name": "Bing Search", "description": "Web search app.", "category": "Bing Apps", "risk": "low", "requires_admin": true, "package": "Microsoft.BingSearch",
+    "steps": [{"type": "appx", "package": "Microsoft.BingSearch", "action": "remove"}]
+  },
+  {
+    "id": "remove_calc", "name": "Calculator", "description": "System calculator.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsCalculator",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsCalculator", "action": "remove"}]
+  },
+  {
+    "id": "remove_camera", "name": "Windows Camera", "description": "Camera app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsCamera",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsCamera", "action": "remove"}]
+  },
+  {
+    "id": "remove_alarms", "name": "Alarms & Clock", "description": "Alarm clock app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsAlarms",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsAlarms", "action": "remove"}]
+  },
+  {
+    "id": "remove_snipping", "name": "Snipping Tool", "description": "Screen capture tool.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.ScreenSketch",
+    "steps": [{"type": "appx", "package": "Microsoft.ScreenSketch", "action": "remove"}]
+  },
+  {
+    "id": "remove_notepad", "name": "Notepad", "description": "System text editor.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsNotepad",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsNotepad", "action": "remove"}]
+  },
+  {
+    "id": "remove_paint", "name": "Paint", "description": "Simple image editor.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Paint",
+    "steps": [{"type": "appx", "package": "Microsoft.Paint", "action": "remove"}]
+  },
+  {
+    "id": "remove_sound_recorder", "name": "Sound Recorder", "description": "Audio recording app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsSoundRecorder",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsSoundRecorder", "action": "remove"}]
+  },
+  {
+    "id": "remove_quick_assist", "name": "Quick Assist", "description": "Remote assistance app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "MicrosoftCorporationII.QuickAssist",
+    "steps": [{"type": "appx", "package": "MicrosoftCorporationII.QuickAssist", "action": "remove"}]
+  },
+  {
+    "id": "remove_sticky_notes", "name": "Sticky Notes", "description": "Desktop sticky notes.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.MicrosoftStickyNotes",
+    "steps": [{"type": "appx", "package": "Microsoft.MicrosoftStickyNotes", "action": "remove"}]
+  },
+  {
+    "id": "remove_terminal", "name": "Windows Terminal", "description": "Modern terminal emulator.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsTerminal",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsTerminal", "action": "remove"}]
+  },
+  {
+    "id": "remove_clipchamp", "name": "Clipchamp", "description": "Video editor.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Clipchamp.Clipchamp",
+    "steps": [{"type": "appx", "package": "Clipchamp.Clipchamp", "action": "remove"}]
+  },
+  {
+    "id": "remove_journal", "name": "Microsoft Journal", "description": "Note-taking app for pen devices.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.MicrosoftJournal",
+    "steps": [{"type": "appx", "package": "Microsoft.MicrosoftJournal", "action": "remove"}]
+  },
+  {
+    "id": "remove_mail", "name": "Mail & Calendar", "description": "Email and calendar app.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "Microsoft.windowscommunicationsapps",
+    "steps": [{"type": "appx", "package": "Microsoft.windowscommunicationsapps", "action": "remove"}]
+  },
+  {
+    "id": "remove_messaging", "name": "Messaging", "description": "Messaging app for SMS.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "Microsoft.Messaging",
+    "steps": [{"type": "appx", "package": "Microsoft.Messaging", "action": "remove"}]
+  },
+  {
+    "id": "remove_skype", "name": "Skype UWP", "description": "Skype messaging and calls.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "Microsoft.SkypeApp",
+    "steps": [{"type": "appx", "package": "Microsoft.SkypeApp", "action": "remove"}]
+  },
+  {
+    "id": "remove_phone_link", "name": "Phone Link", "description": "Link your phone to PC.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "Microsoft.YourPhone",
+    "steps": [{"type": "appx", "package": "Microsoft.YourPhone", "action": "remove"}]
+  },
+  {
+    "id": "remove_cortana", "name": "Cortana", "description": "Windows voice assistant.", "category": "Communications", "risk": "medium", "requires_admin": true, "package": "Microsoft.549981C3F5F50",
+    "steps": [{"type": "appx", "package": "Microsoft.549981C3F5F50", "action": "remove"}]
+  },
+  {
+    "id": "remove_office_hub", "name": "Office Hub", "description": "Microsoft Office quick launch.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.MicrosoftOfficeHub",
+    "steps": [{"type": "appx", "package": "Microsoft.MicrosoftOfficeHub", "action": "remove"}]
+  },
+  {
+    "id": "remove_onenote", "name": "OneNote", "description": "Note-taking app.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.Office.OneNote",
+    "steps": [{"type": "appx", "package": "Microsoft.Office.OneNote", "action": "remove"}]
+  },
+  {
+    "id": "remove_outlook_win", "name": "Outlook for Windows", "description": "New Outlook mail client.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.OutlookForWindows",
+    "steps": [{"type": "appx", "package": "Microsoft.OutlookForWindows", "action": "remove"}]
+  },
+  {
+    "id": "remove_365_companions", "name": "Microsoft 365 Companions", "description": "Companion apps for Microsoft 365.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.M365Companions",
+    "steps": [{"type": "appx", "package": "Microsoft.M365Companions", "action": "remove"}]
+  },
+  {
+    "id": "remove_power_automate", "name": "Power Automate", "description": "Workflow automation app.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.PowerAutomateDesktop",
+    "steps": [{"type": "appx", "package": "Microsoft.PowerAutomateDesktop", "action": "remove"}]
+  },
+  {
+    "id": "remove_to_do", "name": "Microsoft To Do", "description": "Task management app.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.Todos",
+    "steps": [{"type": "appx", "package": "Microsoft.Todos", "action": "remove"}]
+  },
+  {
+    "id": "remove_sway", "name": "Sway", "description": "Digital storytelling app.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.Office.Sway",
+    "steps": [{"type": "appx", "package": "Microsoft.Office.Sway", "action": "remove"}]
+  },
+  {
+    "id": "remove_movies_tv", "name": "Movies & TV", "description": "Video playback app.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.ZuneVideo",
+    "steps": [{"type": "appx", "package": "Microsoft.ZuneVideo", "action": "remove"}]
+  },
+  {
+    "id": "remove_zune_music", "name": "Media Player", "description": "Music and video playback.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.ZuneMusic",
+    "steps": [{"type": "appx", "package": "Microsoft.ZuneMusic", "action": "remove"}]
+  },
+  {
+    "id": "remove_photos", "name": "Photos", "description": "Photo viewer and editor.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.Photos",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Photos", "action": "remove"}]
+  },
+  {
+    "id": "remove_3d_builder", "name": "3D Builder", "description": "3D modeling app.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.3DBuilder",
+    "steps": [{"type": "appx", "package": "Microsoft.3DBuilder", "action": "remove"}]
+  },
+  {
+    "id": "remove_3d_viewer", "name": "3D Viewer", "description": "3D model viewer.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.Microsoft3DViewer",
+    "steps": [{"type": "appx", "package": "Microsoft.Microsoft3DViewer", "action": "remove"}]
+  },
+  {
+    "id": "remove_paint_3d", "name": "Paint 3D", "description": "3D painting app.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.MSPaint",
+    "steps": [{"type": "appx", "package": "Microsoft.MSPaint", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_app", "name": "Xbox App", "description": "Xbox console companion.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.XboxApp",
+    "steps": [{"type": "appx", "package": "Microsoft.XboxApp", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_game_overlay", "name": "Xbox Game Overlay", "description": "Game overlay for Xbox features.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.XboxGameOverlay",
+    "steps": [{"type": "appx", "package": "Microsoft.XboxGameOverlay", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_gaming_app", "name": "Xbox Gaming App", "description": "Xbox gaming hub.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.GamingApp",
+    "steps": [{"type": "appx", "package": "Microsoft.GamingApp", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_identity", "name": "Xbox Identity Provider", "description": "Xbox authentication service.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.XboxIdentityProvider",
+    "steps": [{"type": "appx", "package": "Microsoft.XboxIdentityProvider", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_speech", "name": "Xbox Speech-to-Text", "description": "Voice transcription for Xbox.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.XboxSpeechToTextOverlay",
+    "steps": [{"type": "appx", "package": "Microsoft.XboxSpeechToTextOverlay", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_tcui", "name": "Xbox TCUI", "description": "Xbox UI framework.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.Xbox.TCUI",
+    "steps": [{"type": "appx", "package": "Microsoft.Xbox.TCUI", "action": "remove"}]
+  },
+  {
+    "id": "remove_xbox_console", "name": "Xbox Console Companion", "description": "Xbox Console Companion app.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.XboxConsoleCompanion",
+    "steps": [{"type": "appx", "package": "Microsoft.XboxConsoleCompanion", "action": "remove"}]
+  },
+  {
+    "id": "remove_store", "name": "Microsoft Store", "description": "App store for Windows apps.", "category": "System Utilities", "risk": "medium", "requires_admin": true, "package": "Microsoft.WindowsStore",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsStore", "action": "remove"}]
+  },
+  {
+    "id": "remove_teams_new", "name": "Microsoft Teams (New)", "description": "New Microsoft Teams chat app.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "MSTeams",
+    "steps": [{"type": "appx", "package": "MSTeams", "action": "remove"}]
+  },
+  {
+    "id": "remove_teams_old", "name": "Microsoft Teams (Old)", "description": "Classic Microsoft Teams app.", "category": "Communications", "risk": "low", "requires_admin": true, "package": "MicrosoftTeams",
+    "steps": [{"type": "appx", "package": "MicrosoftTeams", "action": "remove"}]
+  },
+  {
+    "id": "remove_solitaire", "name": "Microsoft Solitaire", "description": "Solitaire card games collection.", "category": "Gaming", "risk": "low", "requires_admin": true, "package": "Microsoft.MicrosoftSolitaireCollection",
+    "steps": [{"type": "appx", "package": "Microsoft.MicrosoftSolitaireCollection", "action": "remove"}]
+  },
+  {
+    "id": "remove_whiteboard", "name": "Whiteboard", "description": "Collaborative whiteboard app.", "category": "Office", "risk": "low", "requires_admin": true, "package": "Microsoft.Whiteboard",
+    "steps": [{"type": "appx", "package": "Microsoft.Whiteboard", "action": "remove"}]
+  },
+  {
+    "id": "remove_dev_home", "name": "Dev Home", "description": "Windows Developer dashboard.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.DevHome",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.DevHome", "action": "remove"}]
+  },
+  {
+    "id": "remove_family_safety", "name": "Family Safety", "description": "Family monitoring and parental controls.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "MicrosoftCorporationII.MicrosoftFamily",
+    "steps": [{"type": "appx", "package": "MicrosoftCorporationII.MicrosoftFamily", "action": "remove"}]
+  },
+  {
+    "id": "remove_feedback_hub", "name": "Feedback Hub", "description": "Windows Feedback app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.WindowsFeedbackHub",
+    "steps": [{"type": "appx", "package": "Microsoft.WindowsFeedbackHub", "action": "remove"}]
+  },
+  {
+    "id": "remove_get_help", "name": "Get Help", "description": "Windows help and support app.", "category": "System Utilities", "risk": "medium", "requires_admin": true, "package": "Microsoft.GetHelp",
+    "steps": [{"type": "appx", "package": "Microsoft.GetHelp", "action": "remove"}]
+  },
+  {
+    "id": "remove_get_started", "name": "Get Started", "description": "Windows onboarding app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Getstarted",
+    "steps": [{"type": "appx", "package": "Microsoft.Getstarted", "action": "remove"}]
+  },
+  {
+    "id": "remove_pc_manager", "name": "Microsoft PC Manager", "description": "PC health and maintenance app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.PCManager",
+    "steps": [{"type": "appx", "package": "Microsoft.PCManager", "action": "remove"}]
+  },
+  {
+    "id": "remove_mixed_reality", "name": "Mixed Reality Portal", "description": "Windows Mixed Reality app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.MixedReality.Portal",
+    "steps": [{"type": "appx", "package": "Microsoft.MixedReality.Portal", "action": "remove"}]
+  },
+  {
+    "id": "remove_remote_desktop", "name": "Remote Desktop", "description": "Remote Desktop client.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.RemoteDesktop",
+    "steps": [{"type": "appx", "package": "Microsoft.RemoteDesktop", "action": "remove"}]
+  },
+  {
+    "id": "remove_widgets", "name": "Widgets", "description": "Windows 11 Widgets board.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.StartExperiencesApp",
+    "steps": [{"type": "appx", "package": "Microsoft.StartExperiencesApp", "action": "remove"}]
+  },
+  {
+    "id": "remove_network_speed_test", "name": "Network Speed Test", "description": "Microsoft network speed test.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.NetworkSpeedTest",
+    "steps": [{"type": "appx", "package": "Microsoft.NetworkSpeedTest", "action": "remove"}]
+  },
+  {
+    "id": "remove_linkedin", "name": "LinkedIn", "description": "LinkedIn app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "LinkedInforWindows",
+    "steps": [{"type": "appx", "package": "LinkedInforWindows", "action": "remove"}]
+  },
+  {
+    "id": "remove_amazon", "name": "Amazon Shopping", "description": "Amazon shopping app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Amazon.com.Amazon",
+    "steps": [{"type": "appx", "package": "Amazon.com.Amazon", "action": "remove"}]
+  },
+  {
+    "id": "remove_facebook", "name": "Facebook", "description": "Facebook social media app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Facebook",
+    "steps": [{"type": "appx", "package": "Facebook", "action": "remove"}]
+  },
+  {
+    "id": "remove_instagram", "name": "Instagram", "description": "Instagram social media app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Instagram",
+    "steps": [{"type": "appx", "package": "Instagram", "action": "remove"}]
+  },
+  {
+    "id": "remove_spotify", "name": "Spotify Music", "description": "Spotify music streaming app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Spotify",
+    "steps": [{"type": "appx", "package": "Spotify", "action": "remove"}]
+  },
+  {
+    "id": "remove_netflix", "name": "Netflix", "description": "Netflix video streaming app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Netflix",
+    "steps": [{"type": "appx", "package": "Netflix", "action": "remove"}]
+  },
+  {
+    "id": "remove_disney", "name": "Disney+", "description": "Disney+ video streaming app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Disney",
+    "steps": [{"type": "appx", "package": "Disney", "action": "remove"}]
+  },
+  {
+    "id": "remove_tiktok", "name": "TikTok", "description": "TikTok video app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "TikTok",
+    "steps": [{"type": "appx", "package": "TikTok", "action": "remove"}]
+  },
+  {
+    "id": "remove_candy_crush", "name": "Candy Crush Saga", "description": "Candy Crush puzzle game.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "king.com.CandyCrushSaga",
+    "steps": [{"type": "appx", "package": "king.com.CandyCrushSaga", "action": "remove"}]
+  },
+  {
+    "id": "remove_candy_crush_soda", "name": "Candy Crush Soda", "description": "Candy Crush Soda puzzle game.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "king.com.CandyCrushSodaSaga",
+    "steps": [{"type": "appx", "package": "king.com.CandyCrushSodaSaga", "action": "remove"}]
+  },
+  {
+    "id": "remove_bubble_witch", "name": "Bubble Witch 3", "description": "Bubble Witch 3 puzzle game.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "king.com.BubbleWitch3Saga",
+    "steps": [{"type": "appx", "package": "king.com.BubbleWitch3Saga", "action": "remove"}]
+  },
+  {
+    "id": "remove_photoshop_express", "name": "Adobe Photoshop Express", "description": "Adobe photo editor.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "AdobeSystemsIncorporated.AdobePhotoshopExpress",
+    "steps": [{"type": "appx", "package": "AdobeSystemsIncorporated.AdobePhotoshopExpress", "action": "remove"}]
+  },
+  {
+    "id": "remove_sketchbook", "name": "Autodesk SketchBook", "description": "Digital sketching app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "AutodeskSketchBook",
+    "steps": [{"type": "appx", "package": "AutodeskSketchBook", "action": "remove"}]
+  },
+  {
+    "id": "remove_duolingo", "name": "Duolingo", "description": "Language learning app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Duolingo-LearnLanguagesforFree",
+    "steps": [{"type": "appx", "package": "Duolingo-LearnLanguagesforFree", "action": "remove"}]
+  },
+  {
+    "id": "remove_pandora", "name": "Pandora", "description": "Pandora music app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "PandoraMediaInc",
+    "steps": [{"type": "appx", "package": "PandoraMediaInc", "action": "remove"}]
+  },
+  {
+    "id": "remove_plex", "name": "Plex", "description": "Plex media server client.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Plex",
+    "steps": [{"type": "appx", "package": "Plex", "action": "remove"}]
+  },
+  {
+    "id": "remove_tunein", "name": "TuneIn Radio", "description": "TuneIn internet radio.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "TuneInRadio",
+    "steps": [{"type": "appx", "package": "TuneInRadio", "action": "remove"}]
+  },
+  {
+    "id": "remove_shazam", "name": "Shazam", "description": "Music identification app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Shazam",
+    "steps": [{"type": "appx", "package": "Shazam", "action": "remove"}]
+  },
+  {
+    "id": "remove_sling_tv", "name": "Sling TV", "description": "Sling TV streaming app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "SlingTV",
+    "steps": [{"type": "appx", "package": "SlingTV", "action": "remove"}]
+  },
+  {
+    "id": "remove_twitter", "name": "X (Twitter)", "description": "X social media app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Twitter",
+    "steps": [{"type": "appx", "package": "Twitter", "action": "remove"}]
+  },
+  {
+    "id": "remove_viber", "name": "Viber", "description": "Viber messaging app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Viber",
+    "steps": [{"type": "appx", "package": "Viber", "action": "remove"}]
+  },
+  {
+    "id": "remove_winzip", "name": "WinZip", "description": "WinZip file compression app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "WinZipUniversal",
+    "steps": [{"type": "appx", "package": "WinZipUniversal", "action": "remove"}]
+  },
+  {
+    "id": "remove_hulu", "name": "Hulu", "description": "Hulu streaming app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "HULULLC.HULUPLUS",
+    "steps": [{"type": "appx", "package": "HULULLC.HULUPLUS", "action": "remove"}]
+  },
+  {
+    "id": "remove_prime_video", "name": "Prime Video", "description": "Amazon Prime Video app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "PrimeVideo",
+    "steps": [{"type": "appx", "package": "PrimeVideo", "action": "remove"}]
+  },
+  {
+    "id": "remove_iheartradio", "name": "iHeartRadio", "description": "iHeartRadio music app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "iHeartRadio",
+    "steps": [{"type": "appx", "package": "iHeartRadio", "action": "remove"}]
+  },
+  {
+    "id": "remove_polarr", "name": "Polarr Photo Editor", "description": "Polarr photo editing app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "PolarrPhotoEditorAcademicEdition",
+    "steps": [{"type": "appx", "package": "PolarrPhotoEditorAcademicEdition", "action": "remove"}]
+  },
+  {
+    "id": "remove_picsart", "name": "PicsArt Photo Studio", "description": "PicsArt creative photo app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "PicsArt-PhotoStudio",
+    "steps": [{"type": "appx", "package": "PicsArt-PhotoStudio", "action": "remove"}]
+  },
+  {
+    "id": "remove_live_wallpaper", "name": "Live Wallpaper", "description": "Animated wallpaper app.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Sidia.LiveWallpaper",
+    "steps": [{"type": "appx", "package": "Sidia.LiveWallpaper", "action": "remove"}]
+  },
+  {
+    "id": "remove_acg_media", "name": "ACG Media Player", "description": "ACG video player.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "ACGMediaPlayer",
+    "steps": [{"type": "appx", "package": "ACGMediaPlayer", "action": "remove"}]
+  },
+  {
+    "id": "remove_asphalt8", "name": "Asphalt 8", "description": "Asphalt 8 racing game.", "category": "Third-Party", "risk": "low", "requires_admin": true, "package": "Asphalt8Airborne",
+    "steps": [{"type": "appx", "package": "Asphalt8Airborne", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_ai", "name": "HP AI Experience Center", "description": "HP AI assistant (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPAIExperienceCenter",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPAIExperienceCenter", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_connected_music", "name": "HP Connected Music", "description": "HP music app (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPConnectedMusic",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPConnectedMusic", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_connected_photo", "name": "HP Connected Photo", "description": "HP photo app (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPConnectedPhotopoweredbySnapfish",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPConnectedPhotopoweredbySnapfish", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_desktop_support", "name": "HP Desktop Support Utilities", "description": "HP support utilities (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPDesktopSupportUtilities",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPDesktopSupportUtilities", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_easy_clean", "name": "HP Easy Clean", "description": "HP cleaning utility (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPEasyClean",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPEasyClean", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_file_viewer", "name": "HP File Viewer", "description": "HP file viewer (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPFileViewer",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPFileViewer", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_jumpstarts", "name": "HP JumpStarts", "description": "HP JumpStarts (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPJumpStarts",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPJumpStarts", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_pc_hardware", "name": "HP PC Hardware Diagnostics", "description": "HP diagnostics (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPPCHardwareDiagnosticsWindows",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPPCHardwareDiagnosticsWindows", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_power_manager", "name": "HP Power Manager", "description": "HP power management (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPPowerManager",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPPowerManager", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_printer_control", "name": "HP Printer Control", "description": "HP printer software (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPPrinterControl",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPPrinterControl", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_privacy_settings", "name": "HP Privacy Settings", "description": "HP privacy settings (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPPrivacySettings",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPPrivacySettings", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_quickdrop", "name": "HP QuickDrop", "description": "HP QuickDrop file transfer (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPQuickDrop",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPQuickDrop", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_support", "name": "HP Support Assistant", "description": "HP support assistant (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPSupportAssistant",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPSupportAssistant", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_sure_shield", "name": "HP Sure Shield AI", "description": "HP security AI (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPSureShieldAI",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPSureShieldAI", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_system_info", "name": "HP System Information", "description": "HP system info (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPSystemInformation",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPSystemInformation", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_welcome", "name": "HP Welcome", "description": "HP welcome app (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPWelcome",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPWelcome", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_workwell", "name": "HP WorkWell", "description": "HP WorkWell wellness app (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.HPWorkWell",
+    "steps": [{"type": "appx", "package": "AD2F1837.HPWorkWell", "action": "remove"}]
+  },
+  {
+    "id": "remove_hp_myhp", "name": "myHP", "description": "HP myHP app (HP OEM).", "category": "OEM HP", "risk": "low", "requires_admin": true, "package": "AD2F1837.myHP",
+    "steps": [{"type": "appx", "package": "AD2F1837.myHP", "action": "remove"}]
+  },
+  {
+    "id": "remove_dell_digital_delivery", "name": "Dell Digital Delivery", "description": "Dell software delivery (Dell OEM).", "category": "OEM Dell", "risk": "low", "requires_admin": true, "package": "DellInc.DellDigitalDelivery",
+    "steps": [{"type": "appx", "package": "DellInc.DellDigitalDelivery", "action": "remove"}]
+  },
+  {
+    "id": "remove_dell_mobile_connect", "name": "Dell Mobile Connect", "description": "Dell phone integration (Dell OEM).", "category": "OEM Dell", "risk": "low", "requires_admin": true, "package": "DellInc.DellMobileConnect",
+    "steps": [{"type": "appx", "package": "DellInc.DellMobileConnect", "action": "remove"}]
+  },
+  {
+    "id": "remove_dell_support_assist", "name": "Dell SupportAssist", "description": "Dell support and diagnostics (Dell OEM).", "category": "OEM Dell", "risk": "low", "requires_admin": true, "package": "DellInc.DellSupportAssistforPCs",
+    "steps": [{"type": "appx", "package": "DellInc.DellSupportAssistforPCs", "action": "remove"}]
+  },
+  {
+    "id": "remove_lenovo_vantage", "name": "Lenovo Vantage", "description": "Lenovo system utility (Lenovo OEM).", "category": "OEM Lenovo", "risk": "low", "requires_admin": true, "package": "E046963F.LenovoCompanion",
+    "steps": [{"type": "appx", "package": "E046963F.LenovoCompanion", "action": "remove"}]
+  },
+  {
+    "id": "remove_lenovo_vantage_service", "name": "Lenovo Vantage Service", "description": "Lenovo Vantage background service (Lenovo OEM).", "category": "OEM Lenovo", "risk": "low", "requires_admin": true, "package": "LenovoCompanyLimited.LenovoVantageService",
+    "steps": [{"type": "appx", "package": "LenovoCompanyLimited.LenovoVantageService", "action": "remove"}]
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "name": "Full Debloat",
+  "version": 1,
+  "builtin": true,
+  "description": "Remove all 120+ bloatware apps except protected system apps (Store, Terminal, Get Help, Calculator, Notepad, Alarms). Use with caution.",
+  "tweaks": {
+    "System Utilities": ["remove_dev_home", "remove_feedback_hub", "remove_get_started", "remove_pc_manager", "remove_mixed_reality", "remove_remote_desktop", "remove_widgets", "remove_network_speed_test"],
+    "Communications": ["remove_mail", "remove_messaging", "remove_skype", "remove_phone_link", "remove_cortana"],
+    "Office": ["remove_office_hub", "remove_365_companions", "remove_power_automate", "remove_sway", "remove_to_do", "remove_outlook_win"],
+    "Media": ["remove_movies_tv", "remove_zune_music", "remove_photos", "remove_3d_builder", "remove_3d_viewer", "remove_paint_3d"],
+    "Gaming": ["remove_xbox_identity", "remove_xbox_speech", "remove_xbox_tcui", "remove_xbox_gaming_app"],
+    "Third-Party": ["remove_amazon", "remove_facebook", "remove_instagram", "remove_spotify", "remove_netflix", "remove_disney", "remove_tiktok", "remove_candy_crush", "remove_candy_crush_soda", "remove_bubble_witch", "remove_hulu", "remove_prime_video", "remove_linkedin", "remove_duolingo", "remove_pandora", "remove_plex", "remove_shazam"],
+    "OEM": ["remove_hp_ai", "remove_hp_connected_music", "remove_hp_connected_photo", "remove_hp_easy_clean", "remove_hp_file_viewer", "remove_hp_jumpstarts", "remove_hp_support", "remove_hp_quickdrop", "remove_hp_printer_control", "remove_hp_pc_hardware", "remove_hp_power_manager", "remove_hp_desktop_support", "remove_dell_digital_delivery", "remove_dell_mobile_connect", "remove_dell_support_assist", "remove_lenovo_vantage", "remove_lenovo_vantage_service"]
+  },
+  "apps": {
+    "remove_protected": ["Microsoft.WindowsStore", "Microsoft.WindowsTerminal", "Microsoft.GetHelp", "Microsoft.WindowsAlarms", "Microsoft.WindowsCalculator", "Microsoft.WindowsNotepad"]
+  }
+}

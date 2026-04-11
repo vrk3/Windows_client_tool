@@ -1,0 +1,15 @@
+{
+  "name": "Privacy-Focused",
+  "version": 1,
+  "builtin": true,
+  "description": "Keep all apps but apply all privacy, telemetry, AI feature, and navigation pane tweaks. No app removal.",
+  "tweaks": {
+    "Privacy": ["*"],
+    "Telemetry": ["*"],
+    "AI Features": ["*"],
+    "Navigation Pane": ["*"]
+  },
+  "apps": {
+    "remove": []
+  }
+}
