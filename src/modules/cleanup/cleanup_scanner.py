@@ -694,6 +694,424 @@ def scan_defender_history(min_age_days: int = 0) -> ScanResult:
     return result
 
 
+# ── New Advanced Scan Functions ────────────────────────────────────────────────
+
+def scan_recent_files(min_age_days: int = 0) -> ScanResult:
+    """Recent .lnk shortcuts and jump list destinations."""
+    result = ScanResult()
+    appdata = os.environ.get("APPDATA", "")
+    targets = [
+        os.path.join(appdata, r"Microsoft\Windows\Recent"),
+        os.path.join(appdata, r"Microsoft\Windows\Recent\AutomaticDestinations"),
+        os.path.join(appdata, r"Microsoft\Windows\Recent\CustomDestinations"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        for f in glob.glob(os.path.join(t, "*.lnk")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+        for f in glob.glob(os.path.join(t, "*.automaticDestinations-ms")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+        for f in glob.glob(os.path.join(t, "*.customDestinations-ms")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+    return result
+
+
+def scan_game_caches(min_age_days: int = 0) -> ScanResult:
+    """Caches for Steam, Epic, Xbox, Battle.net, EA app, Ubisoft Connect, GOG Galaxy, Discord."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+    targets = [
+        # Steam
+        os.path.join(local, r"Programs\Steam\steamapps"),
+        os.path.join(local, r"Programs\Steam\shadercache"),
+        os.path.join(local, r"Programs\Steam\htmlcache"),
+        os.path.join(local, r"Programs\Steam\downloads"),
+        # Epic
+        os.path.join(appdata, r"Epic\EpicGamesLauncher\Data\Manifests"),
+        os.path.join(local, r"EpicGamesLauncher\Data\Portal\Cache"),
+        # Xbox / Gaming Services
+        os.path.join(local, r"Packages\Microsoft.GamingServices_*\LocalCache"),
+        os.path.join(local, r"Packages\Microsoft.XboxGamingOverlay_*\LocalCache"),
+        os.path.join(local, r"Packages\FamilyNotifications.*\LocalState"),
+        os.path.join(os.environ.get("PROGRAMDATA", ""), r"XboxLiveDeviceInfo"),
+        # Battle.net
+        os.path.join(appdata, r"Blizzard\Battle.net\Cache"),
+        # EA app
+        os.path.join(appdata, r"EA Desktop\Cache"),
+        os.path.join(appdata, r"Electronic Arts\EA Desktop\Cache"),
+        # Ubisoft Connect
+        os.path.join(appdata, r"Ubisoft\Connect\cache"),
+        # GOG Galaxy
+        os.path.join(appdata, r"GOG.com\Galaxy\Cache"),
+        # Discord
+        os.path.join(appdata, r"discord\Cache"),
+        os.path.join(appdata, r"discord\GPUCache"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        try:
+            size = get_dir_size(t)
+            if size > 0:
+                item = ScanItem(path=t, size=size, is_dir=True, safety="safe")
+                result.items.append(item)
+                result.total_size += size
+        except OSError:
+            pass
+    return result
+
+
+def scan_adobe_cache(min_age_days: int = 0) -> ScanResult:
+    """Adobe Media Cache Files, Peak Files, and Logs."""
+    result = ScanResult()
+    appdata = os.environ.get("APPDATA", "")
+    targets = [
+        os.path.join(appdata, r"Adobe\Common\Media Cache Files"),
+        os.path.join(appdata, r"Adobe\Common\Media Cache"),
+        os.path.join(appdata, r"Adobe\Common\Peak Files"),
+        os.path.join(appdata, r"Adobe\Common\Logs"),
+        os.path.join(appdata, r"Adobe\Adobe Reckon Media Cache Files"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        for entry in os.scandir(t):
+            try:
+                if entry.is_dir():
+                    item = _make_item(entry.path, safety="safe", min_age_days=min_age_days)
+                else:
+                    item = _make_item_with_age(entry.path, safety="safe", min_age_days=min_age_days)
+                if item and item.size > 0:
+                    result.items.append(item)
+                    result.total_size += item.size
+            except OSError:
+                pass
+    return result
+
+
+def scan_office_temp(min_age_days: int = 0) -> ScanResult:
+    """Microsoft Office temp, unsaved files, and OfficeFileCache."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+    temp = os.environ.get("TEMP", "")
+    targets = [
+        os.path.join(local, r"Microsoft\Office\*\OfficeFileCache"),
+        os.path.join(appdata, r"Microsoft\Office\*\UnsavedFiles"),
+        os.path.join(appdata, r"Microsoft\Office\*\OfficeFileCache"),
+    ]
+    for t in targets:
+        for office_ver in glob.glob(t):
+            item = _make_item(office_ver, safety="safe", min_age_days=min_age_days)
+            if item and item.size > 0:
+                result.items.append(item)
+                result.total_size += item.size
+    # Excel/Word temp files in TEMP
+    if temp:
+        for f in glob.glob(os.path.join(temp, "Excel*.tmp")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+        for f in glob.glob(os.path.join(temp, "Word*.tmp")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+    return result
+
+
+def scan_ide_caches(min_age_days: int = 0) -> ScanResult:
+    """JetBrains, Visual Studio, Notepad++, FileZilla caches."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+    home = os.path.expanduser("~")
+    temp = os.environ.get("TEMP", "")
+
+    # JetBrains IDEs (find all IDE folders under JetBrains)
+    jb_root = os.path.join(local, r"JetBrains")
+    if os.path.isdir(jb_root):
+        for ide in glob.glob(os.path.join(jb_root, "*IDE*")):
+            for sub in ("caches", "index", "logs"):
+                sub_path = os.path.join(ide, sub)
+                if os.path.isdir(sub_path):
+                    item = _make_item(sub_path, safety="safe", min_age_days=min_age_days)
+                    if item and item.size > 0:
+                        result.items.append(item)
+                        result.total_size += item.size
+
+    # Visual Studio .vs folder and component model cache
+    vs_folder = os.path.join(local, r"Microsoft\VisualStudio")
+    if os.path.isdir(vs_folder):
+        for vs_ver in os.listdir(vs_folder):
+            vs_path = os.path.join(vs_folder, vs_ver)
+            if not os.path.isdir(vs_path):
+                continue
+            vs_items = [
+                os.path.join(vs_path, ".vs"),
+                os.path.join(vs_path, "ComponentModelCache"),
+                os.path.join(vs_path, "Settings"),
+            ]
+            for vi in vs_items:
+                if os.path.isdir(vi):
+                    item = _make_item(vi, safety="safe", min_age_days=min_age_days)
+                    if item and item.size > 0:
+                        result.items.append(item)
+                        result.total_size += item.size
+    # VS ~vs* temp files
+    if temp:
+        for f in glob.glob(os.path.join(temp, "~vs*")):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+    # Notepad++ backups
+    npp_dir = os.path.join(appdata, r"Notepad++\backup")
+    if os.path.isdir(npp_dir):
+        item = _make_item(npp_dir, safety="safe", min_age_days=min_age_days)
+        if item and item.size > 0:
+            result.items.append(item)
+            result.total_size += item.size
+    # FileZilla
+    fz_dir = os.path.join(appdata, r"FileZilla")
+    if os.path.isdir(fz_dir):
+        item = _make_item(fz_dir, safety="safe", min_age_days=min_age_days)
+        if item and item.size > 0:
+            result.items.append(item)
+            result.total_size += item.size
+    return result
+
+
+def scan_print_spooler(min_age_days: int = 0) -> ScanResult:
+    """Windows print spooler queue — only when spooler service is stopped."""
+    result = ScanResult()
+    spool_printers = r"C:\Windows\System32\spool\PRINTERS"
+    spool_servers = r"C:\Windows\System32\spool\SERVERS"
+    # Check service status
+    try:
+        proc = subprocess.run(
+            ["sc", "query", "spooler"],
+            capture_output=True, text=True, errors="replace",
+            timeout=10,
+        )
+        if "RUNNING" in proc.stdout.upper():
+            # Service running — mark as danger so it's never auto-selected
+            item = _make_item(spool_printers, safety="danger", min_age_days=min_age_days)
+            if item and item.size > 0:
+                result.items.append(item)
+                result.total_size += item.size
+            return result
+    except Exception:
+        pass
+    # Spooler not running — safe to clean
+    for t in [spool_printers, spool_servers]:
+        if os.path.isdir(t):
+            item = _make_item(t, safety="caution", min_age_days=min_age_days)
+            if item and item.size > 0:
+                result.items.append(item)
+                result.total_size += item.size
+    return result
+
+
+def scan_winsat_cache(min_age_days: int = 0) -> ScanResult:
+    """Windows Performance WinSAT XML, Media.ets, and winsat.log files."""
+    result = ScanResult()
+    winsat_dir = r"C:\Windows\Performance\WinSAT"
+    if not os.path.isdir(winsat_dir):
+        return result
+    targets = [
+        os.path.join(winsat_dir, "*.xml"),
+        os.path.join(winsat_dir, "Media.ets"),
+        os.path.join(winsat_dir, "winsat.log"),
+    ]
+    for t in targets:
+        for f in glob.glob(t):
+            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+    return result
+
+
+def scan_etl_logs(min_age_days: int = 0) -> ScanResult:
+    """WindowsUpdate ETL, DeliveryOptimization ETL, and ScriptArtifacts logs."""
+    result = ScanResult()
+    targets = [
+        (r"C:\Windows\Logs\WindowsUpdate", "*.etl"),
+        (r"C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Logs", "*.log"),
+        (r"C:\Windows\Temp\ScriptArtifacts", "*.log"),
+    ]
+    for dir_path, pattern in targets:
+        if not os.path.isdir(dir_path):
+            continue
+        for f in glob.glob(os.path.join(dir_path, pattern)):
+            item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+    return result
+
+
+def scan_telemetry(min_age_days: int = 0) -> ScanResult:
+    """Windows telemetry, WER Temp, AutoLogger ETL, diagerr/diagwrn logs."""
+    result = ScanResult()
+    targets = [
+        r"C:\ProgramData\Microsoft\Windows\WER\Temp",
+        r"C:\Windows\System32\LogFiles\ETLLogs\AutoLogger",
+        r"C:\Windows\System32\WDI\*.etl",
+        r"C:\Windows\System32\diagerr.log",
+        r"C:\Windows\System32\diagwrn.log",
+    ]
+    for t in targets:
+        if "*" in t:
+            dir_path, pattern = os.path.split(t)
+            if "WDI" in t:
+                dir_path = r"C:\Windows\System32\WDI"
+                pattern = "*.etl"
+            if not os.path.isdir(dir_path):
+                continue
+            for f in glob.glob(os.path.join(dir_path, pattern)):
+                item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
+                if item:
+                    result.items.append(item)
+                    result.total_size += item.size
+        else:
+            if os.path.isdir(t):
+                item = _make_item(t, safety="caution", min_age_days=min_age_days)
+                if item:
+                    result.items.append(item)
+                    result.total_size += item.size
+            elif os.path.isfile(t):
+                item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
+                if item:
+                    result.items.append(item)
+                    result.total_size += item.size
+    return result
+
+
+def scan_clipboard(min_age_days: int = 0) -> ScanResult:
+    """Windows clipboard pending/in-progress temp files."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    targets = [
+        os.path.join(local, r"Microsoft\Windows\Clipboard\pending*.tmp"),
+        os.path.join(local, r"Microsoft\Windows\Clipboard\inProgress*.tmp"),
+        os.path.join(local, r"Microsoft\Windows\INetCache\Clipboard"),
+    ]
+    for t in targets:
+        if "*" in t:
+            dir_path = os.path.dirname(t)
+            pattern = os.path.basename(t)
+            if not os.path.isdir(dir_path):
+                continue
+            for f in glob.glob(os.path.join(dir_path, pattern)):
+                item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
+                if item:
+                    result.items.append(item)
+                    result.total_size += item.size
+        else:
+            if os.path.isdir(t):
+                item = _make_item(t, safety="safe", min_age_days=min_age_days)
+                if item and item.size > 0:
+                    result.items.append(item)
+                    result.total_size += item.size
+    return result
+
+
+def scan_xbox_cache(min_age_days: int = 0) -> ScanResult:
+    """Xbox Gaming Services, Xbox Gaming Overlay, FamilyNotifications cache."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    progdata = os.environ.get("PROGRAMDATA", "")
+    targets = [
+        os.path.join(local, r"Packages\Microsoft.GamingServices_*\LocalCache"),
+        os.path.join(local, r"Packages\Microsoft.XboxGamingOverlay_*\LocalCache"),
+        os.path.join(local, r"Packages\FamilyNotifications.*\LocalState"),
+        os.path.join(progdata, r"XboxLiveDeviceInfo"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        try:
+            size = get_dir_size(t)
+            if size > 0:
+                result.items.append(ScanItem(path=t, size=size, is_dir=True, safety="safe"))
+                result.total_size += size
+        except OSError:
+            pass
+    return result
+
+
+def scan_maps_cache(min_age_days: int = 0) -> ScanResult:
+    """Windows Maps local tile cache and TileDataLayer database."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    targets = [
+        os.path.join(local, r"Local\Packages\Microsoft.WindowsMaps_*\LocalState"),
+        os.path.join(local, r"TileDataLayer\Database"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        try:
+            size = get_dir_size(t)
+            if size > 0:
+                result.items.append(ScanItem(path=t, size=size, is_dir=True, safety="safe"))
+                result.total_size += size
+        except OSError:
+            pass
+    return result
+
+
+def scan_sticky_notes(min_age_days: int = 0) -> ScanResult:
+    """Sticky Notes database and UWP sticky notes state."""
+    result = ScanResult()
+    appdata = os.environ.get("APPDATA", "")
+    local = os.environ.get("LOCALAPPDATA", "")
+    targets = [
+        os.path.join(appdata, r"Microsoft\Sticky Notes\StickyNotes.sqm"),
+        os.path.join(local, r"Packages\Microsoft.MicrosoftStickyNotes_*\LocalState"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t) and not os.path.isfile(t):
+            continue
+        item = _make_item(t, safety="safe", min_age_days=min_age_days)
+        if item and item.size > 0:
+            result.items.append(item)
+            result.total_size += item.size
+    return result
+
+
+def scan_delivery_opt_user(min_age_days: int = 0) -> ScanResult:
+    """Per-user Delivery Optimization cache (separate from system-wide)."""
+    result = ScanResult()
+    local = os.environ.get("LOCALAPPDATA", "")
+    targets = [
+        os.path.join(local, r"Microsoft\Windows\DeliveryOptimization\Cache"),
+        os.path.join(local, r"Microsoft\Windows\DeliveryOptimization\Logs"),
+    ]
+    for t in targets:
+        if not os.path.isdir(t):
+            continue
+        item = _make_item(t, safety="safe", min_age_days=min_age_days)
+        if item and item.size > 0:
+            result.items.append(item)
+            result.total_size += item.size
+    return result
+
+
 def delete_items(items: List[ScanItem],
                  on_progress: Optional[Callable[[int, int], None]] = None,
                  stop_wuauserv: bool = False) -> Tuple[int, int]:

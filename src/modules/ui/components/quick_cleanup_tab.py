@@ -4,21 +4,48 @@ Provides:
 - Summary pie chart showing reclaimable space by category
 - Per-category expandable group cards with scan/clean
 - Batch "Clean All" across all categories
+- Advanced expandable section with additional categories
+- One-click system maintenance actions
 - Background scanning via Worker threads
 - Auto-refresh (external control via start/stop)
 """
-from typing import Dict, List, Optional
+import subprocess
+from typing import Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import Qt, QTimer, QThreadPool, pyqtSignal
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QScrollArea, QFrame,
-    QSizePolicy,
+    QSizePolicy, QMessageBox, QProgressDialog,
 )
 
 from core.worker import Worker
 from modules.ui.components.category_group import CategoryGroup
+
+CREATE_NO_WINDOW = 0x08000000
+
+
+# ── Advanced Categories ────────────────────────────────────────────────────────
+
+ADVANCED_CATEGORIES = [
+    ("recent",    "Recent Files",      "#90caf9"),
+    ("games",     "Game Caches",       "#ce93d8"),
+    ("adobe",     "Adobe Cache",       "#ef9a9a"),
+    ("office",    "Office Temp",       "#80deea"),
+    ("jets",      "IDE Caches",        "#fff59d"),
+    ("spooler",   "Print Spooler",    "#a5d6a7"),
+    ("winsat",    "WinSAT Cache",      "#ffcc80"),
+    ("etl",       "ETL Logs",         "#b0bec5"),
+    ("telemetry", "Telemetry Data",   "#ef9a9a"),
+    ("delivery",  "Delivery Optim.",   "#fff176"),
+    ("clipboard", "Clipboard",         "#80cbc4"),
+    ("xbox",      "Xbox Cache",        "#c5e1a5"),
+    ("onedrive",  "OneDrive Logs",    "#64b5f6"),
+    ("maps",      "Maps Cache",        "#80d8ff"),
+    ("sticky",    "Sticky Notes",      "#f8bbd0"),
+    ("defender",  "Defender History",  "#d1c4e9"),
+]
 
 
 # ── Pie Chart ────────────────────────────────────────────────────────────────
@@ -181,30 +208,52 @@ class QuickCleanupTab(QWidget):
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def build(self, categories: List[tuple] = None) -> None:
+    def build(self, categories: List[tuple] = None, advanced_categories: List[tuple] = None) -> None:
         """Build the UI. Call once after construction.
 
-        categories: list of (id, display_name, color, scanner_fn).
+        categories: list of (id, display_name, color).
                     Defaults to CLEANUP_CATEGORIES.
+        advanced_categories: list of (id, display_name, color).
+                    Defaults to ADVANCED_CATEGORIES.
         """
         if categories is None:
             categories = CLEANUP_CATEGORIES
+        if advanced_categories is None:
+            advanced_categories = ADVANCED_CATEGORIES
         self._categories = categories
+        self._advanced_categories = advanced_categories
 
-        # Patch in real scanner functions if IDs match
         from modules.cleanup import cleanup_scanner as cs
         from modules.cleanup import browser_scanner as bs
         _id_map = {
-            "temp":     (cs.scan_temp_files,       "safe"),
-            "prefetch": (cs.scan_prefetch,         "caution"),
-            "thumb":    (cs.scan_thumbnail_cache,  "safe"),
-            "crash":    (cs.scan_user_crash_dumps, "caution"),
-            "browser":   (None,                     "safe"),  # handled specially
-            "app":      (cs.scan_app_caches,        "safe"),
-            "logs":     (cs.scan_windows_logs,     "caution"),
-            "wu":       (cs.scan_wu_cache,           "caution"),
-            "large":    (cs.scan_windows_old,        "caution"),
-            "dev":      (cs.scan_dev_tool_caches,    "safe"),
+            # Main categories
+            "temp":     (cs.scan_temp_files,              "safe"),
+            "prefetch": (cs.scan_prefetch,                "caution"),
+            "thumb":    (cs.scan_thumbnail_cache,         "safe"),
+            "crash":    (cs.scan_user_crash_dumps,        "caution"),
+            "browser":   (None,                            "safe"),  # handled specially
+            "app":      (cs.scan_app_caches,               "safe"),
+            "logs":     (cs.scan_windows_logs,            "caution"),
+            "wu":       (cs.scan_wu_cache,                 "caution"),
+            "large":    (cs.scan_windows_old,              "caution"),
+            "dev":      (cs.scan_dev_tool_caches,           "safe"),
+            # Advanced categories
+            "recent":   (cs.scan_recent_files,            "safe"),
+            "games":    (cs.scan_game_caches,              "safe"),
+            "adobe":    (cs.scan_adobe_cache,              "safe"),
+            "office":   (cs.scan_office_temp,             "safe"),
+            "jets":     (cs.scan_ide_caches,              "safe"),
+            "spooler":  (cs.scan_print_spooler,           "caution"),
+            "winsat":   (cs.scan_winsat_cache,            "safe"),
+            "etl":      (cs.scan_etl_logs,               "caution"),
+            "telemetry":(cs.scan_telemetry,               "caution"),
+            "delivery": (cs.scan_delivery_opt_user,       "safe"),
+            "clipboard":(cs.scan_clipboard,               "safe"),
+            "xbox":     (cs.scan_xbox_cache,              "safe"),
+            "maps":     (cs.scan_maps_cache,              "safe"),
+            "sticky":   (cs.scan_sticky_notes,            "safe"),
+            "defender": (cs.scan_defender_history,        "safe"),
+            "onedrive": (cs.scan_onedrive_logs,           "safe"),
         }
 
         self._scanner_map = {}
@@ -213,6 +262,11 @@ class QuickCleanupTab(QWidget):
         for cid, clabel, ccolor in categories:
             fn_safety = _id_map.get(cid, (None, "safe"))
             self._scanner_map[cid] = (fn_safety[0], clabel, ccolor)
+
+        self._adv_scanner_map = {}
+        for cid, clabel, ccolor in advanced_categories:
+            fn_safety = _id_map.get(cid, (None, "safe"))
+            self._adv_scanner_map[cid] = (fn_safety[0], clabel, ccolor)
 
         self._setup_ui()
 
@@ -253,8 +307,13 @@ class QuickCleanupTab(QWidget):
         self._clean_all_btn.clicked.connect(self._do_clean_all_safe)
         self._status_lbl = QLabel("Click Scan All to analyze your system")
         self._status_lbl.setStyleSheet("color: #aaaaaa;")
+        self._show_adv_btn = QPushButton("Show Advanced ▼")
+        self._show_adv_btn.setStyleSheet("font-size: 12px; padding: 4px 10px;")
+        self._show_adv_btn.clicked.connect(self._toggle_advanced)
+        self._adv_shown = False
         toolbar.addWidget(self._scan_all_btn)
         toolbar.addWidget(self._clean_all_btn)
+        toolbar.addWidget(self._show_adv_btn)
         toolbar.addStretch()
         toolbar.addWidget(self._status_lbl)
         layout.addLayout(toolbar)
@@ -334,6 +393,35 @@ class QuickCleanupTab(QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
 
+        # ── Advanced panel (hidden by default) ──
+        self._adv_widget = QWidget()
+        adv_lay = QVBoxLayout(self._adv_widget)
+        adv_lay.setContentsMargins(0, 8, 0, 0)
+        adv_lay.setSpacing(8)
+
+        adv_header = QLabel("Advanced Cleanup")
+        adv_header.setStyleSheet("color: #e0e0e0; font-size: 14px; font-weight: bold; padding: 4px 0;")
+        adv_lay.addWidget(adv_header)
+
+        # Advanced legend cards
+        self._adv_legend_layout = QGridLayout()
+        self._adv_legend_layout.setSpacing(6)
+        self._adv_cards: List[_SliceCard] = []
+        for idx, (cid, clabel, ccolor) in enumerate(self._advanced_categories):
+            card = _SliceCard(clabel, 0, ccolor)
+            card.setVisible(False)
+            self._adv_cards.append(card)
+            row = idx // 3
+            col = idx % 3
+            self._adv_legend_layout.addWidget(card, row, col)
+        adv_lay.addLayout(self._adv_legend_layout)
+
+        # One-click actions
+        self._build_one_click_panel(adv_lay)
+
+        self._adv_widget.setVisible(False)
+        layout.addWidget(self._adv_widget)
+
     # ── Auto-refresh ────────────────────────────────────────────────────────
 
     def _on_timer_refresh(self):
@@ -357,46 +445,57 @@ class QuickCleanupTab(QWidget):
         from modules.cleanup import cleanup_scanner as cs
         from modules.cleanup import browser_scanner as bs
 
-        # Count how many scan targets (browser gets its own worker too)
+        # Build complete scan target list: main + advanced (excl. browser handled specially)
         scan_targets = [cid for cid, _, _ in self._categories]
+        scan_targets += [cid for cid, _, _ in self._advanced_categories]
+        # Browser will be added below
+        browser_target = "browser" in [c[0] for c in self._categories]
 
+        def _start_worker(cid: str, scanner_fn, category_list: list):
+            """Launch a worker for a scanner function."""
+            def _run(_worker):
+                return scanner_fn(min_age_days=0)
+
+            def _done(result):
+                self._results[cid] = result
+                self._total_scanned += 1
+                if self._total_scanned == len(scan_targets):
+                    self._on_all_scanned()
+
+            def _err(_e):
+                self._results[cid] = cs.ScanResult()
+                self._total_scanned += 1
+                if self._total_scanned == len(scan_targets):
+                    self._on_all_scanned()
+
+            w = Worker(_run)
+            w.signals.result.connect(_done)
+            w.signals.error.connect(_err)
+            self._workers.append(w)
+            QThreadPool.globalInstance().start(w)
+
+        # Main categories
         for cid, clabel, ccolor in self._categories:
+            if cid == "browser":
+                continue
             fn_info = self._scanner_map.get(cid)
             if fn_info is None or fn_info[0] is None:
-                if cid == "browser":
-                    # Browser gets its own worker via detect_browsers
-                    pass
+                scan_targets.remove(cid)
                 continue
             scanner_fn = fn_info[0]
+            _start_worker(cid, scanner_fn, self._categories)
 
-            def _make_cb(c_id=cid):
-                def _run(_worker):
-                    r = scanner_fn(min_age_days=0)
-                    return c_id, r
+        # Advanced categories
+        for cid, clabel, ccolor in self._advanced_categories:
+            fn_info = self._adv_scanner_map.get(cid)
+            if fn_info is None or fn_info[0] is None:
+                scan_targets.remove(cid)
+                continue
+            scanner_fn = fn_info[0]
+            _start_worker(cid, scanner_fn, self._advanced_categories)
 
-                def _done(data):
-                    c_id, result = data
-                    self._results[c_id] = result
-                    self._total_scanned += 1
-                    if self._total_scanned == len(scan_targets):
-                        self._on_all_scanned()
-
-                def _err(_e):
-                    self._results[c_id] = cs.ScanResult()
-                    self._total_scanned += 1
-                    if self._total_scanned == len(scan_targets):
-                        self._on_all_scanned()
-
-                w = Worker(_run)
-                w.signals.result.connect(_done)
-                w.signals.error.connect(_err)
-                self._workers.append(w)
-                QThreadPool.globalInstance().start(w)
-
-            _make_cb()
-
-        # Browser detection as separate worker
-        if "browser" in scan_targets:
+        # Browser as separate worker
+        if browser_target:
             def _run_browser(_worker):
                 return self._browser_scanner()
 
@@ -434,9 +533,9 @@ class QuickCleanupTab(QWidget):
         total_items = 0
         categories_with_data = 0
 
+        # Main categories
         for i, (cid, clabel, ccolor) in enumerate(self._categories):
             if cid == "browser":
-                # detect_browsers() returns List[BrowserResult]; sum total_bytes
                 browser_results: List[bs.BrowserResult] = self._results.get(cid, [])
                 bsize = sum(r.total_bytes for r in browser_results)
                 bitems = sum(len(r.profiles) for r in browser_results)
@@ -464,10 +563,26 @@ class QuickCleanupTab(QWidget):
                     if i < len(self._legend_cards):
                         self._legend_cards[i].set_size(0)
 
+        # Advanced categories
+        for i, (cid, clabel, ccolor) in enumerate(self._advanced_categories):
+            result: cs.ScanResult = self._results.get(cid, cs.ScanResult())
+            if result.items:
+                slices.append((clabel, result.total_size, ccolor))
+                total_size += result.total_size
+                total_safe += sum(item.size for item in result.items if item.safety == "safe")
+                total_items += len(result.items)
+                categories_with_data += 1
+                if i < len(self._adv_cards):
+                    self._adv_cards[i].set_size(result.total_size)
+            else:
+                if i < len(self._adv_cards):
+                    self._adv_cards[i].set_size(0)
+
         self._pie_chart.set_slices(slices)
         self._total_lbl.setText(f"Total: {cs.format_size(total_size)}")
         self._safe_lbl.setText(f"Safe to clean: {cs.format_size(total_safe)}")
         self._item_lbl.setText(f"Items found: {total_items}")
+        self._cat_lbl.setText(f"Categories: {len(self._categories)} + {len(self._advanced_categories)} advanced")
         self._clean_all_btn.setEnabled(total_safe > 0)
         self._status_lbl.setText(
             f"Found {total_items} item(s) across {categories_with_data} categories"
@@ -479,6 +594,223 @@ class QuickCleanupTab(QWidget):
     def _on_group_scan_done(self, item_count: int, total_size: int):
         """Forward from individual category groups."""
         pass  # Individual group scans don't update the dashboard summary
+
+    def _toggle_advanced(self):
+        """Show/hide the advanced cleanup section."""
+        self._adv_shown = not self._adv_shown
+        self._adv_widget.setVisible(self._adv_shown)
+        self._show_adv_btn.setText("Hide Advanced ▲" if self._adv_shown else "Show Advanced ▼")
+
+    def _build_one_click_panel(self, parent_lay: QVBoxLayout):
+        """Build the one-click maintenance actions button strip."""
+        sep = QLabel("One-Click Maintenance")
+        sep.setStyleSheet("color: #b0b0b0; font-size: 13px; font-weight: bold; padding-top: 8px;")
+        parent_lay.addWidget(sep)
+
+        btn_bar = QHBoxLayout()
+        btn_bar.setSpacing(6)
+
+        actions = [
+            ("Flush DNS",          self._flush_dns,          "ipconfig /flushdns",              False),
+            ("Clear Event Logs",   self._clear_event_logs,   "wevtutil cl System && wevtutil cl Application", True),
+            ("Compact WinSxS",      self._compact_winsxs,     "dism /Online /Cleanup-Image /StartComponentCleanup /ResetBase", False),
+            ("Rebuild Icons",       self._rebuild_icon_cache, "taskkill /f /im explorer.exe",    False),
+            ("WU Deep Clean",       self._wu_deep_clean,      "dism /Online /Cleanup-Image /StartComponentCleanup /SuppressDefaultTasks", False),
+            ("Network Repair",      self._network_repair,     "netsh winsock reset && netsh int ip reset", True),
+        ]
+
+        self._action_btns: List[Tuple[QPushButton, str, bool]] = []
+        for label, handler, cmd, need_confirm in actions:
+            btn = QPushButton(label)
+            btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+            btn.clicked.connect(handler)
+            btn_bar.addWidget(btn)
+            self._action_btns.append((btn, cmd, need_confirm))
+
+        parent_lay.addLayout(btn_bar)
+
+        self._action_status_lbl = QLabel("")
+        self._action_status_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        parent_lay.addWidget(self._action_status_lbl)
+
+    def _run_action_command(self, cmd: str, status_prefix: str,
+                              need_confirm: bool = False,
+                              long_running: bool = False,
+                              confirm_text: str = ""):
+        """Run a system command as a one-click action."""
+        if need_confirm:
+            mb = QMessageBox(self)
+            mb.setWindowTitle("Confirm Action")
+            mb.setIcon(QMessageBox.Icon.Warning)
+            default_text = confirm_text or "This action cannot be undone. Continue?"
+            mb.setText(default_text)
+            mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+            mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+            if mb.exec() != QMessageBox.StandardButton.Ok:
+                return
+
+        self._action_status_lbl.setText(f"{status_prefix}...")
+        self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+
+        def _run(_worker):
+            try:
+                if long_running:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        shell=True,
+                        creationflags=CREATE_NO_WINDOW,
+                    )
+                    # Wait up to 5 minutes for long-running commands
+                    stdout, stderr = proc.communicate(timeout=300)
+                    success = proc.returncode == 0
+                    output = stdout if success else (stderr or "Command failed")
+                else:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        shell=True,
+                        creationflags=CREATE_NO_WINDOW,
+                        timeout=60,
+                    )
+                    success = result.returncode == 0
+                    output = result.stdout.strip() if result.stdout else result.stderr.strip() or "Done"
+            except subprocess.TimeoutExpired:
+                return "timeout", "Command timed out after 5 minutes"
+            except Exception as e:
+                return "error", str(e)
+            return "ok" if success else "error", output
+
+        def _done(result):
+            status, msg = result
+            if status == "ok":
+                self._action_status_lbl.setText(f"✅ {status_prefix}: {msg}")
+                self._action_status_lbl.setStyleSheet("color: #81c784; font-size: 11px;")
+            elif status == "timeout":
+                self._action_status_lbl.setText(f"⏱ {status_prefix}: {msg}")
+                self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+            else:
+                self._action_status_lbl.setText(f"❌ {status_prefix}: {msg}")
+                self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+
+        def _err(e: str):
+            self._action_status_lbl.setText(f"❌ {status_prefix}: {e}")
+            self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+
+        w = Worker(_run)
+        w.signals.result.connect(_done)
+        w.signals.error.connect(_err)
+        self._workers.append(w)
+        QThreadPool.globalInstance().start(w)
+
+    def _flush_dns(self):
+        self._run_action_command("ipconfig /flushdns", "DNS cache flushed", need_confirm=False)
+
+    def _clear_event_logs(self):
+        self._run_action_command(
+            "wevtutil cl System && wevtutil cl Application && wevtutil cl Security",
+            "Event logs cleared",
+            need_confirm=True,
+            confirm_text="This will clear System, Application, and Security event logs. They cannot be recovered. Continue?"
+        )
+
+    def _compact_winsxs(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Compact WinSxS")
+        mb.setIcon(QMessageBox.Icon.Information)
+        mb.setText(
+            "This runs <b>DISM /StartComponentCleanup /ResetBase</b> which can take "
+            "<b>10–30 minutes</b>. The system will remain usable. Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+
+        self._action_status_lbl.setText("⏳ WinSxS cleanup running (may take 10–30 min)...")
+        self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+
+        def _run(_worker):
+            try:
+                proc = subprocess.Popen(
+                    ["Dism.exe", "/Online", "/Cleanup-Image", "/StartComponentCleanup", "/ResetBase"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                stdout, stderr = proc.communicate(timeout=3600)
+                success = proc.returncode == 0
+                output = stdout if success else (stderr or "Command failed")
+            except subprocess.TimeoutExpired:
+                return "timeout", "Operation timed out after 60 minutes"
+            except Exception as e:
+                return "error", str(e)
+            return "ok" if success else "error", output
+
+        def _done(result):
+            status, msg = result
+            if status == "ok":
+                self._action_status_lbl.setText(f"✅ WinSxS cleanup complete")
+                self._action_status_lbl.setStyleSheet("color: #81c784; font-size: 11px;")
+            elif status == "timeout":
+                self._action_status_lbl.setText(f"⏱ WinSxS cleanup: {msg}")
+                self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+            else:
+                self._action_status_lbl.setText(f"❌ WinSxS cleanup: {msg[:100]}")
+                self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+
+        def _err(e: str):
+            self._action_status_lbl.setText(f"❌ WinSxS cleanup: {e}")
+            self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+
+        w = Worker(_run)
+        w.signals.result.connect(_done)
+        w.signals.error.connect(_err)
+        self._workers.append(w)
+        QThreadPool.globalInstance().start(w)
+
+    def _rebuild_icon_cache(self):
+        self._run_action_command(
+            "taskkill /f /im explorer.exe && timeout /t 2 /nobreak >nul && del /q \"%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\iconcache_*\" 2>nul && start explorer",
+            "Icon cache rebuilt",
+            need_confirm=False
+        )
+
+    def _wu_deep_clean(self):
+        self._run_action_command(
+            "dism /Online /Cleanup-Image /StartComponentCleanup /SuppressDefaultActions",
+            "WU deep clean started",
+            need_confirm=True,
+            confirm_text="This runs a deep Windows Update cleanup which may take 10–20 minutes. Continue?"
+        )
+
+    def _network_repair(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Network Repair")
+        mb.setIcon(QMessageBox.Icon.Warning)
+        mb.setText(
+            "This will <b>reset Winsock and TCP/IP stack</b>. "
+            "Your network connection will briefly drop. "
+            "<b>This cannot be undone.</b> Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+        self._run_action_command(
+            "netsh winsock reset && netsh int ip reset",
+            "Network stack reset",
+            need_confirm=False
+        )
 
     # ── Clean All Safe ─────────────────────────────────────────────────────
 
@@ -515,7 +847,6 @@ class QuickCleanupTab(QWidget):
         if not all_safe and not browser_cats:
             return
 
-        from PyQt6.QtWidgets import QMessageBox
         mb = QMessageBox(self)
         mb.setWindowTitle("Confirm Bulk Clean")
         mb.setIcon(QMessageBox.Icon.Warning)
@@ -556,7 +887,6 @@ class QuickCleanupTab(QWidget):
             if errors:
                 msg += f" — {errors} could not be deleted"
             self._status_lbl.setText(msg)
-            # Rescan
             self.scan()
 
         def _err(e: str):
