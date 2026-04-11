@@ -330,6 +330,7 @@ class _DiskHealthWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers = []
+        self._scanning = False
         self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
@@ -375,7 +376,16 @@ class _DiskHealthWidget(QWidget):
         scroll.setWidget(self._cards_widget)
         vbox.addWidget(scroll, stretch=1)
 
+    def refresh(self) -> None:
+        """Trigger a background rescan. Idempotent — skips if already scanning."""
+        if self._scanning:
+            return
+        self._do_scan()
+
     def _do_scan(self) -> None:
+        if self._scanning:
+            return
+        self._scanning = True
         self._scan_btn.setEnabled(False)
         self._status_lbl.setText("Scanning drives…")
         self._progress.show()
@@ -385,6 +395,7 @@ class _DiskHealthWidget(QWidget):
             return _query_disks()
 
         def on_result(disks: List[DiskInfo]):
+            self._scanning = False
             self._progress.hide()
             self._scan_btn.setEnabled(True)
             self._clear_cards()
@@ -401,6 +412,7 @@ class _DiskHealthWidget(QWidget):
                 self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
 
         def on_error(err: str):
+            self._scanning = False
             self._progress.hide()
             self._scan_btn.setEnabled(True)
             self._status_lbl.setText(f"Error: {err}")
@@ -419,7 +431,7 @@ class _DiskHealthWidget(QWidget):
 
     def cancel_all_workers(self) -> None:
         for w in self._workers:
-            w._cancelled = True
+            w.cancel()
         self._workers.clear()
 
 
@@ -450,6 +462,14 @@ class DiskHealthModule(BaseModule):
     def on_deactivate(self) -> None:
         if hasattr(self, "_widget"):
             self._widget.cancel_all_workers()
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_widget"):
+            self._widget.refresh()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        """Auto-refresh SMART data every 15 seconds."""
+        return 15_000
 
     def get_status_info(self) -> str:
         return "Disk Health"

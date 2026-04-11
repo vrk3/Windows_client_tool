@@ -1,5 +1,5 @@
 import winreg
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
@@ -128,6 +128,7 @@ class _RefreshTab(QWidget):
         self._columns = columns
         self._thread_pool = thread_pool
         self._worker: Optional[Worker] = None
+        self._scanning = False
         layout = QVBoxLayout(self)
         toolbar = QHBoxLayout()
         self._refresh_btn = QPushButton("Refresh")
@@ -145,18 +146,29 @@ class _RefreshTab(QWidget):
         layout.addWidget(self._table, 1)
         self._refresh_btn.clicked.connect(self._load)
 
+    def refresh(self) -> None:
+        """Trigger a background refresh. Idempotent."""
+        if self._scanning:
+            return
+        self._load()
+
     def _load(self):
+        if self._scanning:
+            return
+        self._scanning = True
         self._refresh_btn.setEnabled(False)
         self._status.setText("Loading...")
         self._progress.show()
         loader = self._loader
         self._worker = Worker(lambda _w: loader())
         def on_result(rows):
+            self._scanning = False
             self._refresh_btn.setEnabled(True)
             self._progress.hide()
             _fill_table(self._table, rows, self._columns)
             self._status.setText(f"{len(rows)} item(s).")
         def on_error(err):
+            self._scanning = False
             self._refresh_btn.setEnabled(True)
             self._progress.hide()
             self._status.setText(f"Error: {err}")
@@ -209,3 +221,13 @@ class SharesModule(BaseModule):
             tab = self._shares_tabs.currentWidget()
             if hasattr(tab, "cancel_all"):
                 tab.cancel_all()
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_shares_tabs"):
+            tab = self._shares_tabs.currentWidget()
+            if hasattr(tab, "refresh"):
+                tab.refresh()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        """Auto-refresh every 30 seconds."""
+        return 30_000

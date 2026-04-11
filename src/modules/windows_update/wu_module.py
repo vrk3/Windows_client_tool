@@ -130,6 +130,12 @@ class WindowsUpdateModule(BaseModule):
         paused = " [PAUSED]" if self._updates_paused else ""
         return f"Windows Update — {count} entries{paused}"
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        self._load_log()
+
     def get_search_provider(self) -> Optional[SearchProvider]:
         return self._search_provider
 

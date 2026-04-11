@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -226,6 +227,16 @@ class HardwareModule(BaseModule):
 
         self._hw_tabs = tabs
         return outer
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_hw_tabs"):
+            for i in range(self._hw_tabs.count()):
+                tab = self._hw_tabs.widget(i)
+                if hasattr(tab, "_load"):
+                    tab._load()
 
     def on_activate(self) -> None:
         if hasattr(self, "_hw_tabs"):

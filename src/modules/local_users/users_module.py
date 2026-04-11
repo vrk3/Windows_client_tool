@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
@@ -156,6 +156,7 @@ class LocalUsersModule(BaseModule):
         worker = Worker(_load)
         worker.signals.result.connect(self._on_result)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_result(self, data):
@@ -186,4 +187,8 @@ class LocalUsersModule(BaseModule):
 
     def on_start(self, app): self.app = app
     def on_stop(self): self.cancel_all_workers()
-    def on_deactivate(self): pass
+    def on_deactivate(self): self.cancel_all_workers()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        """Auto-refresh every 60 seconds."""
+        return 60_000

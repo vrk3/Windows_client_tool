@@ -121,6 +121,14 @@ class GPResultModule(BaseModule):
     def on_deactivate(self) -> None:
         self.cancel_all_workers()
 
+    def refresh_data(self) -> None:
+        if hasattr(self, "_refresh_fn"):
+            self._refresh_fn()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        """Auto-refresh every 120 seconds (gpresult is expensive)."""
+        return 120_000
+
     def on_start(self, app) -> None:
         self.app = app
 
@@ -246,4 +254,5 @@ class GPResultModule(BaseModule):
 
         refresh_btn.clicked.connect(do_refresh)
         export_btn.clicked.connect(do_export)
+        self._refresh_fn = do_refresh
         return w

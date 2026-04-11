@@ -156,6 +156,15 @@ class PerfTunerModule(BaseModule):
         for check in suboptimal:
             self._apply_single(check)
 
+    def get_status_info(self) -> str:
+        return "Performance Tuner"
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        self._run_scan()
+
     def on_activate(self) -> None:
         self._run_scan()
 

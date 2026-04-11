@@ -105,6 +105,12 @@ class CrashDumpModule(BaseModule):
         count = len(self._table.get_entries()) if self._table else 0
         return f"Crash Dumps — {count} files"
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        self._load_dumps()
+
     def get_search_provider(self) -> Optional[SearchProvider]:
         return self._search_provider
 

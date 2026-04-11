@@ -514,6 +514,12 @@ class FirewallManagerModule(BaseModule):
     def on_start(self, app=None) -> None:
         self.app = app
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        self._do_refresh()
+
     def on_activate(self) -> None:
         if not getattr(self, "_loaded", False):
             self._loaded = True

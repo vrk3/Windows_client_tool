@@ -28,6 +28,7 @@ class BootAnalyzerModule(BaseModule):
         super().__init__()
         self._widget: Optional[QWidget] = None
         self._worker: Optional[Worker] = None
+        self._scanning = False
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -93,7 +94,16 @@ class BootAnalyzerModule(BaseModule):
     def get_status_info(self) -> str:
         return "Boot Analyzer — boot time optimization"
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        self._load_info()
+
     def _load_info(self) -> None:
+        if self._scanning:
+            return
+        self._scanning = True
         # Clear existing cards
         while self._info_cards.count():
             item = self._info_cards.takeAt(0)
@@ -180,6 +190,7 @@ class BootAnalyzerModule(BaseModule):
         self.app.thread_pool.start(self._worker)
 
     def _display_info(self, info: dict) -> None:
+        self._scanning = False
         # Clear
         while self._info_cards.count():
             item = self._info_cards.takeAt(0)

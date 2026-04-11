@@ -2,6 +2,7 @@ import os
 import subprocess
 import winreg
 import datetime
+from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -391,6 +392,15 @@ class PowerBootModule(BaseModule):
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_load_power"):
+            self._load_power()
+        if hasattr(self, "_load_boot"):
+            self._load_boot()
 
     def on_activate(self) -> None:
         pass

@@ -220,6 +220,15 @@ class WifiAnalyzerModule(BaseModule):
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
+    def get_status_info(self) -> str:
+        return "WiFi Analyzer"
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return 15_000
+
+    def refresh_data(self) -> None:
+        self._do_scan()
+
     def on_activate(self) -> None:
         if not getattr(self, "_loaded", False):
             self._loaded = True

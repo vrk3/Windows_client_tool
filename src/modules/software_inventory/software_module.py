@@ -2,7 +2,7 @@ import csv
 import subprocess
 import winreg
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -260,6 +260,13 @@ class SoftwareModule(BaseModule):
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
+
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_software_load_fn"):
+            self._software_load_fn()
 
     def on_activate(self) -> None:
         if not getattr(self, "_software_loaded", False) and hasattr(self, "_software_load_fn"):

@@ -210,6 +210,14 @@ class ProcessExplorerModule(BaseModule):
             return f"Process Explorer — {len(self._model._snapshot)} processes"
         return "Process Explorer"
 
+    def get_refresh_interval(self) -> Optional[int]:
+        # Collector already auto-refreshes every 1s; expose for external pause
+        return 1_000
+
+    def refresh_data(self) -> None:
+        # Collector handles its own refresh loop; no-op here to avoid double-tick
+        pass
+
     # ── Signal handlers ──────────────────────────────────────────────
 
     def _on_process_added(self, node: ProcessNode):

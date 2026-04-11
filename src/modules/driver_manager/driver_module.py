@@ -96,6 +96,12 @@ class DriverModule(BaseModule):
         if not self._drivers_ref[0]:
             self._do_refresh()
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        self._do_refresh()
+
     def on_deactivate(self) -> None:
         pass
 

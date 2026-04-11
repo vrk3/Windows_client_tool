@@ -38,6 +38,15 @@ class TasksModule(BaseModule):
     def on_start(self, app) -> None:
         self.app = app
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_tasks_load_fn"):
+            self._tasks_load_fn()
+        elif hasattr(self, "_load_tree"):
+            self._load_tree()
+
     def on_activate(self) -> None:
         if not getattr(self, "_tasks_loaded", False) and hasattr(self, "_tasks_load_fn"):
             self._tasks_loaded = True

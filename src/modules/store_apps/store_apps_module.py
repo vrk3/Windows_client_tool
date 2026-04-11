@@ -92,6 +92,12 @@ class StoreAppsModule(BaseModule):
         self.app = app
         # Don't auto-load here — _progress is created in create_widget() which runs after on_start
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        self._load_apps()
+
     def on_deactivate(self) -> None:
         self.cancel_all_workers()
 

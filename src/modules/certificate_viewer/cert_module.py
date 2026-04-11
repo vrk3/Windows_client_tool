@@ -310,6 +310,15 @@ class CertModule(BaseModule):
         outer_layout.addWidget(self._tabs)
         return outer
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        for i in range(self._tabs.count()):
+            tab = self._tabs.widget(i)
+            if hasattr(tab, "_load"):
+                tab._load()
+
     def on_activate(self) -> None:
         pass
 

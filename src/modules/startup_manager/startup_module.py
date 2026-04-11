@@ -233,6 +233,17 @@ class StartupModule(BaseModule):
         if hasattr(tab, "auto_scan"):
             tab.auto_scan()
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 60_000
+
+    def refresh_data(self) -> None:
+        if hasattr(self, "_startup_tabs"):
+            tab = self._startup_tabs.currentWidget()
+            if hasattr(tab, "auto_scan"):
+                tab.auto_scan()
+            elif hasattr(tab, "_load"):
+                tab._load()
+
     def on_activate(self) -> None:
         if hasattr(self, "_startup_tabs"):
             tab = self._startup_tabs.currentWidget()

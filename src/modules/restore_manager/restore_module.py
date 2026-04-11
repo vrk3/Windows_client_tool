@@ -104,6 +104,12 @@ class RestoreManagerModule(BaseModule):
     def on_start(self, app) -> None:
         self.app = app
 
+    def get_refresh_interval(self) -> Optional[int]:
+        return 120_000
+
+    def refresh_data(self) -> None:
+        self._load_restore_points()
+
     def on_activate(self) -> None:
         self._load_restore_points()
 
