@@ -84,19 +84,19 @@ class _BrowserCleanupTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        self._worker = Worker(lambda _w: bs.detect_browsers())
+        self._worker = Worker(lambda _w: bs.scan_browsers_robust())
         self._worker.signals.result.connect(self._on_scan_result)
         self._worker.signals.error.connect(self._on_scan_error)
         self._workers.append(self._worker)
         self._thread_pool.start(self._worker)
 
-    def _on_scan_result(self, browsers):
+    def _on_scan_result(self, results: list):
         self._scanning = False
         self._scan_btn.setEnabled(True)
         self._progress.hide()
         self._tree.clear()
 
-        running = [b.name for b in browsers if b.is_running]
+        running = [r.name for r in results if r.is_running]
         if running:
             self._warn.setText(
                 f"⚠  Running: {', '.join(running)} — close before deleting cache."
@@ -106,13 +106,14 @@ class _BrowserCleanupTab(QWidget):
             self._warn.hide()
 
         total_all = 0
-        total_cats = 0
+        total_caches = 0
+        locked_caches = 0
         active = 0
-        for browser in browsers:
-            if browser.total_bytes == 0:
+        for result in results:
+            if result.total_bytes == 0:
                 continue
             active += 1
-            b_item = QTreeWidgetItem([browser.name, cs.format_size(browser.total_bytes)])
+            b_item = QTreeWidgetItem([result.name, cs.format_size(result.total_bytes)])
             b_item.setCheckState(0, Qt.CheckState.Checked)
             b_item.setFlags(
                 b_item.flags()
@@ -122,9 +123,9 @@ class _BrowserCleanupTab(QWidget):
             b_item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self._tree.addTopLevelItem(b_item)
             b_item.setExpanded(True)
-            total_all += browser.total_bytes
+            total_all += result.total_bytes
 
-            for profile in browser.profiles:
+            for profile in result.profiles:
                 if profile.total_bytes == 0:
                     continue
                 p_item = QTreeWidgetItem([profile.name, cs.format_size(profile.total_bytes)])
@@ -138,24 +139,33 @@ class _BrowserCleanupTab(QWidget):
                 b_item.addChild(p_item)
                 p_item.setExpanded(True)
 
-                for cat in profile.categories:
-                    if not cat.exists or cat.size_bytes == 0:
+                for entry in profile.caches:
+                    if not entry.exists or entry.size_bytes == 0:
                         continue
-                    c_item = QTreeWidgetItem([cat.label, cs.format_size(cat.size_bytes)])
+                    label = entry.label
+                    if entry.locked:
+                        label = f"🔒 {label}"
+                    c_item = QTreeWidgetItem([label, cs.format_size(entry.size_bytes)])
                     c_item.setCheckState(0, Qt.CheckState.Checked)
                     c_item.setFlags(c_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                    c_item.setData(0, Qt.ItemDataRole.UserRole, cat)
+                    c_item.setData(0, Qt.ItemDataRole.UserRole, entry)
                     c_item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    if entry.locked:
+                        c_item.setForeground(0, Qt.GlobalColor.gray)
+                        c_item.setCheckState(0, Qt.CheckState.Unchecked)
                     p_item.addChild(c_item)
-                    total_cats += 1
+                    total_caches += 1
+                    if entry.locked:
+                        locked_caches += 1
 
         if active == 0:
             self._status.setText("No browser caches found.")
         else:
+            locked_msg = f" ({locked_caches} locked)" if locked_caches else ""
             self._status.setText(
-                f"{active} browser(s) — {total_cats} cache(s) — {cs.format_size(total_all)}"
+                f"{active} browser(s) — {total_caches} cache(s) — {cs.format_size(total_all)}{locked_msg}"
             )
-        self._clean_btn.setEnabled(total_cats > 0)
+        self._clean_btn.setEnabled(total_caches > 0)
 
     def _on_scan_error(self, err: str):
         self._scanning = False
@@ -171,10 +181,15 @@ class _BrowserCleanupTab(QWidget):
                 p = b.child(j)
                 for k in range(p.childCount()):
                     c = p.child(k)
-                    if c.checkState(0) == Qt.CheckState.Checked:
-                        cat = c.data(0, Qt.ItemDataRole.UserRole)
-                        if cat is not None:
-                            cats.append(cat)
+                    if c.checkState(0) != Qt.CheckState.Checked:
+                        continue
+                    entry = c.data(0, Qt.ItemDataRole.UserRole)
+                    if entry is None:
+                        continue
+                    # Skip locked entries — cannot delete browser caches while running
+                    if hasattr(entry, 'locked') and entry.locked:
+                        continue
+                    cats.append(entry)
         return cats
 
     def _do_clean(self):
@@ -193,7 +208,7 @@ class _BrowserCleanupTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.show()
 
-        self._worker = Worker(lambda _w: bs.delete_selected(cats))
+        self._worker = Worker(lambda _w: bs.delete_cache_entries(cats))
         self._worker.signals.result.connect(self._on_clean_done)
         self._worker.signals.error.connect(self._on_clean_error)
         self._workers.append(self._worker)
