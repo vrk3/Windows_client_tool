@@ -20,11 +20,14 @@ def delete_selected(categories, progress_cb=None):
     return EnhancedBrowserScanner().delete_selected(categories, progress_cb=progress_cb)
 
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 # Browser definitions with paths
@@ -46,6 +49,117 @@ FIREFOX_BROWSERS = [
     ("Waterfox", r"Waterfox"),
     ("Pale Moon", r"Moonchild Productions\Pale Moon"),
 ]
+
+# Browser executable mappings (consolidated)
+BROWSER_EXES = {
+    "Brave":      "brave.exe",
+    "Chrome":     "chrome.exe",
+    "Edge":       "msedge.exe",
+    "Vivaldi":    "vivaldi.exe",
+    "Thorium":    "thorium.exe",
+    "Chromium":   "chrome.exe",
+    "Yandex":     "browser.exe",
+    "Opera":      "opera.exe",
+    "Opera GX":   "opera.exe",
+    "Firefox":    "firefox.exe",
+    "LibreWolf":  "librewolf.exe",
+    "Waterfox":   "waterfox.exe",
+    "Pale Moon":  "palemoon.exe",
+}
+
+# All modern cache subdirectories for Chromium-based browsers
+CHROMIUM_CACHE_SUBDIRS = {
+    "Cache":                     "HTTP Cache",
+    "Cache2":                    "HTTP Cache v2",
+    "Code Cache":                "Compiled JS/WASM",
+    "GPUCache":                  "GPU Shader Cache",
+    "Media Cache":               "Media Cache",
+    "blob_storage":              "Blob Storage",
+    "ShaderCache":               "Shader Cache",
+    "GrShaderCache":             "General Shader Cache",
+    "DawnCache":                 "Dawn WebGPU Cache",
+    "Extension Cache":           "Extension Cache",
+    "Local App Settings":        "Local App Settings",
+    "Local Storage":             "Local Storage",
+    "Sessions":                  "Tab Sessions",
+    "Tabs":                      "Tab Data",
+    "Web Application History":   "Web App History",
+    r"Crashpad\reports":         "Crash Reports",
+    r"Crashpad\pending":         "Pending Crash Reports",
+    r"GrShaderCache\GPUCache":  "GPU Cache (sub)",
+    r"ShaderCache\GPUCache":     "GPU Cache (sub)",
+}
+
+# Firefox cache subdirectories
+FIREFOX_CACHE_SUBDIRS = {
+    "cache2":               "HTTP Cache",
+    "cache":                "HTTP Cache (legacy)",
+    "offlineCache":         "Offline Cache",
+    "thumbnails":           "Page Thumbnails",
+    "startupCache":         "Startup Cache",
+    r"crashes\submitted":   "Submitted Crashes",
+    r"crashes\pending":     "Pending Crashes",
+    "minidumps":            "Minidumps",
+}
+
+
+@dataclass
+class CacheEntry:
+    """A single cache directory within a browser profile."""
+    label: str
+    path: Path
+    size_bytes: int = 0
+    exists: bool = False
+    locked: bool = False  # True if browser running or access denied
+
+    def __post_init__(self):
+        if self.size_bytes < 0:
+            self.size_bytes = 0
+
+
+@dataclass
+class BrowserProfile:
+    """A single browser profile (e.g. Default, Profile 2)."""
+    name: str
+    path: Path
+    caches: List[CacheEntry] = None
+    error: Optional[str] = None
+
+    def __post_init__(self):
+        self.caches = self.caches or []
+        self._total: int = 0
+
+    @property
+    def total_bytes(self) -> int:
+        if self._total:
+            return self._total
+        self._total = sum(c.size_bytes for c in self.caches)
+        return self._total
+
+
+@dataclass
+class BrowserScanResult:
+    """Result for one browser engine (Chrome, Edge, Firefox, etc.)."""
+    name: str
+    engine: str          # "chromium" | "firefox"
+    is_running: bool = False
+    profiles: List[BrowserProfile] = None
+    error: Optional[str] = None
+
+    def __post_init__(self):
+        self.profiles = self.profiles or []
+
+    @property
+    def total_bytes(self) -> int:
+        return sum(p.total_bytes for p in self.profiles)
+
+    @property
+    def total_caches(self) -> int:
+        return sum(len(p.caches) for p in self.profiles)
+
+    @property
+    def locked_count(self) -> int:
+        return sum(1 for p in self.profiles for c in p.caches if c.locked)
 
 # Cache categories for Chromium
 CHROMIUM_CACHE_CATEGORIES = [
@@ -99,7 +213,7 @@ class CacheCategory:
 
 
 @dataclass
-class BrowserProfile:
+class LegacyBrowserProfile:
     """Represents a browser user profile."""
 
     name: str
@@ -112,17 +226,237 @@ class BrowserProfile:
 
 
 @dataclass
-class BrowserResult:
+class LegacyBrowserResult:
     """Represents a browser result with profiles."""
 
     name: str
     engine: str  # "chromium" | "firefox"
-    profiles: List[BrowserProfile] = None
+    profiles: List[LegacyBrowserProfile] = None
     is_running: bool = False
     total_bytes: int = 0
 
     def __post_init__(self):
         self.profiles = self.profiles or []
+
+
+class BrowserScanner2:
+    """
+    Robust browser cache scanner — enumerates all profiles and all modern
+    cache locations per browser engine.
+
+    Usage:
+        scanner = BrowserScanner2()
+        results = scanner.scan()  # List[BrowserScanResult]
+    """
+
+    def _is_browser_running(self, exe_name: str) -> bool:
+        """Check if a browser process is running."""
+        try:
+            import psutil
+            exe_lower = exe_name.lower()
+            for p in psutil.process_iter(["name"]):
+                try:
+                    if p.info["name"] and p.info["name"].lower() == exe_lower:
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception:
+            pass
+        return False
+
+    def _find_chromium_profiles(self, user_data: Path) -> List[Path]:
+        """Find all Chromium-based browser profiles with maximum coverage."""
+        profiles = []
+        seen = set()
+
+        # 1. Local State info_cache — canonical source
+        local_state = user_data / "Local State"
+        if local_state.is_file():
+            try:
+                with open(local_state, encoding="utf-8", errors="replace") as f:
+                    data = json.load(f)
+                cache = data.get("profile", {}).get("info_cache", {})
+                for name in cache:
+                    p = user_data / name
+                    if p.is_dir() and p not in seen:
+                        profiles.append(p)
+                        seen.add(p)
+            except (json.JSONDecodeError, KeyError, OSError) as e:
+                logger.debug(f"Local State parse failed for {user_data}: {e}")
+
+        # 2. Directory scan for profile folders
+        try:
+            for entry in os.scandir(user_data):
+                if not entry.is_dir():
+                    continue
+                entry_path = Path(entry.path)
+                if entry_path in seen:
+                    continue
+                name_lower = entry.name.lower()
+                if name_lower == "default" or name_lower.startswith("profile"):
+                    profiles.append(entry_path)
+                    seen.add(entry_path)
+        except OSError:
+            pass
+
+        return profiles
+
+    def _find_firefox_profiles(self, profiles_dir: Path) -> List[Path]:
+        """Find all Firefox profiles from Profiles folder."""
+        profiles = []
+        if not profiles_dir.is_dir():
+            return profiles
+        try:
+            for entry in os.scandir(profiles_dir):
+                if entry.is_dir():
+                    profiles.append(Path(entry.path))
+        except OSError:
+            pass
+        profiles.sort(key=lambda p: p.name)
+        return profiles
+
+    def _scan_cache_path(self, cache_path: Path, label: str) -> CacheEntry:
+        """Scan a single cache path and return a CacheEntry."""
+        entry = CacheEntry(label=label, path=cache_path)
+        if not cache_path.exists():
+            entry.exists = False
+            return entry
+        entry.exists = True
+
+        try:
+            entry.size_bytes = self._dir_size(cache_path)
+        except PermissionError:
+            entry.locked = True
+            entry.size_bytes = 0
+        except OSError:
+            entry.locked = True
+            entry.size_bytes = 0
+
+        return entry
+
+    def _dir_size(self, path: Path) -> int:
+        """Calculate directory size with depth limit."""
+        total = 0
+        try:
+            for entry in path.iterdir():
+                try:
+                    if entry.is_file():
+                        total += entry.stat().st_size
+                    elif entry.is_dir():
+                        for sub in entry.iterdir():
+                            try:
+                                if sub.is_file():
+                                    total += sub.stat().st_size
+                            except OSError:
+                                pass
+                except OSError:
+                    pass
+        except OSError:
+            pass
+        return total
+
+    def scan_chromium_browser(
+        self,
+        name: str,
+        user_data: Path,
+        use_appdata: bool = False,
+    ) -> BrowserScanResult:
+        """Scan a Chromium-based browser (Chrome, Edge, Brave, etc.)."""
+        exe = BROWSER_EXES.get(name, "")
+        result = BrowserScanResult(name=name, engine="chromium")
+        result.is_running = self._is_browser_running(exe)
+
+        if not user_data.is_dir():
+            result.error = f"User Data folder not found: {user_data}"
+            return result
+
+        for prof_path in self._find_chromium_profiles(user_data):
+            profile = BrowserProfile(name=prof_path.name, path=prof_path)
+            for sub_path, label in CHROMIUM_CACHE_SUBDIRS.items():
+                cache_path = prof_path / sub_path
+                entry = self._scan_cache_path(cache_path, label)
+                profile.caches.append(entry)
+            if profile.caches:
+                result.profiles.append(profile)
+
+        return result
+
+    def scan_firefox_browser(self, name: str, profiles_dir: Path) -> BrowserScanResult:
+        """Scan a Firefox-based browser."""
+        exe = BROWSER_EXES.get(name, "")
+        result = BrowserScanResult(name=name, engine="firefox")
+        result.is_running = self._is_browser_running(exe)
+
+        if not profiles_dir.is_dir():
+            result.error = f"Profiles folder not found: {profiles_dir}"
+            return result
+
+        for prof_path in self._find_firefox_profiles(profiles_dir):
+            profile = BrowserProfile(name=prof_path.name, path=prof_path)
+            for sub_path, label in FIREFOX_CACHE_SUBDIRS.items():
+                cache_path = prof_path / sub_path
+                entry = self._scan_cache_path(cache_path, label)
+                profile.caches.append(entry)
+            if profile.caches:
+                result.profiles.append(profile)
+
+        return result
+
+    def scan(self) -> List[BrowserScanResult]:
+        """
+        Scan all supported browsers and return results.
+        Never raises — always completes with partial results on error.
+        """
+        results = []
+        local = Path(os.environ.get("LOCALAPPDATA", ""))
+        appdata = Path(os.environ.get("APPDATA", ""))
+
+        # Chromium browsers
+        for bname, rel_path, use_appdata in CHROMIUM_BROWSERS:
+            user_data = (appdata if use_appdata else local) / rel_path
+            result = self.scan_chromium_browser(bname, user_data, use_appdata)
+            if result.profiles or result.error:
+                results.append(result)
+
+        # Firefox browsers
+        for bname, rel_path in FIREFOX_BROWSERS:
+            browser_dir = appdata / rel_path
+            profiles_dir = browser_dir / "Profiles"
+            result = self.scan_firefox_browser(bname, profiles_dir)
+            if result.profiles or result.error:
+                results.append(result)
+
+        results.sort(key=lambda r: r.total_bytes, reverse=True)
+        return results
+
+
+def scan_browsers_robust() -> List[BrowserScanResult]:
+    """Convenience wrapper: scan all browsers using BrowserScanner2."""
+    return BrowserScanner2().scan()
+
+
+def delete_cache_entries(entries: List[CacheEntry], progress_cb=None) -> Tuple[int, int]:
+    """
+    Delete selected cache entries (directories or files).
+    Returns (freed_bytes: int, error_count: int).
+    """
+    freed = 0
+    errors = 0
+    total = len(entries)
+    for i, entry in enumerate(entries):
+        if not hasattr(entry, 'path') or not entry.path.exists():
+            continue
+        try:
+            if entry.path.is_dir():
+                shutil.rmtree(entry.path, ignore_errors=True)
+            else:
+                entry.path.unlink()
+            freed += entry.size_bytes
+        except Exception:
+            errors += 1
+        if progress_cb:
+            progress_cb(i + 1, total)
+    return freed, errors
 
 
 class EnhancedBrowserScanner:
@@ -168,7 +502,7 @@ class EnhancedBrowserScanner:
 
     def detect_browsers(
         self, all_browsers: bool = True, browser_name: str = "All"
-    ) -> List[BrowserResult]:
+    ) -> List[LegacyBrowserResult]:
         """
         Detect browsers and their cache sizes.
 
@@ -187,7 +521,7 @@ class EnhancedBrowserScanner:
                 if not user_data.is_dir():
                     continue
 
-                browser = BrowserResult(
+                browser = LegacyBrowserResult(
                     name=name,
                     engine="chromium",
                     is_running=self._is_running(EXE_MAP.get(name, "")),
@@ -198,7 +532,7 @@ class EnhancedBrowserScanner:
                     cats = self._scan_chromium_profile(prof_path)
                     total = sum(c.size_bytes for c in cats)
                     browser.profiles.append(
-                        BrowserProfile(
+                        LegacyBrowserProfile(
                             name=prof_name,
                             path=prof_path,
                             categories=cats,
@@ -224,7 +558,7 @@ class EnhancedBrowserScanner:
                 if not profiles_dir.is_dir():
                     continue
 
-                browser = BrowserResult(
+                browser = LegacyBrowserResult(
                     name=name,
                     engine="firefox",
                     is_running=self._is_running(EXE_MAP.get(name, "")),
@@ -236,7 +570,7 @@ class EnhancedBrowserScanner:
                     cats = self._scan_firefox_profile(prof_path)
                     total = sum(c.size_bytes for c in cats)
                     browser.profiles.append(
-                        BrowserProfile(
+                        LegacyBrowserProfile(
                             name=prof_path.name,
                             path=prof_path,
                             categories=cats or [],
