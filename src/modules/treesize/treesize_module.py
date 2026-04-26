@@ -34,6 +34,7 @@ class TreeSizeModule(BaseModule):
         self._widget: QWidget | None = None
         self._scanner: DiskScanner | None = None
         self._scan_thread: threading.Thread | None = None
+        self._loaded = False
 
     def create_widget(self) -> QWidget:
         w = QWidget()
@@ -162,14 +163,17 @@ class TreeSizeModule(BaseModule):
         self._model.replace_node(node)
 
     def _on_scan_finished(self):
+        import datetime
         self._scan_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._progress.hide()
         roots = self._model._roots
         total_size = sum(r.size for r in roots)
         total_files = sum(r.file_count for r in roots)
+        now = datetime.datetime.now().strftime("%H:%M:%S")
         self._status_lbl.setText(
-            f"{len(roots)} item(s) — {format_size(total_size)} — {total_files:,} files"
+            f"{len(roots)} item(s) — {format_size(total_size)} — "
+            f"{total_files:,} files  (scanned at {now})"
         )
         self._tree.expandToDepth(0)
 
@@ -264,7 +268,10 @@ class TreeSizeModule(BaseModule):
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
     def on_activate(self) -> None:
-        pass
+        if not self._loaded:
+            self._loaded = True
+            self._path_edit.setText("C:\\")
+            self._do_scan()
 
     def on_deactivate(self) -> None:
         self._do_stop()

@@ -28,6 +28,11 @@ def _global_exception_handler(exc_type, exc_value, exc_tb):
             msg.setIcon(QMessageBox.Icon.Critical)
             msg.setText("An unexpected error occurred. The application may continue running.")
             msg.setDetailedText(tb_text)
+            # Find the active modal window to use as parent
+            for w in app.topLevelWidgets():
+                if w.isWindow() and w.isVisible() and w.windowType() == w.WindowType.Dialog:
+                    msg.setParent(w)
+                    break
             copy_btn = msg.addButton("Copy to Clipboard", QMessageBox.ButtonRole.ActionRole)
             msg.addButton(QMessageBox.StandardButton.Ok)
             msg.exec()

@@ -70,6 +70,7 @@ class _EnvPanel(QWidget):
         self._hive = hive
         self._reg_path = reg_path
         self._requires_admin = requires_admin
+        self._refreshed = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -104,7 +105,14 @@ class _EnvPanel(QWidget):
 
         self._duplicate_target: "_EnvPanel | None" = None
         self._all_rows: List[Tuple[str, str]] = []
-        self.refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Defer first refresh until the widget is actually visible to avoid
+        # wasting CPU on registry reads before the user sees the panel
+        if not self._refreshed:
+            self._refreshed = True
+            self.refresh()
 
     def set_duplicate_target(self, target: "_EnvPanel") -> None:
         self._duplicate_target = target

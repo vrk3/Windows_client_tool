@@ -140,7 +140,7 @@ class LogTableWidget(QWidget):
     def export_csv(self, file_path: str = None) -> None:
         if not file_path:
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export CSV", "", "CSV Files (*.csv)"
+                self.window() or self, "Export CSV", "", "CSV Files (*.csv)"
             )
         if not file_path:
             return

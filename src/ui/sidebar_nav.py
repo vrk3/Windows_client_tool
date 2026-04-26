@@ -17,6 +17,7 @@ class SidebarNav(QWidget):
     """
 
     module_selected = pyqtSignal(str)
+    collapsed_changed = pyqtSignal(bool)  # True = collapsed, False = expanded
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -112,6 +113,7 @@ class SidebarNav(QWidget):
 
     def _toggle_collapse(self) -> None:
         self._collapsed = not self._collapsed
+        self.collapsed_changed.emit(self._collapsed)
         if self._collapsed:
             self.setMaximumWidth(48)
             self.setMinimumWidth(48)

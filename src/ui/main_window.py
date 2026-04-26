@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         self._auto_refresh_paused: bool = self._app.config.get(
             "app.auto_refresh_paused", False
         )
+        self._minimize_paused: bool = False  # True if WE paused due to window hide
 
         central = QWidget()
         root_layout = QVBoxLayout(central)
@@ -50,6 +51,16 @@ class MainWindow(QMainWindow):
         self._sidebar = SidebarNav()
         self._sidebar.set_admin(is_admin())
         self._stack = QStackedWidget()
+
+        # Restore sidebar collapsed state
+        saved_collapsed = self._app.config.get("app.sidebar_collapsed", False)
+        if saved_collapsed:
+            self._sidebar._toggle_collapse()
+
+        # Persist sidebar collapsed state when it changes
+        self._sidebar.collapsed_changed.connect(
+            lambda collapsed: self._app.config.set("app.sidebar_collapsed", collapsed)
+        )
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._sidebar)
@@ -91,6 +102,7 @@ class MainWindow(QMainWindow):
         self._setup_tray()
         self._sidebar.module_selected.connect(self._on_module_selected)
         self._schedule_update_check()
+        self._show_module_warnings()
 
     def _restore_window_size(self) -> None:
         size = self._app.config.get("app.window_size", [1400, 900])
@@ -109,6 +121,18 @@ class MainWindow(QMainWindow):
         btn.clicked.connect(self._on_restart_as_admin)
         layout.addWidget(btn)
         return banner
+
+    def _show_module_warnings(self) -> None:
+        failed = self._app.module_registry.failed_modules
+        if not failed:
+            return
+        names = ", ".join(m.name for m in failed)
+        QMessageBox.warning(
+            self,
+            "Some Modules Failed to Load",
+            f"The following modules failed to start and are disabled:\n\n"
+            f"{names}\n\nCheck the application log for details.",
+        )
 
     def _on_restart_as_admin(self) -> None:
         reply = QMessageBox.question(
@@ -198,6 +222,20 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(refresh_method)
         timer.start()
         self._module_refresh_timers[module.name] = timer
+
+    def hideEvent(self, event):
+        """Auto-pause all refresh timers when window is hidden/minimized."""
+        if not self._auto_refresh_paused:
+            self._minimize_paused = True
+            for timer in self._module_refresh_timers.values():
+                timer.stop()
+
+    def showEvent(self, event):
+        """Resume refresh timers when window becomes visible again."""
+        if self._minimize_paused:
+            self._minimize_paused = False
+            for timer in self._module_refresh_timers.values():
+                timer.start()
 
     def _toggle_auto_refresh_pause(self) -> None:
         """Globally pause or resume all module auto-refresh timers."""

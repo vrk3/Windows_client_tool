@@ -55,6 +55,7 @@ class DllView(QWidget):
         super().__init__(parent)
         self._data_ready.connect(self._populate)
         self._pid: Optional[int] = None
+        self._thread: Optional[threading.Thread] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
@@ -64,10 +65,16 @@ class DllView(QWidget):
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table)
 
+    def cancel(self) -> None:
+        """Cancel any in-progress background thread."""
+        self._pid = None  # signals will be dropped
+
     def load_pid(self, pid: int):
+        self.cancel()
         self._pid = pid
         self._table.setRowCount(0)
-        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
+        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._thread.start()
 
     def _load(self, pid: int):
         try:

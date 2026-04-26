@@ -97,7 +97,9 @@ class StringsView(QWidget):
                 self._unicode_list.addItem(s)
 
     def _save(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save Strings", "", "Text Files (*.txt)")
+        parent = self.window() or self
+        path, _ = QFileDialog.getSaveFileName(
+            parent, "Save Strings", "", "Text Files (*.txt)")
         if not path:
             return
         with open(path, "w", encoding="utf-8") as f:

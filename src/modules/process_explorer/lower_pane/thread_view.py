@@ -28,11 +28,17 @@ class ThreadView(QWidget):
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table)
         self._pid: Optional[int] = None
+        self._thread: Optional[threading.Thread] = None
+
+    def cancel(self) -> None:
+        self._pid = None
 
     def load_pid(self, pid: int):
+        self.cancel()
         self._pid = pid
         self._table.setRowCount(0)
-        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
+        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._thread.start()
 
     def _refresh(self):
         if self._pid is not None:

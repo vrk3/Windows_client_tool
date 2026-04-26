@@ -13,10 +13,20 @@ class ModuleRegistry:
     def __init__(self):
         self._modules: List[BaseModule] = []
         self._disabled: List[BaseModule] = []
+        self._failed_modules: List[BaseModule] = []
 
     @property
     def modules(self) -> List[BaseModule]:
         return list(self._modules)
+
+    @property
+    def disabled_modules(self) -> List[BaseModule]:
+        return list(self._disabled)
+
+    @property
+    def failed_modules(self) -> List[BaseModule]:
+        """Modules that failed to start due to an exception."""
+        return list(self._failed_modules)
 
     @property
     def disabled_modules(self) -> List[BaseModule]:
@@ -44,6 +54,7 @@ class ModuleRegistry:
                 logger.info("Started module: %s", module.name)
             except Exception:
                 logger.exception("Module '%s' failed to start", module.name)
+                self._failed_modules.append(module)
                 self._disabled.append(module)
 
     def stop_all(self) -> None:

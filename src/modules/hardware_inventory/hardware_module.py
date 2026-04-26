@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Optional
 
 from PyQt6.QtWidgets import (
@@ -92,7 +93,8 @@ class _LoadingTab(QWidget):
     def _on_result(self, data):
         self._refresh_btn.setEnabled(True)
         self._progress.hide()
-        self._status.setText("Loaded.")
+        now = datetime.now().strftime("%H:%M:%S")
+        self._status.setText(f"Loaded at {now}.")
         # Clear old content widgets
         for i in reversed(range(self._content_layout.count())):
             item = self._content_layout.itemAt(i)

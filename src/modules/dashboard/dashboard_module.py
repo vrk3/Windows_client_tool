@@ -142,13 +142,23 @@ class _StatBar(QWidget):
 
 
 class _DashboardWidget(QWidget):
+    _first_refresh_requested = False
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timer = QTimer(self)
         self._timer.setInterval(3000)
         self._timer.timeout.connect(self._refresh)
         self._setup_ui()
-        self._refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Defer the first refresh until the widget is actually visible
+        # to avoid wasting CPU on data the user hasn't seen yet
+        if not _DashboardWidget._first_refresh_requested:
+            _DashboardWidget._first_refresh_requested = True
+            self._refresh()
+            self._timer.start()
 
     def _setup_ui(self) -> None:
         scroll = QScrollArea()
