@@ -1,9 +1,15 @@
+import fnmatch
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Optional
 from PyQt6.QtCore import QObject, pyqtSignal
+
+# Windows reparse tag mask — anything with this bit set is a reparse point
+# (junction, symlink, mount point, etc.)
+_REPARSE_TAG_MASK = 0x80000000
 
 
 @dataclass
@@ -19,12 +25,10 @@ class DiskNode:
 
 
 class DiskScannerSignals(QObject):
-    # Fully-scanned top-level nodes (for replacing stubs in the model)
-    node_replaced = pyqtSignal(object)   # DiskNode — old stub is replaced with this
-    # Legacy: initial batch of top-level items (no deep scan yet)
-    batch_ready = pyqtSignal(list)       # list of DiskNode
-    # Progress counter
+    node_replaced = pyqtSignal(object)   # DiskNode — old stub replaced with deep-scanned version
+    batch_ready = pyqtSignal(list)       # list of DiskNode — top-level stubs
     progress = pyqtSignal(int)           # node count scanned so far
+    access_denied = pyqtSignal(int)      # count of folders that couldn't be entered
     finished = pyqtSignal()
     error = pyqtSignal(str)
 
@@ -46,35 +50,110 @@ class DiskScanner:
         self._node_count = 0
         self._lock = threading.Lock()
 
+        # ── feature: exclude paths ──────────────────────────────────────────
+        self._excluded_patterns: List[str] = []
+
+        # ── feature: min age filter ─────────────────────────────────────────
+        self._min_age_days: int = 0
+
+        # ── feature: access denied / skipped counters ─────────────────────────
+        self._access_denied_count: int = 0
+        self._skipped_count: int = 0
+        self._scan_errors: int = 0
+
+        # ── feature: pause / resume ──────────────────────────────────────────
+        self._paused = False
+        self._pause_cond = threading.Condition()
+
+        # ── feature: timing ──────────────────────────────────────────────────
+        self._start_time: float = 0.0
+
+    # ── public API ─────────────────────────────────────────────────────────
+
     def cancel(self):
         self._cancelled = True
+        self._resume()
 
     def is_cancelled(self) -> bool:
         return self._cancelled
+
+    def set_excluded_patterns(self, patterns: List[str]) -> None:
+        self._excluded_patterns = list(patterns)
+
+    def set_min_age_days(self, days: int) -> None:
+        self._min_age_days = max(0, days)
+
+    def get_stats(self) -> dict:
+        return {
+            "nodes": self._node_count,
+            "errors": self._scan_errors,
+            "skipped": self._skipped_count,
+            "access_denied": self._access_denied_count,
+        }
+
+    # ── pause / resume ──────────────────────────────────────────────────────
+
+    def pause(self) -> None:
+        with self._pause_cond:
+            self._paused = True
+
+    def resume(self) -> None:
+        with self._pause_cond:
+            self._paused = False
+            self._pause_cond.notify_all()
+
+    def _check_pause(self) -> None:
+        with self._pause_cond:
+            while self._paused and not self._cancelled:
+                self._pause_cond.wait()
+
+    # ── helpers ─────────────────────────────────────────────────────────────
 
     def _increment_count(self) -> int:
         with self._lock:
             self._node_count += 1
             return self._node_count
 
+    def _is_reparse_point(self, path: str) -> bool:
+        """Return True if path is a junction, symlink, or mount point."""
+        try:
+            tag = os.stat(path).st_reparse_tag
+            return bool(tag & _REPARSE_TAG_MASK)
+        except OSError:
+            return False
+
+    def _is_excluded(self, name: str) -> bool:
+        for pat in self._excluded_patterns:
+            if fnmatch.fnmatch(name, pat):
+                return True
+        return False
+
+    def _check_min_age(self, fstat) -> bool:
+        """Return True if file is too old (should be skipped)."""
+        if self._min_age_days <= 0:
+            return False
+        age_sec = time.time() - fstat.st_mtime
+        return age_sec > self._min_age_days * 86400
+
+    # ── scan ────────────────────────────────────────────────────────────────
+
     def scan(self, root_path: str) -> None:
         """Run this from a background thread."""
         self._cancelled = False
         self._node_count = 0
+        self._access_denied_count = 0
+        self._skipped_count = 0
+        self._scan_errors = 0
+        self._start_time = time.time()
 
         try:
-            # ── Phase 1: fast top-level scan (no deep recursion) ──────────────
             root_node = self._fast_scan_root(root_path)
             if self._cancelled:
                 return
 
-            # Emit root node itself so the tree has a top anchor
             self.signals.batch_ready.emit([root_node])
-
-            # Emit immediate children as stubs immediately
             self.signals.batch_ready.emit(list(root_node.children))
 
-            # ── Phase 2: parallel deep scan of each subdirectory ───────────────
             subdirs = [c for c in root_node.children if c.is_dir]
             if subdirs and not self._cancelled:
                 max_workers = min(os.cpu_count() or 4, 8)
@@ -91,20 +170,20 @@ class DiskScanner:
                             scanned_node = future.result()
                             if scanned_node is not None:
                                 self.signals.node_replaced.emit(scanned_node)
-                        except Exception as e:
-                            # Non-fatal: keep going with other subtrees
-                            pass
+                        except Exception:
+                            self._scan_errors += 1
 
             if not self._cancelled:
-                self.signals.finished.emit()
-
+                self._emit_finished()
         except Exception as e:
             self.signals.error.emit(str(e))
+
+    def _emit_finished(self) -> None:
+        self.signals.finished.emit()
 
     # ── Fast top-level scan ────────────────────────────────────────────────
 
     def _fast_scan_root(self, root_path: str) -> DiskNode:
-        """Scan only the root's immediate children — no recursion."""
         try:
             stat = os.stat(root_path)
             last_mod = stat.st_mtime
@@ -123,13 +202,27 @@ class DiskScanner:
         try:
             entries = list(os.scandir(root_path))
         except PermissionError:
+            self._access_denied_count += 1
+            self.signals.access_denied.emit(self._access_denied_count)
             return root
 
         for entry in entries:
             if self._cancelled:
                 break
+            self._check_pause()
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
+
+                # ── feature: skip junctions / symlinks ─────────────────────
+                if is_dir and self._is_reparse_point(entry.path):
+                    self._skipped_count += 1
+                    continue
+
+                # ── feature: skip excluded patterns ─────────────────────────
+                if self._is_excluded(entry.name):
+                    self._skipped_count += 1
+                    continue
+
                 try:
                     fstat = entry.stat()
                     size = 0 if is_dir else fstat.st_size
@@ -156,17 +249,12 @@ class DiskScanner:
     # ── Deep parallel subtree scan ───────────────────────────────────────────
 
     def _deep_scan_subtree(self, node: DiskNode) -> Optional[DiskNode]:
-        """Recursively scan a subtree. Called in a thread pool worker."""
         if self._cancelled:
             return None
-
         pending: List[DiskNode] = []
-        count = self._node_count  # snapshot before this subtree
 
         def flush():
-            nonlocal count
             if pending and not self._cancelled:
-                # Emit progress batch (used for progress counter only)
                 self.signals.progress.emit(self._node_count)
                 pending.clear()
 
@@ -178,26 +266,46 @@ class DiskScanner:
             return None
 
     def _build_subtree(self, node: DiskNode, pending: list, flush) -> None:
-        """Recursively build node.children with full sizes."""
         try:
             entries = list(os.scandir(node.path))
         except PermissionError:
+            self._access_denied_count += 1
+            self.signals.access_denied.emit(self._access_denied_count)
             return
 
         for entry in entries:
             if self._cancelled:
                 return
+            self._check_pause()
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
+
+                # ── feature: skip junctions / symlinks ─────────────────────
+                if is_dir and self._is_reparse_point(entry.path):
+                    self._skipped_count += 1
+                    continue
+
+                # ── feature: skip excluded patterns ─────────────────────────
+                if self._is_excluded(entry.name):
+                    self._skipped_count += 1
+                    continue
+
                 if is_dir:
-                    child = self._build_node_recursive(entry.path, parent=node,
-                                                       pending=pending, flush=flush)
+                    child = self._build_node_recursive(
+                        entry.path, parent=node, pending=pending, flush=flush,
+                    )
                     node.children.append(child)
                     node.size += child.size
                     node.file_count += child.file_count
                 else:
                     try:
                         fstat = entry.stat()
+
+                        # ── feature: skip old files ─────────────────────────
+                        if self._check_min_age(fstat):
+                            self._skipped_count += 1
+                            continue
+
                         size = fstat.st_size
                         mod = fstat.st_mtime
                     except OSError:
@@ -220,7 +328,6 @@ class DiskScanner:
 
     def _build_node_recursive(self, path: str, parent: Optional[DiskNode],
                                pending: list, flush) -> DiskNode:
-        """Build a single dir node and recurse into its children."""
         try:
             stat = os.stat(path)
             last_mod = stat.st_mtime
@@ -239,22 +346,43 @@ class DiskScanner:
         try:
             entries = list(os.scandir(path))
         except PermissionError:
+            self._access_denied_count += 1
+            self.signals.access_denied.emit(self._access_denied_count)
             return node
 
         for entry in entries:
             if self._cancelled:
                 return node
+            self._check_pause()
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
+
+                # ── feature: skip junctions / symlinks ─────────────────────
+                if is_dir and self._is_reparse_point(entry.path):
+                    self._skipped_count += 1
+                    continue
+
+                # ── feature: skip excluded patterns ─────────────────────────
+                if self._is_excluded(entry.name):
+                    self._skipped_count += 1
+                    continue
+
                 if is_dir:
-                    child = self._build_node_recursive(entry.path, parent=node,
-                                                       pending=pending, flush=flush)
+                    child = self._build_node_recursive(
+                        entry.path, parent=node, pending=pending, flush=flush,
+                    )
                     node.children.append(child)
                     node.size += child.size
                     node.file_count += child.file_count
                 else:
                     try:
                         fstat = entry.stat()
+
+                        # ── feature: skip old files ─────────────────────────
+                        if self._check_min_age(fstat):
+                            self._skipped_count += 1
+                            continue
+
                         size = fstat.st_size
                         mod = fstat.st_mtime
                     except OSError:
