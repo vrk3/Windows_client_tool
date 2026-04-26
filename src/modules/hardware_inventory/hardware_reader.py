@@ -1,9 +1,12 @@
 import datetime
+import logging
 import os
 import platform
 import socket
 
 import psutil
+
+logger = logging.getLogger(__name__)
 
 
 def _wmi():
@@ -39,8 +42,8 @@ def get_overview(worker=None):
         rows.append(("Manufacturer", sys_info.Manufacturer or ""))
         rows.append(("Model", sys_info.Model or ""))
         rows.append(("Domain", sys_info.Domain or ""))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("WMI Win32_ComputerSystem unavailable: %s", e)
     try:
         cpu = _wmi().Win32_Processor()[0]
         rows.append(("CPU", cpu.Name.strip()))
@@ -55,8 +58,8 @@ def get_overview(worker=None):
             usage = psutil.disk_usage(part.mountpoint)
             total_d += usage.total
             free_d += usage.free
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("disk_usage failed for %s: %s", part.mountpoint, e)
     rows.append(("Disk Total", _fmt_bytes(total_d)))
     rows.append(("Disk Free", _fmt_bytes(free_d)))
     return rows
@@ -77,8 +80,8 @@ def get_cpu_info(worker=None):
         rows.append(("Architecture", str(cpu.Architecture) if cpu.Architecture is not None else ""))
         rows.append(("L2 Cache", f"{cpu.L2CacheSize} KB" if cpu.L2CacheSize else "N/A"))
         rows.append(("L3 Cache", f"{cpu.L3CacheSize} KB" if cpu.L3CacheSize else "N/A"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("WMI CPU info not available: %s", e)
     return rows
 
 
@@ -100,8 +103,8 @@ def get_memory_info(worker=None):
                 "Manufacturer": stick.Manufacturer or "",
                 "PartNumber": (stick.PartNumber or "").strip(),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("get_wmi_summary failed: %s", e)
     return summary, sticks
 
 
@@ -117,8 +120,8 @@ def get_storage_info(worker=None):
                 "Serial": (disk.SerialNumber or "").strip(),
                 "Partitions": str(disk.Partitions),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("get_storage_info WMI failed: %s", e)
     partitions = []
     for part in psutil.disk_partitions(all=False):
         try:
@@ -131,8 +134,8 @@ def get_storage_info(worker=None):
                 "Free": _fmt_bytes(usage.free),
                 "Use%": f"{usage.percent}%",
             })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("disk_usage failed for %s: %s", part.mountpoint, e)
     return drives, partitions
 
 
@@ -148,8 +151,8 @@ def get_gpu_info(worker=None):
                 "Driver Date": str(gpu.DriverDate or "")[:8],
                 "Resolution": gpu.VideoModeDescription or "",
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("get_gpu_info WMI failed: %s", e)
     return gpus
 
 
@@ -185,15 +188,15 @@ def get_bios_info(worker=None):
         rows.append(("Version", bios.SMBIOSBIOSVersion or ""))
         rows.append(("Release Date", str(bios.ReleaseDate or "")[:8]))
         rows.append(("Serial Number", bios.SerialNumber or ""))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("WMI BIOS info not available: %s", e)
     try:
         c = _wmi()
         sys_info = c.Win32_ComputerSystem()[0]
         rows.append(("System Manufacturer", sys_info.Manufacturer or ""))
         rows.append(("System Model", sys_info.Model or ""))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("WMI ComputerSystem info not available: %s", e)
     return rows
 
 

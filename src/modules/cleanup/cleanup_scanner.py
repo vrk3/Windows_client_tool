@@ -594,6 +594,7 @@ def scan_winsxs_cleanup(min_age_days: int = 0) -> ScanResult:
             ["Dism.exe", "/Online", "/Cleanup-Image", "/AnalyzeComponentStore"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=120,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         output = proc.stdout
         for line in output.splitlines():
@@ -632,6 +633,7 @@ def cleanup_winsxs(progress_cb: Optional[Callable[[int, int], None]] = None) -> 
             text=True,
             encoding="utf-8",
             errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         # Poll periodically so we can report progress
         while True:
@@ -905,6 +907,7 @@ def scan_print_spooler(min_age_days: int = 0) -> ScanResult:
             ["sc", "query", "spooler"],
             capture_output=True, text=True, errors="replace",
             timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if "RUNNING" in proc.stdout.upper():
             # Service running — mark as danger so it's never auto-selected
@@ -913,8 +916,8 @@ def scan_print_spooler(min_age_days: int = 0) -> ScanResult:
                 result.items.append(item)
                 result.total_size += item.size
             return result
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Spooler scan failed: %s", e)
     # Spooler not running — safe to clean
     for t in [spool_printers, spool_servers]:
         if os.path.isdir(t):
@@ -1128,16 +1131,16 @@ def delete_items(items: List[ScanItem],
                 import win32serviceutil
                 win32serviceutil.StopService(self.name)
                 self._stopped = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to stop service %s: %s", self.name, e)
 
         def __exit__(self, exc_type, exc_val, exc_tb):
             if self._stopped:
                 try:
                     import win32serviceutil
                     win32serviceutil.StartService(self.name)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to start service %s: %s", self.name, e)
             return False  # do not suppress exceptions
 
     def _do_delete():

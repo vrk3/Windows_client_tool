@@ -251,6 +251,7 @@ class WindowsUpdateModule(BaseModule):
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
                 capture_output=True, text=True, timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             raw = result.stdout.strip()
             if not raw:
@@ -345,6 +346,7 @@ class WindowsUpdateModule(BaseModule):
         result = subprocess.run(
             ["wusa.exe", "/unhide", f"/kb:{kb}"],
             capture_output=True, text=True, timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if result.returncode == 0:
             QMessageBox.information(self._widget, "Unhide Update", f"Update {kb} has been unhidden.")

@@ -118,7 +118,8 @@ class StoreAppsModule(BaseModule):
             result = subprocess.run([
                 "powershell", "-Command",
                 "Get-AppxPackage -AllUsers | Select-Object Name, Publisher, Version, IsFramework, IsResourcePackage, IsPartiallyStaged | ConvertTo-Json -Compress"
-            ], capture_output=True, text=True, timeout=60)
+            ], capture_output=True, text=True, timeout=60,
+               creationflags=subprocess.CREATE_NO_WINDOW)
             try:
                 data = json.loads(result.stdout)
                 if isinstance(data, dict):
@@ -193,7 +194,8 @@ class StoreAppsModule(BaseModule):
             result = subprocess.run([
                 "powershell", "-Command",
                 f"Get-AppxPackage '{name}' | Remove-AppxPackage -AllUsers"
-            ], capture_output=True, text=True, timeout=120)
+            ], capture_output=True, text=True, timeout=120,
+               creationflags=subprocess.CREATE_NO_WINDOW)
             return result.returncode == 0, result.stdout + result.stderr
 
         self._progress.setVisible(True)

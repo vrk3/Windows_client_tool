@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -15,10 +16,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StepRecord:
-    step_type: str   # registry | service | appx | command | file
+    step_type: str   # registry | service | appx | command | script | file | scheduled_task
     target: str
     before_value: Any
     after_value: Any
+    revert_command: Optional[str] = None
 
 
 @dataclass
@@ -67,17 +69,26 @@ class BackupService:
                 target           TEXT NOT NULL,
                 before_value     TEXT,
                 after_value      TEXT,
+                revert_command   TEXT,
                 reverted_at      DATETIME,
                 revert_error     TEXT
             );
         """)
+        # Add revert_command column if upgrading from older schema
+        try:
+            self._conn.execute(
+                "ALTER TABLE tweak_steps ADD COLUMN revert_command TEXT")
+        except Exception:
+            pass  # column already exists
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
         rp_id = uuid.uuid4().hex
         now = datetime.now().isoformat()
         ts = now[:19].replace(":", "-").replace("T", "_")
-        safe_label = label.replace(" ", "_")[:20]
+        safe_label = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', label)
+        safe_label = re.sub(r'\s+', '_', safe_label).strip()[:40]
+        safe_label = safe_label.rstrip(' ._')
         folder = os.path.join(self._backup_dir, f"{ts}_{safe_label}")
         os.makedirs(folder, exist_ok=True)
         for sub in ("registry", "services", "appx", "files"):
@@ -100,11 +111,12 @@ class BackupService:
             self._conn.execute(
                 """INSERT INTO tweak_steps
                    (id, tweak_id, restore_point_id, applied_at,
-                    step_type, target, before_value, after_value)
-                   VALUES (?,?,?,?,?,?,?,?)""",
+                    step_type, target, before_value, after_value, revert_command)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 (uuid.uuid4().hex, tweak_id, restore_point_id, now,
                  step.step_type, step.target,
-                 json.dumps(step.before_value), json.dumps(step.after_value)),
+                 json.dumps(step.before_value), json.dumps(step.after_value),
+                 getattr(step, 'revert_command', None)),
             )
         self._conn.commit()
 
@@ -183,7 +195,7 @@ class BackupService:
 
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
-            "SELECT step_type, target, before_value FROM tweak_steps WHERE id=?",
+            "SELECT step_type, target, before_value, revert_command FROM tweak_steps WHERE id=?",
             (step_id,),
         ).fetchone()
         if row is None:
@@ -193,6 +205,7 @@ class BackupService:
             target = row["target"]
             before = (json.loads(row["before_value"])
                       if row["before_value"] else None)
+            revert_cmd = row["revert_command"]
             if step_type == "registry":
                 subprocess.run(
                     ["reg", "import", target],
@@ -223,6 +236,11 @@ class BackupService:
             elif step_type == "command":
                 logger.warning("command steps are not revertible: %s", target)
                 # not a failure — mark as reverted
+            elif step_type == "script" and revert_cmd:
+                subprocess.run(
+                    revert_cmd, shell=True, check=False, capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
             now = datetime.now().isoformat()
             self._conn.execute(
                 "UPDATE tweak_steps SET reverted_at=? WHERE id=?", (now, step_id))

@@ -122,7 +122,8 @@ class BootAnalyzerModule(BaseModule):
             try:
                 result = subprocess.run(
                     ["bcdedit", "/enum", "firmware"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 info["boot_type"] = "UEFI" if "UEFI" in result.stdout else "BIOS/Legacy"
             except Exception:
@@ -132,7 +133,8 @@ class BootAnalyzerModule(BaseModule):
             try:
                 result = subprocess.run(
                     ["bcdedit", "/enum", "all"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 timeout_m = re.search(r'timeout\s*:\s*(\d+)', result.stdout, re.IGNORECASE)
                 info["boot_timeout"] = int(timeout_m.group(1)) if timeout_m else "N/A"
@@ -143,7 +145,8 @@ class BootAnalyzerModule(BaseModule):
             try:
                 result = subprocess.run(
                     ["bcdedit", "/enum", "all"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 info["boot_entries"] = result.stdout.count("bootloader")
             except Exception:
@@ -154,7 +157,8 @@ class BootAnalyzerModule(BaseModule):
                 result = subprocess.run(
                     ["powershell", "-Command",
                      "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Get-Date -Format 'yyyy-MM-dd HH:mm'"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 info["last_boot"] = result.stdout.strip() or "N/A"
             except Exception:
@@ -164,7 +168,8 @@ class BootAnalyzerModule(BaseModule):
             try:
                 result = subprocess.run(
                     ["powercfg", "/query", "SCHEME_CURRENT", "SUB_SLEEP", "HIBERNATE"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 info["fast_startup"] = "Enabled" if "Enabled" in result.stdout else "Disabled"
             except Exception:
@@ -175,7 +180,8 @@ class BootAnalyzerModule(BaseModule):
                 result = subprocess.run(
                     ["powershell", "-Command",
                      "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object -ExpandProperty Days"],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 days = result.stdout.strip()
                 info["uptime_days"] = f"{days} days" if days else "N/A"
@@ -270,7 +276,8 @@ class BootAnalyzerModule(BaseModule):
         if reply != QMessageBox.StandardButton.Yes:
             return
         try:
-            subprocess.run(["bcdedit", "/timeout", "3"], check=True, timeout=10)
+            subprocess.run(["bcdedit", "/timeout", "3"], check=True, timeout=10,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
             QMessageBox.information(self._widget, "Done", "Boot timeout set to 3 seconds.")
             self._load_info()
         except Exception as e:

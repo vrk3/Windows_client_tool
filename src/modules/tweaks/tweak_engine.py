@@ -85,6 +85,8 @@ class TweakEngine:
             return self._apply_appx(step, rp_id)
         elif step_type == "scheduled_task":
             return self._apply_scheduled_task(step, rp_id)
+        elif step_type == "script":
+            return self._apply_script(step)
         logger.warning("Unknown step type: %s", step_type)
         return None
 
@@ -114,12 +116,19 @@ class TweakEngine:
 
     def _apply_service(self, step: Dict, rp_id: str) -> StepRecord:
         import win32service
+        import pywintypes
         name = step["name"]
         _st = step.get("start_type", "manual")
         new_start = int(_st) if isinstance(_st, int) else _START_TYPE_MAP.get(str(_st).lower(), 3)
 
-        self._backup.backup_service_state(name, rp_id)
+        try:
+            self._backup.backup_service_state(name, rp_id)
+        except Exception as e:
+            logger.warning("backup_service_state failed for %s: %s", name, e)
+
         before = None
+        hscm = None
+        hs = None
         try:
             hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)
             hs = win32service.OpenService(
@@ -131,10 +140,11 @@ class TweakEngine:
                 hs, win32service.SERVICE_NO_CHANGE,
                 new_start, win32service.SERVICE_NO_CHANGE,
                 None, None, False, None, None, None, None)
-            win32service.CloseServiceHandle(hs)
-            win32service.CloseServiceHandle(hscm)
-        except Exception as e:
-            raise RuntimeError(f"Service '{name}': {e}") from e
+        finally:
+            if hs:
+                win32service.CloseServiceHandle(hs)
+            if hscm:
+                win32service.CloseServiceHandle(hscm)
 
         return StepRecord("service", name, before, new_start)
 
@@ -145,6 +155,15 @@ class TweakEngine:
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return StepRecord("command", cmd, None, None)
+
+    def _apply_script(self, step: Dict) -> StepRecord:
+        cmd = step.get("command", step.get("cmd", ""))
+        subprocess.run(
+            cmd, shell=True, check=False, capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        revert_cmd = step.get("revert_command")
+        return StepRecord("script", cmd, None, None, revert_command=revert_cmd)
 
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]
@@ -171,8 +190,8 @@ class TweakEngine:
                 if line.startswith("Status:"):
                     before = line.split(":", 1)[1].strip()
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not query scheduled task status for %s: %s", task_name, e)
         subprocess.run(
             ["schtasks", "/change", "/tn", task_name, "/disable"],
             check=False, capture_output=True,
@@ -224,6 +243,9 @@ class TweakEngine:
                     if line.startswith("Status:"):
                         state = line.split(":", 1)[1].strip()
                         return "applied" if state == "Disabled" else "not_applied"
+                return "unknown"
+            elif step["type"] == "script":
+                # Scripts can't be reliably detected without side effects
                 return "unknown"
         except OSError:
             return "unknown"

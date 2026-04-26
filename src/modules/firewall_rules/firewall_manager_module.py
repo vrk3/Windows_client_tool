@@ -48,6 +48,7 @@ def fetch_firewall_rules() -> List[FirewallRule]:
     proc = subprocess.run(
         ["netsh", "advfirewall", "firewall", "show", "rule", "all"],
         capture_output=True, text=True, timeout=120,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
     raw = proc.stdout
     return _parse_rules(raw)
@@ -96,6 +97,7 @@ def netsh_set_rule_enabled(name: str, enable: bool) -> None:
         ["netsh", "advfirewall", "firewall", "set", "rule",
          f"name={name}", "new", f"enable={state}"],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -104,6 +106,7 @@ def netsh_delete_rule(name: str) -> None:
         ["netsh", "advfirewall", "firewall", "delete", "rule",
          f"name={name}"],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -115,6 +118,7 @@ def netsh_block_program(exe_path: str) -> None:
          "dir=out", "action=block",
          f"program={exe_path}", "enable=yes"],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -126,6 +130,7 @@ def netsh_open_port(port: int, direction: str = "in") -> None:
          f"dir={direction}", "action=allow",
          f"localport={port}", "protocol=tcp", "enable=yes"],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -133,6 +138,7 @@ def netsh_export_rules(path: str) -> None:
     subprocess.run(
         ["netsh", "advfirewall", "export", f'"{path}"'],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -140,6 +146,7 @@ def netsh_import_rules(path: str) -> None:
     subprocess.run(
         ["netsh", "advfirewall", "import", f'"{path}"'],
         check=True, capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 

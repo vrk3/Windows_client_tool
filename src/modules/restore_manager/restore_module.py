@@ -139,6 +139,7 @@ class RestoreManagerModule(BaseModule):
                     capture_output=True,
                     text=True,
                     timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 import json
 
@@ -211,6 +212,7 @@ class RestoreManagerModule(BaseModule):
                     capture_output=True,
                     text=True,
                     timeout=60,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 return result.returncode == 0, result.stdout + result.stderr
             except Exception as e:

@@ -8,7 +8,8 @@ from modules.tweaks.tweak_engine import TweakEngine
 
 _DEFS_DIR = os.path.join(os.path.dirname(__file__), "definitions")
 _FILES = ["privacy.json", "performance.json", "telemetry.json",
-          "ui_tweaks.json", "services.json"]
+          "ui_tweaks.json", "services.json", "gaming.json",
+          "security.json", "network.json"]
 
 _CATEGORY_LABELS = {
     "privacy.json":     "Privacy",
@@ -16,6 +17,9 @@ _CATEGORY_LABELS = {
     "telemetry.json":   "Telemetry",
     "ui_tweaks.json":   "UI Tweaks",
     "services.json":    "Services",
+    "gaming.json":      "Gaming",
+    "security.json":    "Security",
+    "network.json":     "Network",
 }
 
 

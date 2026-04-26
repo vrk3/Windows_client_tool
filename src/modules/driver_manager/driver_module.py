@@ -241,6 +241,7 @@ class DriverModule(BaseModule):
             result = subprocess.run(
                 ["pnputil", "/export-driver", "*", folder],
                 capture_output=True, text=True, timeout=300,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return result.stdout + result.stderr, result.returncode
 

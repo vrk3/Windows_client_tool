@@ -214,15 +214,13 @@ class CacheCategory:
 
 @dataclass
 class LegacyBrowserProfile:
-    """Represents a browser user profile."""
-
     name: str
     path: Path
     categories: List[CacheCategory] = None
+    total_bytes: int = 0
 
     def __post_init__(self):
         self.categories = self.categories or []
-        self.total_bytes: int = 0
 
 
 @dataclass
@@ -260,8 +258,8 @@ class BrowserScanner2:
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("BrowserScanner profile scan failed: %s", e)
         return False
 
     def _find_chromium_profiles(self, user_data: Path) -> List[Path]:

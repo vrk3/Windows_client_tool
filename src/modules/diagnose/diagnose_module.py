@@ -453,8 +453,8 @@ class DiagnoseModule(BaseModule):
         if provider and hasattr(provider, "set_entries"):
             try:
                 provider.set_entries(entries)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not set entries for %s: %s", tab_name, e)
         state["stack"].setCurrentIndex(0 if entries else 1)
         logger.info("Tab '%s' loaded: %d entries", tab_name, len(entries) if entries else 0)
         if on_done_fn:
@@ -538,6 +538,7 @@ class DiagnoseModule(BaseModule):
                         subprocess.run(
                             [seven_zip, "e", latest_cab, f"-o{tmp_dir}", "-y"],
                             capture_output=True, timeout=30,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
                         )
                     except Exception as ex:
                         logger.warning("7z extraction failed: %s", ex)
@@ -552,8 +553,8 @@ class DiagnoseModule(BaseModule):
                     try:
                         os.unlink(log_path)
                         os.rmdir(tmp_dir)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Could not clean up temp files: %s", e)
                     return entries
                 else:
                     logger.warning("Could not extract CBS log from cab: %s", latest_cab)
@@ -583,6 +584,7 @@ class DiagnoseModule(BaseModule):
                 result = subprocess.run(
                     ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
                     capture_output=True, text=True, timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 raw = result.stdout.strip()
                 if not raw:
@@ -608,8 +610,8 @@ class DiagnoseModule(BaseModule):
                             try:
                                 ts = datetime.strptime(ts_str.split()[0], fmt)
                                 break
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.debug("Could not parse timestamp '%s': %s", ts_str, e)
                         desc = str(entry.get("Description", ""))
                         kb = str(entry.get("HotFixID", ""))
                         entries.append(LogEntry(

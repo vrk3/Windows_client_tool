@@ -334,7 +334,7 @@
     "description": "Disables the service that indexes media content on the local network for media streaming. Reduces network discovery traffic.",
     "category": "Privacy", "risk": "low", "requires_admin": true,
     "steps": [
-      {"type":"service","name":"MDM","start_type":"disabled"}
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\MDM","value":"Start","data":4,"kind":"DWORD"}
     ]
   },
   {

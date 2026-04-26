@@ -5,8 +5,8 @@ from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QGroupBox, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
+    QCheckBox, QComboBox, QFileDialog, QFrame, QGroupBox, QHBoxLayout,
+    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
     QPushButton, QScrollArea, QSizePolicy, QSplitter, QTabWidget,
     QTextEdit, QToolBar, QVBoxLayout, QWidget,
 )
@@ -44,6 +44,102 @@ class _Signals(QObject):
 
 
 # ---------------------------------------------------------------------------
+# DetailsPanel — shows tweak info when a row is clicked
+# ---------------------------------------------------------------------------
+
+class _DetailsPanel(QFrame):
+    """Side panel showing full details of a selected tweak."""
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setMinimumWidth(280)
+        self.setMaximumWidth(360)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(6)
+
+        self._title = QLabel()
+        self._title.setWordWrap(True)
+        self._title.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(self._title)
+
+        self._risk = QLabel()
+        layout.addWidget(self._risk)
+
+        self._desc = QLabel()
+        self._desc.setWordWrap(True)
+        self._desc.setStyleSheet("color: #aaaaaa;")
+        layout.addWidget(self._desc)
+
+        layout.addWidget(QLabel("Steps:"))
+        self._steps = QTextEdit()
+        self._steps.setReadOnly(True)
+        self._steps.setMaximumHeight(200)
+        layout.addWidget(self._steps)
+
+        self._presets = QLabel()
+        self._presets.setWordWrap(True)
+        self._presets.setStyleSheet("color: #888888; font-size: 11px;")
+        layout.addWidget(self._presets)
+
+        layout.addStretch()
+
+        self._apply_btn = QPushButton("Apply This Tweak")
+        self._apply_btn.setEnabled(False)
+        layout.addWidget(self._apply_btn)
+
+        self._tweak = None
+        self._apply_btn.clicked.connect(self._on_apply_clicked)
+
+    def set_tweak(self, tweak: Optional[Dict]) -> None:
+        self._tweak = tweak
+        if tweak is None:
+            self._title.setText("Select a tweak")
+            self._risk.setText("")
+            self._desc.setText("Click a tweak to see its details.")
+            self._steps.setText("")
+            self._presets.setText("")
+            self._apply_btn.setEnabled(False)
+            return
+
+        self._title.setText(tweak["name"])
+
+        risk = tweak.get("risk", "low")
+        risk_color = "#f44747" if risk == "high" else "#e89000" if risk == "medium" else "#4ec9b0"
+        self._risk.setText(f"<span style='color:{risk_color}'>RISK: {risk.upper()}</span>")
+
+        self._desc.setText(tweak.get("description", "No description."))
+
+        steps_text = ""
+        for i, step in enumerate(tweak.get("steps", [])):
+            step_type = step.get("type", "unknown")
+            if step_type == "registry":
+                steps_text += f"  [{i+1}] Registry: {step.get('key', '')}\\{step.get('value', '')} = {step.get('data', '')} ({step.get('kind', 'DWORD')})\n"
+            elif step_type == "service":
+                steps_text += f"  [{i+1}] Service: {step.get('name', '')} → start_type={step.get('start_type', '')}\n"
+            elif step_type == "command":
+                steps_text += f"  [{i+1}] Command: {step.get('cmd', '')[:80]}...\n"
+            elif step_type == "script":
+                steps_text += f"  [{i+1}] Script: {step.get('command', step.get('cmd', ''))[:80]}...\n"
+            elif step_type == "appx":
+                steps_text += f"  [{i+1}] AppX Remove: {step.get('package', '')}\n"
+            elif step_type == "scheduled_task":
+                steps_text += f"  [{i+1}] Scheduled Task: {step.get('task_name', '')} → Disable\n"
+        self._steps.setText(steps_text.strip() or "No steps defined.")
+
+        self._presets.setText(f"ID: {tweak.get('id', '')}\nCategory: {tweak.get('category', '')}")
+
+        self._apply_btn.setEnabled(True)
+
+    def _on_apply_clicked(self) -> None:
+        if self._tweak is not None:
+            self.apply_requested.emit(self._tweak)
+
+    apply_requested = pyqtSignal(dict)
+
+
+# ---------------------------------------------------------------------------
 # TweakRow — one row in a tweak tab
 # ---------------------------------------------------------------------------
 
@@ -51,34 +147,55 @@ class TweakRow(QWidget):
     def __init__(self, tweak: Dict, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.tweak = tweak
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setContentsMargins(4, 3, 4, 3)
+        layout.setSpacing(4)
 
         self.checkbox = QCheckBox()
+        self.checkbox.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(self.checkbox)
 
         name_label = QLabel(tweak["name"])
         name_label.setToolTip(tweak.get("description", ""))
+        name_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(name_label, stretch=1)
 
         risk = tweak.get("risk", "low")
         risk_label = QLabel(risk.upper())
         risk_label.setStyleSheet(
-            "color: red;" if risk == "high" else
-            "color: orange;" if risk == "medium" else
-            "color: green;"
+            "color: #f44747;" if risk == "high" else
+            "color: #e89000;" if risk == "medium" else
+            "color: #4ec9b0;"
         )
         risk_label.setFixedWidth(70)
+        risk_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        risk_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(risk_label)
 
         self.status_label = QLabel("?")
-        self.status_label.setFixedWidth(90)
+        self.status_label.setFixedWidth(100)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(self.status_label)
 
+        self.apply_btn = QPushButton("Apply")
+        self.apply_btn.setFixedWidth(70)
+        self.apply_btn.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
+        layout.addWidget(self.apply_btn)
+
+        # Row highlight on hover
+        self.setStyleSheet(
+            "TweakRow:hover { background-color: #2a2d2e; }"
+        )
+
     def set_status(self, status: str) -> None:
-        text = {"applied": "✅ Applied", "not_applied": "— Not Applied",
-                "unknown": "? Unknown"}.get(status, status)
-        self.status_label.setText(text)
+        text_map = {
+            "applied": "✅ Applied",
+            "not_applied": "— Not Applied",
+            "unknown": "? Unknown",
+        }
+        self.status_label.setText(text_map.get(status, status))
 
     @property
     def is_checked(self) -> bool:
@@ -97,17 +214,50 @@ class TweakTab(QWidget):
         super().__init__(parent)
         self._tweaks = tweaks
         self._rows: Dict[str, TweakRow] = {}
+        self._filter_text = ""
+        self._filter_risk = "all"
+        self._filter_status = "all"
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
+        # Control bar
+        bar = QHBoxLayout()
+        bar.setContentsMargins(4, 4, 4, 4)
+        bar.setSpacing(4)
+
+        self._select_all_btn = QPushButton("Select All")
+        self._select_all_btn.setFixedWidth(80)
+        bar.addWidget(self._select_all_btn)
+
+        self._deselect_all_btn = QPushButton("Deselect All")
+        self._deselect_all_btn.setFixedWidth(90)
+        bar.addWidget(self._deselect_all_btn)
+
+        self._select_applied_btn = QPushButton("Select Applied")
+        self._select_applied_btn.setFixedWidth(100)
+        bar.addWidget(self._select_applied_btn)
+
+        self._select_not_btn = QPushButton("Select Not Applied")
+        self._select_not_btn.setFixedWidth(110)
+        bar.addWidget(self._select_not_btn)
+
+        bar.addStretch()
+
+        self._count_label = QLabel("0 selected")
+        bar.addWidget(self._count_label)
+
+        layout.addLayout(bar)
+
+        # Scroll area with rows
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(scroll.Shape.NoFrame)
 
         container = QWidget()
         self._container_layout = QVBoxLayout(container)
-        self._container_layout.setSpacing(0)
+        self._container_layout.setSpacing(1)
         self._container_layout.setContentsMargins(0, 0, 0, 0)
 
         for tweak in tweaks:
@@ -117,7 +267,22 @@ class TweakTab(QWidget):
 
         self._container_layout.addStretch()
         scroll.setWidget(container)
-        layout.addWidget(scroll)
+        layout.addWidget(scroll, stretch=1)
+
+        # Wire selection count update
+        for row in self._rows.values():
+            row.checkbox.stateChanged.connect(self._on_selection_changed)
+
+    def apply_row_clicked(self, row: TweakRow) -> None:
+        self.row_apply_requested.emit(row.tweak)
+
+    def set_row_apply_handler(self, handler) -> None:
+        for row in self._rows.values():
+            row.apply_btn.clicked.connect(lambda _, r=row: handler(r))
+
+    def _on_selection_changed(self) -> None:
+        count = sum(1 for r in self._rows.values() if r.is_checked)
+        self._count_label.setText(f"{count} selected")
 
     def set_status(self, tweak_id: str, status: str) -> None:
         if tweak_id in self._rows:
@@ -134,6 +299,40 @@ class TweakTab(QWidget):
     def current_state(self) -> List[str]:
         return [t["id"] for t in self._tweaks
                 if self._rows[t["id"]].is_checked]
+
+    def select_all(self) -> None:
+        for row in self._rows.values():
+            row.set_checked(True)
+
+    def deselect_all(self) -> None:
+        for row in self._rows.values():
+            row.set_checked(False)
+
+    def select_by_status(self, status: str) -> None:
+        """status: 'applied', 'not_applied', or 'all'"""
+        for row in self._rows.values():
+            if status == "all":
+                row.set_checked(True)
+            else:
+                label_text = row.status_label.text()
+                if status == "applied" and "Applied" in label_text:
+                    row.set_checked(True)
+                elif status == "not_applied" and "Not Applied" in label_text:
+                    row.set_checked(True)
+
+    # Signal emitted when row selection should show details
+    row_selected = pyqtSignal(dict)
+    row_apply_requested = pyqtSignal(dict)
+
+    def mousePressEvent(self, event) -> None:
+        # Find which row was clicked
+        child = self.childAt(event.pos())
+        if child:
+            for row in self._rows.values():
+                if row.isAncestorOf(child):
+                    self.row_selected.emit(row.tweak)
+                    break
+        super().mousePressEvent(event)
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +479,7 @@ class TweaksModule(BaseModule):
         self._tabs: Optional[QTabWidget] = None
         self._signals = _Signals()
         self._tweaks_loaded = False
+        self._details_panel: Optional[_DetailsPanel] = None
 
     # ------------------------------------------------------------------
     # BaseModule lifecycle
@@ -316,7 +516,15 @@ class TweaksModule(BaseModule):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        layout.addWidget(self._build_preset_toolbar())
+        # Top: preset toolbar + search bar
+        top_layout = QVBoxLayout()
+        top_layout.setSpacing(4)
+        top_layout.addWidget(self._build_preset_toolbar())
+        top_layout.addWidget(self._build_search_bar())
+        layout.addLayout(top_layout)
+
+        # Main: tabs with details panel side-by-side
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._tabs = QTabWidget()
         for category, filename in _CATEGORY_FILES.items():
@@ -325,16 +533,54 @@ class TweaksModule(BaseModule):
             tab = TweakTab(tweaks)
             self._tab_widgets[category] = tab
             self._tabs.addTab(tab, category)
+            tab.row_selected.connect(self._on_row_selected)
+            tab.set_row_apply_handler(self._on_row_apply)
 
         config = self.app.config if self.app else None
         self._app_tab = AppManagerTab(self._catalog, config)
         self._tabs.addTab(self._app_tab, "Apps")
-        layout.addWidget(self._tabs, stretch=1)
+
+        main_splitter.addWidget(self._tabs)
+
+        self._details_panel = _DetailsPanel()
+        self._details_panel.apply_requested.connect(self._on_apply_single_tweak)
+        main_splitter.addWidget(self._details_panel)
+        main_splitter.setSizes([700, 300])
+
+        layout.addWidget(main_splitter, stretch=1)
 
         layout.addWidget(self._build_bottom_bar())
         self._signals.status_detected.connect(self._on_status_detected)
         self._signals.apps_detected.connect(self._on_apps_detected)
         return self._widget
+
+    def _build_search_bar(self) -> QWidget:
+        bar = QWidget()
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        layout.addWidget(QLabel("Search:"))
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText("Filter tweaks by name or description...")
+        self._search_input.textChanged.connect(self._on_search_changed)
+        layout.addWidget(self._search_input, stretch=1)
+
+        # Risk filter
+        layout.addWidget(QLabel("Risk:"))
+        self._risk_filter = QComboBox()
+        self._risk_filter.addItems(["All", "Low", "Medium", "High"])
+        self._risk_filter.currentTextChanged.connect(self._on_filter_changed)
+        layout.addWidget(self._risk_filter)
+
+        # Status filter
+        layout.addWidget(QLabel("Status:"))
+        self._status_filter = QComboBox()
+        self._status_filter.addItems(["All", "Applied", "Not Applied", "Unknown"])
+        self._status_filter.currentTextChanged.connect(self._on_filter_changed)
+        layout.addWidget(self._status_filter)
+
+        return bar
 
     def _build_preset_toolbar(self) -> QWidget:
         bar = QWidget()
@@ -364,6 +610,15 @@ class TweaksModule(BaseModule):
         layout.addWidget(import_btn)
 
         layout.addStretch()
+
+        self._select_all_global_btn = QPushButton("Select All in Tab")
+        self._select_all_global_btn.clicked.connect(self._on_select_all_tab)
+        layout.addWidget(self._select_all_global_btn)
+
+        self._deselect_all_global_btn = QPushButton("Deselect All in Tab")
+        self._deselect_all_global_btn.clicked.connect(self._on_deselect_all_tab)
+        layout.addWidget(self._deselect_all_global_btn)
+
         return bar
 
     def _build_bottom_bar(self) -> QWidget:
@@ -387,6 +642,101 @@ class TweaksModule(BaseModule):
         layout.addWidget(self._log_output, stretch=1)
 
         return bar
+
+    # ------------------------------------------------------------------
+    # Filtering
+    # ------------------------------------------------------------------
+
+    def _on_search_changed(self, text: str) -> None:
+        self._filter_tweaks()
+
+    def _on_filter_changed(self) -> None:
+        self._filter_tweaks()
+
+    def _filter_tweaks(self) -> None:
+        search_text = self._search_input.text().lower()
+        risk_filter = self._risk_filter.currentText().lower()
+        status_filter = self._status_filter.currentText()
+
+        for tab in self._tab_widgets.values():
+            for tweak in tab._tweaks:
+                row = tab._rows.get(tweak["id"])
+                if row is None:
+                    continue
+
+                # Text match
+                name_match = not search_text or (
+                    search_text in tweak["name"].lower() or
+                    search_text in tweak.get("description", "").lower()
+                )
+
+                # Risk match
+                risk_match = risk_filter == "all" or tweak.get("risk", "low") == risk_filter
+
+                # Status match
+                status_text = row.status_label.text()
+                if status_filter == "All":
+                    status_match = True
+                elif status_filter == "Applied":
+                    status_match = "Applied" in status_text
+                elif status_filter == "Not Applied":
+                    status_match = "Not Applied" in status_text
+                else:
+                    status_match = "?" in status_text
+
+                visible = name_match and risk_match and status_match
+                row.setVisible(visible)
+
+    # ------------------------------------------------------------------
+    # Row interaction
+    # ------------------------------------------------------------------
+
+    def _on_row_selected(self, tweak: Dict) -> None:
+        self._details_panel.set_tweak(tweak)
+
+    def _on_row_apply(self, row: TweakRow) -> None:
+        self._on_apply_single_tweak(row.tweak)
+
+    def _on_apply_single_tweak(self, tweak: Dict) -> None:
+        if not self.app:
+            return
+
+        risk = tweak.get("risk", "low")
+        if risk == "high":
+            reply = QMessageBox.question(
+                self._widget, "Confirm High-Risk Tweak",
+                f"You're about to apply a HIGH RISK tweak:\n\n{tweak['name']}\n\n"
+                "Are you sure you want to continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        rp_id = self.app.backup.create_restore_point(
+            f"Single tweak: {tweak['name']}", "Tweaks")
+
+        errors = []
+
+        def _worker_fn(worker):
+            self._engine.apply_tweak(
+                tweak, rp_id,
+                on_error=lambda e: errors.append(e))
+            return errors
+
+        w = Worker(_worker_fn)
+        w.signals.result.connect(self._on_single_apply_result)
+        w.signals.error.connect(lambda e: self._log_output.append(f"Error: {e}"))
+        self._workers.append(w)
+        self.app.thread_pool.start(w)
+
+    def _on_single_apply_result(self, errors: list) -> None:
+        if self._log_output:
+            if errors:
+                for e in errors:
+                    self._log_output.append(f"⚠ {e}")
+            else:
+                self._log_output.append("✅ Tweak applied successfully.")
+        self._detect_statuses()
 
     # ------------------------------------------------------------------
     # Preset actions
@@ -452,6 +802,18 @@ class TweaksModule(BaseModule):
                     self._widget, "Import", f"Preset '{name}' imported.")
             except Exception as e:
                 QMessageBox.critical(self._widget, "Import failed", str(e))
+
+    def _on_select_all_tab(self) -> None:
+        idx = self._tabs.currentIndex()
+        if idx < len(self._tab_widgets):
+            tab = list(self._tab_widgets.values())[idx]
+            tab.select_all()
+
+    def _on_deselect_all_tab(self) -> None:
+        idx = self._tabs.currentIndex()
+        if idx < len(self._tab_widgets):
+            tab = list(self._tab_widgets.values())[idx]
+            tab.deselect_all()
 
     # ------------------------------------------------------------------
     # Apply
@@ -536,6 +898,7 @@ class TweaksModule(BaseModule):
     def _on_status_detected(self, tweak_id: str, status: str) -> None:
         for tab in self._tab_widgets.values():
             tab.set_status(tweak_id, status)
+        self._filter_tweaks()  # Re-apply status filter if needed
 
     # ------------------------------------------------------------------
     # App detection

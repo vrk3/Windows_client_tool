@@ -295,7 +295,8 @@ class SecurityDashboardModule(BaseModule):
                     "Get-MpComputerStatus | Select-Object AntivirusSignatureLastUpdated, "
                     "AntivirusSignatureAge, AntivirusEnabled, AntivirusSignatureVersion | "
                     "ConvertTo-Json -Compress"
-                ], capture_output=True, text=True, timeout=30)
+                ], capture_output=True, text=True, timeout=30,
+                        creationflags=subprocess.CREATE_NO_WINDOW)
                 if result.stdout.strip():
                     return json.loads(result.stdout)
                 return None
@@ -309,7 +310,8 @@ class SecurityDashboardModule(BaseModule):
                     "powershell", "-Command",
                     "Get-ProcessMitigation -Policy | Select-Object -First 20 | "
                     "Format-Table -AutoSize"
-                ], capture_output=True, text=True, timeout=30, errors="replace")
+                ], capture_output=True, text=True, timeout=30, errors="replace",
+                        creationflags=subprocess.CREATE_NO_WINDOW)
                 return result.stdout.strip()
             except Exception:
                 return None
@@ -319,7 +321,8 @@ class SecurityDashboardModule(BaseModule):
             try:
                 result = subprocess.run([
                     "wevtutil", "qe", "Security", "/c:30", "/f:text", "/rd:true"
-                ], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+                ], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
                 return self._parse_security_events(result.stdout)
             except Exception:
                 return []
@@ -500,7 +503,8 @@ class SecurityDashboardModule(BaseModule):
             result = subprocess.run([
                 "C:\\Program Files\\Windows Defender\\MpCmdRun.exe",
                 "-Scan", "-ScanType", "1"
-            ], capture_output=True, text=True, timeout=600)
+            ], capture_output=True, text=True, timeout=600,
+                creationflags=subprocess.CREATE_NO_WINDOW)
             return result.returncode == 0, result.stdout + result.stderr
 
         def on_result(res):
