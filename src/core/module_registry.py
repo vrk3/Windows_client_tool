@@ -28,15 +28,13 @@ class ModuleRegistry:
         """Modules that failed to start due to an exception."""
         return list(self._failed_modules)
 
-    @property
-    def disabled_modules(self) -> List[BaseModule]:
-        return list(self._disabled)
-
     def register(self, module: BaseModule) -> None:
         self._modules.append(module)
         logger.info("Registered module: %s", module.name)
 
     def start_all(self, app) -> None:
+        import logging
+        _log = logging.getLogger("startup")
         running_as_admin = is_admin()
         for module in self._modules:
             if module.requires_admin and not running_as_admin:
@@ -45,9 +43,10 @@ class ModuleRegistry:
                 )
                 self._disabled.append(module)
                 continue
+            _log.debug("[STARTUP] on_start(%s)", module.name)
             try:
                 module.on_start(app)
-                # Auto-register search provider if module provides one
+                _log.debug("[STARTUP] on_start(%s) done", module.name)
                 provider = module.get_search_provider()
                 if provider is not None:
                     app.search.register_provider(provider)

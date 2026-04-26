@@ -12,7 +12,7 @@ The existing cleanup system covers the basics (temp, browser, prefetch, crash du
 
 ### 1. New Scan Functions (cleanup_scanner.py)
 
-Add 8 new scan functions, all following the existing pattern: `scan_<name>(min_age_days=0) -> ScanResult`.
+Add 16 new scan functions, all following the existing pattern: `scan_<name>(min_age_days=0) -> ScanResult`.
 
 | ID | Function | Key Paths | Safety |
 |----|----------|-----------|--------|
@@ -24,6 +24,14 @@ Add 8 new scan functions, all following the existing pattern: `scan_<name>(min_a
 | `spooler` | `scan_print_spooler()` | `C:\Windows\System32\spool\PRINTERS\*` (skip if `spooler` service != Running); `C:\Windows\System32\spool\SERVERS\*` | `caution` |
 | `winsat` | `scan_winsat_cache()` | `C:\Windows\Performance\WinSAT\*.xml`, `Media.ets`, `winsat.log` | `safe` |
 | `etl` | `scan_etl_logs()` | `C:\Windows\Logs\WindowsUpdate\*etl`; `C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Logs\*`; `C:\Windows\Temp\ScriptArtifacts\*` | `caution` |
+| `telemetry` | `scan_telemetry()` | `C:\ProgramData\Microsoft\Windows\WER\Temp\*`; `C:\Windows\System32\LogFiles\ETLLogs\AutoLogger\*`; `C:\Windows\System32\WDI\*.etl`; `C:\Windows\System32\diagerr.log`, `diagwrn.log` | `caution` |
+| `delivery` | `scan_delivery_opt()` | `C:\Windows\SoftwareDistribution\DeliveryOptimization\Cache\*` (existing DISM path), plus `C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache\*` per-user | `safe` |
+| `clipboard` | `scan_clipboard()` | `C:\Users\*\AppData\Local\Microsoft\Windows\Clipboard\pending*.tmp`, `inProgress*.tmp`; `C:\Users\*\AppData\Local\Microsoft\Windows\INetCache\Clipboard\*` | `safe` |
+| `onedrive` | `scan_onedrive_cache()` | `%LOCALAPPDATA\Microsoft\OneDrive\logs\*`; `%LOCALAPPDATA\Microsoft\OneDrive\logs\Fabric\*`; `%LOCALAPPDATA\Microsoft\OneDrive\logs\Updater\*` | `safe` |
+| `xbox` | `scan_xbox_cache()` | `%LOCALAPPDATA%\Packages\Microsoft.GamingServices_*\LocalCache\*`; `%LOCALAPPDATA%\Packages\Microsoft.XboxGamingOverlay_*\LocalCache\*`; `%LOCALAPPDATA%\Packages\FamilyNotifications.*\LocalState\*`; `%PROGRAMDATA%\XboxLiveDeviceInfo\*` | `safe` |
+| `maps` | `scan_maps_cache()` | `%LOCALAPPDATA%\Local\Packages\Microsoft.WindowsMaps_*\LocalState\*`; `C:\Users\*\AppData\Local\TileDataLayer\Database\*` (map tiles) | `safe` |
+| `sticky` | `scan_sticky_notes()` | `%APPDATA%\Microsoft\Sticky Notes\StickyNotes.sqm`; `%LOCALAPPDATA%\Packages\Microsoft.MicrosoftStickyNotes_*\LocalState\*` | `safe` |
+| `defender_history` | `scan_defender_history()` | `C:\ProgramData\Microsoft\Windows Defender\Scans\History\Service\DetectionHistory\*\Collection\*`; `CacheManager\*`; `Results\Resource\*` (large — often 1-10 GB) | `caution` |
 
 **Path resolution strategy** — use `os.path.expandvars()` for `%APPDATA%` etc., `pathlib.Path.home()` for `~`, enumerate known subdirectories rather than scanning full `%LOCALAPPDATA%` recursively.
 

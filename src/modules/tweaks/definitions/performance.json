@@ -246,5 +246,132 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":1,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_boot_log",
+    "name": "Disable Boot Log Generation",
+    "description": "Prevents Windows from writing a boot log (ntbtlog.txt) on startup. Slightly speeds up boot time on SSDs.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"bcdedit /set {current} bootlog no"}
+    ]
+  },
+  {
+    "id": "disable_kernel_debug",
+    "name": "Disable Kernel Debugging",
+    "description": "Turns off the kernel debug port and disables KD interface. Reduces boot overhead on production machines.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"bcdedit /debug off"}
+    ]
+  },
+  {
+    "id": "disable_readyboot",
+    "name": "Disable ReadyBoot Cache",
+    "description": "Disables the ReadyBoot system file cache that preloads frequently used DLLs. May reduce memory usage on systems with limited RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"EnableReadyBoot","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "increase_desktop_heap",
+    "name": "Increase Desktop Heap Size",
+    "description": "Increases the desktop heap from 3072 KB to 8192 KB. Fixes 'out of memory' errors in Explorer when many windows are open.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"GlobalSystemHeapSizeInMB","data":96,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "optimize_firmware_updates",
+    "name": "Disable Firmware Update Checks",
+    "description": "Prevents Windows from automatically checking for firmware updates via the UEFI Update session.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\WindowsUpdate\\SuraUta\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_time_synchronization",
+    "name": "Disable Automatic Time Synchronization",
+    "description": "Stops the Windows Time service from automatically syncing with internet time servers. Use when you manage time manually.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"W32Time","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_pagefile",
+    "name": "Set Pagefile to Managed Size",
+    "description": "Lets Windows automatically manage the pagefile size based on available RAM. Recommended for systems with 16 GB+ RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management' -Name 'PagingFiles' -Value ''\""}
+    ]
+  },
+  {
+    "id": "reduce_font_cache",
+    "name": "Reduce Font Cache Size",
+    "description": "Caps the Windows font cache at 512 KB instead of the default 25 MB. Reduces RAM usage with minimal visual impact.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\FontDpi' -Name 'FontCacheSizeInKB' -Value 512\""}
+    ]
+  },
+  {
+    "id": "disable_srum_update",
+    "name": "Disable System Resource Usage Monitor",
+    "description": "Stops the SRUM (System Resource Usage Monitor) from continuously profiling resource usage.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"SrumSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_wmi_cache",
+    "name": "Reduce WMI Repository Bloat",
+    "description": "Clears the WMI repository cache to reduce memory overhead. A WMI rebuild is triggered automatically if needed.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"winmgmt /salvasrule autorestart\""}
+    ]
+  },
+  {
+    "id": "disable_superfetch_on_apps",
+    "name": "Disable Superfetch for Applications",
+    "description": "Configures Superfetch to only preload system components, not third-party applications.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"NonSuperfetchAppLaunch","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_app_launch",
+    "name": "Boost Application Launch Priority",
+    "description": "Gives newly launched applications a CPU priority boost over background processes for snappier response.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_event_log_consumer",
+    "name": "Disable Event Log Consumer Service",
+    "description": "Stops the Windows Event Log Consumer service that processes events from forwarded logs.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"eventlog","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_dns_client",
+    "name": "Optimize DNS Client Response Time",
+    "description": "Sets DNS cache negative TTL to 0 and positive TTL to maximum (1 day) for faster repeated lookups.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxCacheTtl","data":86400,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxNegativeCacheTtl","data":0,"kind":"DWORD"}
+    ]
   }
 ]

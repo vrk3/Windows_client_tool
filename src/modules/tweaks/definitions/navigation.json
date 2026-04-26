@@ -26,5 +26,80 @@
     "description": "Removes duplicate drive letter entries from the File Explorer navigation pane.",
     "category": "Navigation Pane", "risk": "low", "requires_admin": false,
     "steps": [{"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer", "value": "HideDriveLettersWithoutNetDrive", "data": 1, "kind": "DWORD"}]
+  },
+  {
+    "id": "hide_documents_from_nav",
+    "name": "Hide Documents from Navigation Pane",
+    "description": "Removes the Documents folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{450D8FBA-AD25-11D0-98A8-0800361B1103}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_downloads_from_nav",
+    "name": "Hide Downloads from Navigation Pane",
+    "description": "Removes the Downloads folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{088E3905-0323-4B02-9826-5CB70116E0BC}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_music_from_nav",
+    "name": "Hide Music from Navigation Pane",
+    "description": "Removes the Music folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{4BD8D571-6D19-48D3-BE97-422220080E43}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_pictures_from_nav",
+    "name": "Hide Pictures from Navigation Pane",
+    "description": "Removes the Pictures folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{33EE2814-0884-11D1-9EE4-00C04FC998EB}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_videos_from_nav",
+    "name": "Hide Videos from Navigation Pane",
+    "description": "Removes the Videos folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{18989B1D-99B5-455B-841C-AB7C74E4DDFC}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_desktop_from_nav",
+    "name": "Hide Desktop from Navigation Pane",
+    "description": "Removes the Desktop folder from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{B4FB3F98-C1DC-4F50-8F7B-6B4E564F005B}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_quick_access_from_nav",
+    "name": "Hide Quick Access from Navigation Pane",
+    "description": "Completely removes the Quick Access section from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{679f85cb-0220-4080-b29b-5540cc05aab6}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "hide_network_from_nav",
+    "name": "Hide Network from Navigation Pane",
+    "description": "Removes the Network entry from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "command", "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}' -Recurse -Force -ErrorAction SilentlyContinue\""}]
+  },
+  {
+    "id": "expand_this_pc_always",
+    "name": "Always Expand This PC in Navigation",
+    "description": "File Explorer always expands to show This PC sub-folders (Desktop, Documents, Downloads, etc.) when opening.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "value": "NavPaneExpandToCurrentFolder", "data": 1, "kind": "DWORD"},
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "value": "NavPaneShowAllFolders", "data": 1, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "hide_lib_from_nav",
+    "name": "Hide Libraries from Navigation Pane",
+    "description": "Removes the Libraries section from the File Explorer navigation pane.",
+    "category": "Navigation Pane", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer", "value": "NavPaneShowLibraries", "data": 0, "kind": "DWORD"}
+    ]
   }
 ]

@@ -1,23 +1,42 @@
 import logging
-import sys
 import os
+import sys
 import traceback
+from pathlib import Path
 
 # Add src/ to Python path so imports like `core.event_bus` work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ── Startup trace helper ──────────────────────────────────────────────────────
+_log = logging.getLogger("startup")
+
+
+def _s(entry: str) -> None:
+    """Log a startup entry point. Writes to stderr so it's visible even if
+    the app crashes before the log file is set up."""
+    msg = f"[STARTUP] {entry}"
+    try:
+        print(msg, flush=True)
+    except UnicodeEncodeError:
+        # Windows console may not support Unicode — fall back to ASCII
+        print(msg.encode("ascii", "replace").decode("ascii"), flush=True)
+    _log.debug(msg)
+
+
+_s("=== main.py entered ===")
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from app import App
 from ui.main_window import MainWindow
 
-logger = logging.getLogger(__name__)
+_s("imports done")
 
 
 def _global_exception_handler(exc_type, exc_value, exc_tb):
     """Global exception handler — logs traceback and shows error dialog."""
     tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    logger.critical("Unhandled exception:\n%s", tb_text)
+    _log.critical("Unhandled exception:\n%s", tb_text)
 
     # Show non-fatal error dialog with Copy to Clipboard
     try:
@@ -142,7 +161,9 @@ def main():
     app.module_registry.register(StoreAppsModule())
 
     # Start modules
+    _s("app.start() → module_registry.start_all()")
     app.start()
+    _s("app.start() done — window creation next")
 
     # Register search providers
     for module in app.module_registry.modules:

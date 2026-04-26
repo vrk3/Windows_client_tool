@@ -270,8 +270,6 @@ class TreeSizeModule(BaseModule):
         self._expand_btn.setMaximumWidth(80)
         self._collapse_btn = QPushButton("Collapse All")
         self._collapse_btn.setMaximumWidth(80)
-        self._expand_btn.clicked.connect(self._tree.expandAll)
-        self._collapse_btn.clicked.connect(self._tree.collapseAll)
 
         toolbar.addWidget(QLabel("Drive:"))
         toolbar.addWidget(self._drive_cb)
@@ -406,6 +404,10 @@ class TreeSizeModule(BaseModule):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.setSelectionMode(QTreeView.SelectionMode.MultiSelection)
         layout.addWidget(self._tree, 1)
+
+        # ── expand / collapse (moved here — _tree must exist first) ────
+        self._expand_btn.clicked.connect(self._tree.expandAll)
+        self._collapse_btn.clicked.connect(self._tree.collapseAll)
 
         # ── Status bar ───────────────────────────────────────────────────
         status_layout = QHBoxLayout()

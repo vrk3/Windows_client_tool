@@ -184,5 +184,91 @@
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsSetup","value":"DisableTelemetry","data":1,"kind":"DWORD"},
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\OSUpgrade","value":"AllowTelemetry","data":0,"kind":"DWORD"}
     ]
+  },
+  {
+    "id": "disable_ceip_tasks",
+    "name": "Disable All CEIP Scheduled Tasks",
+    "description": "Disables the Customer Experience Improvement Program scheduled tasks including USB CEIP.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Customer Experience Improvement Program\\BthSQM\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_sih_telemetry",
+    "name": "Disable Update History Uploader (SIH)",
+    "description": "Disables the Windows Update History Upload scheduled task that reports update installation results.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\UpdateOrchestrator\\UpdateHistory\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_proactive_telemetry",
+    "name": "Disable Proactive Interference Detection",
+    "description": "Disables the proactive tampering detection telemetry sent to Microsoft.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeviceGuard","value":"ConfigureMonitoring","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_dns_telemetry",
+    "name": "Disable DNS-over-HTTPS Telemetry",
+    "description": "Prevents Windows from sending telemetry about your DNS-over-HTTPS (DoH) usage.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DnsClient\\DoH","value":"AutoUpgrade","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_compatibility_telemetry",
+    "name": "Disable App Compatibility Telemetry",
+    "description": "Disables the Microsoft Compatibility Appraiser telemetry task.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Application Experience\\PcaPatchDb\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_automated_diagnostics",
+    "name": "Disable Windows Automated Diagnostics",
+    "description": "Disables the Diagnostics Link Tracking and Automated Diagnostics tasks.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Diagnostics\\DiagTrack\\Listener\" /disable 2>nul"},
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Maintenance\\Automatic/Diagnostic\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_winsat_telemetry",
+    "name": "Disable Windows System Assessment Tool Telemetry",
+    "description": "Disables the WinSAT scheduled task that runs performance assessments and reports results.",
+    "category": "Telemetry", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\Maintenance\\WinSAT\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_settings_sync_cloud",
+    "name": "Disable Settings Sync to Cloud",
+    "description": "Prevents Windows from syncing your settings to your Microsoft account cloud.",
+    "category": "Telemetry", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SettingSync","value":"SyncPolicy","data":5,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_language_telemetry",
+    "name": "Disable Handwriting and Language Telemetry",
+    "description": "Stops the Windows language and handwriting recognition data from being uploaded.",
+    "category": "Telemetry", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Input\\TIPC","value":"Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\InputPersonalization","value":"RestrictImplicitTextCollection","data":1,"kind":"DWORD"}
+    ]
   }
 ]

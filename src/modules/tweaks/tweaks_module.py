@@ -22,14 +22,16 @@ logger = logging.getLogger(__name__)
 
 _DEFS_DIR = os.path.join(os.path.dirname(__file__), "definitions")
 _CATEGORY_FILES = {
-    "Privacy":     "privacy.json",
-    "Performance": "performance.json",
-    "Telemetry":   "telemetry.json",
-    "UI Tweaks":   "ui_tweaks.json",
-    "Services":    "services.json",
-    "Gaming":      "gaming.json",
-    "Security":    "security.json",
-    "Network":     "network.json",
+    "Privacy":       "privacy.json",
+    "Performance":   "performance.json",
+    "Telemetry":     "telemetry.json",
+    "UI Tweaks":     "ui_tweaks.json",
+    "Services":      "services.json",
+    "Gaming":        "gaming.json",
+    "Security":      "security.json",
+    "Network":        "network.json",
+    "AI Features":   "ai_features.json",
+    "Navigation Pane": "navigation.json",
 }
 
 
@@ -229,18 +231,24 @@ class TweakTab(QWidget):
 
         self._select_all_btn = QPushButton("Select All")
         self._select_all_btn.setFixedWidth(80)
+        self._select_all_btn.clicked.connect(self.select_all)
         bar.addWidget(self._select_all_btn)
 
         self._deselect_all_btn = QPushButton("Deselect All")
         self._deselect_all_btn.setFixedWidth(90)
+        self._deselect_all_btn.clicked.connect(self.deselect_all)
         bar.addWidget(self._deselect_all_btn)
 
         self._select_applied_btn = QPushButton("Select Applied")
         self._select_applied_btn.setFixedWidth(100)
+        self._select_applied_btn.clicked.connect(
+            lambda: self._select_by_status_filtered("applied"))
         bar.addWidget(self._select_applied_btn)
 
         self._select_not_btn = QPushButton("Select Not Applied")
         self._select_not_btn.setFixedWidth(110)
+        self._select_not_btn.clicked.connect(
+            lambda: self._select_by_status_filtered("not_applied"))
         bar.addWidget(self._select_not_btn)
 
         bar.addStretch()
@@ -319,6 +327,18 @@ class TweakTab(QWidget):
                     row.set_checked(True)
                 elif status == "not_applied" and "Not Applied" in label_text:
                     row.set_checked(True)
+        self._on_selection_changed()
+
+    def _select_by_status_filtered(self, status: str) -> None:
+        """Select rows matching status (applied/not_applied) and update count."""
+        for row in self._rows.values():
+            label_text = row.status_label.text()
+            checked = (
+                (status == "applied" and "Applied" in label_text) or
+                (status == "not_applied" and "Not Applied" in label_text)
+            )
+            row.set_checked(checked)
+        self._on_selection_changed()
 
     # Signal emitted when row selection should show details
     row_selected = pyqtSignal(dict)
@@ -359,7 +379,8 @@ class AppManagerTab(QWidget):
         filter_bar.addWidget(QLabel("Category:"))
         self._cat_combo = QComboBox()
         self._cat_combo.addItem("All")
-        self._cat_combo.addItems(catalog.categories())
+        if catalog is not None:
+            self._cat_combo.addItems(catalog.categories())
         self._cat_combo.currentTextChanged.connect(self._refresh_catalog_list)
         filter_bar.addWidget(self._cat_combo)
         filter_bar.addStretch()
@@ -394,7 +415,8 @@ class AppManagerTab(QWidget):
         apply_bar.addWidget(self._apply_btn)
         layout.addLayout(apply_bar)
 
-        self._refresh_catalog_list()
+        if catalog is not None:
+            self._refresh_catalog_list()
 
     def populate_installed(self, installed_appx: set) -> None:
         self._installed_list.clear()
@@ -760,9 +782,13 @@ class TweaksModule(BaseModule):
             return
         tweaks = preset.get("tweaks", {})
         for category, tab in self._tab_widgets.items():
-            ids = tweaks.get(category.lower().replace(" ", "_"), [])
+            key = category.lower().replace(" ", "_")
+            ids = tweaks.get(key, [])
             if not ids:
                 ids = tweaks.get(category, [])
+            # Expand wildcard ["*"] — means "all tweak IDs in this category"
+            if ids == ["*"]:
+                ids = [t["id"] for t in tab._tweaks]
             tab.apply_preset(ids)
 
     def _on_save_preset(self) -> None:
@@ -805,15 +831,15 @@ class TweaksModule(BaseModule):
 
     def _on_select_all_tab(self) -> None:
         idx = self._tabs.currentIndex()
-        if idx < len(self._tab_widgets):
-            tab = list(self._tab_widgets.values())[idx]
-            tab.select_all()
+        tab_widgets = list(self._tab_widgets.values())
+        if 0 <= idx < len(tab_widgets):
+            tab_widgets[idx].select_all()
 
     def _on_deselect_all_tab(self) -> None:
         idx = self._tabs.currentIndex()
-        if idx < len(self._tab_widgets):
-            tab = list(self._tab_widgets.values())[idx]
-            tab.deselect_all()
+        tab_widgets = list(self._tab_widgets.values())
+        if 0 <= idx < len(tab_widgets):
+            tab_widgets[idx].deselect_all()
 
     # ------------------------------------------------------------------
     # Apply

@@ -4,7 +4,7 @@
   "builtin": true,
   "description": "Maximize gaming performance: HAGS, Game Mode, remove recording overhead, CPU/GPU priority boosts, and network latency reduction.",
   "tweaks": {
-    "gaming": [
+    "Gaming": [
       "disable_game_dvr",
       "enable_game_mode",
       "enable_hags_gaming",

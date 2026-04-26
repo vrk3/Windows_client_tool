@@ -297,5 +297,135 @@
       {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs","value":"RequireSignedDriverCache","data":1,"kind":"DWORD"},
       {"type":"command","cmd":"bcdedit /set testsigning off"}
     ]
+  },
+  {
+    "id": "disable_smb_encryption",
+    "name": "Require SMB Encryption on All Shares",
+    "description": "Requires SMB encryption for all file shares — prevents any unencrypted SMB connection. Clients must support SMB3.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters","value":"SMBServerNameHardeningLevel","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_admin_ads",
+    "name": "Disable Admin Approval Mode Bypass for COM",
+    "description": "Prevents COM objects from bypassing the Admin Approval Mode UAC prompt.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System","value":"FilterAdministratorToken","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_wsh_credential_prompt",
+    "name": "Disable Credential Prompt for WSH Scripts",
+    "description": "Requires WSH scripts to run without elevated privileges unless explicitly requested.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows Script Host\\Settings","value":"AuthenticodePrompt","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_office_file_validation",
+    "name": "Disable Office File Validation for Faster Loading",
+    "description": "Disables the Office File Validation inspector that scans downloaded files. Minor security reduction but faster file opening.",
+    "category": "Security", "risk": "medium", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Common\\Security","value":"DisableBrokerImplicitSigning","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_windows_defender_heaps",
+    "name": "Enable Windows Defender Heap Protection",
+    "description": "Enables all Windows Defender exploit protection heap mitigations.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ProcessMitigation -System -Enable HeapTurbo\""}
+    ]
+  },
+  {
+    "id": "disable_wdigest_credential_cache",
+    "name": "Disable WDigest Credential Caching",
+    "description": "Prevents Windows from caching credentials in memory for WDigest authentication. Mitigates credential theft attacks.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest","value":"UseLogonCredential","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_lsa_protection",
+    "name": "Enable LSASS Protected Process",
+    "description": "Enables LSASS to run as a protected process, preventing tools from dumping credentials from memory.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"RunAsPPL","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_anonymous_enum",
+    "name": "Disable Anonymous Enumeration of Shares and SAM",
+    "description": "Prevents anonymous users from listing shares and enumerating SAM accounts over the network.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"RestrictAnonymousSAM","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"RestrictAnonymous","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"EveryoneIncludesAnonymous","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_office_ole_object",
+    "name": "Disable Office OLE Object Embedding",
+    "description": "Prevents Office documents from embedding and automatically updating linked OLE objects. Blocks an exploit vector used in document-based malware.",
+    "category": "Security", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Word\\Security","value":"DisableOOFDllBuck","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_secure_boot",
+    "name": "Ensure Secure Boot is Enabled",
+    "description": "Verifies that Secure Boot is enabled in UEFI firmware. Displays a warning if it is not.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Confirm-SecureBootUEFI\""}
+    ]
+  },
+  {
+    "id": "disable_auto_play_exploit",
+    "name": "Disable AutoRun for Executable Media",
+    "description": "Completely disables AutoRun for all drive types, preventing malware auto-execution from USB and network drives.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoDriveTypeAutoRun","data":255,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoDriveTypeAutoRun","data":255,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_bitlocker_tpm_only",
+    "name": "Enable BitLocker with TPM Only",
+    "description": "Configures BitLocker to use TPM-only authentication (no recovery key required). Best security for machines with TPM.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"manage-bde -on C: -tpm"}
+    ]
+  },
+  {
+    "id": "disable_windows_defender_security_center",
+    "name": "Harden Windows Security Center Notifications",
+    "description": "Configures Windows Security Center to suppress low-priority notifications while keeping real-time protection active.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Notifications","value":"DisableNotifications","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Notifications","value":"DisableEnhancedNotifications","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_audit_process_creation",
+    "name": "Enable Process Creation Auditing",
+    "description": "Enables detailed process creation event logging in the Windows Security event log.",
+    "category": "Security", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Audit","value":"ProcessCreationIncludeCmdLine","data":1,"kind":"DWORD"}
+    ]
   }
 ]

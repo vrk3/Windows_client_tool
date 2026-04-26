@@ -68,7 +68,7 @@
     "steps": [{"type":"service","name":"seclogon","start_type":"disabled"}]
   },
   {
-    "id": "disable_superfetch_service",
+    "id": "disable_windows_search_service",
     "name": "Disable Windows Search Service",
     "description": "Disables Windows Search indexing service. Reduces background disk activity.",
     "category": "Services", "risk": "medium", "requires_admin": true,
@@ -265,6 +265,133 @@
     "steps": [
       {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate","value":"SetDisableUXWUAccess","data":1,"kind":"DWORD"},
       {"type":"service","name":"wservice","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_extensible_proxy",
+    "name": "Disable Windows Extensible Proxy Service",
+    "description": "Disables the Windows Extensible Proxy service used by Windows Update to scan for updates.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"CldStorSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_browser_broker",
+    "name": "Disable Browser Broker Service",
+    "description": "Stops the browser broker that manages Microsoft Edge and IE elevated COM objects.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"BrokerInfrastructure","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_windows_insider_service2",
+    "name": "Disable Windows Insider Service (wmisvc)",
+    "description": "Disables the Windows Insider Management service that manages Insider program registrations.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"wmisvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_nv_exposure",
+    "name": "Disable NVIDIA Telemetry Container",
+    "description": "Disables the NVIDIA telemetry container service. Game recording and GeForce Experience features will be unavailable.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"NvContainerLocalSystem","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_office_telemetry_service",
+    "name": "Disable Office Telemetry Service",
+    "description": "Disables the Microsoft Office telemetry service that runs in the background.",
+    "category": "Services", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"service","name":"MicrosoftOfficeTelemetryService","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_diagnosticshub_collector",
+    "name": "Disable Diagnostics Hub Standard Collector Service",
+    "description": "Stops the Diagnostics Hub Standard Collector service that collects performance and diagnostic data.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"diagnosticshub.standardcollector.service","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_desktop_window_manager",
+    "name": "Disable Desktop Window Manager (DWM)",
+    "description": "Disables the DWM. WARNING: Disables Aero Glass, Flip3D, and thumbnail previews. Use only for testing.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"UxSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_bitlocker_drive",
+    "name": "Disable BitLocker Drive Encryption Service",
+    "description": "Disables the BitLocker service. WARNING: If BitLocker is in use, this may cause boot failures.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"BDESVC","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_applocker",
+    "name": "Disable AppLocker Service",
+    "description": "Disables the AppLocker service that enforces application control policies.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"AppIDSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_security_health_service",
+    "name": "Disable Windows Security Health Service",
+    "description": "Disables the Security Health Service that monitors system security status. WARNING: May disable Windows Security Center.",
+    "category": "Services", "risk": "high", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"SecurityHealthService","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_windows_search_advanced",
+    "name": "Disable Windows Search Completely",
+    "description": "Fully disables Windows Search including the indexer, search service, and all indexing. File searches will be very slow.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"WSearch","start_type":"disabled"},
+      {"type":"service","name":"WSearchHome","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_device_setup_manager",
+    "name": "Disable Device Setup Manager",
+    "description": "Disables the Device Setup Manager service that manages device driver installation and updates.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"DsmSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_hid_service",
+    "name": "Disable Human Interface Device Service",
+    "description": "Disables the HID service that manages keyboard hotkeys and media buttons.",
+    "category": "Services", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"hidserv","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "disable_print_notify",
+    "name": "Disable Print Spooler Notify Service",
+    "description": "Disables the print spooler notification service. Printing functionality is unaffected.",
+    "category": "Services", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"Spooler","start_type":"disabled"}
     ]
   }
 ]

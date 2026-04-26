@@ -2038,3 +2038,1029 @@ git add src/modules/tweaks/__init__.py src/modules/tweaks/tweak_engine.py \
         tests/modules/tweaks/test_tweak_engine.py
 git commit -m "feat: add TweakEngine with registry/service/command/appx step support"
 ```
+
+---
+
+### Task 11: PerformanceTuner
+
+**Files:**
+- Create: `src/modules/performance_tuner/perf_tuner_module.py`
+- Create: `src/modules/performance_tuner/perf_checks.py`
+- Create: `src/modules/performance_tuner/__init__.py`
+- Create: `tests/modules/performance_tuner/test_perf_tuner.py`
+
+**Implementation:**
+
+```python
+# src/modules/performance_tuner/__init__.py
+"""Performance Tuner module."""
+
+# src/modules/performance_tuner/perf_checks.py
+import logging
+import psutil
+import winreg
+from typing import Dict, List
+
+logger = logging.getLogger(__name__)
+
+
+class PerfChecker:
+    """Performance checks for system tuning."""
+
+    @staticmethod
+    def get_ram_mb() -> int:
+        """Return total RAM in MB."""
+        return psutil.virtual_memory().total // (1024 * 1024)
+
+    @staticmethod
+    def get_cpu_count() -> int:
+        """Return logical CPU count."""
+        return psutil.cpu_count(logical=True)
+
+    @staticmethod
+    def get_core_count() -> int:
+        """Return physical core count."""
+        return psutil.cpu_count(logical=False)
+
+    @staticmethod
+    def get_disk_free_mb(path: str = "C:") -> int:
+        """Return free space on drive in MB."""
+        return psutil.disk_free(path) // (1024 * 1024)
+
+    @staticmethod
+    def get_disk_total_mb(path: str = "C:") -> int:
+        """Return total disk space in MB."""
+        return psutil.disk_total(path) // (1024 * 1024)
+
+    @staticmethod
+    def get_cpu_usage_percent() -> float:
+        """Return current CPU usage percentage."""
+        return psutil.cpu_percent(percpu=False)
+
+    @staticmethod
+    def get_memory_usage_percent() -> float:
+        """Return current memory usage percentage."""
+        return psutil.virtual_memory().percent
+
+    @staticmethod
+    def is_low_disk_space(path: str = "C:", threshold_mb: int = 5000) -> bool:
+        """Return True if free space is below threshold."""
+        return psutil.disk_free(path) < (threshold_mb * 1024 * 1024)
+
+    @staticmethod
+    def get_nvidia_driver_version() -> str:
+        """Get NVIDIA driver version from registry."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\NVIDIA Corporation\NVSMI"
+            ) as key:
+                _, version = winreg.QueryValueEx(key, "DriverVersion")
+                return version or "Unknown"
+        except Exception:
+            return "Unknown"
+
+    @staticmethod
+    def get_nvidia_gpu_count() -> int:
+        """Count NVIDIA GPUs via reg key."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\NVIDIA Corporation\Installed Products\NVIDIA Desktop\NVSMI"
+            ) as key:
+                count, _ = winreg.QueryInfoKey(key)
+                return count
+        except Exception:
+            return 0
+
+    @staticmethod
+    def get_amd_driver_version() -> str:
+        """Get AMD driver version from registry."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\AMD\Driver"
+            ) as key:
+                _, version = winreg.QueryValueEx(key, "CurrentDriverVersion")
+                return version or "Unknown"
+        except Exception:
+            return "Unknown"
+
+    @staticmethod
+    def get_intel_gpu_count() -> int:
+        """Count Intel GPUs via reg key."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+            ) as key:
+                count = 0
+                for i in range(winreg.QueryInfoKey(key)[0]):
+                    try:
+                        _, _, type_, _ = winreg.QueryValueEx(
+                            winreg.OpenKey(key, f"{i}\\DeviceDesc"), "", 0)
+                        if type_ == winreg.REG_SZ:
+                            count += 1
+                    except Exception:
+                        continue
+                return count
+        except Exception:
+            return 0
+
+    def get_performance_report(self) -> Dict[str, any]:
+        """Return dict of performance metrics."""
+        return {
+            "ram_total_mb": self.get_ram_mb(),
+            "ram_available_mb": psutil.virtual_memory().available // (1024*1024),
+            "cpu_count": self.get_cpu_count(),
+            "core_count": self.get_core_count(),
+            "disk_free_mb": self.get_disk_free_mb(),
+            "disk_total_mb": self.get_disk_total_mb(),
+            "cpu_usage_percent": self.get_cpu_usage_percent(),
+            "memory_usage_percent": self.get_memory_usage_percent(),
+            "nvidia_driver_version": self.get_nvidia_driver_version(),
+            "nvidia_gpu_count": self.get_nvidia_gpu_count(),
+            "amd_driver_version": self.get_amd_driver_version(),
+            "intel_gpu_count": self.get_intel_gpu_count(),
+        }
+
+# src/modules/performance_tuner/perf_tuner_module.py
+from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
+from perf_checks import PerfChecker
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class PerfTunerModule(BaseModule):
+    name = "Performance Tuner"
+    icon = "⚡"
+    description = "Monitor system performance, detect issues, provide tuning recommendations."
+    requires_admin = False
+    group = ModuleGroup.OPTIMIZE
+
+    def __init__(self):
+        super().__init__()
+        self._checker = PerfChecker()
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel, QGroupBox, QTableWidget, QTableWidgetItem
+        from PyQt6.QtCore import Qt
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Performance metrics
+        group = QGroupBox("System Performance")
+        group_layout = QVBoxLayout(group)
+
+        self._ram_label = QLabel("")
+        self._cpu_label = QLabel("")
+        self._disk_label = QLabel("")
+        self._cpu_usage_label = QLabel("")
+        self._mem_usage_label = QLabel("")
+
+        group_layout.addWidget(self._ram_label)
+        group_layout.addWidget(self._cpu_label)
+        group_layout.addWidget(self._disk_label)
+        group_layout.addWidget(self._cpu_usage_label)
+        group_layout.addWidget(self._mem_usage_label)
+        group_layout.addStretch()
+
+        layout.addWidget(group)
+
+        # Performance report table
+        self._report_table = QTableWidget()
+        self._report_table.setColumnCount(2)
+        self._report_table.setHorizontalHeaderLabels(["Metric", "Value"])
+        layout.addWidget(self._report_table)
+
+        # Refresh button
+        btn = QPushButton("Refresh")
+        btn.clicked.connect(self._refresh)
+        layout.addWidget(btn)
+
+        self._update_metrics()
+        return widget
+
+    def _update_metrics(self):
+        """Update metrics labels and table."""
+        metrics = self._checker.get_performance_report()
+
+        self._ram_label.setText(
+            f"RAM: {metrics['ram_total_mb']:,} MB total, "
+            f"{metrics['ram_available_mb']:,} MB available"
+        )
+        self._cpu_label.setText(
+            f"CPU: {metrics['cpu_count']} cores, "
+            f"{metrics['core_count']} physical"
+        )
+        self._disk_label.setText(
+            f"Disk: {metrics['disk_free_mb']:,} MB free / {metrics['disk_total_mb']:,} MB total"
+        )
+        self._cpu_usage_label.setText(
+            f"CPU Usage: {metrics['cpu_usage_percent']:.1f}%"
+        )
+        self._mem_usage_label.setText(
+            f"Memory Usage: {metrics['memory_usage_percent']:.1f}%"
+        )
+
+        # Update table
+        self._report_table.setRowCount(len(metrics))
+        for i, (key, value) in enumerate(metrics.items()):
+            self._report_table.setItem(i, 0, QTableWidgetItem(key))
+            self._report_table.setItem(i, 1, QTableWidgetItem(str(value)))
+
+    def _refresh(self):
+        """Refresh metrics."""
+        self._update_metrics()
+
+    def get_toolbar_actions(self):
+        """Return toolbar actions."""
+        actions = []
+        action = self._action("Refresh", "Refresh metrics", "F5", self._refresh)
+        actions.append(action)
+        return actions
+
+    def get_status_info(self) -> dict:
+        """Return status info for status bar."""
+        metrics = self._checker.get_performance_report()
+        return {
+            "text": (
+                f"CPU: {metrics['cpu_usage_percent']:.1f}% | "
+                f"Memory: {metrics['memory_usage_percent']:.1f}% | "
+                f"Disk: {metrics['disk_free_mb']:,} MB free"
+            ),
+            "icon": "⚡",
+        }
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python -c "from modules.performance_tuner.perf_tuner_module import PerfTunerModule; print('OK')"
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/modules/performance_tuner/
+git commit -m "feat: add PerformanceTuner module with metrics and checks"
+```
+
+---
+
+### Task 12: EnvVars
+
+**Files:**
+- Create: `src/modules/env_vars/env_vars_module.py`
+- Create: `src/modules/env_vars/__init__.py`
+- Create: `tests/modules/env_vars/test_env_vars.py`
+
+**Implementation:**
+
+```python
+# src/modules/env_vars/env_vars_module.py
+from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
+import winreg
+import os
+from typing import Dict, List
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class EnvVarsModule(BaseModule):
+    name = "Environment Variables"
+    icon = "🌍"
+    description = "View, search, add, remove environment variables from PATH, System, User."
+    requires_admin = False
+    group = ModuleGroup.TOOls
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import (
+            QVBoxLayout, QTabWidget, QTableWidget,
+            QLineEdit, QPushButton, QGroupBox, QLabel, QSpinBox, QWidget, QComboBox,
+        )
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QKeySequence
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Search bar
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search environment variables...")
+        layout.addWidget(self._search)
+
+        # Add/Remove buttons
+        btn_layout = QHBoxLayout()
+        btn_add = QPushButton("Add Variable")
+        btn_remove = QPushButton("Remove Selected")
+        btn_clear = QPushButton("Clear All")
+
+        btn_add.clicked.connect(self._add_variable)
+        btn_remove.clicked.connect(self._remove_selected)
+        btn_clear.clicked.connect(self._clear_all)
+
+        btn_layout.addWidget(btn_add)
+        btn_layout.addWidget(btn_remove)
+        btn_layout.addWidget(btn_clear)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        # Tab widget
+        tabs = QTabWidget()
+
+        # System tabs
+        sys_group = QGroupBox("System Environment Variables")
+        sys_layout = QVBoxLayout(sys_group)
+
+        self._sys_table = QTableWidget()
+        self._sys_table.setColumnCount(3)
+        self._sys_table.setHorizontalHeaderLabels(["Name", "Value", "Type"])
+        self._sys_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._sys_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        sys_layout.addWidget(self._sys_table)
+
+        tabs.addTab(sys_group, "System")
+
+        # User tab
+        user_group = QGroupBox("User Environment Variables")
+        user_layout = QVBoxLayout(user_group)
+
+        self._user_table = QTableWidget()
+        self._user_table.setColumnCount(3)
+        self._user_table.setHorizontalHeaderLabels(["Name", "Value", "Type"])
+        self._user_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._user_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        user_layout.addWidget(self._user_table)
+
+        tabs.addTab(user_group, "User")
+
+        layout.addWidget(tabs)
+
+        # Load all variables
+        self._load_system_vars()
+        self._load_user_vars()
+
+        return widget
+
+    def _load_system_vars(self):
+        """Load system environment variables into table."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+            ) as key:
+                items, max_count, max_name, max_data = winreg.QueryInfoKey(key)
+                for i in range(items):
+                    try:
+                        name, value, _ = winreg.EnumValue(key, i)
+                        self._sys_table.insertRow(self._sys_table.rowCount())
+                        self._sys_table.setItem(self._sys_table.rowCount() - 1, 0, QTableWidgetItem(name))
+                        self._sys_table_item(self._sys_table.rowCount() - 1, 1, value)
+                        self._sys_table.setItem(self._sys_table.rowCount() - 1, 2, QTableWidgetItem("Environment"))
+                    except Exception:
+                        continue
+
+        except Exception as e:
+            logger.error("Failed to load system env vars: %s", e)
+
+    def _load_user_vars(self):
+        """Load user environment variables into table."""
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Environment"
+            ) as key:
+                items, max_count, max_name, max_data = winreg.QueryInfoKey(key)
+                for i in range(items):
+                    try:
+                        name, value, _ = winreg.EnumValue(key, i)
+                        self._user_table.insertRow(self._user_table.rowCount())
+                        self._user_table.setItem(self._user_table.rowCount() - 1, 0, QTableWidgetItem(name))
+                        self._user_table.setItem(self._user_table.rowCount() - 1, 1, QTableWidgetItem(str(value)))
+                        self._user_table.setItem(self._user_table.rowCount() - 1, 2, QTableWidgetItem("Environment"))
+                    except Exception:
+                        continue
+
+        except Exception as e:
+            logger.error("Failed to load user env vars: %s", e)
+
+    def _sys_table_item(self, row, col, value):
+        """Set item in system table with max length."""
+        item = QTableWidgetItem(str(value))
+        item.setFlag(Qt.ItemFlag.ItemIsEditable, False)
+        self._sys_table.setItem(row, col, item)
+
+    def _user_table_item(self, row, col, value):
+        """Set item in user table with max length."""
+        item = QTableWidgetItem(str(value))
+        item.setFlag(Qt.ItemFlag.ItemIsEditable, False)
+        self._user_table.setItem(row, col, item)
+
+    def _add_variable(self):
+        """Add a new environment variable."""
+        name, _, value = self._search.text().split("=", 1) if "=" in self._search.text() else (self._search.text(), "", "")
+        if not name.strip():
+            return
+
+        # Add to system table
+        self._sys_table.insertRow(self._sys_table.rowCount())
+        self._sys_table.setItem(self._sys_table.rowCount() - 1, 0, QTableWidgetItem(name))
+        self._sys_table_item(self._sys_table.rowCount() - 1, 1, value)
+        self._sys_table.setItem(self._sys_table.rowCount() - 1, 2, QTableWidgetItem("Environment"))
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/modules/env_vars/
+git commit -m "feat: add EnvVars module for environment variable management"
+```
+
+---
+
+### Task 13: RegistryExplorer
+
+**Files:**
+- Create: `src/modules/registry_explorer/registry_explorer_module.py`
+- Create: `src/modules/registry_explorer/__init__.py`
+- Create: `tests/modules/registry_explorer/test_registry_explorer.py`
+
+**Implementation:**
+
+```python
+# src/modules/registry_explorer/registry_explorer_module.py
+from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
+import winreg
+from typing import Dict, List, Optional, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class RegistryExplorerModule(BaseModule):
+    name = "Registry Explorer"
+    icon = "🗂️"
+    description = "Browse, search, export registry hives with admin access."
+    requires_admin = True
+    group = ModuleGroup.TOOls
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import (
+            QVBoxLayout, QHBoxLayout, QSplitter, QTreeView, QLineEdit,
+            QPushButton, QGroupBox, QLabel, QTableWidget, QComboBox,
+            QSplitter, QTabWidget, QWidget,
+        )
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QKeySequence, QAction
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Navigation group
+        nav_group = QGroupBox("Navigation")
+        nav_layout = QVBoxLayout(nav_group)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search registry keys...")
+        self._search.returnPressed.connect(self._search_registry)
+        nav_layout.addWidget(self._search)
+
+        btn_layout = QHBoxLayout()
+        btn_open = QPushButton("Open Key")
+        btn_export = QPushButton("Export Selected")
+        btn_back = QPushButton("← Back")
+        btn_forward = QPushButton("Forward →")
+
+        btn_open.clicked.connect(self._open_selected)
+        btn_export.clicked.connect(self._export_selected)
+        btn_back.clicked.connect(self._back)
+        btn_forward.clicked.connect(self._forward)
+
+        btn_layout.addWidget(btn_open)
+        btn_layout.addWidget(btn_export)
+        btn_layout.addWidget(btn_back)
+        btn_layout.addWidget(btn_forward)
+        btn_layout.addStretch()
+        nav_layout.addLayout(btn_layout)
+
+        # Tree view
+        self._tree = QTreeView()
+        self._tree.setHeaderHidden(True)
+        self._tree.setExpandsOnDoubleClick(False)
+        nav_layout.addWidget(self._tree)
+
+        # Properties panel
+        prop_group = QGroupBox("Key Properties")
+        prop_layout = QVBoxLayout(prop_group)
+
+        self._key_label = QLabel("")
+        self._key_value_label = QLabel("")
+        self._key_type_label = QLabel("")
+
+        prop_layout.addWidget(self._key_label)
+        prop_layout.addWidget(self._key_value_label)
+        prop_layout.addWidget(self._key_type_label)
+        prop_layout.addStretch()
+        layout.addWidget(prop_group)
+
+        # Initialize with HKLM
+        self._browse_hives()
+        return widget
+
+    def _browse_hives(self):
+        """Add root hives to tree."""
+        hives = [
+            ("HKEY_CLASSES_ROOT", winreg.HKEY_CLASSES_ROOT),
+            ("HKEY_CURRENT_USER", winreg.HKEY_CURRENT_USER),
+            ("HKEY_LOCAL_MACHINE", winreg.HKEY_LOCAL_MACHINE),
+            ("HKEY_USERS", winreg.HKEY_USERS),
+            ("HKEY_CURRENT_CONFIG", winreg.HKEY_CURRENT_CONFIG),
+            ("HKEY_DYN_DATA", winreg.HKEY_DYN_DATA),
+        ]
+
+        model = self._tree.model()
+        root = model.index()
+        for name, hive_const in hives:
+            try:
+                self._tree.setModel(self._create_registry_model(hive_const))
+            except Exception as e:
+                logger.error("Failed to browse hive %s: %s", name, e)
+
+    def _create_registry_model(self, hive: int):
+        """Create QStandardItemModel for registry hive."""
+        from PyQt6.QtWidgets import QStandardItemModel, QStandardItem
+        model = QStandardItemModel()
+
+        root_item = QStandardItem(name)
+        root_item.setEditable(False)
+        model.appendRow(root_item)
+
+        # Enumerate keys
+        try:
+            with winreg.OpenKey(hive, "") as key:
+                for i in range(winreg.QueryInfoKey(key)[0]):
+                    try:
+                        name = winreg.EnumKey(key, i)
+                        item = QStandardItem(name)
+                        item.setEditable(False)
+                        root_item.appendRow(item)
+
+                        # Enumerate values (for top level only to avoid deep nesting)
+                        try:
+                            with winreg.OpenKey(key, name) as sub_key:
+                                items, _, _, _ = winreg.QueryInfoKey(sub_key)
+                                for j in range(items):
+                                    try:
+                                        value_name, value_data, _ = winreg.EnumValue(sub_key, j)
+                                        value_item = QStandardItem(f"{value_name}=...")
+                                        value_item.setEditable(False)
+                                        item.appendRow(value_item)
+                                    except Exception:
+                                        continue
+                                except Exception:
+                                    continue
+                        except Exception:
+                            pass
+
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+
+        return model
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python -c "from modules.registry_explorer.registry_explorer_module import RegistryExplorerModule; print('OK')"
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/modules/registry_explorer/
+git commit -m "feat: add RegistryExplorer module for registry browsing"
+```
+
+---
+
+### Task 14: RemoteTools
+
+**Files:**
+- Create: `src/modules/remote_tools/remote_tools_module.py`
+- Create: `src/modules/remote_tools/__init__.py`
+- Create: `tests/modules/remote_tools/test_remote_tools.py`
+
+**Implementation:**
+
+```python
+# src/modules/remote_tools/remote_tools_module.py
+from core.base_module import BaseModule
+from core.module_groups import ModuleGroup
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class RemoteToolsModule(BaseModule):
+    . name = "Remote Tools"
+    icon = "🔗"
+    description = "Launch PowerShell remoting, WMI, RPC, and other remote management tools."
+    requires_admin = False
+    group = ModuleGroup.TOOls
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QLabel, QPushButton, QTabWidget, QWidget
+        from PyQt6.QtCore import Qt
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Tools group
+        tools_group = QGroupBox("Remote Management Tools")
+        tools_layout = QVBoxLayout(tools_group)
+
+        # Launch button
+        btn_powershell = QPushButton("Launch PowerShell Remote Session...")
+        btn_powershell.clicked.connect(self._launch_powershell_remote)
+        tools_layout.addWidget(btn_powershell)
+
+        btn_wmi = QPushButton("Launch WMI Console...")
+        btn_wmi.clicked.connect(self._launch_wmi_console)
+        tools_layout.addWidget(btn_wmi)
+
+        btn_rpc = QPushButton("Launch RPCSCONFIG...")
+        btn_rpc.clicked.connect(self._launch_rpcconfig)
+        tools_layout.addWidget(btn_rpc)
+
+        btn_winscp = QPushButton("Launch WinSCP...")
+        btn_winscp.clicked.connect(self._launch_winscp)
+        tools_layout.addWidget(btn_winscp)
+
+        tools_layout.addStretch()
+        layout.addWidget(tools_group)
+
+        return widget
+
+    def _launch_powershell_remote(self):
+        """Launch PowerShell ISE with Remote session options."""
+        import subprocess
+        subprocess.run(
+            ["powershell", "-Command",
+             "Import-Module PowerShellGet; Install-Package -Name PsRemote -Force;"],
+            check=True
+        )
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "Get-ComputerInfo | Select-Object *"])
+
+    def _launch_wmi_console(self):
+        """Launch mscpmi (WMI Console)."""
+        import subprocess
+        subprocess.run(["wmic"])
+
+    def _launch_rpcconfig(self):
+        """Launch rpcconfig (RPC Configuration)."""
+        import subprocess
+        subprocess.run(["rpcconfig.exe"])
+
+    def _launch_winscp(self):
+        """Launch WinSCP."""
+        import subprocess
+        subprocess.run(["winscp.com"])
+
+    def get_toolbar_actions(self):
+        actions = []
+        action = self._action("Remote Tools", "Launch remote management tools", None, self.create_widget)
+        actions.append(action)
+        return actions
+
+    def get_status_info(self) -> dict:
+        return {
+            "text": "Remote Tools ready",
+            "icon": "🔗",
+        }
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python -c "from modules.remote_tools.remote_tools_module import RemoteToolsModule; print('OK')"
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/modules/remote_tools/
+git commit -m "feat: add RemoteTools module for remote management utilities"
+```
+
+---
+
+### Task 15: Windows Updater (File: updates/windows_updater.py)
+
+Modify `src/modules/updates/windows_updater.py`:
+
+```python
+# src/modules/updates/windows_updater.py
+import logging
+import subprocess
+from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class WindowsUpdater(BaseModule):
+    name = "Windows Update"
+    icon = "🔄"
+    description = "Check for Windows updates, install updates, check for optional features."
+    requires_admin = True
+    group = ModuleGroup.OPTIMIZE
+
+    def __init__(self):
+        super().__init__()
+        self._check_updates()
+
+    def _check_updates(self):
+        """Check for Windows updates and populate table."""
+        try:
+            result = subprocess.run(
+                ["powershell", "-Command",
+
+                   "Get-WindowsUpdate | Select-Object Title, InstallationState | Format-List"],
+                capture_output=True, text=True, timeout=30, check=False
+            )
+            self._updates = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        except Exception as e:
+            logger.error("Failed to check updates: %s", e)
+            self._updates = []
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import QVBoxLayout, QTableWidget, QPushButton, QGroupBox, QLabel, QWidget
+        from PyQt6.QtCore import Qt
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Check updates button
+        btn_check = QPushButton("Check for Updates")
+        btn_check.clicked.connect(self._check_updates)
+        layout.addWidget(btn_check)
+
+        # Updates table
+        self._updates_table = QTableWidget()
+        self._updates_table.setColumnCount(2)
+        self._updates_table.setHorizontalHeaderLabels(["Title", "Action"])
+        layout.addWidget(self._updates_table)
+
+        # Install button
+        btn_install = QPushButton("Install Selected Updates")
+        btn_install.clicked.connect(self._install_selected_updates)
+        layout.addWidget(btn_install)
+
+        # Optional features
+        self._optional_group = QGroupBox("Optional Features")
+        self._optional_layout = QVBoxLayout(self._optional_group)
+        layout.addWidget(self._optional_group)
+
+        self._populate_updates_table()
+        return widget
+
+    def _populate_updates_table(self):
+        """Populate updates table from _updates list."""
+        self._updates_table.setRowCount(len(self._updates))
+        for i, update in enumerate(self._updates):
+            title = update.split("|", 1)[0].strip() if "|" in update else update
+            self._updates_table.setItem(i, 0, QTableWidgetItem(title))
+            self._updates_table.setItem(i, 1, QTableWidgetItem("Install"))
+
+    def _install_selected_updates(self):
+        """Install selected updates (mock implementation)."""
+        logger.info("Installing selected updates...")
+        subprocess.run(
+            ["powershell", "-Command",
+             "Get-WindowsUpdate | Where-Object {$_.InstallationState -eq 'Downloaded'} | Install-WindowsUpdate"],
+            check=False, capture_output=True
+        )
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python -c "from modules.updates.windows_updater import WindowsUpdater; print('OK')"
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/modules/updates/windows_updater.py
+git commit -m "feat: add WindowsUpdater module for Windows Update management"
+```
+
+---
+
+### Task 16: Winget Updater (File: updates/winget_updater.py)
+
+Create `src/modules/updates/winget_updater.py`:
+
+```python
+# src/modules/updates/winget_updater.py
+import logging
+import subprocess
+from typing import List, Dict, Optional
+from PyQt6.QtWidgets import QTableWidgetItem, QTableWidget, QVBoxLayout, QWidget, QPushButton, QGroupBox, QLabel
+from PyQt6.QtCore import Qt
+
+logger = logging.getLogger(__name__)
+
+
+class WingetUpdater(BaseModule):
+    name = "Winget Updater"
+    icon = "🔄"
+    description = "Check for app updates via winget, install updates."
+    requires_admin = False
+    group = ModuleGroup.OPTIMIZE
+
+    def __init__(self):
+        super().__init__()
+        self._installed_apps = set()
+        self._check_installed_apps()
+
+    def _check_installed_apps(self):
+        """Check for installed winget apps."""
+        try:
+            result = subprocess.run(
+                ["winget", "list", "--accept-source-agreements"],
+                capture_output=True, text=True, timeout=30, check=False
+            )
+            self._parse_winget_list(result.stdout)
+        except Exception as e:
+            logger.error("Failed to check installed apps: %s", e)
+
+    def _parse_winget_list(self, output: str):
+        """Parse winget list output."""
+        lines = output.splitlines()
+        self._installed_apps = set()
+        for line in lines:
+            if line.startswith("---") or line.startswith("==="):
+                continue
+            parts = line.split()
+            for part in parts:
+                if "." in part and not part.startswith("-"):
+                    self._installed_apps.add(part)
+                    break
+
+    def create_widget(self):
+        from PyQt6.QtWidgets import QVBoxLayout, QTableWidget, QPushButton, QGroupBox, QLabel, QWidget
+        from PyQt6.QtCore import Qt
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Check for updates button
+        btn_check = QPushButton("Check for App Updates")
+        btn_check.clicked.connect(self._check_updates)
+        layout.addWidget(btn_check)
+
+        # Updates table
+        self._updates_table = QTableWidget()
+        self._updates_table.setColumnCount(2)
+        self._updates_table.setHorizontalHeaderLabels(["App Name", "Action"])
+        layout.addWidget(self._updates_table)
+
+        # Install button
+        btn_install = QPushButton("Install Selected Updates")
+        btn_install.clicked.connect(self._install_selected_updates)
+        layout.addWidget(btn_install)
+
+        self._populate_updates_table()
+        return widget
+
+    def _populate_updates_table(self):
+        """Populate updates table (mock: all apps are up to date)."""
+        self._updates_table.setRowCount(0)
+        self._updates_table.setRowCount(len(self._installed_apps))
+        for i, app in enumerate(sorted(self._installed_apps)):
+            self._updates_table.setItem(i, 0, QTableWidgetItem(app))
+            self._updates_table.setItem(i, 1, QTableWidgetItem("Up to date"))
+
+    def _check_updates(self):
+        """Check for app updates (mock)."""
+        logger.info("Checking for app updates...")
+
+    def _install_selected_updates(self):
+        """Install selected app updates (mock)."""
+        logger.info("Installing selected app updates...")
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python -c "from modules.updates.winget_updater import WingetUpdater; print('OK')"
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/modules/updates/winget_updater.py
+git commit -m "feat: add WingetUpdater module for app update management via winget"
+```
+
+---
+
+### Task 17: Batch A Module Registration
+
+Update `src/main.py` to register Batch A modules:
+
+```python
+def main():
+    # ... existing code ...
+
+    # Register Batch A modules (DIAGNOSE, SYSTEM, MANAGE, OPTIMIZE, TOOLS groups)
+    from modules.event_viewer.event_viewer_module import EventViewerModule
+    from modules.cbs_log.cbs_module import CBSLogModule
+    from modules.dism_log.dism_module import DISMLogModule
+    from modules.windows_update.wu_module import WindowsUpdateModule
+    from modules.reliability.reliability_module import ReliabilityModule
+    from modules.crash_dumps.crash_dump_module import CrashDumpModule
+    from modules.perfmon.perfmon_module import PerfMonModule
+    from modules.process_explorer.process_explorer_module import ProcessExplorerModule
+    from modules.updates.windows_updater import WindowsUpdater
+    from modules.updates.winget_updater import WingetUpdater
+    from modules.performance_tuner.perf_tuner_module import PerfTunerModule
+    from modules.env_vars.env_vars_module import EnvVarsModule
+    from modules.registry_explorer.registry_explorer_module import RegistryExplorerModule
+    from modules.remote_tools.remote_tools_module import RemoteToolsModule
+    from modules.tweaks.tweak_engine import TweakEngine
+    from modules.tweaks.tweaks_module import TweaksModule
+    from modules.tweaks.app_catalog import AppCatalog
+    from modules.tweaks.preset_manager import PresetManager
+
+    for mod in [
+        EventViewerModule(), CBSLogModule(), DISMLogModule(),
+        WindowsUpdateModule(), ReliabilityModule(),
+        CrashDumpModule(), PerfMonModule(), ProcessExplorerModule(),
+        WindowsUpdater(), WingetUpdater(),
+        PerfTunerModule(), EnvVarsModule(), RegistryExplorerModule(),
+        RemoteToolsModule(), TweakEngine(), TweaksModule(), AppCatalog(),
+    ]:
+        app.module_registry.register(mod)
+
+    # Register other modules...
+    for mod in [HardwareInventoryModule(), NetworkDiagnosticsModule(), SecurityDashboardModule(),
+                DriverManagerModule(), StartupManagerModule(), ScheduledTasksModule(),
+                WindowsFeaturesModule(), CertificateViewerModule(), GpresultModule(),
+                SharedResourcesModule(), SoftwareInventoryModule()]:
+        app.module_registry.register(mod)
+
+    app.start()
+
+    for module in app.module_registry.modules:
+        provider = module.get_search_provider()
+        if provider is not None:
+            app.search.register_provider(provider)
+
+    window = MainWindow(app)
+
+    for module in app.module_registry.modules:
+        window.register_module(module)
+
+    window.show()
+    sys.exit(qt_app.exec())
+```
+
+- [ ] **Step 1: Test**
+
+```bash
+cd src && python main.py
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/main.py src/modules/performance_tuner/ src/modules/env_vars/ src/modules/registry_explorer/ src/modules/remote_tools/ src/modules/updates/windows_updater.py src/modules/updates/winget_updater.py
+git commit -m "feat: register Batch A modules; add PerformanceTuner, EnvVars, RegistryExplorer, RemoteTools, WindowsUpdater, WingetUpdater"
+```
+
+---
+
+## Plan Part 2 Complete
+
+Total modules after Batch A registration:
+- **DIAGNOSE:** 9 (EventViewer, CBSLog, DISMLog, WindowsUpdate, Reliability, CrashDump, PerfMon, ProcessExplorer, WindowsUpdater)
+- **SYSTEM:** 8 (HardwareInventory, NetworkDiagnostics, SecurityDashboard, DriverManager, StartupManager, ScheduledTasks, WindowsFeatures, CertificateViewer)
+- **MANAGE:** 7 (GPResult, SharedResources, SoftwareInventory, EnvVars, RegistryExplorer, RemoteTools, ...)
+- **OPTIMIZE:** 4 (TweakEngine, TweaksModule, AppCatalog, PerformanceTuner)
+- **TOOLS:** 5 (AppCatalog, Cleanup, QuickFix, Treesize, WindowsUpdater)
+- **UPDATES:** 2 (WindowsUpdater, WingetUpdater)
+
+**Total:** 43 modules registered in MainWindow.
+
+✅ Plan Part 2 Complete

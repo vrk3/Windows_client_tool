@@ -454,5 +454,53 @@
   {
     "id": "remove_lenovo_vantage_service", "name": "Lenovo Vantage Service", "description": "Lenovo Vantage background service (Lenovo OEM).", "category": "OEM Lenovo", "risk": "low", "requires_admin": true, "package": "LenovoCompanyLimited.LenovoVantageService",
     "steps": [{"type": "appx", "package": "LenovoCompanyLimited.LenovoVantageService", "action": "remove"}]
+  },
+  {
+    "id": "remove_copilot", "name": "Windows Copilot", "description": "Windows Copilot AI assistant (Windows 11 24H2).", "category": "System Utilities", "risk": "medium", "requires_admin": true, "package": "Microsoft.Windows.Copilot",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Copilot", "action": "remove"}]
+  },
+  {
+    "id": "remove_recall", "name": "Windows Recall", "description": "Windows Recall snapshot feature (Windows 11 24H2).", "category": "System Utilities", "risk": "medium", "requires_admin": true, "package": "Microsoft.Windows.Recall",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Recall", "action": "remove"}]
+  },
+  {
+    "id": "remove_ai_landscape", "name": "AI Landscape", "description": "AI Landscape app for Windows 11 24H2.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.AI.Landscape",
+    "steps": [{"type": "appx", "package": "Microsoft.AI.Landscape", "action": "remove"}]
+  },
+  {
+    "id": "remove_studio_design", "name": "Studio Design", "description": "Microsoft Studio Design app.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.StudioDesign",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.StudioDesign", "action": "remove"}]
+  },
+  {
+    "id": "remove_paint_cocreator_appx", "name": "Paint AI Cocreator", "description": "Paint app with AI Cocreator feature (Windows 11 24H2).", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.Paint.Cocreator",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Paint.Cocreator", "action": "remove"}]
+  },
+  {
+    "id": "remove_photos_import", "name": "Microsoft Photos Import", "description": "Microsoft Photos Import tool.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.Photos.Import",
+    "steps": [{"type": "appx", "package": "Microsoft.Photos.Import", "action": "remove"}]
+  },
+  {
+    "id": "remove_microsoft_security", "name": "Microsoft Security", "description": "Microsoft Security app for Windows 11.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.SecHealthUI",
+    "steps": [{"type": "appx", "package": "Microsoft.SecHealthUI", "action": "remove"}]
+  },
+  {
+    "id": "remove_podcasts", "name": "Podcasts", "description": "Microsoft Podcasts app.", "category": "Media", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.Podcasts",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Podcasts", "action": "remove"}]
+  },
+  {
+    "id": "remove_web_experience", "name": "Web Experience", "description": "Windows Web Experience pack (widgets, etc).", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.WebExperience",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.WebExperience", "action": "remove"}]
+  },
+  {
+    "id": "remove_screenshot", "name": "Screenshot Utility", "description": "Windows Screenshot Utility.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.ScreenCapture",
+    "steps": [{"type": "appx", "package": "Microsoft.ScreenCapture", "action": "remove"}]
+  },
+  {
+    "id": "remove_desk_app", "name": "Desk App", "description": "Microsoft Desk app for Windows.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.DeskApp",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.DeskApp", "action": "remove"}]
+  },
+  {
+    "id": "remove_windows_wc", "name": "Windows Client Web Content", "description": "Windows Client Web Content.", "category": "System Utilities", "risk": "low", "requires_admin": true, "package": "Microsoft.Windows.Wcr",
+    "steps": [{"type": "appx", "package": "Microsoft.Windows.Wcr", "action": "remove"}]
   }
 ]

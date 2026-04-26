@@ -36,5 +36,144 @@
     "description": "Disables the Cocreator AI image generation in Paint.",
     "category": "AI Features", "risk": "low", "requires_admin": false,
     "steps": [{"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Applets\\Paint\\Settings", "value": "DisableAIFeatures", "data": 1, "kind": "DWORD"}]
+  },
+  {
+    "id": "disable_recall",
+    "name": "Disable Windows Recall",
+    "description": "Disables Windows Recall (AI-powered timeline/snapshot feature in Windows 11 24H2). Recall continuously captures screen snapshots and stores them locally.",
+    "category": "AI Features", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI", "value": "DisableRecall", "data": 1, "kind": "DWORD"},
+      {"type": "service", "name": "CaptureService", "start_type": "disabled"}
+    ]
+  },
+  {
+    "id": "disable_live_captions_translation",
+    "name": "Disable Live Captions AI Translation",
+    "description": "Disables AI-powered real-time translation in Live Captions. Live Captions still work for local transcription.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [{"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Graphics\\LiveCaptions", "value": "DisableTranslation", "data": 1, "kind": "DWORD"}]
+  },
+  {
+    "id": "disable_studio_effects",
+    "name": "Disable Windows Studio Effects",
+    "description": "Disables AI-powered Windows Studio Effects (background blur, eye contact, automatic framing) for webcams.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\StudioEffects", "value": "Enabled", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ai_noise_suppression",
+    "name": "Disable AI Noise Suppression",
+    "description": "Disables the built-in AI noise suppression for microphone input in Windows Voice Clarity.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Speech_OneCore\\Settings\\VoiceClarity", "value": "EnableNoiseSuppression", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_windows_copilot",
+    "name": "Disable Windows Copilot",
+    "description": "Disables the Windows Copilot AI assistant button in the taskbar. Windows Copilot aggregates settings, web search, and AI capabilities.",
+    "category": "AI Features", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot", "value": "TurnOffWindowsCopilot", "data": 1, "kind": "DWORD"},
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer", "value": "ShowCopilotButton", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ai_suggestions_start",
+    "name": "Disable AI Suggestions in Start Menu",
+    "description": "Removes AI-powered app suggestions and tips from the Windows 11 Start menu recommendations section.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "value": "SubscribedContent-338388Visible", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_suggested_content_feed",
+    "name": "Disable Suggested Content in Settings",
+    "description": "Removes AI-suggested content and tips from the Windows Settings app home page.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "value": "SubscribedContent-338389Visible", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_image_creator",
+    "name": "Disable Image Creator from Search",
+    "description": "Disables the Image Creator AI feature accessible from Windows Search or Copilot in Bing.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "value": "IsMicrosoftImageCreatorEnabled", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_copilot_in_windows",
+    "name": "Disable Copilot in Windows (All)",
+    "description": "Completely disables Microsoft Copilot across Windows Shell, Search, and all integrated surfaces.",
+    "category": "AI Features", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type": "registry", "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot", "value": "TurnOffWindowsCopilot", "data": 1, "kind": "DWORD"},
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\Copilot", "value": "TurnOffCopilot", "data": 1, "kind": "DWORD"},
+      {"type": "appx", "package": "Microsoft.Windows.Copilot", "action": "remove"}
+    ]
+  },
+  {
+    "id": "disable_transcribe_mode",
+    "name": "Disable Voice Access Transcription",
+    "description": "Disables the AI-powered voice transcription and dictation in Windows Voice Access.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Speech\\IsInstalled\\User\\Settings\\VoiceAccess", "value": "EnableContinuousDictation", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_reading_aloud_ai",
+    "name": "Disable AI Reading Aloud",
+    "description": "Disables the AI-enhanced Read Aloud feature in Windows Narrator and Microsoft Edge.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Speech\\Settings\\AIPrompt", "value": "Enabled", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_photos_ai_editing",
+    "name": "Disable AI Features in Photos",
+    "description": "Disables AI-powered editing suggestions and deep links in the Microsoft Photos app.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects", "value": "AiEnhancedPhotos", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_video_editor_ai",
+    "name": "Disable AI Video Editor in Clipchamp",
+    "description": "Disables AI-powered features in the Clipchamp video editor including auto-compose and scene detection.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Clipchamp", "value": "DisableAI", "data": 1, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_search_highlights",
+    "name": "Disable AI Search Highlights",
+    "description": "Disables AI-powered search highlights and suggested content in the Windows Search box.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "value": "EnableDynamicWebContent", "data": 0, "kind": "DWORD"},
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "value": "ShowSearchHighlights", "data": 0, "kind": "DWORD"}
+    ]
+  },
+  {
+    "id": "disable_snipping_ai",
+    "name": "Disable AI in Snipping Tool",
+    "description": "Disables AI-powered features in Snipping Tool including text extraction and background removal.",
+    "category": "AI Features", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Applets\\SnippingTool\\Settings", "value": "EnableTextExtraction", "data": 0, "kind": "DWORD"},
+      {"type": "registry", "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Applets\\SnippingTool\\Settings", "value": "EnableAIRewrite", "data": 0, "kind": "DWORD"}
+    ]
   }
 ]
