@@ -29,22 +29,106 @@ CREATE_NO_WINDOW = 0x08000000
 # ── Advanced Categories ────────────────────────────────────────────────────────
 
 ADVANCED_CATEGORIES = [
-    ("recent",    "Recent Files",      "#90caf9"),
-    ("games",     "Game Caches",       "#ce93d8"),
-    ("adobe",     "Adobe Cache",       "#ef9a9a"),
-    ("office",    "Office Temp",       "#80deea"),
-    ("jets",      "IDE Caches",        "#fff59d"),
-    ("spooler",   "Print Spooler",    "#a5d6a7"),
-    ("winsat",    "WinSAT Cache",      "#ffcc80"),
-    ("etl",       "ETL Logs",         "#b0bec5"),
-    ("telemetry", "Telemetry Data",   "#ef9a9a"),
-    ("delivery",  "Delivery Optim.",   "#fff176"),
-    ("clipboard", "Clipboard",         "#80cbc4"),
-    ("xbox",      "Xbox Cache",        "#c5e1a5"),
-    ("onedrive",  "OneDrive Logs",    "#64b5f6"),
-    ("maps",      "Maps Cache",        "#80d8ff"),
-    ("sticky",    "Sticky Notes",      "#f8bbd0"),
-    ("defender",  "Defender History",  "#d1c4e9"),
+    # Core
+    ("recent",    "Recent Files",       "#90caf9"),
+    ("games",     "Game Caches",        "#ce93d8"),
+    ("adobe",     "Adobe Cache",        "#ef9a9a"),
+    ("office",    "Office Temp",        "#80deea"),
+    ("jets",      "IDE Caches",         "#fff59d"),
+    ("spooler",   "Print Spooler",     "#a5d6a7"),
+    ("winsat",    "WinSAT Cache",       "#ffcc80"),
+    ("etl",       "ETL Logs",          "#b0bec5"),
+    ("telemetry", "Telemetry Data",    "#ef9a9a"),
+    ("delivery",  "Delivery Optim.",    "#fff176"),
+    ("clipboard", "Clipboard",          "#80cbc4"),
+    ("xbox",      "Xbox Cache",         "#c5e1a5"),
+    ("onedrive",  "OneDrive Logs",     "#64b5f6"),
+    ("maps",      "Maps Cache",         "#80d8ff"),
+    ("sticky",    "Sticky Notes",       "#f8bbd0"),
+    ("defender",  "Defender History",   "#d1c4e9"),
+    # Cloud Storage
+    ("dropbox",   "Dropbox Cache",     "#aed6f1"),
+    ("gdrive",    "Google Drive",      "#76d7c4"),
+    ("mega",      "MEGA Cache",        "#f1948a"),
+    ("pcloud",    "pCloud Cache",       "#85c1e9"),
+    ("icloud",    "iCloud Cache",       "#82e0aa"),
+    ("box",       "Box Cache",          "#bb8fce"),
+    # Virtualization
+    ("docker",    "Docker Desktop",    "#f8c471"),
+    ("vbox",      "VirtualBox VMs",      "#73c6b6"),
+    ("vmware",    "VMware VMs",          "#85c1e9"),
+    ("wsl2",      "WSL2 Distros",        "#58d68d"),
+    ("hyperv",    "Hyper-V VMs",         "#ecf0f1"),
+    # Media Production
+    ("obs",       "OBS Cache",            "#f9e79f"),
+    ("davinci",   "DaVinci Cache",        "#abebc6"),
+    ("premiere",  "Premiere Cache",       "#d2b4de"),
+    ("blender",   "Blender Cache",        "#fad7a0"),
+    ("audacity",  "Audacity Cache",       "#d5dbdb"),
+    # Communication
+    ("telegram",  "Telegram Cache",       "#85c1e9"),
+    ("signal",    "Signal Cache",         "#58d68d"),
+    ("teams",     "Teams Cache",          "#76d7c4"),
+    ("slack",     "Slack Cache",          "#f1948a"),
+    ("discord",   "Discord Cache",        "#aed6f1"),
+    # Development
+    ("jetbrains", "JetBrains Cache",     "#f39c12"),
+    ("eclipse",   "Eclipse Cache",        "#5dade2"),
+    ("gitlfs",    "Git LFS Cache",        "#f1948a"),
+    ("npm",       "npm Cache",            "#73c6b6"),
+    ("pip",       "pip Cache",            "#85c1e9"),
+    ("nuget",     "NuGet Cache",          "#82e0aa"),
+    ("vscode",    "VSCode Cache",         "#00bfff"),
+    ("unity",     "Unity Cache",          "#f8c471"),
+    # Games
+    ("epic",      "Epic Games Cache",    "#f7dc6f"),
+    ("battlenet", "Battle.net Cache",     "#3498db"),
+    ("rockstar",  "Rockstar Cache",       "#e74c3c"),
+    ("minecraft", "Minecraft Cache",      "#58d68d"),
+    ("lol",       "LoL Cache",            "#f39c12"),
+    ("rust",      "Rust Game Cache",      "#e67e22"),
+    # More Browsers
+    ("brave",     "Brave Cache",         "#f39c12"),
+    ("vivaldi",   "Vivaldi Cache",       "#9b59b6"),
+    ("opera",     "Opera Cache",         "#e74c3c"),
+    ("yandex",    "Yandex Cache",        "#f39c12"),
+    ("edge",      "Edge Cache",          "#3498db"),
+    ("firefox",   "Firefox Cache",       "#e67e22"),
+    ("chrome",    "Chrome Cache",        "#2980b9"),
+    # System
+    ("iis",       "IIS Logs",             "#bdc3c7"),
+    ("dockerimg", "Docker Images",        "#f5b041"),
+    ("vpn",       "VPN Cache",            "#5dade2"),
+    ("putty",     "PuTTY Cache",          "#f0b27a"),
+    ("rdp",       "RDP Cache",            "#85c1e9"),
+    # PC-Specific (auto-discovered)
+    ("vscode_ext",   "VSCode Ext VSIXs",   "#00bfff"),
+    ("vscode_dawn",  "VSCode Dawn Cache",  "#80d8ff"),
+    ("vscode_web",   "VSCode WebStorage",  "#b3e5fc"),
+    ("steam_logs",   "Steam Logs",         "#1f618d"),
+    ("steam_web",    "Steam WebCache",     "#2874a6"),
+    ("chrome_full",  "Chrome Full Cache",  "#2980b9"),
+    ("edge_full",     "Edge Full Cache",   "#3498db"),
+    ("brave_full",   "Brave Full Cache",   "#f39c12"),
+    ("uwp_all",      "UWP Apps Cache",     "#aed6f1"),
+    ("lm_studio",    "LM Studio Cache",   "#58d68d"),
+    ("teams_npc",    "MS Teams NPC",      "#76d7c4"),
+    ("photos_cache",  "Windows Photos",    "#80deea"),
+    ("ms_store",      "MS Store Cache",   "#64b5f6"),
+    ("discord_logs",  "Discord Logs",      "#9b59b6"),
+    ("notifications", "Notif. History",   "#80cbc4"),
+    ("spotify_app",   "Spotify Cache",    "#1db954"),
+    ("cbs_logs",      "CBS Logs",         "#bdc3c7"),
+    ("panther_logs",  "Panther Logs",     "#ffcc80"),
+    ("inetcache",     "INetCache",        "#90caf9"),
+    ("game_bar",      "Game Bar Cache",   "#c5e1a5"),
+    ("yarn",          "Yarn Cache",      "#73c6b6"),
+    ("pnpm",          "pnpm Cache",       "#82e0aa"),
+    # Smart Finders
+    ("large_files",    "Large Files >100MB", "#e74c3c"),
+    ("duplicates",    "Duplicate Files",    "#9b59b6"),
+    ("empty_folders",  "Empty Folders",      "#bdc3c7"),
+    ("old_files",      "Old Files >6mo",     "#f39c12"),
 ]
 
 
@@ -231,13 +315,13 @@ class QuickCleanupTab(QWidget):
             "prefetch": (cs.scan_prefetch,                "caution"),
             "thumb":    (cs.scan_thumbnail_cache,         "safe"),
             "crash":    (cs.scan_user_crash_dumps,        "caution"),
-            "browser":   (None,                            "safe"),  # handled specially
+            "browser":   (None,                            "safe"),
             "app":      (cs.scan_app_caches,               "safe"),
             "logs":     (cs.scan_windows_logs,            "caution"),
             "wu":       (cs.scan_wu_cache,                 "caution"),
             "large":    (cs.scan_windows_old,              "caution"),
             "dev":      (cs.scan_dev_tool_caches,           "safe"),
-            # Advanced categories
+            # Advanced categories (existing)
             "recent":   (cs.scan_recent_files,            "safe"),
             "games":    (cs.scan_game_caches,              "safe"),
             "adobe":    (cs.scan_adobe_cache,              "safe"),
@@ -254,6 +338,89 @@ class QuickCleanupTab(QWidget):
             "sticky":   (cs.scan_sticky_notes,            "safe"),
             "defender": (cs.scan_defender_history,        "safe"),
             "onedrive": (cs.scan_onedrive_logs,           "safe"),
+            # Cloud Storage
+            "dropbox":   (cs.scan_dropbox_cache,          "safe"),
+            "gdrive":    (cs.scan_google_drive_cache,     "safe"),
+            "mega":      (cs.scan_mega_cache,             "safe"),
+            "pcloud":    (cs.scan_pcloud_cache,           "safe"),
+            "icloud":    (cs.scan_icloud_cache,            "safe"),
+            "box":       (cs.scan_box_cache,               "safe"),
+            # Virtualization
+            "docker":    (cs.scan_docker_desktop_cache,   "caution"),
+            "vbox":      (cs.scan_virtualbox_cache,        "caution"),
+            "vmware":    (cs.scan_vmware_cache,            "caution"),
+            "wsl2":      (cs.scan_wsl2_cache,             "caution"),
+            "hyperv":    (cs.scan_hyperv_cache,            "caution"),
+            # Media Production
+            "obs":       (cs.scan_obs_cache,               "safe"),
+            "davinci":   (cs.scan_davinci_cache,          "safe"),
+            "premiere":  (cs.scan_premiere_cache,         "safe"),
+            "blender":   (cs.scan_blender_full_cache,      "safe"),
+            "audacity":  (cs.scan_audacity_cache,         "safe"),
+            # Communication
+            "telegram":  (cs.scan_telegram_cache,          "safe"),
+            "signal":    (cs.scan_signal_cache,            "safe"),
+            "teams":     (cs.scan_teams_cache,             "caution"),
+            "slack":     (cs.scan_slack_cache_full,        "safe"),
+            "discord":   (cs.scan_discord_full_cache,      "safe"),
+            # Development
+            "jetbrains": (cs.scan_jetbrains_cache,         "safe"),
+            "eclipse":   (cs.scan_eclipse_cache,           "safe"),
+            "gitlfs":    (cs.scan_git_lfs_cache,           "safe"),
+            "npm":       (cs.scan_npm_cache,               "safe"),
+            "pip":       (cs.scan_pip_cache,              "safe"),
+            "nuget":     (cs.scan_nuget_cache,             "safe"),
+            "vscode":    (cs.scan_vscode_cache,            "safe"),
+            "unity":     (cs.scan_unity_hub_cache,         "caution"),
+            # Games
+            "epic":      (cs.scan_epic_games_cache,       "safe"),
+            "battlenet": (cs.scan_battlenet_cache,         "safe"),
+            "rockstar":  (cs.scan_rockstar_cache,          "safe"),
+            "minecraft": (cs.scan_minecraft_cache,          "safe"),
+            "lol":       (cs.scan_lol_cache,               "safe"),
+            "rust":      (cs.scan_rust_game_cache,         "safe"),
+            # More Browsers
+            "brave":     (cs.scan_brave_cache,             "safe"),
+            "vivaldi":   (cs.scan_vivaldi_cache,           "safe"),
+            "opera":     (cs.scan_opera_cache,             "safe"),
+            "yandex":    (cs.scan_yandex_cache,            "safe"),
+            "edge":      (cs.scan_edge_cache,              "safe"),
+            "firefox":   (cs.scan_firefox_cache,          "safe"),
+            "chrome":    (cs.scan_chrome_cache,            "safe"),
+            # System
+            "iis":       (cs.scan_iis_logs,               "safe"),
+            "dockerimg": (cs.scan_docker_desktop_cache,    "caution"),
+            "vpn":       (cs.scan_openvpn_cache,          "safe"),
+            "putty":     (cs.scan_putty_cache,            "safe"),
+            "rdp":       (cs.scan_rdp_cache,              "safe"),
+            # PC-Specific
+            "vscode_ext":   (cs.scan_vscode_cached_extensions, "safe"),
+            "vscode_dawn":  (cs.scan_vscode_dawn_cache,        "safe"),
+            "vscode_web":   (cs.scan_vscode_webstorage,        "safe"),
+            "steam_logs":   (cs.scan_steam_logs,                "safe"),
+            "steam_web":    (cs.scan_steam_webhelper_cache,    "safe"),
+            "chrome_full":  (cs.scan_chrome_cache_full,        "safe"),
+            "edge_full":    (cs.scan_edge_cache_full,          "safe"),
+            "brave_full":   (cs.scan_brave_cache_full,         "safe"),
+            "uwp_all":      (cs.scan_uwp_all_apps_cache,       "safe"),
+            "lm_studio":    (cs.scan_lm_studio_cache,          "safe"),
+            "teams_npc":    (cs.scan_ms_teams_npc_cache,       "safe"),
+            "photos_cache": (cs.scan_windows_photos_cache,     "safe"),
+            "ms_store":     (cs.scan_ms_store_cache,           "safe"),
+            "discord_logs": (cs.scan_discord_developer_logs,   "safe"),
+            "notifications":(cs.scan_notifications_cache,      "safe"),
+            "spotify_app":  (cs.scan_spotify_app_cache,        "safe"),
+            "cbs_logs":     (cs.scan_windows_cbs_logs,         "safe"),
+            "panther_logs": (cs.scan_windows_panther_logs,     "safe"),
+            "inetcache":     (cs.scan_inetcache_ietlc,          "safe"),
+            "game_bar":     (cs.scan_windows_game_bar_cache,   "safe"),
+            "yarn":         (cs.scan_yarn_cache,               "safe"),
+            "pnpm":         (cs.scan_pnpm_cache,               "safe"),
+            # Smart Finders
+            "large_files":   (cs.scan_large_files,               "caution"),
+            "duplicates":    (cs.scan_duplicate_files,            "caution"),
+            "empty_folders": (cs.scan_empty_folders,              "safe"),
+            "old_files":     (cs.scan_old_files,                  "caution"),
         }
 
         self._scanner_map = {}
@@ -611,12 +778,18 @@ class QuickCleanupTab(QWidget):
         btn_bar.setSpacing(6)
 
         actions = [
-            ("Flush DNS",          self._flush_dns,          "ipconfig /flushdns",              False),
-            ("Clear Event Logs",   self._clear_event_logs,   "wevtutil cl System && wevtutil cl Application", True),
-            ("Compact WinSxS",      self._compact_winsxs,     "dism /Online /Cleanup-Image /StartComponentCleanup /ResetBase", False),
-            ("Rebuild Icons",       self._rebuild_icon_cache, "taskkill /f /im explorer.exe",    False),
-            ("WU Deep Clean",       self._wu_deep_clean,      "dism /Online /Cleanup-Image /StartComponentCleanup /SuppressDefaultTasks", False),
-            ("Network Repair",      self._network_repair,     "netsh winsock reset && netsh int ip reset", True),
+            ("Flush DNS",          self._flush_dns,          None,                           False),
+            ("Clear Event Logs",   self._clear_event_logs,  None,                           True),
+            ("Compact WinSxS",     self._compact_winsxs,     None,                           False),
+            ("Rebuild Icons",      self._rebuild_icon_cache, None,                           False),
+            ("WU Deep Clean",     self._wu_deep_clean,      None,                           False),
+            ("Network Repair",     self._network_repair,     None,                           True),
+            ("Clear Thumbnails",   self._clear_thumbnails,  None,                           False),
+            ("Clear Clipboard",    self._clear_clipboard,    None,                           False),
+            ("Reset Search",       self._reset_search,       None,                           False),
+            ("Clear Font Cache",   self._clear_font_cache,  None,                           False),
+            ("Flush WinUpdate",   self._flush_wu_store,    None,                           True),
+            ("Reset TCP/IP",       self._reset_tcpip,        None,                           True),
         ]
 
         self._action_btns: List[Tuple[QPushButton, str, bool]] = []
@@ -809,6 +982,97 @@ class QuickCleanupTab(QWidget):
         self._run_action_command(
             "netsh winsock reset && netsh int ip reset",
             "Network stack reset",
+            need_confirm=False
+        )
+
+    def _clear_thumbnails(self):
+        """Delete all thumbnail cache files (.db) in Explorer thumbnail directories."""
+        self._run_action_command(
+            'del /q /f "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_*.db" 2>nul',
+            "Thumbnail cache cleared",
+            need_confirm=False
+        )
+
+    def _clear_clipboard(self):
+        """Clear the Windows clipboard content."""
+        self._run_action_command(
+            "cmd /c echo off | clip",
+            "Clipboard cleared",
+            need_confirm=False
+        )
+
+    def _reset_search(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Reset Windows Search")
+        mb.setIcon(QMessageBox.Icon.Information)
+        mb.setText(
+            "This will <b>restart the Windows Search service</b> and clear its database. "
+            "Search may be briefly unavailable. Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+        self._run_action_command(
+            "net stop WSearch && net start WSearch",
+            "Windows Search reset",
+            need_confirm=False
+        )
+
+    def _clear_font_cache(self):
+        """Flush the Windows Font Cache service (FNTCACHE.DAT)."""
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Clear Font Cache")
+        mb.setIcon(QMessageBox.Icon.Warning)
+        mb.setText(
+            "This will <b>flush the Windows Font Cache</b> by stopping the FontCache service. "
+            "Applications may briefly re-render text. Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+        self._run_action_command(
+            "net stop FontCache && net start FontCache",
+            "Font cache cleared",
+            need_confirm=False
+        )
+
+    def _flush_wu_store(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Flush Windows Update Store")
+        mb.setIcon(QMessageBox.Icon.Warning)
+        mb.setText(
+            "This will <b>reset the Windows Update client</b>, clear the SoftwareDistribution\\Download "
+            "folder, and restart the WUAUSERV service. "
+            "<b>This cannot be undone.</b> Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+        cmd = (
+            "net stop wuauserv && "
+            "del /q /f %SystemRoot%\\SoftwareDistribution\\Download\\* 2>nul && "
+            "net start wuauserv"
+        )
+        self._run_action_command(cmd, "Windows Update store flushed", need_confirm=False)
+
+    def _reset_tcpip(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Reset TCP/IP Stack")
+        mb.setIcon(QMessageBox.Icon.Warning)
+        mb.setText(
+            "This will <b>reset all network adapter TCP/IP configurations</b>. "
+            "Network adapters may briefly disconnect. <b>This cannot be undone.</b> Continue?"
+        )
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if mb.exec() != QMessageBox.StandardButton.Ok:
+            return
+        self._run_action_command(
+            "netsh int ip reset",
+            "TCP/IP stack reset",
             need_confirm=False
         )
 

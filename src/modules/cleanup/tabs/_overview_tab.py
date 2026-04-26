@@ -27,20 +27,41 @@ _OV_GROUPS = [
         cs.scan_app_caches, cs.scan_d3d_shader_cache, cs.scan_appdata_autodiscover,
         cs.scan_steam_cache, cs.scan_stremio_cache, cs.scan_outlook_cache,
         cs.scan_winget_packages, cs.scan_store_app_caches,
+        cs.scan_discord_cache, cs.scan_spotify_cache, cs.scan_zoom_cache,
+        cs.scan_slack_cache, cs.scan_discord_full_cache, cs.scan_teams_cache,
+        cs.scan_telegram_cache, cs.scan_brave_cache, cs.scan_vivaldi_cache,
+        cs.scan_opera_cache, cs.scan_edge_cache, cs.scan_firefox_cache, cs.scan_chrome_cache,
+        cs.scan_game_caches, cs.scan_epic_launcher_cache, cs.scan_ea_app_cache,
+        cs.scan_ubisoft_cache, cs.scan_battlenet_cache, cs.scan_gog_cache,
+        cs.scan_rockstar_cache, cs.scan_minecraft_cache, cs.scan_rust_game_cache,
     ]),
     ("Windows Update", [
-        cs.scan_wu_cache, cs.scan_delivery_optimization,
+        cs.scan_wu_cache, cs.scan_delivery_optimization, cs.scan_update_cleanup,
+        cs.scan_windows_old, cs.scan_installer_patch_cache,
     ]),
     ("Logs & Reports", [
         cs.scan_windows_logs, cs.scan_event_logs, cs.scan_wer_reports,
         cs.scan_memory_dumps, cs.scan_panther_logs, cs.scan_dmf_logs,
-        cs.scan_onedrive_logs, cs.scan_defender_history,
+        cs.scan_onedrive_logs, cs.scan_defender_history, cs.scan_diag_logs,
+        cs.scan_powershell_logs, cs.scan_sysprep_logs, cs.scan_msi_logs,
+        cs.scan_wmi_logs, cs.scan_sfc_logs, cs.scan_group_policy_logs,
     ]),
     ("Large Items", [
         cs.scan_windows_old, cs.scan_recycle_bin, cs.scan_installer_patch_cache,
     ]),
     ("Dev Tools", [
-        cs.scan_dev_tool_caches,
+        cs.scan_dev_tool_caches, cs.scan_vscode_cache, cs.scan_jetbrains_cache,
+        cs.scan_npm_cache, cs.scan_pip_cache, cs.scan_nuget_cache,
+        cs.scan_golang_cache, cs.scan_rust_cache, cs.scan_java_cache,
+        cs.scan_unity_cache, cs.scan_unreal_cache,
+    ]),
+    ("Cloud Storage", [
+        cs.scan_dropbox_cache, cs.scan_google_drive_cache, cs.scan_mega_cache,
+        cs.scan_pcloud_cache, cs.scan_icloud_cache, cs.scan_onedrive_full_cache,
+    ]),
+    ("Media Production", [
+        cs.scan_obs_cache, cs.scan_davinci_cache, cs.scan_premiere_cache,
+        cs.scan_blender_cache, cs.scan_audacity_cache, cs.scan_handbrake_cache,
     ]),
 ]
 
