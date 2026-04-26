@@ -125,10 +125,7 @@ ADVANCED_CATEGORIES = [
     ("yarn",          "Yarn Cache",      "#73c6b6"),
     ("pnpm",          "pnpm Cache",       "#82e0aa"),
     # Smart Finders
-    ("large_files",    "Large Files >100MB", "#e74c3c"),
-    ("duplicates",    "Duplicate Files",    "#9b59b6"),
     ("empty_folders",  "Empty Folders",      "#bdc3c7"),
-    ("old_files",      "Old Files >6mo",     "#f39c12"),
 ]
 
 
@@ -417,10 +414,7 @@ class QuickCleanupTab(QWidget):
             "yarn":         (cs.scan_yarn_cache,               "safe"),
             "pnpm":         (cs.scan_pnpm_cache,               "safe"),
             # Smart Finders
-            "large_files":   (cs.scan_large_files,               "caution"),
-            "duplicates":    (cs.scan_duplicate_files,            "caution"),
-            "empty_folders": (cs.scan_empty_folders,              "safe"),
-            "old_files":     (cs.scan_old_files,                  "caution"),
+            "empty_folders": (cs.scan_empty_folders,          "safe"),
         }
 
         self._scanner_map = {}

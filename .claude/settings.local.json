@@ -96,7 +96,8 @@
       "PowerShell(Start-Process -FilePath \"C:\\\\Users\\\\iorda\\\\OneDrive\\\\1 Personal\\\\Aplicații\\\\dist\\\\WinClientTool-Portable.exe\" -Verb RunAs -Wait -PassThru 2>&1 | Select-Object Id, ProcessName, StartTime; Start-Sleep 2; echo \"Started\")",
       "PowerShell(Start-Process -FilePath \"C:\\\\Users\\\\iorda\\\\AppData\\\\Local\\\\Temp\\\\WinClientTool.exe\" -Verb RunAs -PassThru 2>&1 | Select-Object Id, ProcessName, StartTime)",
       "PowerShell(Remove-Item *)",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\"; Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& '$PWD\\\\.venv\\\\Scripts\\\\python.exe' src/main.py\" -Verb RunAs)"
+      "PowerShell(Set-Location \"C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\"; Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& '$PWD\\\\.venv\\\\Scripts\\\\python.exe' src/main.py\" -Verb RunAs)",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\.venv\\\\Scripts\\\\python.exe' 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\src\\\\main.py'\" -Verb RunAs -WindowStyle Normal)"
     ],
     "additionalDirectories": [
       "c:\\Users\\iorda\\OneDrive\\Documents\\Visual Studio 2022\\TEMP\\Windows_client_tool\\src\\modules\\tweaks\\definitions\\builtins",
