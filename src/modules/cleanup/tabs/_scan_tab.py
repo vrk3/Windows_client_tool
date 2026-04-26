@@ -174,8 +174,6 @@ class _ScanTab(QWidget):
         scanner_fns = list(self._scanners.keys())
 
         def _run(_w):
-            import logging
-            logger = logging.getLogger(__name__)
             per: dict = {}
             for fn in scanner_fns:
                 try:

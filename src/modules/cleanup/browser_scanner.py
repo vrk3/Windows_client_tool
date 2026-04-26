@@ -473,8 +473,6 @@ class EnhancedBrowserScanner:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Browser candidate scan failed: {e}")
         return False
 

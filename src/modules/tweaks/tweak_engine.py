@@ -214,12 +214,16 @@ class TweakEngine:
             elif step["type"] == "service":
                 import win32service
                 hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)
-                hs = win32service.OpenService(hscm, step["name"],
-                                              win32service.SERVICE_QUERY_CONFIG)
-                config = win32service.QueryServiceConfig(hs)
-                current = config[1]
-                win32service.CloseServiceHandle(hs)
-                win32service.CloseServiceHandle(hscm)
+                try:
+                    hs = win32service.OpenService(hscm, step["name"],
+                                                  win32service.SERVICE_QUERY_CONFIG)
+                    try:
+                        config = win32service.QueryServiceConfig(hs)
+                        current = config[1]
+                    finally:
+                        win32service.CloseServiceHandle(hs)
+                finally:
+                    win32service.CloseServiceHandle(hscm)
                 _st = step.get("start_type", "")
                 expected = int(_st) if isinstance(_st, int) else _START_TYPE_MAP.get(str(_st).lower(), -1)
                 return "applied" if current == expected else "not_applied"

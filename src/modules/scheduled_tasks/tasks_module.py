@@ -329,7 +329,8 @@ class TasksModule(BaseModule):
         )
         refresh_btn.clicked.connect(load_folder_tree)
         taskschd_btn.clicked.connect(
-            lambda: subprocess.Popen(["taskschd.msc"], shell=True)
+            lambda: subprocess.Popen(["taskschd.msc"], shell=True,
+                                     creationflags=subprocess.CREATE_NO_WINDOW)
         )
         enable_btn.clicked.connect(lambda: _run_task_action(_enable_task))
         disable_btn.clicked.connect(lambda: _run_task_action(_disable_task))

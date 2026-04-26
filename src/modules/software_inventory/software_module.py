@@ -222,7 +222,8 @@ class SoftwareModule(BaseModule):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
-                subprocess.Popen(entry.uninstall_string, shell=True)
+                subprocess.Popen(entry.uninstall_string, shell=True,
+                                 creationflags=subprocess.CREATE_NO_WINDOW)
                 status_lbl.setText(f"Uninstall launched for: {entry.name}")
 
         def do_export() -> None:

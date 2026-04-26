@@ -95,7 +95,7 @@ def rebuild_icon_cache(output_cb: Callable[[str], None]) -> None:
         except OSError as e:
             output_cb(f"Could not delete {t}: {e}")
     output_cb("Restarting Explorer...")
-    subprocess.Popen(["explorer.exe"])
+    subprocess.Popen(["explorer.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
     output_cb("Done.")
 
 
@@ -116,7 +116,7 @@ def clear_thumbnail_cache(output_cb: Callable[[str], None]) -> None:
         except OSError as e:
             output_cb(f"Skip {f}: {e}")
     output_cb("Restarting Explorer...")
-    subprocess.Popen(["explorer.exe"])
+    subprocess.Popen(["explorer.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
     output_cb("Done.")
 
 
@@ -129,7 +129,7 @@ def restart_explorer(output_cb: Callable[[str], None]) -> None:
     )
     time.sleep(1)
     output_cb("Starting Explorer...")
-    subprocess.Popen(["explorer.exe"])
+    subprocess.Popen(["explorer.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
     output_cb("Done.")
 
 

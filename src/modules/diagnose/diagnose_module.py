@@ -431,10 +431,16 @@ class DiagnoseModule(BaseModule):
         worker = Worker(work)
         worker.signals.progress.connect(lambda v: progress.setValue(v))
         worker.signals.result.connect(
-            lambda entries: self._on_tab_loaded(tab_name, entries, on_done_fn)
+            lambda entries, _wn=worker: (
+                self._workers.remove(_wn),
+                self._on_tab_loaded(tab_name, entries, on_done_fn)
+            )
         )
         worker.signals.error.connect(
-            lambda err: self._on_tab_error(tab_name, err)
+            lambda err, _wn=worker: (
+                self._workers.remove(_wn),
+                self._on_tab_error(tab_name, err)
+            )
         )
         self._workers.append(worker)
         self.app.thread_pool.start(worker)

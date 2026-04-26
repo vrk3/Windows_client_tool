@@ -245,7 +245,8 @@ class RestoreManagerModule(BaseModule):
 
     def _open_system_properties(self):
         try:
-            subprocess.Popen(["control.exe", "sysdm.cpl,,0"])
+            subprocess.Popen(["control.exe", "sysdm.cpl,,0"],
+                              creationflags=subprocess.CREATE_NO_WINDOW)
         except Exception as e:
             QMessageBox.warning(
                 self._widget, "Error", f"Could not open System Properties: {e}"
