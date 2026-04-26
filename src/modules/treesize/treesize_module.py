@@ -902,7 +902,7 @@ class _TreeEventFilter(QObject):
     """Catch keyboard shortcuts for the TreeSize module."""
 
     def __init__(self, module: "TreeSizeModule"):
-        super().__init__(module)
+        super().__init__()
         self._module = module
 
     def eventFilter(self, obj, event):
