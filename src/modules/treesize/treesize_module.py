@@ -7,7 +7,7 @@ import string
 import threading
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt, QTimer, QEvent, QSize
+from PyQt6.QtCore import Qt, QTimer, QEvent, QObject, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QFormLayout, QFrame,
@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QSpinBox, QTableWidget, QTableWidgetItem,
     QToolButton, QTreeView, QVBoxLayout, QWidget,
 )
-from PyQt6.QtCore import QObject
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
@@ -886,7 +885,7 @@ class _DoubleClickWatcher(QObject):
     double_clicked = pyqtSignal()
 
     def __init__(self, combo: QComboBox, handler):
-        super().__init__(combo)
+        super().__init__()
         self._handler = handler
         combo.view().viewport().installEventFilter(self)
 
