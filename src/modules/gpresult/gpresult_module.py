@@ -17,6 +17,8 @@ from PyQt6.QtCore import Qt
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+import logging
+logger = logging.getLogger(__name__)
 
 # GPResult XML namespace
 _NS = {
@@ -35,7 +37,7 @@ def _find_text(elem, *paths):
             if e is not None and e.text:
                 return e.text.strip()
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
     return ""
 
 
@@ -196,7 +198,7 @@ class GPResultModule(BaseModule):
                         if os.path.exists(tmp):
                             os.remove(tmp)
                     except OSError:
-                        pass
+                        logger.debug("Ignored OSError", exc_info=True)
 
             def on_result(data: dict):
                 self._lock.release()

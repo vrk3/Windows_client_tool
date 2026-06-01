@@ -38,7 +38,7 @@ def get_registry_entries() -> List[StartupEntry]:
                 except OSError:
                     break
     except OSError:
-        pass
+        logger.debug("Ignored OSError", exc_info=True)
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key) as k:
             i = 0
@@ -55,7 +55,7 @@ def get_registry_entries() -> List[StartupEntry]:
                 except OSError:
                     break
     except OSError:
-        pass
+        logger.debug("Ignored OSError", exc_info=True)
     return entries
 
 
@@ -89,7 +89,7 @@ def get_startup_folder_entries() -> List[StartupEntry]:
                 except OSError:
                     break
     except OSError:
-        pass
+        logger.debug("Ignored OSError", exc_info=True)
     if os.path.isdir(folder):
         for f in os.listdir(folder):
             if f.lower().endswith((".lnk", ".url", ".bat", ".cmd", ".exe")):

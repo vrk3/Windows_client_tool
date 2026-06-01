@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 from PyQt6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
+    from PyQt6.QtCore import QThreadPool
     from core.app import App
     from core.search_provider import SearchProvider
 

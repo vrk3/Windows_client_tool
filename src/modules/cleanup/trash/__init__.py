@@ -19,6 +19,8 @@ from typing import List, Optional
 from dataclasses import dataclass, field
 
 from modules.config.config_manager import ConfigManager
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -77,7 +79,7 @@ class TrashManager:
                     if os.path.exists(item_path):
                         os.unlink(item_path)
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
         return [str(p) for p in trash_paths]
 
     def get_trash_items(self) -> List[TrashItem]:

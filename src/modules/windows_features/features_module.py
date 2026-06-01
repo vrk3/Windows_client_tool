@@ -12,6 +12,8 @@ from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
 from core.windows_utils import is_reboot_pending
+import logging
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -214,7 +216,7 @@ class WindowsFeaturesModule(BaseModule):
                 try:
                     reboot_banner.setVisible(is_reboot_pending())
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
 
             def on_error(err: str) -> None:
                 refresh_btn.setEnabled(True)
@@ -263,7 +265,7 @@ class WindowsFeaturesModule(BaseModule):
                 try:
                     reboot_banner.setVisible(is_reboot_pending())
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
                 load_features()
 
             def on_error(err: str) -> None:

@@ -12,6 +12,8 @@ from core.module_groups import ModuleGroup
 from core.worker import Worker
 from core.windows_utils import is_reboot_pending
 from modules.quick_fix.fix_actions import ALL_ACTIONS, FixAction
+import logging
+logger = logging.getLogger(__name__)
 
 
 class _FixCard(QFrame):
@@ -184,7 +186,7 @@ class QuickFixModule(BaseModule):
             if is_reboot_pending():
                 self._reboot_banner.show()
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
 
         return outer
 

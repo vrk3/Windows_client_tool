@@ -15,6 +15,8 @@ from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
 from core.windows_utils import is_reboot_pending
+import logging
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -88,7 +90,7 @@ def get_sleep_timeout_ac():
                 val = int(line.split(":")[-1].strip(), 16)
                 return val // 60  # seconds → minutes
             except Exception:
-                pass
+                logger.warning("Ignored Exception", exc_info=True)
     return 0
 
 

@@ -257,7 +257,7 @@ class BrowserScanner2:
                     if p.info["name"] and p.info["name"].lower() == exe_lower:
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                    logger.debug("Ignored (psutil.NoSuchProcess, psutil.AccessDenied)", exc_info=True)
         except Exception as e:
             logger.warning("BrowserScanner profile scan failed: %s", e)
         return False
@@ -295,7 +295,7 @@ class BrowserScanner2:
                     profiles.append(entry_path)
                     seen.add(entry_path)
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
 
         return profiles
 
@@ -309,7 +309,7 @@ class BrowserScanner2:
                 if entry.is_dir():
                     profiles.append(Path(entry.path))
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
         profiles.sort(key=lambda p: p.name)
         return profiles
 
@@ -346,11 +346,11 @@ class BrowserScanner2:
                                 if sub.is_file():
                                     total += sub.stat().st_size
                             except OSError:
-                                pass
+                                logger.debug("Ignored OSError", exc_info=True)
                 except OSError:
-                    pass
+                    logger.debug("Ignored OSError", exc_info=True)
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
         return total
 
     def scan_chromium_browser(
@@ -471,7 +471,7 @@ class EnhancedBrowserScanner:
                     if (p.info["name"] or "").lower() == exe_lower:
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                    logger.debug("Ignored (psutil.NoSuchProcess, psutil.AccessDenied)", exc_info=True)
         except Exception as e:
             logger.warning(f"Browser candidate scan failed: {e}")
         return False
@@ -615,9 +615,9 @@ class EnhancedBrowserScanner:
                     if entry.is_file():
                         total += entry.stat().st_size
                 except OSError:
-                    pass
+                    logger.debug("Ignored OSError", exc_info=True)
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
         return total
 
     def delete_selected(

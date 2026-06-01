@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -49,7 +51,7 @@ def _build_folder(com_folder, path: str) -> TaskFolder:
             subpath = path.rstrip("\\") + "\\" + sub.Name
             tf.subfolders.append(_build_folder(sub, subpath))
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
     return tf
 
 
@@ -103,5 +105,5 @@ def get_tasks_in_folder(folder_path: str) -> List[TaskInfo]:
             except Exception:
                 continue
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
     return tasks

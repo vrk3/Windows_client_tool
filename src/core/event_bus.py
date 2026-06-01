@@ -21,7 +21,7 @@ class EventBus:
         try:
             self._subscribers[event_type].remove(callback)
         except ValueError:
-            pass
+            logger.debug("Ignored ValueError", exc_info=True)
 
     def publish(self, event_type: str, data: object) -> None:
         for callback in self._subscribers.get(event_type, []):

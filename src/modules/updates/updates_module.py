@@ -27,6 +27,8 @@ from modules.updates.winget_updater import (
 from modules.updates.windows_updater import (
     fetch_pending_updates, install_updates, WindowsUpdate,
 )
+import logging
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +262,7 @@ class _WinUpdatesTab(QWidget):
             if is_reboot_pending():
                 self._reboot_banner.show()
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
 
     def _do_refresh(self):
         self._loaded = True
@@ -297,7 +299,7 @@ class _WinUpdatesTab(QWidget):
         try:
             self._reboot_banner.setVisible(is_reboot_pending())
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
 
     def _on_error(self, err_str: str):
         self._refresh_btn.setEnabled(True)
@@ -331,7 +333,7 @@ class _WinUpdatesTab(QWidget):
         try:
             self._reboot_banner.setVisible(is_reboot_pending())
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
         self._do_refresh()
 
 

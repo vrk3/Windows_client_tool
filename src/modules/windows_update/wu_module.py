@@ -372,7 +372,7 @@ class WindowsUpdateModule(BaseModule):
                 try:
                     winreg.DeleteValue(key, "NoAutoUpdate")
                 except FileNotFoundError:
-                    pass
+                    logger.debug("Ignored FileNotFoundError", exc_info=True)
                 finally:
                     winreg.CloseKey(key)
                 self._updates_paused = False

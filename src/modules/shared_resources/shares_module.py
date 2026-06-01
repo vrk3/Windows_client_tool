@@ -9,6 +9,8 @@ from PyQt6.QtCore import Qt
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+import logging
+logger = logging.getLogger(__name__)
 
 
 def get_shares() -> List[Dict]:
@@ -78,7 +80,7 @@ def get_mapped_drives() -> List[Dict]:
                 except OSError:
                     break
     except OSError:
-        pass
+        logger.debug("Ignored OSError", exc_info=True)
     # Also try win32wnet if available
     try:
         import win32wnet, win32netcon
@@ -100,7 +102,7 @@ def get_mapped_drives() -> List[Dict]:
                     })
         win32wnet.WNetCloseEnum(resource)
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
     return drives
 
 

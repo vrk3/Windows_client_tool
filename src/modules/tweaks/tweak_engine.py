@@ -102,7 +102,7 @@ class TweakEngine:
             with winreg.OpenKey(hive, sub) as k:
                 before, _ = winreg.QueryValueEx(k, value_name)
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
 
         self._backup.backup_registry_key(full_key, rp_id)
 

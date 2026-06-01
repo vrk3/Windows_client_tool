@@ -35,7 +35,7 @@ class LogParserBase(ABC):
             if bom in (b"\xff\xfe", b"\xfe\xff"):
                 return "utf-16"
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
         return "utf-8"
 
     def parse(self, progress_callback: Optional[Callable[[int], None]] = None) -> List[LogEntry]:

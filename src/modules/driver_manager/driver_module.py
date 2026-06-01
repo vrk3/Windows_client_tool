@@ -13,7 +13,7 @@ from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.worker import COMWorker
+from core.worker import COMWorker, Worker
 from modules.driver_manager.driver_reader import DriverInfo, fetch_drivers
 
 COLUMNS = ["Device Name", "Class", "Version", "Date", "Publisher", "Provider", "Signed", "Status"]

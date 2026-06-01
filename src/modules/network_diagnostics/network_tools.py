@@ -5,6 +5,8 @@ import concurrent.futures
 import psutil
 import re
 from typing import List, Tuple, Callable, Optional
+import logging
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -183,7 +185,7 @@ def get_adapter_info() -> List[dict]:
         gw_info = psutil.net_if_stats()  # fallback; real gateways via net_default_gateway
         # psutil doesn't expose gateways directly; skip silently
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
 
     for name, addr_list in addrs.items():
         ip = mac = netmask = dns = ""

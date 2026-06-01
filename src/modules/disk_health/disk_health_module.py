@@ -176,7 +176,7 @@ def _query_disks() -> List[DiskInfo]:
                                 failing=attr_val <= attr_thr and attr_thr > 0,
                             ))
                         except ValueError:
-                            pass
+                            logger.debug("Ignored ValueError", exc_info=True)
                 else:
                     current[key] = val
 

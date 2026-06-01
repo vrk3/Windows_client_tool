@@ -5,6 +5,8 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -265,7 +267,7 @@ def clear_recent_files(output_cb: Callable[[str], None]) -> None:
         try:
             os.remove(f)
         except OSError:
-            pass
+            logger.debug("Ignored OSError", exc_info=True)
     output_cb(f"Cleared {count} Recent shortcuts.")
 
 

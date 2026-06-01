@@ -79,7 +79,7 @@ class BackupService:
             self._conn.execute(
                 "ALTER TABLE tweak_steps ADD COLUMN revert_command TEXT")
         except Exception:
-            pass  # column already exists
+            logger.warning("column already exists", exc_info=True)
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:

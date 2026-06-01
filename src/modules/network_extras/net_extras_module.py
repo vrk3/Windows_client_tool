@@ -52,7 +52,7 @@ def parse_hosts() -> List[Tuple[str, str, str]]:
                     if len(tokens) >= 2:
                         rows.append((tokens[0], tokens[1], comment))
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
     return rows
 
 
@@ -183,7 +183,7 @@ class NetExtrasModule(BaseModule):
                 if st.isup:
                     adapter_combo.addItem(name)
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
 
         # Populate presets
         for name in DNS_PRESETS:

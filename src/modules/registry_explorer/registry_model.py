@@ -43,7 +43,7 @@ class _Node:
                         except OSError:
                             break
             except (OSError, PermissionError):
-                pass
+                logger.debug("Ignored (OSError, PermissionError)", exc_info=True)
         return self._children
 
     def has_children(self) -> bool:
@@ -162,7 +162,7 @@ class RegistryTreeModel(QAbstractItemModel):
                     except OSError:
                         break
         except (OSError, PermissionError):
-            pass
+            logger.debug("Ignored (OSError, PermissionError)", exc_info=True)
         return results
 
 

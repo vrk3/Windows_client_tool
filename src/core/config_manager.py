@@ -32,7 +32,7 @@ class ConfigManager:
                 self._autosave_timer.setInterval(self.AUTOSAVE_DELAY_MS)
                 self._autosave_timer.timeout.connect(self.save)
             except ImportError:
-                pass
+                logger.debug("Ignored ImportError", exc_info=True)
 
     def register_migration(self, from_version: int, fn: Callable[[dict], dict]) -> None:
         self._migrations.append((from_version, fn))

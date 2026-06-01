@@ -225,7 +225,7 @@ class RegistryExplorerModule(BaseModule):
                 try:
                     stack.extend(n.children())
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
             return results
 
         def on_result(paths):

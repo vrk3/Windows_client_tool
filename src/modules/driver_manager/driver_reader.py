@@ -3,6 +3,8 @@ import json
 import subprocess
 from dataclasses import dataclass
 from typing import List
+import logging
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -78,7 +80,7 @@ def fetch_drivers() -> List[DriverInfo]:
                 date_obj = datetime.datetime.strptime(raw_date[:8], "%Y%m%d")
                 date_str = date_obj.strftime("%Y-%m-%d")
             except ValueError:
-                pass
+                logger.debug("Ignored ValueError", exc_info=True)
 
         flags = []
         if not signed:

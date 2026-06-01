@@ -375,7 +375,7 @@ class PerfMonModule(BaseModule):
                     mem_mb = (p.info['memory_info'].rss or 0) / 1024 / 1024
                     procs.append((name, cpu_pct, mem_mb))
                 except (OSError, psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                    logger.debug("Ignored (OSError, psutil.NoSuchProcess, psutil.AccessDenied)", exc_info=True)
             procs.sort(key=lambda x: -x[1])
             for i in range(10):
                 if i < len(procs):

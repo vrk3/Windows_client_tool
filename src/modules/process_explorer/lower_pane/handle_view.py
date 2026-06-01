@@ -4,7 +4,7 @@ import ctypes
 import ctypes.wintypes
 import logging
 import threading
-from typing import List
+from typing import List, Optional
 
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,

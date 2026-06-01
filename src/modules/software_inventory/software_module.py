@@ -14,6 +14,8 @@ from PyQt6.QtCore import Qt
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,7 +67,7 @@ def _read_registry_uninstall(hive, key_path: str, type_label: str) -> List[Softw
                 except OSError:
                     break
     except OSError:
-        pass
+        logger.debug("Ignored OSError", exc_info=True)
     return entries
 
 

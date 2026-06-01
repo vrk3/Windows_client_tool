@@ -205,13 +205,13 @@ class RestoreManagerDialog(QDialog):
                 try:
                     before = json.loads(before)
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
                 lines.append(f"   Before : {before}")
             if after and after != "null":
                 try:
                     after = json.loads(after)
                 except Exception:
-                    pass
+                    logger.warning("Ignored Exception", exc_info=True)
                 lines.append(f"   After  : {after}")
         self._detail.setPlainText("\n".join(lines))
 

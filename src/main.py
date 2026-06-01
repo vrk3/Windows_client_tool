@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from app import App
 from ui.main_window import MainWindow
+logger = logging.getLogger(__name__)
 
 _s("imports done")
 
@@ -58,7 +59,7 @@ def _global_exception_handler(exc_type, exc_value, exc_tb):
             if msg.clickedButton() == copy_btn:
                 app.clipboard().setText(tb_text)
     except Exception:
-        pass  # If dialog fails, at least the log was written
+        logger.warning("If dialog fails, at least the log was written", exc_info=True)
 
 
 def main():

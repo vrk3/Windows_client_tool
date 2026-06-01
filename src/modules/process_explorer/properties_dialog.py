@@ -119,7 +119,7 @@ class ProcessPropertiesDialog(QDialog):
             env = psutil.Process(self._node.pid).environ()
             env_items = sorted(env.items())
         except (psutil.AccessDenied, psutil.NoSuchProcess):
-            pass
+            logger.debug("Ignored (psutil.AccessDenied, psutil.NoSuchProcess)", exc_info=True)
 
         table.setRowCount(len(env_items))
         for r, (k, v) in enumerate(env_items):

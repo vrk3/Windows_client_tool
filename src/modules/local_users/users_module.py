@@ -12,6 +12,8 @@ from PyQt6.QtGui import QColor
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+import logging
+logger = logging.getLogger(__name__)
 
 _USER_COLS = ["Username", "Full Name", "Enabled", "Last Logon", "Password Age (days)", "Comment"]
 _GROUP_COLS = ["Group Name", "Members", "Comment"]
@@ -71,7 +73,7 @@ def get_groups() -> List[Dict]:
                 mem_data, _, _ = win32net.NetLocalGroupGetMembers(None, gname, 1)
                 members = [m.get("name", "") for m in mem_data]
             except Exception:
-                pass
+                logger.warning("Ignored Exception", exc_info=True)
             groups.append({
                 "Group Name": gname,
                 "Members": ", ".join(members),

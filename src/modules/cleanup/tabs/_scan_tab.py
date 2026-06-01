@@ -1,4 +1,5 @@
 """_ScanTab — generic scan/clean tab supporting multiple scanners."""
+import logging
 import os
 from typing import Optional
 
@@ -12,6 +13,8 @@ from PyQt6.QtWidgets import (
 
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
+
+logger = logging.getLogger(__name__)
 
 
 # ── Safety colour helpers (shared with other tabs) ────────────────────────────

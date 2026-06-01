@@ -7,13 +7,15 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QPushButton, QLabel, QFrame, QProgressBar, QSizePolicy,
                               QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                               QGroupBox, QFormLayout)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtGui import QColor, QFont
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker, COMWorker
 from modules.security_dashboard.security_reader import get_all_security_status
+import logging
+logger = logging.getLogger(__name__)
 
 COLOR_MAP = {
     "green": "#27AE60",
@@ -393,7 +395,7 @@ class SecurityDashboardModule(BaseModule):
                 dt = datetime.strptime(last_updated[:19], "%Y-%m-%dT%H:%M:%S")
                 last_updated = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
-                pass
+                logger.warning("Ignored Exception", exc_info=True)
         self._sig_details_lbl.setText(
             f"<span style='color:{age_color}'>Definitions: {age_str}</span><br>"
             f"Last updated: {last_updated or 'N/A'}"

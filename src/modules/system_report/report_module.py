@@ -12,6 +12,8 @@ from PyQt6.QtCore import QThreadPool
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import COMWorker
+import logging
+logger = logging.getLogger(__name__)
 
 
 def _collect_report_data(_worker) -> dict:
@@ -64,7 +66,7 @@ def _collect_report_data(_worker) -> dict:
                 "percent": usage.percent,
             })
         except Exception:
-            pass
+            logger.warning("Ignored Exception", exc_info=True)
     data["disks"] = disks
 
     # GPU
@@ -118,9 +120,9 @@ def _collect_report_data(_worker) -> dict:
                     with winreg.OpenKey(hive, path) as k:
                         sw_count += winreg.QueryInfoKey(k)[0]
                 except OSError:
-                    pass
+                    logger.debug("Ignored OSError", exc_info=True)
     except Exception:
-        pass
+        logger.warning("Ignored Exception", exc_info=True)
     data["software_count"] = sw_count
 
     return data

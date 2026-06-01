@@ -115,6 +115,7 @@ class WindowsUpdater(BaseModule):
         return widget
 
     def _populate_table(self):
+        from PyQt6.QtWidgets import QTableWidgetItem
         self._updates_table.setRowCount(len(self._updates))
         for i, update in enumerate(self._updates):
             self._updates_table.setItem(i, 0, QTableWidgetItem(update.kb))

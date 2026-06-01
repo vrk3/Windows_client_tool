@@ -380,7 +380,7 @@ class DuplicateFinderModule(BaseModule):
                         total += os.path.getsize(fpath)
                         count += 1
                     except OSError:
-                        pass
+                        logger.debug("Ignored OSError", exc_info=True)
         if count > 0:
             self._freed_lbl.setText(f"🗑 To delete: {count} files ({self._fmt_size(total)})")
         else:

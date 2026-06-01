@@ -522,7 +522,7 @@ class DiagnoseModule(BaseModule):
                         if f.startswith("CbsPersist_") and f.endswith(".cab"):
                             cab_files.append(os.path.join(cab_dir, f))
                 except OSError:
-                    pass
+                    logger.debug("Ignored OSError", exc_info=True)
 
                 if not cab_files:
                     logger.warning("No CBS cab files found in %s", cab_dir)

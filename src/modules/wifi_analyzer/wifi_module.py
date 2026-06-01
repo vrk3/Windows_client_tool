@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+import logging
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -123,7 +125,7 @@ def build_channel_map(networks: List[Dict]) -> Dict[str, Dict[int, int]]:
                 ch = int(ch_str)
                 result[band][ch] = result[band].get(ch, 0) + 1
             except ValueError:
-                pass
+                logger.debug("Ignored ValueError", exc_info=True)
     return result
 
 
