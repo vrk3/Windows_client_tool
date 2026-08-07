@@ -449,8 +449,9 @@ class QuickCleanupTab(QWidget):
             w.cancel()
         self._workers.clear()
         self._scanning = False
-        self._scan_all_btn.setEnabled(True)
-        self._clean_all_btn.setEnabled(True)
+        if hasattr(self, "_scan_all_btn"):
+            self._scan_all_btn.setEnabled(True)
+            self._clean_all_btn.setEnabled(True)
 
     # ── Setup ────────────────────────────────────────────────────────────────
 
@@ -540,6 +541,7 @@ class QuickCleanupTab(QWidget):
         content_lay.setSpacing(8)
 
         self._groups_container: List[CategoryGroup] = []
+        self._group_by_cid: Dict[str, CategoryGroup] = {}
         for cid, clabel, ccolor in self._categories:
             fn_info = self._scanner_map.get(cid)
             if fn_info is None or fn_info[0] is None:
@@ -548,6 +550,7 @@ class QuickCleanupTab(QWidget):
             group = CategoryGroup(label, scanner_fn, auto_refresh=False)
             group.scan_done.connect(self._on_group_scan_done)
             self._groups_container.append(group)
+            self._group_by_cid[cid] = group
             content_lay.addWidget(group)
 
         content_lay.addStretch()
@@ -682,7 +685,7 @@ class QuickCleanupTab(QWidget):
         self._scanning = False
         self._scan_all_btn.setEnabled(True)
         self._progress.hide()
-        self._workers = [w for w in self._workers if not w.cancelled]
+        self._workers = [w for w in self._workers if not w.is_cancelled]
 
         from modules.cleanup import cleanup_scanner as cs
         from modules.cleanup import browser_scanner as bs
@@ -712,6 +715,11 @@ class QuickCleanupTab(QWidget):
                         self._legend_cards[i].set_size(0)
             else:
                 result: cs.ScanResult = self._results.get(cid, cs.ScanResult())
+                # Feed the result into this category's dropdown so expanding it shows
+                # the paths immediately (no separate per-category scan needed).
+                group = self._group_by_cid.get(cid)
+                if group is not None:
+                    group.set_result(result)
                 if result.items:
                     slices.append((clabel, result.total_size, ccolor))
                     total_size += result.total_size

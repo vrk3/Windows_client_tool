@@ -13,7 +13,6 @@ from PyQt6.QtCore import Qt, QTimer, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QPushButton, QSizePolicy, QLabel, QMenu, QToolButton, QHeaderView,
-    QScrollArea,
 )
 
 from core.worker import Worker
@@ -138,26 +137,32 @@ class CategoryGroup(QWidget):
 
         layout.addLayout(toolbar)
 
-        # Tree in scroll area
-        self._scroll_area = QScrollArea()
-        self._scroll_area.setWidgetResizable(True)
-        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-
-        content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-
+        # Path tree — added directly to the layout (no inner scroll area). When a
+        # category is expanded the tree auto-sizes vertically to fit its rows (see
+        # _fit_tree_height) so the whole list is readable and the OUTER page scrolls;
+        # only very long lists cap their height and scroll internally.
         self._tree = QTreeWidget()
         self._tree.setColumnCount(2)
         self._tree.setHeaderLabels(["Path", "Size"])
         self._tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._tree.header().setStretchLastSection(False)
+        # One line per path, elided in the middle (start + file name stay visible);
+        # the full path is on the tooltip. No horizontal scrollbar — never overflows.
+        self._tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self._tree.setUniformRowHeights(True)
+        self._tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
-        content_layout.addWidget(self._tree)
-        self._scroll_area.setWidget(content)
-        layout.addWidget(self._scroll_area)
+        layout.addWidget(self._tree)
+
+        # Collapsed by default — the header acts as a disclosure/dropdown. The path
+        # tree is revealed only when the user expands a category, so the dashboard
+        # stays compact instead of stacking ten full trees on screen at once.
+        self._expanded = False
+        self._tree.setVisible(False)
+        self._expand_btn.setText("🗂️ " + self._group_name + " ▶")
 
         # Error label
         self._err_lbl = QLabel()
@@ -197,6 +202,7 @@ class CategoryGroup(QWidget):
         w = Worker(_run)
         w.signals.result.connect(self._on_scan_result)
         w.signals.error.connect(self._on_scan_error)
+        w.signals.finished.connect(lambda _wn=w: self._workers.remove(_wn) if _wn in self._workers else None)
         self._workers.append(w)
         QThreadPool.globalInstance().start(w)
 
@@ -204,10 +210,22 @@ class CategoryGroup(QWidget):
         self._scanning = False
         self._scan_btn.setEnabled(True)
         self._scan_btn.setText("Scan")
-        self._results = result
-
         if result is None:
             result = ScanResult(items=[], total_size=0)
+        self._apply_result(result)
+        self.scan_done.emit(len(result.items), result.total_size)
+
+    def set_result(self, result) -> None:
+        """Display a ScanResult produced elsewhere (e.g. the dashboard 'Scan All'),
+        so expanding this category's dropdown shows its paths without a re-scan."""
+        if result is None:
+            result = ScanResult(items=[], total_size=0)
+        self._apply_result(result)
+
+    def _apply_result(self, result):
+        """Render a ScanResult into the path tree and update the status/clean button."""
+        self._results = result
+        self._tree.clear()
 
         if result.items:
             root = QTreeWidgetItem([
@@ -225,6 +243,7 @@ class CategoryGroup(QWidget):
 
             for item in result.items:
                 child = QTreeWidgetItem([item.path, format_size(item.size)])
+                child.setToolTip(0, item.path)  # full path on hover (column elides it)
                 child.setCheckState(0, Qt.CheckState.Checked)
                 child.setFlags(child.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 child.setData(0, Qt.ItemDataRole.UserRole, item)
@@ -237,20 +256,22 @@ class CategoryGroup(QWidget):
                 f"Found {len(result.items)} item(s) — {format_size(result.total_size)}"
             )
             self._clean_all_btn.setEnabled(True)
+            if self._expanded:
+                root.setExpanded(True)
         else:
             self._status_label.setText("No items found.")
+            self._clean_all_btn.setEnabled(False)
 
-        self.scan_done.emit(len(result.items), result.total_size)
-
-        # Trim completed workers
-        self._workers = [w for w in self._workers if not w.cancelled]
+        # If this category is open, re-fit its height to the new row count.
+        if self._expanded:
+            self._fit_tree_height()
+            QTimer.singleShot(0, self._fit_tree_height)
 
     def _on_scan_error(self, err: str):
         self._scanning = False
         self._scan_btn.setEnabled(True)
         self._scan_btn.setText("Scan")
         self._status_label.setText(f"Scan error: {err}")
-        self._workers = [w for w in self._workers if not w.cancelled]
 
     # ── Clean ────────────────────────────────────────────────────────────────
 
@@ -307,22 +328,63 @@ class CategoryGroup(QWidget):
     # ── Tree helpers ─────────────────────────────────────────────────────────
 
     def _toggle_expand(self):
-        """Toggle expand/collapse of the tree root items."""
-        is_collapsed = self._expand_btn.text().endswith(" ▼")
-        if is_collapsed:
-            self._expand_btn.setText("🗂️ " + self._group_name + " ▶")
-            self._expand_all()
+        """Toggle the dropdown that reveals/hides the path tree for this category."""
+        self._set_expanded(not self._expanded)
+
+    def _set_expanded(self, expanded: bool):
+        """Show or hide the path tree and update the header arrow."""
+        self._expanded = expanded
+        self._tree.setVisible(expanded)
+        arrow = "▼" if expanded else "▶"
+        self._expand_btn.setText("🗂️ " + self._group_name + " " + arrow)
+        if expanded:
+            for i in range(self._tree.topLevelItemCount()):
+                self._tree.topLevelItem(i).setExpanded(True)
+            self._fit_tree_height()
+            QTimer.singleShot(0, self._fit_tree_height)  # re-fit after layout settles
+
+    # ── Auto-size the expanded tree to its content ─────────────────────────────
+
+    _MAX_TREE_HEIGHT = 600  # px; longer lists cap here and scroll internally
+
+    def _visible_row_count(self) -> int:
+        """Number of currently-visible rows (roots + children of expanded roots)."""
+        rows = 0
+        for i in range(self._tree.topLevelItemCount()):
+            root = self._tree.topLevelItem(i)
+            rows += 1
+            if root.isExpanded():
+                rows += root.childCount()
+        return rows
+
+    def _fit_tree_height(self) -> None:
+        """Grow the tree to fit all visible rows so the full list is readable and the
+        outer page scrolls; cap very long lists and let them scroll internally."""
+        if not self._expanded or not self._tree.isVisible():
+            return
+        rows = self._visible_row_count()
+        if rows == 0:
+            self._tree.setFixedHeight(40)
+            return
+        row_h = self._tree.sizeHintForRow(0) or 22
+        header_h = 0 if self._tree.header().isHidden() else self._tree.header().height()
+        content_h = header_h + rows * row_h + 2 * self._tree.frameWidth() + 4
+        if content_h <= self._MAX_TREE_HEIGHT:
+            self._tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self._tree.setFixedHeight(content_h)
         else:
-            self._expand_btn.setText("🗂️ " + self._group_name + " ▼")
-            self._collapse_all()
+            self._tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self._tree.setFixedHeight(self._MAX_TREE_HEIGHT)
 
     def _expand_all(self):
+        """Open the dropdown and expand every tree node."""
+        self._set_expanded(True)
         for i in range(self._tree.topLevelItemCount()):
             self._tree.topLevelItem(i).setExpanded(True)
 
     def _collapse_all(self):
-        for i in range(self._tree.topLevelItemCount()):
-            self._tree.topLevelItem(i).setExpanded(False)
+        """Hide the path tree (collapse the dropdown)."""
+        self._set_expanded(False)
 
     def _show_context_menu(self, pos):
         item = self._tree.itemAt(pos)
