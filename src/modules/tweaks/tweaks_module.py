@@ -738,6 +738,7 @@ class TweaksModule(BaseModule):
             f"Single tweak: {tweak['name']}", "Tweaks")
 
         errors = []
+        logger.info("Applying single tweak: %s", tweak.get("name", ""))
 
         def _worker_fn(worker):
             self._engine.apply_tweak(
@@ -758,6 +759,7 @@ class TweaksModule(BaseModule):
                     self._log_output.append(f"⚠ {e}")
             else:
                 self._log_output.append("✅ Tweak applied successfully.")
+        logger.info("Single tweak applied: %d error(s)", len(errors))
         self._detect_statuses()
 
     # ------------------------------------------------------------------
@@ -870,10 +872,13 @@ class TweaksModule(BaseModule):
         self._log_output.setVisible(True)
         errors = []
 
+        logger.info("Tweaks: applying %d tweak(s)", len(tweaks_to_apply))
+
         def _worker_fn(worker):
             for i, tweak in enumerate(tweaks_to_apply):
                 if worker.is_cancelled:
                     break
+                logger.info("Applying tweak: %s", tweak.get("name", tweak.get("id", "")))
                 self._engine.apply_tweak(
                     tweak, rp_id,
                     on_error=lambda e: errors.append(e))
@@ -895,6 +900,7 @@ class TweaksModule(BaseModule):
             self._log_output.append(f"⚠ {e}")
         if not errors:
             self._log_output.append("✅ All tweaks applied successfully.")
+        logger.info("Tweaks apply complete: %d error(s)", len(errors))
         self._detect_statuses()
 
     # ------------------------------------------------------------------

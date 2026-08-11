@@ -1,9 +1,12 @@
 import base64
 import datetime
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -85,7 +88,8 @@ $result | ConvertTo-Json -Depth 3 -Compress
         data = json.loads(raw)
         if isinstance(data, dict):
             data = [data]
-    except Exception:
+    except Exception as e:
+        logger.warning("Certificate enumeration failed for %s: %s", store, e)
         return []
 
     today = datetime.datetime.utcnow()
@@ -113,5 +117,6 @@ $result | ConvertTo-Json -Depth 3 -Compress
                 flag=flag,
             ))
         except Exception:
+            logger.warning("Ignored Exception reading certificate", exc_info=True)
             continue
     return certs

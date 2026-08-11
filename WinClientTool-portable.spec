@@ -39,6 +39,7 @@ exe = EXE(
     a.datas,
     exclude_binaries=False,  # required for onefile mode
     name='WinClientTool-Portable',
+    version='version_info.txt',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -1,3 +1,4 @@
+import functools
 import logging
 from typing import Dict, List, Optional
 
@@ -10,10 +11,12 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.error_banner import ErrorBanner
+from ui.event_detail_dialog import EventDetailDialog
 from core.admin_utils import is_admin
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider, SearchQuery, SearchResult
+from core.types import LogEntry
 from core.worker import Worker
 from ui.log_table_widget import LogTableWidget
 from ui.detail_panel import DetailPanel
@@ -249,6 +252,7 @@ class DiagnoseModule(BaseModule):
             }
         """)
         self._results_tree.setVisible(False)
+        self._results_tree.itemDoubleClicked.connect(self._on_tree_result_activated)
         root.addWidget(self._results_tree, 1)
 
         # ── Tab widget ─────────────────────────────────────────────────
@@ -262,19 +266,22 @@ class DiagnoseModule(BaseModule):
                 _build_tab_widget(
                     self._widget,
                     progress_label=tab_def["progress_label"],
-                    extra_controls_fn=(
-                        lambda tb, ex, _tab_name=tab_name: self._build_event_viewer_controls(tb, ex)
-                        if _tab_name == "Event Viewer"
-                        else None
-                    ),
+            extra_controls_fn=(
+                functools.partial(self._build_event_viewer_controls)
+                if tab_name == "Event Viewer"
+                else None
+            ),
                 )
 
             # Wire Refresh button
             refresh_btn = container.findChild(QPushButton, "refreshBtn")
             if refresh_btn:
                 refresh_btn.clicked.connect(
-                    lambda checked, tn=tab_name: self._load_tab(tn)
+                    functools.partial(self._load_tab, tab_name)
                 )
+
+            # Open event detail dialog on double-click
+            table.row_double_clicked.connect(self._open_event_dialog)
 
             # Store state
             self._tab_state[tab_name] = {
@@ -300,6 +307,29 @@ class DiagnoseModule(BaseModule):
         root.addWidget(self._tab_widget, 1)
 
         return self._widget
+
+    def _open_event_dialog(self, entry: LogEntry) -> None:
+        """Open a resizable detail dialog for a log entry."""
+        dlg = EventDetailDialog(entry, self._widget)
+        dlg.exec()
+
+    def _on_tree_result_activated(self, item, column) -> None:
+        """Open detail dialog when a unified search result is double-clicked."""
+        search_result = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(search_result, SearchResult):
+            parent = item.parent()
+            if parent:
+                search_result = parent.data(0, Qt.ItemDataRole.UserRole)
+            if not isinstance(search_result, SearchResult):
+                return
+        entry = LogEntry(
+            timestamp=search_result.timestamp,
+            source=search_result.source,
+            level=search_result.type,
+            message=search_result.summary,
+            raw=search_result.detail if isinstance(search_result.detail, dict) else {},
+        )
+        self._open_event_dialog(entry)
 
     def _make_provider(self, tab_name: str) -> Optional[SearchProvider]:
         """Create the appropriate search provider for a tab."""
@@ -328,9 +358,16 @@ class DiagnoseModule(BaseModule):
                 self._load_tab(tab_name)
 
     def on_deactivate(self) -> None:
-        pass
+        if self._search_timer:
+            self._search_timer.stop()
+        if self._active_search:
+            self._active_search.cancel()
 
     def on_stop(self) -> None:
+        if self._search_timer:
+            self._search_timer.stop()
+        if self._active_search:
+            self._active_search.cancel()
         self.cancel_all_workers()
 
     def get_refresh_interval(self) -> Optional[int]:
@@ -431,19 +468,23 @@ class DiagnoseModule(BaseModule):
         worker = Worker(work)
         worker.signals.progress.connect(lambda v: progress.setValue(v))
         worker.signals.result.connect(
-            lambda entries, _wn=worker: (
-                self._workers.remove(_wn),
-                self._on_tab_loaded(tab_name, entries, on_done_fn)
-            )
+            functools.partial(self._on_tab_load_result, tab_name, worker, on_done_fn)
         )
         worker.signals.error.connect(
-            lambda err, _wn=worker: (
-                self._workers.remove(_wn),
-                self._on_tab_error(tab_name, err)
-            )
+            functools.partial(self._on_tab_load_error, tab_name, worker)
         )
         self._workers.append(worker)
         self.app.thread_pool.start(worker)
+
+    def _on_tab_load_result(self, tab_name: str, worker, on_done_fn, entries) -> None:
+        if worker in self._workers:
+            self._workers.remove(worker)
+        self._on_tab_loaded(tab_name, entries, on_done_fn)
+
+    def _on_tab_load_error(self, tab_name: str, worker, error_msg) -> None:
+        if worker in self._workers:
+            self._workers.remove(worker)
+        self._on_tab_error(tab_name, error_msg)
 
     def _on_tab_loaded(self, tab_name: str, entries, on_done_fn) -> None:
         state = self._tab_state.get(tab_name)
@@ -763,6 +804,7 @@ class DiagnoseModule(BaseModule):
                 child.setText(0, ts)
                 child.setText(1, r.type or "—")
                 child.setText(2, r.summary[:200] if r.summary else "—")
+                child.setData(0, Qt.ItemDataRole.UserRole, r)
 
         if self._results_tree.topLevelItemCount() == 0:
             empty = QTreeWidgetItem(self._results_tree)

@@ -100,6 +100,10 @@ class SidebarNav(QWidget):
         self._module_buttons[group].append((name, btn))
         self._btn_map[name] = btn
 
+    def toggle_collapse(self) -> None:
+        """Public wrapper to programmatically toggle sidebar collapse state."""
+        self._toggle_collapse()
+
     def select(self, name: str) -> None:
         if self._active_name and self._active_name in self._btn_map:
             self._btn_map[self._active_name].setChecked(False)

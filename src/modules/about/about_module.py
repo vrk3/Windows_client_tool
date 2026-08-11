@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from _version import __version__ as _APP_VERSION
 
-_APP_VERSION = "1.0.0"
 _GITHUB_URL = "https://github.com/your-repo/windows-client-tool"
 
 

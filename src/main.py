@@ -166,12 +166,6 @@ def main():
     app.start()
     _s("app.start() done — window creation next")
 
-    # Register search providers
-    for module in app.module_registry.modules:
-        provider = module.get_search_provider()
-        if provider is not None:
-            app.search.register_provider(provider)
-
     # Create window and register all modules (uses new register_module API)
     window = MainWindow(app)
     for module in app.module_registry.modules:

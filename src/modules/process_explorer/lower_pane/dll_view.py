@@ -54,7 +54,7 @@ class DllView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data_ready.connect(self._populate)
-        self._pid: Optional[int] = None
+        self._pid: int = -1
         self._thread: Optional[threading.Thread] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -67,7 +67,7 @@ class DllView(QWidget):
 
     def cancel(self) -> None:
         """Cancel any in-progress background thread."""
-        self._pid = None  # signals will be dropped
+        self._pid = -1  # signals will be dropped
 
     def load_pid(self, pid: int):
         self.cancel()

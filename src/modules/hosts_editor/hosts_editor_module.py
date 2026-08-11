@@ -49,6 +49,7 @@ class HostsEditorModule(BaseModule):
         self._widget: QWidget = None
         self._entries: List[Tuple[bool, str, str, str]] = []
         self._modified = False
+        self._loaded = False
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -93,11 +94,21 @@ class HostsEditorModule(BaseModule):
         """)
         layout.addWidget(self._table)
 
-        self._load()
         return self._widget
 
     def on_start(self, app) -> None:
         self.app = app
+
+    def on_activate(self) -> None:
+        if not self._loaded:
+            self._loaded = True
+            self._load()
+
+    def on_deactivate(self) -> None:
+        self.cancel_all_workers()
+
+    def on_stop(self) -> None:
+        self.cancel_all_workers()
 
     def get_status_info(self) -> str:
         enabled = sum(1 for e in self._entries if e[0])

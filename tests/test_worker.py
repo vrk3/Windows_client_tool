@@ -4,9 +4,9 @@ def test_worker_cancel_flag():
     def task(worker):
         return "done"
     w = Worker(task)
-    assert not w.is_cancelled()
+    assert not w.is_cancelled
     w.cancel()
-    assert w.is_cancelled()
+    assert w.is_cancelled
 
 def test_worker_signals_exist():
     signals = WorkerSignals()

@@ -40,6 +40,9 @@ class _SYSTEM_HANDLE_INFORMATION(ctypes.Structure):
     ]
 
 
+_MAX_HANDLE_BUFFER = 64 * 1024 * 1024  # 64 MB cap to prevent runaway growth
+
+
 def _query_handles(pid: int) -> List[dict]:
     """Query all handles for pid via NtQuerySystemInformation."""
     size = 0x10000
@@ -51,6 +54,8 @@ def _query_handles(pid: int) -> List[dict]:
         )
         if status == STATUS_INFO_LENGTH_MISMATCH:
             size *= 2
+            if size > _MAX_HANDLE_BUFFER:
+                return []
             continue
         if status != 0:
             return []

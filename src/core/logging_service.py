@@ -1,7 +1,9 @@
 """Centralized logging service for Windows Client Tool."""
 
+import datetime
 import logging
 import os
+import socket
 import sys
 from logging.handlers import RotatingFileHandler
 from typing import Optional
@@ -14,45 +16,59 @@ class ApplicationLogger(logging.Logger):
 
     def warning(self, msg, *args, **kwargs):
         """Log WARNING level message."""
-        if args or kwargs:
-            msg = msg % args
+        if args:
+            try:
+                msg = msg % args
+            except TypeError:
+                msg = str(msg)
         self.log(logging.WARNING, msg, stacklevel=2)
 
     def error(self, msg, *args, **kwargs):
         """Log ERROR level message."""
-        if args or kwargs:
-            msg = msg % args
+        if args:
+            try:
+                msg = msg % args
+            except TypeError:
+                msg = str(msg)
         self.log(logging.ERROR, msg, stacklevel=2)
 
     def exception(self, msg, *args, exc_info: Optional[bool] = None, **kwargs):
         """Log exception traceback if exc_info is not None."""
         if exc_info is None:
-            exc_info = kwargs.get("exc_info", True)
-        if args or kwargs:
-            msg = msg % args
+            exc_info = kwargs.pop("exc_info", True)
+        if args:
+            try:
+                msg = msg % args
+            except TypeError:
+                msg = str(msg)
         self.log(logging.ERROR, msg, exc_info=exc_info, stacklevel=2)
 
     def info(self, msg, *args, **kwargs):
         """Log INFO level message."""
-        if args or kwargs:
-            msg = msg % args
+        if args:
+            try:
+                msg = msg % args
+            except TypeError:
+                msg = str(msg)
         self.log(logging.INFO, msg, stacklevel=2)
 
     def debug(self, msg, *args, **kwargs):
         """Log DEBUG level message if DEBUG enabled."""
-        if args or kwargs:
-            msg = msg % args
+        if args:
+            try:
+                msg = msg % args
+            except TypeError:
+                msg = str(msg)
         self.log(logging.DEBUG, msg, stacklevel=2)
 
 
 class LoggingService:
     """Configure Python logging for Windows Client Tool application.
 
-    This service provides:
-    - Rotating file logs with size/date limits
-    - Console output (colored when supported)
-    - Application-specific logging levels
-    - Graceful shutdown handling
+    Provides:
+    - Rotating file logs in %APPDATA%/WindowsTweaker/logs/ (persistent across runs)
+    - Per-session log next to the exe named {COMPUTERNAME}_{date}_{time}.log
+    - Console output when stdout is available
     """
 
     LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -68,15 +84,6 @@ class LoggingService:
         max_bytes: int = -1,
         backup_count: int = 5,
     ):
-        """Initialize logging service.
-
-        Args:
-            log_dir: Directory to write log files (creates if needed)
-            log_level: Minimum level for file handler
-            console_level: Minimum level for console output
-            max_bytes: Rotation file size (use -1 for unlimited)
-            backup_count: Number of backup files to keep
-        """
         self._log_dir = log_dir or ""
         self._log_level = getattr(logging, log_level.upper(), logging.INFO)
         self._console_level = getattr(logging, console_level.upper(), logging.WARNING)
@@ -86,84 +93,89 @@ class LoggingService:
 
     def setup(self) -> None:
         """Configure logging with rotation and dual output."""
-        try:
-            os.makedirs(self._log_dir, exist_ok=True)
-        except OSError as e:
-            print(f"Log directory creation failed: {e}")
-            return
+        # Root logger must pass everything — individual handlers filter by level.
+        logging.getLogger().setLevel(logging.DEBUG)
 
-        if not self._log_dir:
-            return
-
-        log_file = os.path.join(self._log_dir, "app.log")
         formatter = logging.Formatter(self.LOG_FORMAT, datefmt=self.DATE_FORMAT)
 
-        # File handler with rotation
+        if self._log_dir:
+            try:
+                os.makedirs(self._log_dir, exist_ok=True)
+                log_file = os.path.join(self._log_dir, "app.log")
+                file_handler = RotatingFileHandler(
+                    log_file,
+                    maxBytes=self._max_bytes,
+                    backupCount=self._backup_count,
+                    encoding="utf-8",
+                )
+                file_handler.setFormatter(formatter)
+                file_handler.setLevel(self._log_level)
+                logging.getLogger().addHandler(file_handler)
+                self._handlers.append(file_handler)
+            except Exception as e:
+                print(f"Could not create log file handler: {e}")
+
+        # Console handler — skip when stdout is unavailable (frozen windowed mode)
+        if hasattr(sys, "stdout") and sys.stdout is not None and hasattr(sys.stdout, "write"):
+            try:
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(formatter)
+                console_handler.setLevel(self._console_level)
+                logging.getLogger().addHandler(console_handler)
+                self._handlers.append(console_handler)
+            except Exception as e:
+                print(f"Could not create console handler: {e}")
+
+    def setup_session_log(self) -> None:
+        """Add a per-session log file next to the running exe.
+
+        The file is named {COMPUTERNAME}_{YYYY-MM-DD}_{HH-MM-SS}.log and placed
+        in the directory containing the executable (or cwd when running from source).
+        This lets logs from multiple machines be collected from one shared folder.
+        """
+        if getattr(sys, "frozen", False):
+            out_dir = os.path.dirname(os.path.abspath(sys.executable))
+        else:
+            out_dir = os.getcwd()
+
+        raw_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "unknown"
+        computer_name = "".join(
+            c if c.isalnum() or c in "-_" else "_" for c in raw_name
+        )
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log_path = os.path.join(out_dir, f"{computer_name}_{timestamp}.log")
+
+        formatter = logging.Formatter(self.LOG_FORMAT, datefmt=self.DATE_FORMAT)
         try:
-            file_handler = RotatingFileHandler(
-                log_file,
-                maxBytes=self._max_bytes,
-                backupCount=self._backup_count,
-                encoding="utf-8",
+            handler = logging.FileHandler(log_path, encoding="utf-8")
+            handler.setFormatter(formatter)
+            handler.setLevel(self._log_level)
+            logging.getLogger().addHandler(handler)
+            self._handlers.append(handler)
+            logging.getLogger(__name__).info(
+                "Session log started — computer: %s, file: %s", computer_name, log_path
             )
         except Exception as e:
-            print(f"Could not create file handler: {e}")
-            file_handler = None
-
-        if file_handler:
-            file_handler.setFormatter(formatter)
-            file_handler.setLevel(self._log_level)
-            file_handler.addFilter(self._create_filter())
-            self._handlers.append(file_handler)
-
-        # Console handler with color when possible
-        try:
-            console_handler = logging.StreamHandler(sys.stdout)
-        except Exception as e:
-            print(f"Could not create console handler: {e}")
-            console_handler = None
-
-        if console_handler:
-            console_handler.setFormatter(formatter)
-            console_handler.setLevel(self._console_level)
-            if hasattr(sys.stdout, 'isatty') and sys.stdout.isatty():
-                console_handler.addFilter(self._create_color_filter())
-            self._handlers.append(console_handler)
-
-        # Register at cleanup
-        logging.getLogger().addHandler(file_handler)
-        logging.getLogger().addHandler(console_handler)
-
-    def _create_filter(self) -> logging.Filter:
-        """Create filter for log messages with module name."""
-        return logging.Filter("app")
-
-    def _create_color_filter(self) -> logging.Filter:
-        """Create color filter for console output."""
-
-        # Simple filter to only console handlers
-        class ConsoleFilter(logging.Filter):
-            def filter(self, record):
-                return True
-
-        return ConsoleFilter()
+            logging.getLogger(__name__).warning(
+                "Could not create session log at %s: %s", log_path, e
+            )
 
     def set_level(self, level: str) -> None:
-        """Update logging level for all handlers.
-
-        Args:
-            level: New level string ("DEBUG", "INFO", "WARNING", "ERROR")
-        """
-        level = getattr(logging, level.upper(), logging.INFO)
+        """Update logging level for all file handlers."""
+        level_int = getattr(logging, level.upper(), logging.INFO)
         for handler in self._handlers:
-            if isinstance(handler, RotatingFileHandler):
-                handler.setLevel(level)
+            if isinstance(handler, (RotatingFileHandler, logging.FileHandler)):
+                handler.setLevel(level_int)
 
     def shutdown(self) -> None:
-        """Cleanup handlers before application shutdown."""
+        """Flush and close all handlers before application shutdown."""
         for handler in self._handlers:
-            handler.flush()
-            handler.close()
-            logging.getLogger().removeHandler(handler)
+            try:
+                handler.flush()
+                handler.close()
+                logging.getLogger().removeHandler(handler)
+            except Exception:
+                logger = logging.getLogger(__name__)
+                logger.warning("Error shutting down logging handler %s", handler, exc_info=True)
         self._handlers.clear()
         self._log_dir = ""

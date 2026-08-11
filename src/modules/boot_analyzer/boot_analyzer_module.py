@@ -29,6 +29,7 @@ class BootAnalyzerModule(BaseModule):
         self._widget: Optional[QWidget] = None
         self._worker: Optional[Worker] = None
         self._scanning = False
+        self._loaded = False
 
     def create_widget(self) -> QWidget:
         self._widget = QWidget()
@@ -79,11 +80,15 @@ class BootAnalyzerModule(BaseModule):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
-        self._load_info()
         return self._widget
 
     def on_start(self, app) -> None:
         self.app = app
+
+    def on_activate(self) -> None:
+        if not self._loaded:
+            self._loaded = True
+            self._load_info()
 
     def on_deactivate(self) -> None:
         self.cancel_all_workers()
@@ -127,6 +132,7 @@ class BootAnalyzerModule(BaseModule):
                 )
                 info["boot_type"] = "UEFI" if "UEFI" in result.stdout else "BIOS/Legacy"
             except Exception:
+                logger.debug("Failed to detect boot type", exc_info=True)
                 info["boot_type"] = "Unknown"
 
             # Boot timeout
@@ -139,6 +145,7 @@ class BootAnalyzerModule(BaseModule):
                 timeout_m = re.search(r'timeout\s*:\s*(\d+)', result.stdout, re.IGNORECASE)
                 info["boot_timeout"] = int(timeout_m.group(1)) if timeout_m else "N/A"
             except Exception:
+                logger.debug("Failed to detect boot timeout", exc_info=True)
                 info["boot_timeout"] = "N/A"
 
             # Number of boot entries
@@ -150,6 +157,7 @@ class BootAnalyzerModule(BaseModule):
                 )
                 info["boot_entries"] = result.stdout.count("bootloader")
             except Exception:
+                logger.debug("Failed to count boot entries", exc_info=True)
                 info["boot_entries"] = "N/A"
 
             # Last boot time
@@ -162,6 +170,7 @@ class BootAnalyzerModule(BaseModule):
                 )
                 info["last_boot"] = result.stdout.strip() or "N/A"
             except Exception:
+                logger.debug("Failed to get last boot time", exc_info=True)
                 info["last_boot"] = "N/A"
 
             # Fast Startup status via powercfg
@@ -173,6 +182,7 @@ class BootAnalyzerModule(BaseModule):
                 )
                 info["fast_startup"] = "Enabled" if "Enabled" in result.stdout else "Disabled"
             except Exception:
+                logger.debug("Failed to detect fast startup status", exc_info=True)
                 info["fast_startup"] = "Unknown"
 
             # Current uptime
@@ -186,6 +196,7 @@ class BootAnalyzerModule(BaseModule):
                 days = result.stdout.strip()
                 info["uptime_days"] = f"{days} days" if days else "N/A"
             except Exception:
+                logger.debug("Failed to get uptime", exc_info=True)
                 info["uptime_days"] = "N/A"
 
             return info

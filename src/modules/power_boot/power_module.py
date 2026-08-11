@@ -188,6 +188,7 @@ class PowerBootModule(BaseModule):
         try:
             reboot_banner.setVisible(is_reboot_pending())
         except Exception:
+            logger.warning("Ignored Exception", exc_info=True)
             reboot_banner.hide()
         layout.addWidget(reboot_banner)
 

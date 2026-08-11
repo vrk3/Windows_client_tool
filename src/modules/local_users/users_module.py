@@ -31,6 +31,7 @@ def _fmt_time(t) -> str:
             return t.strftime("%Y-%m-%d %H:%M")
         return datetime.datetime.fromtimestamp(int(t)).strftime("%Y-%m-%d %H:%M")
     except Exception:
+        logger.warning("Ignored Exception", exc_info=True)
         return str(t)
 
 

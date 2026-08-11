@@ -75,11 +75,11 @@ class BackupService:
             );
         """)
         # Add revert_command column if upgrading from older schema
-        try:
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(tweak_steps)")}
+        if "revert_command" not in cols:
             self._conn.execute(
                 "ALTER TABLE tweak_steps ADD COLUMN revert_command TEXT")
-        except Exception:
-            logger.warning("column already exists", exc_info=True)
+            logger.info("added revert_command column to tweak_steps")
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
@@ -126,11 +126,13 @@ class BackupService:
             return
         safe = key_path.replace("\\", "_").replace("/", "_")[:80]
         out = os.path.join(folder, "registry", f"{safe}.reg")
-        subprocess.run(
+        result = subprocess.run(
             ["reg", "export", key_path, out, "/y"],
             capture_output=True, check=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
+        if result.returncode != 0:
+            logger.warning("reg export failed (rc=%d) for %s", result.returncode, key_path)
 
     def backup_service_state(self, service_name: str, restore_point_id: str) -> None:
         folder = self._get_restore_point_folder(restore_point_id)
@@ -161,8 +163,12 @@ class BackupService:
         path = os.path.join(folder, "appx", "removed_apps.json")
         existing: list = []
         if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                existing = json.load(f)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    existing = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning("backup_appx_package: could not read %s (%s), starting fresh", path, e)
+                existing = []
         existing.append(package_full_name)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(existing, f)
@@ -195,7 +201,7 @@ class BackupService:
 
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
-            "SELECT step_type, target, before_value, revert_command FROM tweak_steps WHERE id=?",
+            "SELECT step_type, target, before_value, revert_command, restore_point_id FROM tweak_steps WHERE id=?",
             (step_id,),
         ).fetchone()
         if row is None:
@@ -207,11 +213,20 @@ class BackupService:
                       if row["before_value"] else None)
             revert_cmd = row["revert_command"]
             if step_type == "registry":
-                subprocess.run(
-                    ["reg", "import", target],
-                    check=True, capture_output=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
+                rp_folder = self._get_restore_point_folder(row["restore_point_id"])
+                if rp_folder:
+                    safe = target.replace("\\", "_").replace("/", "_")[:80]
+                    reg_file = os.path.join(rp_folder, "registry", f"{safe}.reg")
+                    if os.path.exists(reg_file):
+                        subprocess.run(
+                            ["reg", "import", reg_file],
+                            check=True, capture_output=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+                    else:
+                        logger.warning("Registry backup file not found for %s", target)
+                else:
+                    logger.warning("Restore point folder not found for %s", target)
             elif step_type == "service":
                 import win32service
                 hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)

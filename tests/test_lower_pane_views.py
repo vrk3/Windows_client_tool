@@ -27,8 +27,10 @@ def test_network_view_filters_by_pid(qapp):
     from modules.process_explorer.lower_pane.network_view import NetworkView
     view = NetworkView()
     conns = [_make_conn(1234), _make_conn(9999)]
-    with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
-               return_value=conns):
+    mock_proc = MagicMock()
+    mock_proc.connections.side_effect = lambda kind="inet": [c for c in conns if c.pid == 1234]
+    with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
+               return_value=mock_proc):
         view.load_pid(1234)
         _drain(qapp)
     assert view._table.rowCount() == 1
@@ -41,8 +43,10 @@ def test_network_view_tcp_udp_label(qapp):
         _make_conn(1, socket.SOCK_STREAM),
         _make_conn(1, socket.SOCK_DGRAM),
     ]
-    with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
-               return_value=conns):
+    mock_proc = MagicMock()
+    mock_proc.connections.return_value = conns
+    with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
+               return_value=mock_proc):
         view.load_pid(1)
         _drain(qapp)
     assert view._table.item(0, 0).text() == "TCP"
@@ -53,8 +57,10 @@ def test_network_view_access_denied_clears_table(qapp):
     from modules.process_explorer.lower_pane.network_view import NetworkView
     import psutil
     view = NetworkView()
-    with patch("modules.process_explorer.lower_pane.network_view.psutil.net_connections",
-               side_effect=psutil.AccessDenied(0)):
+    mock_proc = MagicMock()
+    mock_proc.connections.side_effect = psutil.AccessDenied(0)
+    with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
+               return_value=mock_proc):
         view.load_pid(1234)
         _drain(qapp)
     assert view._table.rowCount() == 0

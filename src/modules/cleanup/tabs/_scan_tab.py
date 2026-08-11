@@ -71,6 +71,8 @@ class _ScanTab(QWidget):
         self._scanned  = False
         self._pending_freed = 0
         self._workers: list = []   # track ALL workers (scan + clean) for cancellation
+        self._scan_worker = None
+        self._clean_worker = None
         self._thread_pool = QThreadPool.globalInstance()
         self._setup_ui()
 
@@ -191,11 +193,11 @@ class _ScanTab(QWidget):
                 merged.total_size += r.total_size
             return merged, per
 
-        self._worker = Worker(_run)
-        self._worker.signals.result.connect(self._on_scan_result)
-        self._worker.signals.error.connect(self._on_scan_error)
-        self._workers.append(self._worker)
-        self._thread_pool.start(self._worker)
+        self._scan_worker = Worker(_run)
+        self._scan_worker.signals.result.connect(self._on_scan_result)
+        self._scan_worker.signals.error.connect(self._on_scan_error)
+        self._workers.append(self._scan_worker)
+        self._thread_pool.start(self._scan_worker)
 
     def _on_scan_result(self, data):
         merged, per_scanner = data
@@ -257,6 +259,10 @@ class _ScanTab(QWidget):
                 parent.addChild(child)
 
         total_safe = sum(1 for i in merged.items if i.safety == "safe")
+        logger.info(
+            "Cleanup scan complete: %d item(s) (%d safe), %s",
+            len(merged.items), total_safe, cs.format_size(merged.total_size),
+        )
         self._status.setText(
             f"{len(merged.items)} item(s)  ({total_safe} safe) — "
             f"{cs.format_size(merged.total_size)}"
@@ -311,11 +317,11 @@ class _ScanTab(QWidget):
         def _run(_w):
             return cs.delete_items(selected, stop_wuauserv=wu)
 
-        self._worker = Worker(_run)
-        self._worker.signals.result.connect(self._on_clean_done)
-        self._worker.signals.error.connect(self._on_clean_error)
-        self._workers.append(self._worker)
-        self._thread_pool.start(self._worker)
+        self._clean_worker = Worker(_run)
+        self._clean_worker.signals.result.connect(self._on_clean_done)
+        self._clean_worker.signals.error.connect(self._on_clean_error)
+        self._workers.append(self._clean_worker)
+        self._thread_pool.start(self._clean_worker)
 
     def _on_clean_done(self, result: tuple):
         deleted, errors = result
@@ -329,6 +335,8 @@ class _ScanTab(QWidget):
                 f"⚠ {errors} file(s) could not be deleted (in use or access denied)."
             )
             self._err_lbl.show()
+        freed = self._pending_freed
+        logger.info("Cleanup complete: deleted %d item(s), freed %s, %d error(s)", deleted, cs.format_size(freed), errors)
         self._status.setText(msg)
         self._clean_btn.setEnabled(False)
         self._quick_btn.setEnabled(False)

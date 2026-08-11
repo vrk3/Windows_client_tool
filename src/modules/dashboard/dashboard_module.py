@@ -10,8 +10,11 @@ Provides real-time monitoring of:
 Refresh interval: 3 seconds (configurable)
 """
 
+import logging
 import os
 import platform
+
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import Optional
 
@@ -284,12 +287,14 @@ class _DashboardWidget(QWidget):
         try:
             parts = psutil.disk_partitions(all=False)
         except Exception:
+            logger.warning("Ignored Exception in disk_partitions", exc_info=True)
             return
         seen: set[str] = set()
         for p in parts:
             try:
                 usage = psutil.disk_usage(p.mountpoint)
             except Exception:
+                logger.warning("Ignored Exception in disk_usage for %s", p.mountpoint, exc_info=True)
                 continue
             label = f"{p.device}  [{p.fstype}]"
             seen.add(label)

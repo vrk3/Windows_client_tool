@@ -33,7 +33,6 @@ class ModuleRegistry:
         logger.info("Registered module: %s", module.name)
 
     def start_all(self, app) -> None:
-        import logging
         _log = logging.getLogger("startup")
         running_as_admin = is_admin()
         for module in self._modules:
@@ -61,7 +60,6 @@ class ModuleRegistry:
             if module in self._disabled:
                 continue
             try:
-                module.cancel_all_workers()
                 module.on_stop()
                 logger.info("Stopped module: %s", module.name)
             except Exception:

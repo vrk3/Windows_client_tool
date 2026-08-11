@@ -98,7 +98,6 @@ class RestoreManagerModule(BaseModule):
         )
         layout.addWidget(info)
 
-        self._load_restore_points()
         return self._widget
 
     def on_start(self, app) -> None:
@@ -151,9 +150,13 @@ class RestoreManagerModule(BaseModule):
                 logger.warning("Failed to load restore points: %s", e)
                 return []
 
+        def _on_load_error(err: str) -> None:
+            self._progress.setVisible(False)
+            logger.error("Load restore points error: %s", err)
+
         self._worker = Worker(do_load)
         self._worker.signals.result.connect(self._on_points_loaded)
-        self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._worker.signals.error.connect(_on_load_error)
         self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
@@ -171,6 +174,7 @@ class RestoreManagerModule(BaseModule):
                 dt = datetime.strptime(ctime[:14], "%Y%m%d%H%M%S")
                 date_str = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
+                logger.warning("Ignored Exception", exc_info=True)
                 date_str = ctime[:14] if ctime else "Unknown"
 
             rptype = pt.get("RestorePointType", "Unknown")
@@ -204,10 +208,11 @@ class RestoreManagerModule(BaseModule):
 
         def do_create(worker):
             try:
+                safe_desc = desc.replace("'", "''")
                 result = subprocess.run(
                     [
                         "powershell", "-Command",
-                        f"Checkpoint-Computer -Description '{desc}' -RestorePointType 'MODIFY_SETTINGS'",
+                        f"Checkpoint-Computer -Description '{safe_desc}' -RestorePointType 'MODIFY_SETTINGS'",
                     ],
                     capture_output=True,
                     text=True,
@@ -218,9 +223,13 @@ class RestoreManagerModule(BaseModule):
             except Exception as e:
                 return False, str(e)
 
+        def _on_create_error(err: str) -> None:
+            self._progress.setVisible(False)
+            logger.error("Create restore point error: %s", err)
+
         self._worker = Worker(do_create)
         self._worker.signals.result.connect(self._on_created)
-        self._worker.signals.error.connect(lambda _: self._progress.setVisible(False))
+        self._worker.signals.error.connect(_on_create_error)
         self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 

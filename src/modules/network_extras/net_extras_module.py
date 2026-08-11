@@ -287,7 +287,9 @@ class NetExtrasModule(BaseModule):
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PROXY_KEY) as k:
                     def rv(name, default=""):
                         try: return winreg.QueryValueEx(k, name)[0]
-                        except Exception: return default
+                        except Exception:
+                            logger.warning("Ignored Exception", exc_info=True)
+                            return default
                     enable_cb.setChecked(bool(rv("ProxyEnable", 0)))
                     server_edit.setText(str(rv("ProxyServer", "")))
                     override_edit.setText(str(rv("ProxyOverride", "")))
@@ -332,7 +334,12 @@ class NetExtrasModule(BaseModule):
 
         def _run_action(cmd):
             log.appendPlainText(f"\n> {' '.join(cmd)}")
-            worker = Worker(lambda _w: run_cmd_stream(cmd, lambda l: log.appendPlainText(l)))
+
+            def _do_stream(worker):
+                return run_cmd_stream(cmd, lambda l: worker.signals.log_line.emit(l))
+
+            worker = Worker(_do_stream)
+            worker.signals.log_line.connect(log.appendPlainText)
             worker.signals.result.connect(lambda _: log.appendPlainText("Done."))
             worker.signals.error.connect(lambda e: log.appendPlainText(f"Error: {e}"))
             self._workers.append(worker)
@@ -342,7 +349,8 @@ class NetExtrasModule(BaseModule):
         layout.addWidget(log, 1)
         return w
 
-    def on_start(self, app=None): pass
+    def on_start(self, app) -> None:
+        self.app = app
     def on_stop(self) -> None:
         self.cancel_all_workers()
     def on_activate(self): pass

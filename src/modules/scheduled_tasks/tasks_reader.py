@@ -32,6 +32,7 @@ def _fmt_date(dt) -> str:
             return "Never"
         return s[:16].replace("T", " ")
     except Exception:
+        logger.warning("Ignored Exception formatting date", exc_info=True)
         return ""
 
 
@@ -50,8 +51,8 @@ def _build_folder(com_folder, path: str) -> TaskFolder:
         for sub in com_folder.GetFolders(0):
             subpath = path.rstrip("\\") + "\\" + sub.Name
             tf.subfolders.append(_build_folder(sub, subpath))
-    except Exception:
-        logger.warning("Ignored Exception", exc_info=True)
+    except Exception as e:
+        logger.warning("Could not enumerate task subfolders for %s: %s", path, e)
     return tf
 
 
@@ -83,12 +84,14 @@ def get_tasks_in_folder(folder_path: str) -> List[TaskInfo]:
                             triggers += f" (+{trig_count - 1})"
                     else:
                         triggers = "None"
-                except Exception:
+                except Exception as e:
+                    logger.debug("Could not read triggers for task %s: %s", task.Name if hasattr(task, 'Name') else '?', e)
                     triggers = ""
                 # Author
                 try:
                     author = task.Definition.RegistrationInfo.Author or ""
-                except Exception:
+                except Exception as e:
+                    logger.debug("Could not read author for task: %s", e)
                     author = ""
                 tasks.append(TaskInfo(
                     name=task.Name,
@@ -102,8 +105,9 @@ def get_tasks_in_folder(folder_path: str) -> List[TaskInfo]:
                     xml=task.Xml,
                     enabled=(task.State != 1),
                 ))
-            except Exception:
+            except Exception as e:
+                logger.debug("Skipping task due to error: %s", e)
                 continue
-    except Exception:
-        logger.warning("Ignored Exception", exc_info=True)
+    except Exception as e:
+        logger.warning("Could not enumerate tasks in folder %s: %s", folder_path, e)
     return tasks

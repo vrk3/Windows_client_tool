@@ -51,13 +51,12 @@ class App:
         App.instance = self
 
         self._app_data_dir = app_data_dir or _get_app_data_dir()
-        defaults = _get_default_config()
 
         # Core services
         self.event_bus = EventBus()
         self.config = ConfigManager(
             config_dir=self._app_data_dir,
-            defaults=defaults,
+            defaults=_get_default_config,  # callable — lazily loaded only when needed
             event_bus=self.event_bus,
         )
         self.config.load()
@@ -66,6 +65,7 @@ class App:
         log_level = self.config.get("app.log_level", "INFO")
         self.logger = LoggingService(log_dir=log_dir, log_level=log_level)
         self.logger.setup()
+        self.logger.setup_session_log()
 
         self.backup = BackupService(data_dir=self._app_data_dir)
 

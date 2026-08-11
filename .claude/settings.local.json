@@ -97,7 +97,22 @@
       "PowerShell(Start-Process -FilePath \"C:\\\\Users\\\\iorda\\\\AppData\\\\Local\\\\Temp\\\\WinClientTool.exe\" -Verb RunAs -PassThru 2>&1 | Select-Object Id, ProcessName, StartTime)",
       "PowerShell(Remove-Item *)",
       "PowerShell(Set-Location \"C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\"; Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& '$PWD\\\\.venv\\\\Scripts\\\\python.exe' src/main.py\" -Verb RunAs)",
-      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\.venv\\\\Scripts\\\\python.exe' 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\src\\\\main.py'\" -Verb RunAs -WindowStyle Normal)"
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"& 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\.venv\\\\Scripts\\\\python.exe' 'C:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool\\\\src\\\\main.py'\" -Verb RunAs -WindowStyle Normal)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" -m pytest -q 2>&1)",
+      "PowerShell(Write-Output \"=== py launcher ===\"; py -0p 2>&1; Write-Output \"=== python on PATH ===\"; \\(Get-Command python -ErrorAction SilentlyContinue\\).Source; \\(Get-Command python3 -ErrorAction SilentlyContinue\\).Source; Write-Output \"=== venv cfg ===\"; if \\(Test-Path \".venv\\\\pyvenv.cfg\"\\) { Get-Content \".venv\\\\pyvenv.cfg\" })",
+      "PowerShell(& \"C:\\\\Users\\\\iorda\\\\.local\\\\bin\\\\uv.exe\" python list 2>&1)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" --version 2>&1)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" -c \"import PyQt6, psutil, win32service, pythoncom, pyqtgraph; print\\('imports OK'\\)\" 2>&1)",
+      "PowerShell($env:QT_QPA_PLATFORM = \"offscreen\"; & \".venv\\\\Scripts\\\\python.exe\" -m pytest -q 2>&1 | Select-Object -Last 35)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" \"_split_analyze.py\" 2>&1)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" \"_split_gen.py\" 2>&1)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" \"_split_gen.py\" --write 2>&1)",
+      "PowerShell($env:QT_QPA_PLATFORM = \"offscreen\"; Write-Output \"=== import main ===\"; & \".venv\\\\Scripts\\\\python.exe\" -c \"import sys; sys.path.insert\\(0,'src'\\); import main; print\\('main imports OK'\\)\" 2>&1 | Select-Object -Last 5; Write-Output \"=== pytest ===\"; & \".venv\\\\Scripts\\\\python.exe\" -m pytest -q 2>&1 | Select-Object -Last 12)",
+      "PowerShell($env:QT_QPA_PLATFORM = \"offscreen\"; & \".venv\\\\Scripts\\\\python.exe\" -m pytest tests/modules/test_cleanup_scanner.py -x 2>&1 | Select-Object -First 55)",
+      "PowerShell(git restore \"src/modules/cleanup/cleanup_scanner.py\")",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" \"_split_gen.py\" --write 2>&1; Remove-Item \"src\\\\modules\\\\cleanup\\\\cleanup_scanner.py\" -Force; $env:QT_QPA_PLATFORM = \"offscreen\"; Write-Output \"=== scanner tests ===\"; & \".venv\\\\Scripts\\\\python.exe\" -m pytest tests/modules/test_cleanup_scanner.py -q 2>&1 | Select-Object -Last 8)",
+      "PowerShell($env:QT_QPA_PLATFORM = \"offscreen\"; & \".venv\\\\Scripts\\\\python.exe\" -m pytest -q 2>&1 | Select-Object -Last 8)",
+      "PowerShell(& \"C:\\\\Users\\\\iorda\\\\.local\\\\bin\\\\uv.exe\" tool run ruff check --select F821,F811,F405,F406,F822 \"src/modules/cleanup/cleanup_scanner\" 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\iorda\\OneDrive\\Documents\\Visual Studio 2022\\TEMP\\Windows_client_tool\\src\\modules\\tweaks\\definitions\\builtins",

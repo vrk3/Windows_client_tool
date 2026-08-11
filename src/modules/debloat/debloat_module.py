@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
-from core.backup_service import BackupService
 from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 from core.worker import Worker
@@ -172,14 +171,13 @@ class DebloatModule(BaseModule):
 
     def on_start(self, app) -> None:
         self.app = app
-        backup = BackupService(app._app_data_dir)
-        self._engine = TweakEngine(backup)
+        self._engine = TweakEngine(app.backup)
 
     def on_activate(self) -> None:
         pass
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
@@ -222,6 +220,7 @@ class DebloatModule(BaseModule):
         self._scan_btn.setEnabled(True)
         installed: List[str] = result.get("installed", [])
         self._installed_apps = installed
+        logger.info("Debloat scan complete \u2014 %d bloatware app(s) detected", len(installed))
         self._apps_status.setText(
             f"Scan complete \u2014 {len(installed)} bloatware app(s) detected"
         )
@@ -297,20 +296,24 @@ class DebloatModule(BaseModule):
         self._apps_progress.setValue(0)
 
         def work(w: Worker):
-            backup = BackupService(self.app._app_data_dir)
+            backup = self.app.backup
             engine = TweakEngine(backup)
-            rp_id = f"debloat_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            backup.create_restore_point(rp_id)
+            rp_id = backup.create_restore_point(
+                f"Debloat apps {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}", "Debloat")
             entries = self._load_debloat_entries()
             success = 0
+            logger.info("Debloat: removing %d app(s)", len(entry_ids))
             for i, eid in enumerate(entry_ids):
                 if w.is_cancelled:
                     break
                 entry = entries.get(eid)
                 if entry:
-                    engine.apply_tweak(entry, rp_id)
-                    success += 1
+                    pkg = entry.get("package", eid)
+                    logger.info("Debloat: removing %s", pkg)
+                    if engine.apply_tweak(entry, rp_id):
+                        success += 1
                 w.signals.progress.emit(i + 1)
+            logger.info("Debloat: removed %d/%d app(s)", success, len(entry_ids))
             return {"success": success, "total": len(entry_ids)}
 
         w = Worker(work)
@@ -324,6 +327,9 @@ class DebloatModule(BaseModule):
         self._apps_progress.setVisible(False)
         self._apply_selected_btn.setEnabled(True)
         self._apply_all_btn.setEnabled(True)
+        logger.info(
+            "Debloat complete: removed %d/%d app(s)", result["success"], result["total"]
+        )
         QMessageBox.information(
             self._widget, "Debloat Complete",
             f"Removed {result['success']} of {result['total']} app(s).\n"
@@ -351,9 +357,10 @@ class DebloatModule(BaseModule):
     # Tab lazy-loading
     # ------------------------------------------------------------------
 
+    _TAB_TYPES = ["apps", "tweak", "ai"]
+
     def _on_tab_changed(self, index: int) -> None:
-        tab_types = ["apps", "tweak", "ai"]
-        tab_type = tab_types[index] if index < len(tab_types) else None
+        tab_type = self._TAB_TYPES[index] if index < len(self._TAB_TYPES) else None
         if tab_type and tab_type != "apps":
             table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
             if table and table.rowCount() == 0:
@@ -392,8 +399,7 @@ class DebloatModule(BaseModule):
 
         table.setRowCount(0)
         if not self._engine:
-            backup = BackupService(self.app._app_data_dir)
-            self._engine = TweakEngine(backup)
+            self._engine = TweakEngine(self.app.backup)
         engine = self._engine
 
         for tweak in tweaks:
@@ -478,18 +484,21 @@ class DebloatModule(BaseModule):
             tweaks = self._ai_tweaks
 
         def work(w: Worker):
-            backup = BackupService(self.app._app_data_dir)
+            backup = self.app.backup
             engine = TweakEngine(backup)
-            rp_id = f"debloat_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            backup.create_restore_point(rp_id)
+            rp_id = backup.create_restore_point(
+                f"Debloat tweaks {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}", "Debloat")
             success = 0
+            logger.info("Debloat tweaks: applying %d tweak(s) [%s tab]", len(selected_ids), tab_type)
             for eid in selected_ids:
                 if w.is_cancelled:
                     break
                 tweak = next((t for t in tweaks if t.get("id") == eid), None)
                 if tweak:
+                    logger.info("Applying tweak: %s", tweak.get("name", eid))
                     engine.apply_tweak(tweak, rp_id)
                     success += 1
+            logger.info("Debloat tweaks: applied %d/%d", success, len(selected_ids))
             return {"success": success, "total": len(selected_ids)}
 
         w = Worker(work)
@@ -499,6 +508,9 @@ class DebloatModule(BaseModule):
         self.app.thread_pool.start(w)
 
     def _on_tweaks_applied(self, result: Dict) -> None:
+        logger.info(
+            "Debloat tweaks complete: applied %d/%d tweak(s)", result["success"], result["total"]
+        )
         QMessageBox.information(
             self._widget, "Tweaks Applied",
             f"Applied {result['success']} of {result['total']} tweak(s).\n"

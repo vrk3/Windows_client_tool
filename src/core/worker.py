@@ -4,7 +4,6 @@ This module provides safe worker implementation with signal emission
 for progress updates, error handling, and cancellation support.
 """
 
-import atexit
 import logging
 from threading import Lock
 from typing import Any, Callable, Optional
@@ -72,16 +71,20 @@ class Worker(QRunnable):
         """Execute worker function.
 
         Emits progress updates, result, errors via signals.
-        Raises:
-            RuntimeError: If worker cancelled before completion
+        Always emits finished, even when cancelled before execution starts.
         """
         with self._cancel_lock:
             if self._cancelled:
-                raise RuntimeError("Worker cancelled")
+                self.signals.cancelled.emit()
+                self.signals.finished.emit()
+                return
 
         try:
             result = self.fn(self, *self.args, **self.kwargs)
-            self.signals.result.emit(result)
+            if not self._cancelled:
+                self.signals.result.emit(result)
+            else:
+                self.signals.cancelled.emit()
         except Exception as e:
             logger.exception("Worker error: %s", e)
             self.signals.error.emit(str(e))
@@ -94,19 +97,15 @@ class Worker(QRunnable):
         Returns:
             True if worker was cancelled or already cancelled
         """
-        self._cancelled = True
         with self._cancel_lock:
+            self._cancelled = True
             return self._cancelled
 
     @property
-    def cancelled(self) -> bool:
-        """Check if worker has been cancelled."""
-        return self._cancelled
-
-    @property
     def is_cancelled(self) -> bool:
-        """Alias for cancelled property."""
-        return self._cancelled
+        """Check if worker has been cancelled (thread-safe)."""
+        with self._cancel_lock:
+            return self._cancelled
 
 
 class COMWorker(Worker):
@@ -117,17 +116,20 @@ class COMWorker(Worker):
     COM-related pythoncom modules.
     """
 
-    def run(self) -> None:
+    def run(self) -> Any:
         """Run COM-backed worker function.
 
         Initializes COM with CoInitialize before calling super().run()
         and uninitializes with CoUninitialize in finally block.
+
+        Returns:
+            The result from the worker function (preserved from super().run()).
         """
         import pythoncom
 
         pythoncom.CoInitialize()
         try:
-            super().run()
+            return super().run()
         finally:
             pythoncom.CoUninitialize()
 

@@ -112,6 +112,7 @@ class PerfTunerModule(BaseModule):
                 try:
                     results[check["id"]] = check["detect"]()
                 except Exception:
+                    logger.warning("Ignored Exception", exc_info=True)
                     results[check["id"]] = "unknown"
                 worker.signals.progress.emit(i + 1)
             return results
@@ -153,8 +154,57 @@ class PerfTunerModule(BaseModule):
 
     def _apply_all(self) -> None:
         suboptimal = [c for c in PERF_CHECKS if self._statuses.get(c["id"]) == "suboptimal"]
-        for check in suboptimal:
-            self._apply_single(check)
+        if not suboptimal:
+            return
+
+        self._apply_all_btn.setEnabled(False)
+        self._scan_btn.setEnabled(False)
+        self._progress.setVisible(True)
+        self._progress.setRange(0, len(suboptimal))
+        self._progress.setValue(0)
+
+        checks = list(suboptimal)
+
+        def work(worker):
+            from modules.tweaks.tweak_engine import TweakEngine
+            engine = TweakEngine(self.app.backup)
+            results = {}
+            for i, check in enumerate(checks):
+                if worker.is_cancelled:
+                    break
+                try:
+                    rp_id = self.app.backup.create_restore_point(
+                        f"PerfTuner: {check['name']}", "PerfTuner")
+                    tweak = {"id": check["id"], "steps": check["apply"]}
+                    success = engine.apply_tweak(tweak, rp_id)
+                    results[check["id"]] = "optimal" if success else "suboptimal"
+                except Exception:
+                    logger.warning("Ignored Exception", exc_info=True)
+                    results[check["id"]] = "suboptimal"
+                worker.signals.progress.emit(i + 1)
+            return results
+
+        def on_result(results):
+            self._statuses.update(results)
+            self._populate_table()
+            applied = sum(1 for s in results.values() if s == "optimal")
+            self._status_label.setText(
+                f"Applied {applied} of {len(checks)} setting(s)."
+            )
+
+        def on_done():
+            self._apply_all_btn.setEnabled(
+                sum(1 for s in self._statuses.values() if s == "suboptimal") > 0
+            )
+            self._scan_btn.setEnabled(True)
+            self._progress.setVisible(False)
+
+        w = Worker(work)
+        w.signals.result.connect(on_result)
+        w.signals.finished.connect(on_done)
+        w.signals.progress.connect(self._progress.setValue)
+        self._workers.append(w)
+        QThreadPool.globalInstance().start(w)
 
     def get_status_info(self) -> str:
         return "Performance Tuner"

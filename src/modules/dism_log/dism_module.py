@@ -86,7 +86,7 @@ class DISMLogModule(BaseModule):
             self._load_log()
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_stop(self) -> None:
         self.cancel_all_workers()

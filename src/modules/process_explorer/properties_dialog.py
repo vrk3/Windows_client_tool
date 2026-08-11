@@ -35,6 +35,10 @@ class ProcessPropertiesDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+        self._thread_view: Optional[ThreadView] = None
+        self._network_view: Optional[NetworkView] = None
+        self._strings_view: Optional[StringsView] = None
+
         self._build_image_tab()
         self._build_threads_tab()
         self._build_network_tab()
@@ -78,11 +82,13 @@ class ProcessPropertiesDialog(QDialog):
     def _build_threads_tab(self):
         tv = ThreadView()
         tv.load_pid(self._node.pid)
+        self._thread_view = tv
         self._tabs.addTab(tv, "Threads")
 
     def _build_network_tab(self):
         nv = NetworkView()
         nv.load_pid(self._node.pid)
+        self._network_view = nv
         self._tabs.addTab(nv, "TCP/IP")
 
     def _build_security_tab(self):
@@ -143,4 +149,14 @@ class ProcessPropertiesDialog(QDialog):
         if self._thread_pool:
             sv.set_thread_pool(self._thread_pool)
         sv.load_exe(self._node.exe)
+        self._strings_view = sv
         self._tabs.addTab(sv, "Strings")
+
+    def done(self, r: int) -> None:
+        if self._thread_view is not None:
+            self._thread_view.cancel()
+        if self._network_view is not None:
+            self._network_view.cancel()
+        if self._strings_view is not None:
+            self._strings_view.cancel()
+        super().done(r)

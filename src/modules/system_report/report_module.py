@@ -287,4 +287,4 @@ class SystemReportModule(BaseModule):
     def on_start(self, app): self.app = app
     def on_stop(self): self.cancel_all_workers()
     def on_activate(self): pass
-    def on_deactivate(self): pass
+    def on_deactivate(self): self.cancel_all_workers()

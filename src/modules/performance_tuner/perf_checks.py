@@ -114,6 +114,7 @@ def _detect_high_perf_power():
             return "optimal"
         return "suboptimal"
     except Exception:
+        logger.warning("Ignored Exception", exc_info=True)
         return "unknown"
 
 

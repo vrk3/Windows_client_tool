@@ -317,10 +317,13 @@ class PerfMonModule(BaseModule):
                 self._dashboard.disk_chart,
                 self._dashboard.net_chart,
             ]:
-                chart._data.clear()
-                chart._times.clear()
-                if chart._curve:
-                    chart._curve.setData([], [])
+                if hasattr(chart, '_plot_widget') and chart._plot_widget is not None:
+                    chart._plot_widget._data.clear()
+                    chart._plot_widget._times.clear()
+                    chart._plot_widget.update()
+                else:
+                    chart._data.clear()
+                    chart._times.clear()
 
     def _update_live_monitor(self) -> None:
         try:

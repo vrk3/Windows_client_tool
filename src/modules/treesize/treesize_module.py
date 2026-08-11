@@ -1,13 +1,15 @@
 import csv
 import datetime
 import json
+import logging
 import os
 import shutil
-import string
 import threading
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt, QTimer, QEvent, QObject, pyqtSignal
+logger = logging.getLogger(__name__)
+
+from PyQt6.QtCore import Qt, QTimer, QEvent, QObject, pyqtSignal, QModelIndex
 from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QFormLayout, QFrame,
@@ -21,13 +23,22 @@ from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from modules.treesize.disk_scanner import DiskScanner
 from modules.treesize.disk_tree_model import (
-    COL_SIZE, COL_NAME, DiskTreeModel, SizeBarDelegate,
+    COL_SIZE, COL_NAME, COL_PCT, COL_FILES, COL_MODIFIED, DiskTreeModel, SizeBarDelegate,
     format_size, PieChartWidget, _CHART_COLORS,
 )
 
 
 def _get_drives():
-    return [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    """Get available drive letters without blocking."""
+    import ctypes
+    try:
+        buf = ctypes.create_unicode_buffer(256)
+        ctypes.windll.kernel32.GetLogicalDriveStringsW(255, buf)
+        return [d.rstrip("\\") for d in buf.value.split("\x00") if d.strip()]
+    except Exception:
+        logger.warning("Ignored Exception in GetLogicalDriveStringsW", exc_info=True)
+        # Ultimate fallback: only C:\
+        return ["C:\\"] if os.path.exists("C:\\") else []
 
 
 # ── PieChart widget ─────────────────────────────────────────────────────────
@@ -46,12 +57,18 @@ class _PieChart(QWidget):
         if not roots:
             self.update()
             return
-        total = sum(r.size for r in roots if r.is_dir and r.size > 0)
+        # Use immediate children of the first root for the pie chart
+        # (after the single-root model fix, roots has only 1 entry)
+        items = roots[0].children if roots else []
+        if not items:
+            self.update()
+            return
+        total = sum(r.size for r in items if r.is_dir and r.size >= 0)
         if total == 0:
             self.update()
             return
-        for i, r in enumerate(roots[:9]):
-            if not r.is_dir or r.size <= 0:
+        for i, r in enumerate(items[:9]):
+            if not r.is_dir or r.size < 0:
                 continue
             self._data.append((
                 r.name[:14],
@@ -67,7 +84,7 @@ class _PieChart(QWidget):
         w, h = self.width(), self.height()
 
         if not self._data:
-            painter.drawText(w // 2 - 40, h // 2, "Scan to see chart")
+            painter.drawText(w // 2 - 40, h // 2, "Expand folders to see chart")
             return
 
         # Donut chart on the left
@@ -165,7 +182,6 @@ class _BreadcrumbBar(QWidget):
 
     def set_path(self, path: str):
         self._path = path
-        # Clear existing
         while self._content_lay.count():
             item = self._content_lay.takeAt(0)
             if item.widget():
@@ -175,7 +191,10 @@ class _BreadcrumbBar(QWidget):
         p = path.rstrip("\\")
         while p:
             parts.append(p)
-            p = os.path.dirname(p)
+            parent = os.path.dirname(p)
+            if parent == p:
+                break
+            p = parent
         parts.reverse()
 
         for i, part in enumerate(parts):
@@ -212,12 +231,15 @@ class TreeSizeModule(BaseModule):
         self._current_scan_path: str = ""
         self._is_paused: bool = False
 
-        # ── feature: navigation history ─────────────────────────────────
+        # Track background scan threads for lazy loading
+        self._expand_workers: List[threading.Thread] = []
+
+        # navigation history
         self._nav_history: List[str] = []
         self._nav_forward: List[str] = []
 
-        # ── feature: scan history ────────────────────────────────────────
-        self._scan_history: List[dict] = []  # {"path": str, "timestamp": float}
+        # scan history
+        self._scan_history: List[dict] = []
         self._history_limit = 20
 
     # ── widget creation ────────────────────────────────────────────────────
@@ -253,7 +275,7 @@ class TreeSizeModule(BaseModule):
         self._pause_btn.setEnabled(False)
         self._pause_btn.clicked.connect(self._toggle_pause)
 
-        # ── feature: back / forward ──────────────────────────────────────
+        # Back / Forward
         self._back_btn = QPushButton("◀")
         self._back_btn.setToolTip("Back")
         self._back_btn.setEnabled(False)
@@ -265,7 +287,7 @@ class TreeSizeModule(BaseModule):
         self._back_btn.clicked.connect(self._go_back)
         self._fwd_btn.clicked.connect(self._go_forward)
 
-        # ── feature: expand / collapse all ─────────────────────────────────
+        # Expand / Collapse All
         self._expand_btn = QPushButton("Expand All")
         self._expand_btn.setMaximumWidth(80)
         self._collapse_btn = QPushButton("Collapse All")
@@ -296,28 +318,23 @@ class TreeSizeModule(BaseModule):
         fbar.setColumnStretch(0, 0)
         fbar.setColumnStretch(1, 1)
         fbar.setColumnStretch(2, 0)
-        fbar.setColumnStretch(3, 1)
+        fbar.setColumnStretch(3, 0)
         fbar.setColumnStretch(4, 0)
         fbar.setColumnStretch(5, 0)
         fbar.setColumnStretch(6, 0)
-        fbar.setColumnStretch(7, 0)
-        fbar.setColumnStretch(8, 0)
 
-        # Exclude patterns
         self._exclude_edit = QLineEdit()
         self._exclude_edit.setPlaceholderText("e.g. node_modules, .git, WinSxS …")
         self._exclude_btn = QPushButton("Exclude")
         self._exclude_btn.setMaximumWidth(64)
         self._exclude_btn.clicked.connect(self._apply_exclude)
 
-        # Min age
         self._min_age_spin = QSpinBox()
         self._min_age_spin.setRange(0, 9999)
         self._min_age_spin.setSuffix(" days")
         self._min_age_spin.setFixedWidth(100)
         self._min_age_spin.setToolTip("Skip files older than N days (0 = off)")
 
-        # Auto-expand depth
         self._auto_expand_spin = QSpinBox()
         self._auto_expand_spin.setRange(0, 10)
         self._auto_expand_spin.setValue(2)
@@ -325,7 +342,6 @@ class TreeSizeModule(BaseModule):
         self._auto_expand_spin.setFixedWidth(90)
         self._auto_expand_spin.setToolTip("Auto-expand depth after scan (0 = collapsed)")
 
-        # Select above threshold
         self._select_thresh_spin = QSpinBox()
         self._select_thresh_spin.setRange(0, 999999)
         self._select_thresh_spin.setSuffix(" MB")
@@ -335,7 +351,6 @@ class TreeSizeModule(BaseModule):
         self._select_thresh_btn.setMaximumWidth(70)
         self._select_thresh_btn.clicked.connect(self._select_above)
 
-        # Live search
         self._search_edit = QLineEdit()
         self._search_edit.setPlaceholderText("🔍 Filter by name…")
         self._search_edit.setMinimumWidth(160)
@@ -348,7 +363,6 @@ class TreeSizeModule(BaseModule):
         )
         self._search_edit.returnPressed.connect(self._search_edit.clear)
 
-        # Scan history
         self._history_cb = QComboBox()
         self._history_cb.setMinimumWidth(120)
         self._history_cb.setToolTip("Previous scans")
@@ -361,12 +375,12 @@ class TreeSizeModule(BaseModule):
         fbar.addWidget(self._min_age_spin, 0, 4)
         fbar.addWidget(QLabel("Auto-expand:"), 0, 5)
         fbar.addWidget(self._auto_expand_spin, 0, 6)
-        fbar.addWidget(self._select_thresh_btn, 0, 7)
-        fbar.addWidget(self._select_thresh_spin, 0, 8)
 
         fbar2 = QHBoxLayout()
         fbar2.addWidget(QLabel("Search:"))
         fbar2.addWidget(self._search_edit, 1)
+        fbar2.addWidget(self._select_thresh_btn)
+        fbar2.addWidget(self._select_thresh_spin)
         fbar2.addWidget(QLabel("History:"))
         fbar2.addWidget(self._history_cb)
         fbar2.addStretch()
@@ -391,21 +405,26 @@ class TreeSizeModule(BaseModule):
         self._model = DiskTreeModel()
         self._tree = QTreeView()
         self._tree.setModel(self._model)
-        self._tree.setAlternatingRowColors(True)  # feature 12
+        self._tree.setAlternatingRowColors(True)
         delegate = SizeBarDelegate()
         self._tree.setItemDelegateForColumn(COL_SIZE, delegate)
         self._tree.setItemDelegateForColumn(COL_NAME, delegate)
         hdr = self._tree.header()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        hdr.resizeSection(1, 160)
         hdr.setStretchLastSection(False)
         hdr.setSortIndicatorShown(True)
+        hdr.setSectionsMovable(True)
+        # All columns user-resizable with sensible defaults
+        hdr.resizeSection(COL_NAME, 260)
+        hdr.resizeSection(COL_SIZE, 150)
+        hdr.resizeSection(COL_PCT, 100)
+        hdr.resizeSection(COL_FILES, 70)
+        hdr.resizeSection(COL_MODIFIED, 140)
         self._tree.setSortingEnabled(True)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.setSelectionMode(QTreeView.SelectionMode.MultiSelection)
         layout.addWidget(self._tree, 1)
 
-        # ── expand / collapse (moved here — _tree must exist first) ────
+        # ── expand / collapse ────────────────────────────────────────────
         self._expand_btn.clicked.connect(self._tree.expandAll)
         self._collapse_btn.clicked.connect(self._tree.collapseAll)
 
@@ -434,6 +453,8 @@ class TreeSizeModule(BaseModule):
         self._drive_cb.currentTextChanged.connect(self._on_drive_changed)
         self._tree.doubleClicked.connect(self._on_double_click)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
+        self._tree.expanded.connect(self._on_tree_expanded)
+
         export_btn = QPushButton("Export…")
         export_btn.setMaximumWidth(80)
         export_btn.clicked.connect(self._do_export)
@@ -452,7 +473,7 @@ class TreeSizeModule(BaseModule):
             self._status_lbl.setText("Invalid path.")
             return
 
-        # Push to back history (feature 9)
+        # Push to back history
         if self._current_scan_path and self._current_scan_path != path:
             if not self._nav_history or self._nav_history[-1] != self._current_scan_path:
                 self._nav_history.append(self._current_scan_path)
@@ -485,7 +506,7 @@ class TreeSizeModule(BaseModule):
         self._scanner.set_min_age_days(self._min_age_spin.value())
 
         self._scanner.signals.batch_ready.connect(self._on_batch_ready)
-        self._scanner.signals.node_replaced.connect(self._on_node_replaced)
+        self._scanner.signals.children_ready.connect(self._on_children_ready)
         self._scanner.signals.progress.connect(self._on_progress)
         self._scanner.signals.access_denied.connect(self._on_access_denied)
         self._scanner.signals.finished.connect(self._on_scan_finished)
@@ -498,11 +519,14 @@ class TreeSizeModule(BaseModule):
 
     def _on_batch_ready(self, nodes):
         self._model.add_batch(nodes)
-        self._model.sort(COL_SIZE, Qt.SortOrder.DescendingOrder)
-        self._tree.expandToDepth(self._auto_expand_spin.value())
 
-    def _on_node_replaced(self, node):
-        self._model.replace_node(node)
+    def _on_children_ready(self, parent_path, children):
+        """Called from main thread when a directory's children are scanned."""
+        parent = self._model.add_children_to_node(parent_path, children)
+        if parent:
+            self._model.unmark_loading(parent_path)
+            self._model.update_parent_sizes(parent)
+        self._pie_chart.set_data(self._model.get_roots())
 
     def _on_progress(self, n):
         self._status_lbl.setText(f"Scanned {n:,} nodes…")
@@ -512,9 +536,7 @@ class TreeSizeModule(BaseModule):
         self._ad_badge.setVisible(count > 0)
 
     def _on_scan_finished(self):
-        # Store previous scan for delta
         self._model.store_last_scan()
-        # Apply delta map to delegate
         delegate = self._tree.itemDelegateForColumn(COL_SIZE)
         if delegate:
             delegate.setDeltaMap(self._model.delta_map())
@@ -528,42 +550,31 @@ class TreeSizeModule(BaseModule):
         self._pause_btn.setEnabled(False)
         self._progress.hide()
 
-        roots = self._model._roots
-        total_size = sum(r.size for r in roots)
-        total_files = sum(r.file_count for r in roots)
+        roots = self._model.get_roots()
+        immediate_children = roots[0].children if roots else []
+        total_size = sum(r.size for r in immediate_children if r.size >= 0)
+        total_files = sum(r.file_count for r in immediate_children)
         now = datetime.datetime.now().strftime("%H:%M:%S")
 
-        err_count = stats.get("errors", 0)
-        skipped = stats.get("skipped", 0)
-        ad_count = stats.get("access_denied", 0)
-
         stat_parts = [
-            f"{len(roots)} items",
+            f"{len(immediate_children)} items",
             format_size(total_size),
             f"{total_files:,} files",
             f"{int(elapsed)}s",
         ]
-        if skipped:
-            stat_parts.append(f"{skipped} skipped")
-        if err_count:
-            stat_parts.append(f"{err_count} errors")
-
         self._status_lbl.setText(
             f"{' · '.join(stat_parts)}  (scanned at {now})"
         )
 
         self._model.sort(COL_SIZE, Qt.SortOrder.DescendingOrder)
-        self._tree.expandToDepth(self._auto_expand_spin.value())
+        self._tree.expandToDepth(min(self._auto_expand_spin.value(), 1))
 
-        # Pie chart + top files (feature 21, 22)
+        # Pie chart + top files
         self._pie_chart.set_data(roots)
         top_files = self._model.get_top_files(10)
         self._top_files_panel.populate(top_files)
 
-        # Add to scan history
         self._add_to_history(self._current_scan_path)
-
-        # Start auto-refresh
         self._start_auto_refresh()
 
     def _on_scan_error(self, msg: str):
@@ -579,6 +590,11 @@ class TreeSizeModule(BaseModule):
         self._stop_btn.setEnabled(False)
         self._pause_btn.setEnabled(False)
         self._stop_auto_refresh()
+        # Cancel any pending expand workers
+        for t in self._expand_workers:
+            if t.is_alive():
+                pass  # daemon threads; scanner cancellation will stop them
+        self._expand_workers.clear()
 
     def _toggle_pause(self):
         if not self._scanner:
@@ -591,6 +607,47 @@ class TreeSizeModule(BaseModule):
             self._scanner.pause()
             self._pause_btn.setText("Resume")
             self._is_paused = True
+
+    # ── lazy expansion ──────────────────────────────────────────────────────
+
+    def _on_tree_expanded(self, index: QModelIndex):
+        """Lazy-load children when user expands a directory stub."""
+        node: Optional[object] = self._model.data(index, Qt.ItemDataRole.UserRole)
+        if node is None or not node.is_dir:
+            return
+        if node._fully_loaded:
+            return
+        if self._model.is_loading(node.path):
+            return
+
+        # Throttle: max 4 concurrent background scans
+        active = sum(1 for t in self._expand_workers if t.is_alive())
+        if active >= 4:
+            return
+
+        # Clean up finished threads
+        self._expand_workers = [t for t in self._expand_workers if t.is_alive()]
+
+        self._model.mark_loading(node.path)
+
+        if self._scanner is None or self._scanner.is_cancelled():
+            self._scanner = DiskScanner()
+            excluded = [p.strip() for p in self._exclude_edit.text().split(",") if p.strip()]
+            if excluded:
+                self._scanner.set_excluded_patterns(excluded)
+            self._scanner.set_min_age_days(self._min_age_spin.value())
+            self._scanner.signals.children_ready.connect(self._on_children_ready)
+            self._scanner.signals.progress.connect(self._on_progress)
+            self._scanner.signals.access_denied.connect(self._on_access_denied)
+            self._scanner.signals.error.connect(self._on_scan_error)
+
+        t = threading.Thread(
+            target=self._scanner.scan_shallow,
+            args=(node.path,),
+            daemon=True,
+        )
+        self._expand_workers.append(t)
+        t.start()
 
     # ── auto-refresh ──────────────────────────────────────────────────────
 
@@ -622,7 +679,7 @@ class TreeSizeModule(BaseModule):
     def _do_live_search(self) -> None:
         query = self._search_edit.text().strip()
         self._model.set_search_query(query)
-        self._tree.expandToDepth(self._auto_expand_spin.value())
+        self._tree.expandToDepth(min(self._auto_expand_spin.value(), 1))
 
     # ── exclude patterns ───────────────────────────────────────────────────
 
@@ -711,7 +768,6 @@ class TreeSizeModule(BaseModule):
         if not node:
             return
 
-        # Build list of selected nodes
         selected_nodes = []
         for idx in self._tree.selectionModel().selectedRows():
             n = self._model.data(idx, Qt.ItemDataRole.UserRole)
@@ -742,7 +798,7 @@ class TreeSizeModule(BaseModule):
             self._delete_selected(selected_nodes)
 
         elif chosen == prop_act:
-            total = sum(n.size for n in selected_nodes)
+            total = sum(n.size for n in selected_nodes if n.size >= 0)
             file_count = sum(n.file_count for n in selected_nodes)
             QMessageBox.information(
                 self._widget, "Properties",
@@ -755,7 +811,7 @@ class TreeSizeModule(BaseModule):
     def _delete_selected(self, nodes: List) -> None:
         if not nodes:
             return
-        total_size = sum(n.size for n in nodes)
+        total_size = sum(n.size for n in nodes if n.size >= 0)
         names = "\n".join(f"  • {n.path}" for n in nodes[:10])
         if len(nodes) > 10:
             names += f"\n  … and {len(nodes) - 10} more"
@@ -785,7 +841,7 @@ class TreeSizeModule(BaseModule):
             f"Deleted {deleted} item(s)" + (f", {errors} errors" if errors else "")
         )
 
-    # ── export (feature 24: JSON + CSV) ────────────────────────────────────
+    # ── export ──────────────────────────────────────────────────────────────
 
     def _do_export(self):
         if not self._widget:
@@ -797,7 +853,6 @@ class TreeSizeModule(BaseModule):
         if not path:
             return
 
-        # Auto-detect format
         is_json = path.lower().endswith(".json")
 
         def collect(node, rows):
@@ -823,7 +878,7 @@ class TreeSizeModule(BaseModule):
             tree_data = {
                 "scan_path": self._current_scan_path,
                 "scanned_at": datetime.datetime.now().isoformat(),
-                "roots": [to_dict(r) for r in self._model._roots],
+                "roots": [to_dict(r) for r in self._model.get_roots()],
             }
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(tree_data, f, indent=2)
@@ -832,18 +887,17 @@ class TreeSizeModule(BaseModule):
             if not path.lower().endswith(".csv"):
                 path += ".csv"
             rows = [["Path", "Size", "Files", "Last Modified"]]
-            for root in self._model._roots:
+            for root in self._model.get_roots():
                 collect(root, rows)
             with open(path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerows(rows)
             self._status_lbl.setText(f"Exported {len(rows) - 1} rows to {os.path.basename(path)}")
 
-    # ── scan history (feature 25) ───────────────────────────────────────────
+    # ── scan history ───────────────────────────────────────────────────────
 
     def _add_to_history(self, path: str) -> None:
         now = datetime.datetime.now().timestamp()
-        # Deduplicate
         self._scan_history = [h for h in self._scan_history if h["path"] != path]
         self._scan_history.insert(0, {"path": path, "timestamp": now})
         self._scan_history = self._scan_history[: self._history_limit]
@@ -870,6 +924,8 @@ class TreeSizeModule(BaseModule):
 
     def on_deactivate(self) -> None:
         self._stop_auto_refresh()
+        if self._scanner:
+            self._scanner.cancel()
 
     def on_start(self, app) -> None:
         self.app = app
@@ -914,13 +970,11 @@ class _TreeEventFilter(QObject):
         mods = event.modifiers()
 
         if key == Qt.Key.Key_F and mods == Qt.KeyboardModifier.ControlModifier:
-            # Ctrl+F → focus search
             self._module._search_edit.setFocus()
             self._module._search_edit.selectAll()
             return True
 
         if key == Qt.Key.Key_Backspace:
-            # Backspace → go up one level
             path = self._module._current_scan_path
             if path:
                 parent = os.path.dirname(path.rstrip("\\"))
@@ -930,7 +984,6 @@ class _TreeEventFilter(QObject):
             return True
 
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            # Enter → drill into selected node
             sel = self._module._tree.selectionModel().selectedRows(0)
             if sel:
                 idx = sel[0]

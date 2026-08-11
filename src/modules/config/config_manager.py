@@ -8,7 +8,10 @@ Handles:
 """
 
 import json
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -218,6 +221,7 @@ class ConfigManager:
                 self._save_config()
                 return True
         except Exception:
+            logger.warning("Ignored Exception importing config", exc_info=True)
             return False
 
     def get_last_used_config(self) -> Dict[str, Any]:
@@ -247,6 +251,7 @@ class ConfigManager:
             self._save_config()
             return True
         except Exception:
+            logger.warning("Ignored Exception merging previous config", exc_info=True)
             return False
 
     def _save_config(self) -> None:

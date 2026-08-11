@@ -218,8 +218,11 @@ class DuplicateFinderModule(BaseModule):
                     return None
                 for fpath in paths:
                     try:
+                        hash_obj = hashlib.md5()
                         with open(fpath, "rb") as f:
-                            md5 = hashlib.md5(f.read()).hexdigest()
+                            for chunk in iter(lambda: f.read(65536), b""):
+                                hash_obj.update(chunk)
+                        md5 = hash_obj.hexdigest()
                         hash_groups.setdefault(md5, []).append(fpath)
                     except OSError:
                         continue
@@ -235,6 +238,7 @@ class DuplicateFinderModule(BaseModule):
         self._worker.signals.progress.connect(self._on_progress)
         self._worker.signals.result.connect(self._on_results)
         self._worker.signals.error.connect(self._on_error)
+        self._workers.append(self._worker)
         self.app.thread_pool.start(self._worker)
 
     def _stop_scan(self):
@@ -425,8 +429,9 @@ class DuplicateFinderModule(BaseModule):
             if not os.path.exists(fpath):
                 continue
             try:
+                size_before = os.path.getsize(fpath)
                 os.remove(fpath)
-                freed += os.path.getsize(fpath) if os.path.exists(fpath) else 0
+                freed += size_before
                 deleted += 1
                 # Remove from tree
                 for i in range(self._tree.topLevelItemCount()):

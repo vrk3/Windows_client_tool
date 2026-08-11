@@ -23,6 +23,11 @@ class ConfigManager:
         self._migrations: List[Tuple[int, Callable[[dict], dict]]] = []
         self._autosave_timer = None
 
+    def _get_defaults(self) -> dict:
+        if callable(self._defaults):
+            return copy.deepcopy(self._defaults())
+        return copy.deepcopy(self._defaults)
+
     def _ensure_autosave_timer(self):
         if self._autosave_timer is None:
             try:
@@ -46,7 +51,7 @@ class ConfigManager:
             loaded = self._try_load(self._backup_path)
         if loaded is None:
             logger.warning("No valid config found, using defaults")
-            loaded = copy.deepcopy(self._defaults)
+            loaded = self._get_defaults()
         self._data = self._run_migrations(loaded)
 
     def _run_migrations(self, data: dict) -> dict:
@@ -107,4 +112,5 @@ class ConfigManager:
         os.replace(tmp_path, self._config_path)
 
     def reset_to_defaults(self) -> None:
-        self._data = copy.deepcopy(self._defaults)
+        self._data = self._get_defaults()
+        self.save()

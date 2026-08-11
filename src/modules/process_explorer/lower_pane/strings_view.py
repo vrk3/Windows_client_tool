@@ -21,7 +21,8 @@ def extract_strings(path: str, min_len: int = 4, encoding: str = "ascii") -> Lis
     try:
         with open(path, "rb") as f:
             data = f.read()
-    except Exception:
+    except Exception as e:
+        logger.warning("extract_strings failed for %s: %s", path, e)
         return []
     if encoding == "ascii":
         matches = _ASCII_RE.findall(data)
@@ -61,11 +62,19 @@ class StringsView(QWidget):
         self._all_unicode: List[str] = []
         self._exe_path: str = ""
         self._thread_pool = None
+        self._workers: List[Worker] = []
 
     def set_thread_pool(self, pool):
         self._thread_pool = pool
 
+    def cancel(self) -> None:
+        """Cancel any in-progress string extraction."""
+        for w in self._workers:
+            w.cancel()
+        self._workers.clear()
+
     def load_exe(self, path: str):
+        self.cancel()
         self._exe_path = path
         self._ascii_list.clear()
         self._unicode_list.clear()
@@ -78,10 +87,20 @@ class StringsView(QWidget):
             return ascii_strs, unicode_strs
 
         w = Worker(do_work)
-        w.signals.result.connect(self._on_strings_ready)
+        w.signals.result.connect(lambda result, w=w: self._on_strings_ready(w, result))
+        w.signals.finished.connect(lambda _wn=w: self._workers.remove(_wn) if _wn in self._workers else None)
+        self._workers.append(w)
         self._thread_pool.start(w)
 
-    def _on_strings_ready(self, result):
+    def _on_strings_ready(self, worker, result):
+        if worker.is_cancelled:
+            return
+        try:
+            import sip
+            if sip.isdeleted(self._ascii_list):
+                return
+        except ImportError:
+            pass
         self._all_ascii, self._all_unicode = result
         self._apply_filter(self._filter.text())
 
@@ -102,8 +121,12 @@ class StringsView(QWidget):
             parent, "Save Strings", "", "Text Files (*.txt)")
         if not path:
             return
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("=== ASCII ===\n")
-            f.write("\n".join(self._all_ascii))
-            f.write("\n\n=== Unicode ===\n")
-            f.write("\n".join(self._all_unicode))
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("=== ASCII ===\n")
+                f.write("\n".join(self._all_ascii))
+                f.write("\n\n=== Unicode ===\n")
+                f.write("\n".join(self._all_unicode))
+        except OSError as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(parent, "Save Error", f"Could not save strings: {e}")

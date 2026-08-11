@@ -84,7 +84,7 @@ class CrashDumpModule(BaseModule):
             self._load_dumps()
 
     def on_deactivate(self) -> None:
-        pass
+        self.cancel_all_workers()
 
     def on_stop(self) -> None:
         self.cancel_all_workers()

@@ -48,6 +48,7 @@ def get_overview(worker=None):
         cpu = _wmi().Win32_Processor()[0]
         rows.append(("CPU", cpu.Name.strip()))
     except Exception:
+        logger.warning("Ignored Exception", exc_info=True)
         rows.append(("CPU", platform.processor()))
     vm = psutil.virtual_memory()
     rows.append(("RAM Total", _fmt_bytes(vm.total)))

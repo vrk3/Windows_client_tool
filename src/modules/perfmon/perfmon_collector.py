@@ -13,16 +13,18 @@ logger = logging.getLogger(__name__)
 def collect_snapshot() -> Dict[str, float]:
     """Collect a single snapshot of performance counters."""
     mem = psutil.virtual_memory()
-    disk = psutil.disk_usage("C:/")
+    system_drive = os.environ.get("SystemDrive", "C:") + "/"
+    disk = psutil.disk_usage(system_drive)
     net = psutil.net_io_counters()
+    dio = psutil.disk_io_counters()
     return {
         "cpu_total": psutil.cpu_percent(interval=None),
         "memory_percent": mem.percent,
         "memory_used_mb": mem.used / (1024 * 1024),
         "memory_available_mb": mem.available / (1024 * 1024),
         "disk_percent": disk.percent,
-        "disk_read_bytes": psutil.disk_io_counters().read_bytes if psutil.disk_io_counters() else 0,
-        "disk_write_bytes": psutil.disk_io_counters().write_bytes if psutil.disk_io_counters() else 0,
+        "disk_read_bytes": dio.read_bytes if dio else 0,
+        "disk_write_bytes": dio.write_bytes if dio else 0,
         "net_sent_bytes": net.bytes_sent,
         "net_recv_bytes": net.bytes_recv,
     }
@@ -37,7 +39,9 @@ class PerfMonStore:
         self._init_db()
 
     def _init_db(self) -> None:
-        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
+        db_dir = os.path.dirname(self._db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS perfmon (

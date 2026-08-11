@@ -105,6 +105,7 @@ class WindowsFeaturesModule(BaseModule):
         try:
             reboot_banner.setVisible(is_reboot_pending())
         except Exception:
+            logger.warning("Ignored Exception", exc_info=True)
             reboot_banner.hide()
         layout.addWidget(reboot_banner)
 
@@ -254,9 +255,12 @@ class WindowsFeaturesModule(BaseModule):
             status_lbl.setText(f"{action_name}: {feat_name}...")
 
             def run(_w):
-                return action_fn(feat_name, lambda line: output_view.appendPlainText(line))
+                def safe_append(line: str):
+                    _w.signals.log_line.emit(line)
+                return action_fn(feat_name, safe_append)
 
             worker = Worker(run)
+            worker.signals.log_line.connect(output_view.appendPlainText)
 
             def on_done(_) -> None:
                 enable_btn.setEnabled(True)

@@ -168,9 +168,10 @@ class TweakEngine:
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]
         self._backup.backup_appx_package(pkg, rp_id)
+        safe_pkg = pkg.replace("'", "''")
         subprocess.run(
             ["powershell", "-NoProfile", "-Command",
-             f"Get-AppxPackage '{pkg}' | Remove-AppxPackage"],
+             f"Get-AppxPackage '{safe_pkg}' | Remove-AppxPackage"],
             check=False, capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
@@ -209,8 +210,15 @@ class TweakEngine:
             if step["type"] == "registry":
                 hive, sub = _parse_key(step["key"])
                 with winreg.OpenKey(hive, sub) as k:
-                    val, _ = winreg.QueryValueEx(k, step.get("value", ""))
-                return "applied" if val == step["data"] else "not_applied"
+                    val, reg_type = winreg.QueryValueEx(k, step.get("value", ""))
+                expected = step["data"]
+                # REG_BINARY: winreg returns bytes; JSON stores a hex string like "00 01 02"
+                if isinstance(val, bytes) and isinstance(expected, str):
+                    try:
+                        expected = bytes(int(b, 16) for b in expected.split())
+                    except ValueError:
+                        pass
+                return "applied" if val == expected else "not_applied"
             elif step["type"] == "service":
                 import win32service
                 hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)
@@ -229,9 +237,10 @@ class TweakEngine:
                 return "applied" if current == expected else "not_applied"
             elif step["type"] == "appx":
                 pkg = step["package"]
+                safe_pkg = pkg.replace("'", "''")
                 result = subprocess.run(
                     ["powershell", "-NoProfile", "-Command",
-                     f"Get-AppxPackage '{pkg}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
+                     f"Get-AppxPackage '{safe_pkg}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
                     capture_output=True, text=True,
                     creationflags=subprocess.CREATE_NO_WINDOW,
                 )
@@ -253,7 +262,8 @@ class TweakEngine:
                 return "unknown"
         except OSError:
             return "unknown"
-        except Exception:
+        except Exception as e:
+            logger.debug("detect_status error for tweak: %s", e)
             return "unknown"
         return "unknown"
 

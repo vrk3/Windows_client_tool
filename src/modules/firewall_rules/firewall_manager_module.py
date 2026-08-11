@@ -265,6 +265,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_rules_loaded(self, rules: List[FirewallRule]) -> None:
@@ -306,6 +307,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _open_port(self) -> None:
@@ -334,6 +336,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _delete_rule(self) -> None:
@@ -359,6 +362,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_double_click(self, item: QTableWidgetItem) -> None:
@@ -383,6 +387,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _export_rules(self) -> None:
@@ -413,6 +418,7 @@ class FirewallManagerModule(BaseModule):
             self._status_lbl.setText(f"Rules exported successfully ({len(rules)} rules loaded).")
 
         worker.signals.result.connect(on_export_result)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _import_rules(self) -> None:
@@ -441,6 +447,7 @@ class FirewallManagerModule(BaseModule):
         worker = Worker(work)
         worker.signals.result.connect(self._on_rules_loaded)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     # ------------------------------------------------------------------

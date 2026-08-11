@@ -468,8 +468,8 @@ class DiskHealthModule(BaseModule):
             self._widget.refresh()
 
     def get_refresh_interval(self) -> Optional[int]:
-        """Auto-refresh SMART data every 15 seconds."""
-        return 15_000
+        """Auto-refresh SMART data every 5 minutes."""
+        return 300_000
 
     def get_status_info(self) -> str:
         return "Disk Health"

@@ -46,7 +46,10 @@ def build_snapshot(service_names: Set[str]) -> Dict[int, ProcessNode]:
                 is_service=(info.get("name") or "").lower() in service_names,
             )
             result[pid] = node
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.NoSuchProcess:
+            continue
+        except psutil.AccessDenied:
+            logger.debug("build_snapshot: access denied for pid %d", pid)
             continue
 
     # Build parent→children links
@@ -120,9 +123,13 @@ class ProcessCollector(QObject):
         def do_work(worker):
             return build_snapshot(service_names)
 
+        def _on_error(e: str) -> None:
+            logger.error("ProcessCollector error: %s", e)
+            self._busy = False
+
         w = Worker(do_work)
         w.signals.result.connect(self._on_snapshot)
-        w.signals.error.connect(lambda e: logger.error("ProcessCollector error: %s", e))
+        w.signals.error.connect(_on_error)
         self._thread_pool.start(w)
 
     def _on_snapshot(self, new_snapshot: Dict[int, ProcessNode]):

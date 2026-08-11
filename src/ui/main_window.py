@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
             "app.auto_refresh_paused", False
         )
         self._minimize_paused: bool = False  # True if WE paused due to window hide
+        self._first_show: bool = True  # Defer first module activation until after show()
 
         central = QWidget()
         root_layout = QVBoxLayout(central)
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
         # Restore sidebar collapsed state
         saved_collapsed = self._app.config.get("app.sidebar_collapsed", False)
         if saved_collapsed:
-            self._sidebar._toggle_collapse()
+            self._sidebar.toggle_collapse()
 
         # Persist sidebar collapsed state when it changes
         self._sidebar.collapsed_changed.connect(
@@ -168,19 +169,11 @@ class MainWindow(QMainWindow):
             requires_admin=module.requires_admin,
         )
 
-        # Auto-select first enabled module
+        # Auto-select first enabled module (activation deferred to after window.show())
         if self._active_module is None and enabled:
             self._sidebar.select(module.name)
             self._active_module = module
             self._stack.setCurrentWidget(widget)
-            try:
-                module.on_activate()
-            except Exception:
-                logger.exception("Error activating first module %s", module.name)
-
-    # Backward-compat alias (old main.py used add_module_tab)
-    def add_module_tab(self, module: BaseModule, enabled: bool = True) -> None:
-        self.register_module(module)
 
     def _on_module_selected(self, name: str) -> None:
         # Stop previous module's refresh timer
@@ -232,6 +225,13 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         """Resume refresh timers when window becomes visible again."""
+        if self._first_show:
+            self._first_show = False
+            if self._active_module is not None:
+                try:
+                    self._active_module.on_activate()
+                except Exception:
+                    logger.exception("Error activating first module %s", self._active_module.name)
         if self._minimize_paused:
             self._minimize_paused = False
             for timer in self._module_refresh_timers.values():
@@ -342,10 +342,14 @@ class MainWindow(QMainWindow):
 
         worker = Worker(_check)
         worker.signals.result.connect(self._on_update_result)
+        self._update_worker = worker
         from PyQt6.QtCore import QThreadPool
         QThreadPool.globalInstance().start(worker)
 
     def _on_update_result(self, result) -> None:
+        update_worker = getattr(self, "_update_worker", None)
+        if update_worker is not None and update_worker.is_cancelled:
+            return
         if result.error or not result.update_available:
             return
         self._tray_manager.show_balloon(
@@ -414,6 +418,10 @@ class MainWindow(QMainWindow):
         for timer in self._module_refresh_timers.values():
             timer.stop()
         self._module_refresh_timers.clear()
+
+        update_worker = getattr(self, "_update_worker", None)
+        if update_worker is not None:
+            update_worker.cancel()
 
         if self._app.config.get("app.minimize_to_tray", False):
             event.ignore()

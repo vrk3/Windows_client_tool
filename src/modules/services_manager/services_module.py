@@ -475,6 +475,7 @@ class ServicesModule(BaseModule):
         worker = COMWorker(lambda _w: get_services())
         worker.signals.result.connect(self._on_result)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     # ------------------------------------------------------------------
@@ -570,6 +571,7 @@ class ServicesModule(BaseModule):
         worker = Worker(lambda _w: self._fetch_detail(svc["Name"]))
         worker.signals.result.connect(self._apply_detail)
         worker.signals.error.connect(lambda e: self._apply_detail_error(str(e)))
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _fetch_detail(self, name: str) -> Dict:
@@ -626,6 +628,7 @@ class ServicesModule(BaseModule):
             worker.signals.error.connect(lambda e: self._on_action_error(e, action, name))
             self._refresh_btn.setEnabled(False)
             self._status_label.setText(f"Checking dependencies for '{name}'...")
+            self._workers.append(worker)
             QThreadPool.globalInstance().start(worker)
             return
 
@@ -642,6 +645,7 @@ class ServicesModule(BaseModule):
         worker = Worker(lambda _w: service_action(name, action))
         worker.signals.result.connect(lambda _: self._do_refresh())
         worker.signals.error.connect(_on_err)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_action_result(self, result: tuple):
@@ -668,6 +672,7 @@ class ServicesModule(BaseModule):
             worker.signals.error.connect(
                 lambda e: self._on_action_error(e, "stop", name)
             )
+            self._workers.append(worker)
             QThreadPool.globalInstance().start(worker)
             return
 
@@ -687,7 +692,7 @@ class ServicesModule(BaseModule):
 
     def on_start(self, app): self.app = app
     def on_stop(self): self.cancel_all_workers()
-    def on_deactivate(self): pass
+    def on_deactivate(self): self.cancel_all_workers()
 
     def get_refresh_interval(self) -> Optional[int]:
         return 30_000
@@ -705,6 +710,7 @@ class ServicesModule(BaseModule):
         worker = COMWorker(lambda _w: get_services())
         worker.signals.result.connect(self._on_result)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_result(self, services: List[Dict]):

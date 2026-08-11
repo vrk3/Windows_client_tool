@@ -144,6 +144,7 @@ class EventViewerModule(BaseModule):
             from core.admin_utils import is_admin
             include_security = is_admin()
         except Exception:
+            logger.warning("Ignored Exception checking admin status", exc_info=True)
             include_security = False
 
         def do_work(worker):

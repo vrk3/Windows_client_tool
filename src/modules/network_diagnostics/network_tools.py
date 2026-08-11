@@ -4,11 +4,23 @@ import subprocess
 import concurrent.futures
 import psutil
 import re
-from typing import List, Tuple, Callable, Optional
+from typing import List, Tuple, Callable, Optional, Dict
 import logging
 logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
+
+# Keywords that mark a netstat -s counter as an "error" style metric, used to
+# highlight rows in the Network Errors card.
+_ERROR_KEYWORDS = (
+    "error", "fail", "reset", "discard", "unreachable",
+    "exceeded", "retransmit", "no route", "unknown protocol",
+)
+
+
+def is_error_stat(name: str) -> bool:
+    lname = name.lower()
+    return any(kw in lname for kw in _ERROR_KEYWORDS)
 
 
 def ping(host: str, count: int = 4) -> str:
@@ -126,6 +138,7 @@ def get_connections() -> List[dict]:
             try:
                 pname = psutil.Process(c.pid).name() if c.pid else ""
             except Exception:
+                logger.warning("Ignored Exception getting process name", exc_info=True)
                 pname = ""
             conns.append(
                 {
@@ -137,6 +150,7 @@ def get_connections() -> List[dict]:
                 }
             )
         except Exception:
+            logger.warning("Ignored Exception reading network connection", exc_info=True)
             continue
     return conns
 
@@ -175,17 +189,192 @@ def get_wifi_profile_detail(name: str) -> str:
     return result.stdout
 
 
+def get_tcpip_stats() -> List[Tuple[str, str, str]]:
+    """Run `netstat -s` and return a flat list of (category, name, value).
+
+    Covers IPv4/IPv6, ICMPv4/ICMPv6, TCP, and UDP sections. Two-column
+    "Received / Sent" tables (ICMP) are expanded into separate rows.
+    """
+    result = subprocess.run(
+        ["netstat", "-s"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=CREATE_NO_WINDOW,
+        timeout=15,
+    )
+    stats: List[Tuple[str, str, str]] = []
+    category = ""
+    icmp_mode = False
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if not stripped:
+            icmp_mode = False
+            continue
+        # Section headers are not indented, e.g. "TCP Statistics for IPv4"
+        if not line.startswith(" ") and not line.startswith("\t"):
+            category = stripped
+            icmp_mode = False
+            continue
+        # ICMP two-column header row
+        if stripped.startswith("Received") and stripped.endswith("Sent"):
+            icmp_mode = True
+            continue
+        if icmp_mode:
+            # e.g. "  Destination Unreachable    12          3"
+            m = re.match(r"^(.+?)\s{2,}(\d+)\s+(\d+)$", stripped)
+            if m:
+                name = m.group(1).strip()
+                stats.append((category, f"{name} (Received)", m.group(2)))
+                stats.append((category, f"{name} (Sent)", m.group(3)))
+                continue
+            # fall through to standard key=value handling
+        # Standard "Name = value" rows
+        m = re.match(r"^(.+?)\s*=\s*(.+)$", stripped)
+        if m:
+            stats.append((category, m.group(1).strip(), m.group(2).strip()))
+    return stats
+
+
+def get_adapter_error_stats() -> List[dict]:
+    """Return per-adapter error/drop counters via psutil.net_io_counters(pernic=True)."""
+    result = []
+    counters = psutil.net_io_counters(pernic=True)
+    for name, c in counters.items():
+        result.append(
+            {
+                "Adapter": name,
+                "Bytes Sent": c.bytes_sent,
+                "Bytes Recv": c.bytes_recv,
+                "Errors In": c.errin,
+                "Errors Out": c.errout,
+                "Drops In": c.dropin,
+                "Drops Out": c.dropout,
+            }
+        )
+    return result
+
+
+def get_total_io_counters() -> Tuple[int, int]:
+    """Return (bytes_sent, bytes_recv) totals across all adapters."""
+    c = psutil.net_io_counters()
+    return c.bytes_sent, c.bytes_recv
+
+
+def packet_capture_unavailable_reason() -> Optional[str]:
+    """Return None if packet capture is usable, else a human-readable reason."""
+    try:
+        import scapy.all  # noqa: F401
+    except Exception:
+        return (
+            "Packet capture requires the optional 'scapy' package and the Npcap driver.\n"
+            "Install with: pip install scapy\n"
+            "Then install Npcap from https://npcap.com (enable \"WinPcap API-compatible mode\")."
+        )
+    return None
+
+
+def capture_packets(
+    duration: float = 10.0,
+    iface: Optional[str] = None,
+    is_cancelled: Optional[Callable[[], bool]] = None,
+) -> List[dict]:
+    """Capture packets for `duration` seconds using scapy/Npcap.
+
+    Returns a list of dicts with keys: time, src, dst, proto, length, info, is_error.
+    Raises RuntimeError if scapy/Npcap is unavailable.
+    """
+    reason = packet_capture_unavailable_reason()
+    if reason:
+        raise RuntimeError(reason)
+
+    from scapy.all import sniff, IP, IPv6, TCP, UDP, ICMP
+
+    packets: List[dict] = []
+
+    def _classify(pkt) -> dict:
+        proto = "OTHER"
+        src = dst = ""
+        info = ""
+        is_error = False
+        ip_layer = pkt.getlayer(IP) or pkt.getlayer(IPv6)
+        if ip_layer is not None:
+            src = ip_layer.src
+            dst = ip_layer.dst
+        if pkt.haslayer(TCP):
+            proto = "TCP"
+            tcp = pkt.getlayer(TCP)
+            flags = str(tcp.flags)
+            info = f"{tcp.sport} -> {tcp.dport} [{flags}]"
+            if "R" in flags:
+                is_error = True
+                info += " (RST)"
+        elif pkt.haslayer(UDP):
+            proto = "UDP"
+            udp = pkt.getlayer(UDP)
+            info = f"{udp.sport} -> {udp.dport}"
+        elif pkt.haslayer(ICMP):
+            proto = "ICMP"
+            icmp = pkt.getlayer(ICMP)
+            info = f"type={icmp.type} code={icmp.code}"
+            if icmp.type in (3, 11):  # Destination Unreachable / Time Exceeded
+                is_error = True
+                info += " (error)"
+        else:
+            info = pkt.summary()
+
+        return {
+            "time": float(pkt.time),
+            "src": src,
+            "dst": dst,
+            "proto": proto,
+            "length": len(pkt),
+            "info": info,
+            "is_error": is_error,
+        }
+
+    def _on_packet(pkt):
+        packets.append(_classify(pkt))
+
+    def _stop_filter(_pkt) -> bool:
+        return bool(is_cancelled and is_cancelled())
+
+    sniff(
+        timeout=duration,
+        prn=_on_packet,
+        store=False,
+        iface=iface,
+        stop_filter=_stop_filter,
+    )
+    return packets
+
+
 def get_adapter_info() -> List[dict]:
     """Return a list of network adapter info dicts."""
     adapters = []
     stats = psutil.net_if_stats()
     addrs = psutil.net_if_addrs()
-    gateways = {}
+
+    # Build interface-IP → gateway map via `route print`; psutil has no gateway API.
+    # Key is the interface IP address (column 4 in the active-routes table).
+    gateways: Dict[str, str] = {}
     try:
-        gw_info = psutil.net_if_stats()  # fallback; real gateways via net_default_gateway
-        # psutil doesn't expose gateways directly; skip silently
+        route = subprocess.run(
+            ["route", "print", "0.0.0.0"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            creationflags=CREATE_NO_WINDOW, timeout=5,
+        )
+        for line in route.stdout.splitlines():
+            parts = line.split()
+            # Active Routes row: Network Dest  Netmask  Gateway  Interface  Metric
+            if len(parts) >= 4 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
+                gateways[parts[3]] = parts[2]  # interface IP → default gateway
     except Exception:
-        logger.warning("Ignored Exception", exc_info=True)
+        import logging
+        _log = logging.getLogger(__name__)
+        _log.debug("Could not parse default gateway from route table", exc_info=True)
 
     for name, addr_list in addrs.items():
         ip = mac = netmask = dns = ""
@@ -204,7 +393,7 @@ def get_adapter_info() -> List[dict]:
                 "IP": ip,
                 "MAC": mac,
                 "Netmask": netmask,
-                "Gateway": gateways.get(name, ""),
+                "Gateway": gateways.get(ip, ""),
                 "DNS": dns,
                 "Speed": f"{stat.speed} Mbps" if stat else "",
                 "Up": "Yes" if (stat and stat.isup) else "No",
