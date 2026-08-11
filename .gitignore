@@ -54,6 +54,9 @@ dmypy.json
 *.sln.docstates
 .vs/
 
+# ── Local tool settings ───────────────────────────────────────────────────────
+.claude/settings.local.json
+
 # ── Windows OS artifacts ──────────────────────────────────────────────────────
 Thumbs.db
 ehthumbs.db

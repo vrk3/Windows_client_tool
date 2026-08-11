@@ -21,11 +21,16 @@ class StartupEntry:
     extra: str = ""  # publisher, service name, etc.
 
 
-def get_registry_entries() -> List[StartupEntry]:
-    entries = []
-    run_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-    approved_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
-    disabled_names = set()
+_RUN_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+_RUN_APPROVED_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+_RUNONCE_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+_RUNONCE_APPROVED_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce"
+_STARTUP_FOLDER_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder"
+
+
+def _collect_disabled_names(approved_key: str) -> set:
+    """Return the set of entry names marked disabled (0x03) under StartupApproved."""
+    disabled = set()
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, approved_key) as k:
             i = 0
@@ -33,14 +38,20 @@ def get_registry_entries() -> List[StartupEntry]:
                 try:
                     name, data, _ = winreg.EnumValue(k, i)
                     if isinstance(data, bytes) and len(data) >= 1 and data[0] == 0x03:
-                        disabled_names.add(name)
+                        disabled.add(name)
                     i += 1
                 except OSError:
                     break
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)
+    return disabled
+
+
+def _read_run_values(hive, key_path: str, source: str,
+                     disabled: set) -> List[StartupEntry]:
+    entries = []
     try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key) as k:
+        with winreg.OpenKey(hive, key_path) as k:
             i = 0
             while True:
                 try:
@@ -48,8 +59,8 @@ def get_registry_entries() -> List[StartupEntry]:
                     entries.append(StartupEntry(
                         name=name,
                         command=str(data),
-                        enabled=(name not in disabled_names),
-                        source="registry_run",
+                        enabled=(name not in disabled),
+                        source=source,
                     ))
                     i += 1
                 except OSError:
@@ -59,14 +70,71 @@ def get_registry_entries() -> List[StartupEntry]:
     return entries
 
 
+def get_registry_entries() -> List[StartupEntry]:
+    """HKCU\\...\\Run values, enabled/disabled via StartupApproved."""
+    return _read_run_values(
+        winreg.HKEY_CURRENT_USER, _RUN_KEY,
+        source="registry_run",
+        disabled=_collect_disabled_names(_RUN_APPROVED_KEY),
+    )
+
+
+def get_machine_registry_entries() -> List[StartupEntry]:
+    """HKLM\\...\\Run values (machine-wide startup). Read-only source."""
+    return _read_run_values(
+        winreg.HKEY_LOCAL_MACHINE, _RUN_KEY,
+        source="registry_run_machine",
+        disabled=set(),
+    )
+
+
+def get_runonce_entries() -> List[StartupEntry]:
+    """HKCU + HKLM RunOnce values. These run once and are auto-cleared."""
+    hkcu = _read_run_values(
+        winreg.HKEY_CURRENT_USER, _RUNONCE_KEY,
+        source="runonce",
+        disabled=set(),
+    )
+    hklm = _read_run_values(
+        winreg.HKEY_LOCAL_MACHINE, _RUNONCE_KEY,
+        source="runonce",
+        disabled=set(),
+    )
+    return hkcu + hklm
+
+
 def set_registry_entry_enabled(name: str, enabled: bool) -> None:
-    approved_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
     value = ENABLED_BYTES if enabled else DISABLED_BYTES
     with winreg.OpenKey(
-        winreg.HKEY_CURRENT_USER, approved_key,
+        winreg.HKEY_CURRENT_USER, _RUN_APPROVED_KEY,
         0, winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY
     ) as k:
         winreg.SetValueEx(k, name, 0, winreg.REG_BINARY, value)
+
+
+def remove_registry_entry(name: str) -> None:
+    """Delete a HKCU Run value (plus its StartupApproved marker if present)."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY,
+                            0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except FileNotFoundError:
+        logger.debug("Run value not present: %s", name)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_APPROVED_KEY,
+                            0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except FileNotFoundError:
+        pass
+
+
+def add_registry_entry(name: str, command: str) -> None:
+    """Add a new HKCU Run value."""
+    with winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER, _RUN_KEY,
+        0, winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY
+    ) as k:
+        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, command)
 
 
 def get_startup_folder_entries() -> List[StartupEntry]:
@@ -75,21 +143,7 @@ def get_startup_folder_entries() -> List[StartupEntry]:
         os.environ.get("APPDATA", ""),
         r"Microsoft\Windows\Start Menu\Programs\Startup",
     )
-    approved_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder"
-    disabled_names = set()
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, approved_key) as k:
-            i = 0
-            while True:
-                try:
-                    name, data, _ = winreg.EnumValue(k, i)
-                    if isinstance(data, bytes) and len(data) >= 1 and data[0] == 0x03:
-                        disabled_names.add(name)
-                    i += 1
-                except OSError:
-                    break
-    except OSError:
-        logger.debug("Ignored OSError", exc_info=True)
+    disabled_names = _collect_disabled_names(_STARTUP_FOLDER_KEY)
     if os.path.isdir(folder):
         for f in os.listdir(folder):
             if f.lower().endswith((".lnk", ".url", ".bat", ".cmd", ".exe")):
@@ -103,13 +157,33 @@ def get_startup_folder_entries() -> List[StartupEntry]:
 
 
 def set_startup_folder_entry_enabled(name: str, enabled: bool) -> None:
-    approved_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder"
     value = ENABLED_BYTES if enabled else DISABLED_BYTES
     with winreg.OpenKey(
-        winreg.HKEY_CURRENT_USER, approved_key,
+        winreg.HKEY_CURRENT_USER, _STARTUP_FOLDER_KEY,
         0, winreg.KEY_SET_VALUE | winreg.KEY_CREATE_SUB_KEY
     ) as k:
         winreg.SetValueEx(k, name, 0, winreg.REG_BINARY, value)
+
+
+def get_startup_folder_path() -> str:
+    return os.path.join(
+        os.environ.get("APPDATA", ""),
+        r"Microsoft\Windows\Start Menu\Programs\Startup",
+    )
+
+
+def remove_startup_folder_entry(name: str) -> None:
+    """Delete a file from the Startup folder (plus its StartupApproved marker)."""
+    folder = get_startup_folder_path()
+    target = os.path.join(folder, name)
+    if os.path.isfile(target):
+        os.remove(target)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _STARTUP_FOLDER_KEY,
+                            0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except FileNotFoundError:
+        pass
 
 
 def get_scheduled_task_entries() -> List[StartupEntry]:
