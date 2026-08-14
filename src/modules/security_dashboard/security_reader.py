@@ -2752,7 +2752,7 @@ def _get_speculation_data() -> Dict[str, Any]:
         if rc == 0 and out and out != "MODULE_UNAVAILABLE":
             return json.loads(out)
     except Exception:
-        pass
+        logger.warning("Get-SpeculationControlSettings failed, using registry fallback", exc_info=True)
     return {"source": "registry_fallback"}
 
 

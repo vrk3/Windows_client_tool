@@ -263,6 +263,7 @@ class SystemReportModule(BaseModule):
         worker = COMWorker(_collect_report_data)
         worker.signals.result.connect(lambda data: self._on_data(data, path))
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_data(self, data: dict, path: str):

@@ -56,6 +56,7 @@ class _LoadingTab(QWidget):
         super().__init__(parent)
         self._loader = loader_fn
         self._setup_fn = setup_table_fn
+        self._workers: list = []
 
         layout = QVBoxLayout(self)
         self._status = QLabel("Click Refresh to load.")
@@ -88,6 +89,7 @@ class _LoadingTab(QWidget):
         worker = COMWorker(self._loader)
         worker.signals.result.connect(self._on_result)
         worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
     def _on_result(self, data):
@@ -106,6 +108,11 @@ class _LoadingTab(QWidget):
         self._refresh_btn.setEnabled(True)
         self._progress.hide()
         self._status.setText(f"Error: {err}")
+
+    def cancel(self) -> None:
+        for w in self._workers:
+            w.cancel()
+        self._workers.clear()
 
 
 class HardwareModule(BaseModule):
@@ -247,10 +254,22 @@ class HardwareModule(BaseModule):
                 tab._load()
 
     def on_deactivate(self) -> None:
-        pass
+        self._cancel_all_tabs()
 
     def on_start(self, app) -> None:
         self.app = app
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
+        self._cancel_all_tabs()
+
+    def _cancel_all_tabs(self) -> None:
+        """_LoadingTab instances own their COMWorkers — BaseModule.cancel_all_workers()
+        only covers self._workers on the module itself, so each tab must be
+        cancelled individually."""
+        if not hasattr(self, "_hw_tabs"):
+            return
+        for i in range(self._hw_tabs.count()):
+            tab = self._hw_tabs.widget(i)
+            if hasattr(tab, "cancel"):
+                tab.cancel()

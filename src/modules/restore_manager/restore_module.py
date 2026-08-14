@@ -207,21 +207,8 @@ class RestoreManagerModule(BaseModule):
         self._status_label.setText("Creating restore point…")
 
         def do_create(worker):
-            try:
-                safe_desc = desc.replace("'", "''")
-                result = subprocess.run(
-                    [
-                        "powershell", "-Command",
-                        f"Checkpoint-Computer -Description '{safe_desc}' -RestorePointType 'MODIFY_SETTINGS'",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-                return result.returncode == 0, result.stdout + result.stderr
-            except Exception as e:
-                return False, str(e)
+            from core.system_restore import create_restore_point
+            return create_restore_point(desc, timeout=60)
 
         def _on_create_error(err: str) -> None:
             self._progress.setVisible(False)
