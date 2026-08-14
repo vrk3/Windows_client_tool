@@ -90,6 +90,7 @@ class LoggingService:
         self._max_bytes = max_bytes
         self._backup_count = backup_count
         self._handlers: list[logging.Handler] = []
+        self.session_log_dir: str = ""
 
     def setup(self) -> None:
         """Configure logging with rotation and dual output."""
@@ -137,6 +138,7 @@ class LoggingService:
             out_dir = os.path.dirname(os.path.abspath(sys.executable))
         else:
             out_dir = os.getcwd()
+        self.session_log_dir = out_dir
 
         raw_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "unknown"
         computer_name = "".join(

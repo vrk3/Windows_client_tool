@@ -51,6 +51,7 @@ class App:
         App.instance = self
 
         self._app_data_dir = app_data_dir or _get_app_data_dir()
+        self.app_data_dir = self._app_data_dir  # public alias for modules
 
         # Core services
         self.event_bus = EventBus()
@@ -66,6 +67,21 @@ class App:
         self.logger = LoggingService(log_dir=log_dir, log_level=log_level)
         self.logger.setup()
         self.logger.setup_session_log()
+
+        # Rotate old dated log/report files — runs once per launch, cheap no-op
+        # once nothing is past the retention window. retention_days=0 keeps forever.
+        try:
+            from core.log_rotation import rotate_old_files
+
+            retention_days = self.config.get("app.log_retention_days", 30)
+            rotate_old_files(self.logger.session_log_dir, "*.log", retention_days)
+            rotate_old_files(
+                os.path.join(self._app_data_dir, "updates"), "report-*.html", retention_days
+            )
+        except Exception:
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning("Log rotation failed", exc_info=True)
 
         self.backup = BackupService(data_dir=self._app_data_dir)
 

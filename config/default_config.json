@@ -7,7 +7,11 @@
     "minimize_to_tray": false,
     "check_admin_on_start": true,
     "log_level": "INFO",
-    "shortcuts": {}
+    "shortcuts": {},
+    "free_space_warn_gb": 10,
+    "log_retention_days": 30,
+    "toast_on_long_ops": true,
+    "update_repo": ""
   },
   "modules": {
     "enabled": [],
@@ -18,6 +22,16 @@
       "ollama_model": "llama3",
       "use_remote": false
     }
+  },
+  "updates": {
+    "blocklist_patterns": [],
+    "verify_after_update": true,
+    "restore_point_before_install": true,
+    "wu_include_hidden": false,
+    "wu_include_drivers": true,
+    "unattended_stages": ["wu", "winget", "cleanup"],
+    "unattended_interval_days": 7,
+    "unattended_time": "03:00"
   },
   "learning": {
     "local_db_path": "history.db",
