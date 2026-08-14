@@ -40,6 +40,12 @@ pyinstaller WinClientTool-portable.spec -y --distpath dist
 ```
 The portable spec must include `a.binaries` and `a.datas` in the EXE constructor — without these, the output is a ~3MB bootloader stub.
 
+**After every portable build, deploy it** — this is a hard requirement, not optional cleanup:
+```
+cp "dist/WinClientTool-Portable.exe" "C:/Users/iorda/OneDrive/1 Personal/Aplicații/WinClientTool-Portable.exe"
+```
+The user runs the app day-to-day from `Aplicații/`, not from this repo's own (gitignored) `dist/`. Skipping this step leaves a stale copy running there indefinitely — do it every time, overwriting whatever's already there. Same deal for an onedir build: `cp -r "dist/WinClientTool" "C:/Users/iorda/OneDrive/1 Personal/Aplicații/WinClientTool"`. See the `build-portable` skill (`.claude/skills/build-portable/SKILL.md`), which bakes this step in.
+
 **Syntax check** (without running):
 ```
 python -c "import sys; sys.path.insert(0, 'src'); import main"
