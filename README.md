@@ -1,8 +1,7 @@
 # Windows 11 Tweaker/Optimizer
 # This project provides a GUI to analyze Windows logs, monitor processes
 
-# Author: YES :)
-# Date: 2026-03-23
+# Date: 2026-03-23 - onwards 
 #
 # Usage:
 #  Windows Admin Client tool 
@@ -15,5 +14,4 @@
 #   - CBS logs and Windows dumps
 #   - Process Explorer-like view
 #   - And much more 
-#
-# TODO: Still a work in progress 
+
