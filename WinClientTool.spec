@@ -1,27 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import sys
 
 project_root = os.path.dirname(os.path.abspath(SPEC))
+sys.path.insert(0, project_root)
+from pyinstaller_common import get_main_script, get_datas, HIDDEN_IMPORTS
 
 a = Analysis(
-    ['C:\\Users\\iorda\\OneDrive\\Documents\\Visual Studio 2022\\TEMP\\Windows_client_tool\\src\\main.py'],
+    [get_main_script(project_root)],
     pathex=[],
     binaries=[],
-    datas=[
-        (os.path.join(project_root, 'config'), 'config'),
-        (os.path.join(project_root, 'src', 'ui', 'styles'), 'ui/styles'),
-        (os.path.join(project_root, 'src', 'modules', 'tweaks', 'definitions'), 'modules/tweaks/definitions'),
-    ],
-    hiddenimports=[
-        'PyQt6', 'PyQt6.QtCore', 'PyQt6.QtWidgets', 'PyQt6.QtGui',
-        'pywin32', 'pywin32_bootstrap',
-        'win32api', 'win32con', 'win32gui', 'win32process', 'win32service', 'win32evtlog',
-        'win32com', 'win32com.client',
-        'PIL', 'PIL._imaging',
-        'requests', 'urllib3', 'charset_normalizer', 'idna',
-        'numpy', 'numpy.core', 'numpy._core', 'numpy._core.multiarray',
-    ],
+    datas=get_datas(project_root),
+    hiddenimports=HIDDEN_IMPORTS,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

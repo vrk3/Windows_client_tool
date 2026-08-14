@@ -258,7 +258,11 @@ class DiagnoseModule(BaseModule):
         # ── Tab widget ─────────────────────────────────────────────────
         self._tab_widget = QTabWidget()
         self._tab_widget.setTabPosition(QTabWidget.TabPosition.North)
-        self._tab_widget.currentChanged.connect(self._on_tab_changed)
+        # currentChanged is connected AFTER the tabs are populated below —
+        # QTabWidget.addTab() fires currentChanged(0) synchronously for the
+        # first tab it gets, so connecting first would eagerly trigger a
+        # real log read during create_widget() instead of on the user's
+        # first actual tab switch (or on_activate()'s lazy-load below).
 
         for tab_def in TAB_DEFS:
             tab_name = tab_def["name"]
@@ -304,6 +308,7 @@ class DiagnoseModule(BaseModule):
 
             self._tab_widget.addTab(container, tab_def["icon"] + " " + tab_name)
 
+        self._tab_widget.currentChanged.connect(self._on_tab_changed)
         root.addWidget(self._tab_widget, 1)
 
         return self._widget
