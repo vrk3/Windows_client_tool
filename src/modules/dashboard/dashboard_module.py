@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -33,6 +34,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.events import NAV_REQUEST_MODULE, NavRequestData
 
 try:
     import psutil
@@ -149,10 +151,14 @@ class _DashboardWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.app = None
         self._timer = QTimer(self)
         self._timer.setInterval(3000)
         self._timer.timeout.connect(self._refresh)
         self._setup_ui()
+
+    def set_app(self, app) -> None:
+        self.app = app
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -225,9 +231,28 @@ class _DashboardWidget(QWidget):
         grid.setRowStretch(4, 1)
         scroll.setWidget(inner)
 
+        # --- Low disk space warning banner (hidden unless below threshold) ---
+        self._space_banner = QFrame()
+        self._space_banner.setStyleSheet("background: #FF8800; border-radius: 4px;")
+        banner_lay = QHBoxLayout(self._space_banner)
+        banner_lay.setContentsMargins(10, 6, 10, 6)
+        self._space_banner_lbl = QLabel("")
+        self._space_banner_lbl.setStyleSheet("color: white;")
+        self._space_banner_lbl.setWordWrap(True)
+        banner_lay.addWidget(self._space_banner_lbl, 1)
+        self._clean_now_btn = QPushButton("Clean now")
+        self._clean_now_btn.clicked.connect(self._on_clean_now)
+        banner_lay.addWidget(self._clean_now_btn)
+        self._space_banner.hide()
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._space_banner)
         outer.addWidget(scroll)
+
+    def _on_clean_now(self) -> None:
+        if self.app is not None:
+            self.app.event_bus.publish(NAV_REQUEST_MODULE, NavRequestData(module_name="Quick Cleanup"))
 
     def _refresh(self) -> None:
         if not _PSUTIL:
@@ -307,6 +332,28 @@ class _DashboardWidget(QWidget):
                 f"{usage.percent:.0f}%  ({_fmt(usage.used)}/{_fmt(usage.total)})",
             )
 
+        self._refresh_space_warning()
+
+    def _refresh_space_warning(self) -> None:
+        if self.app is None:
+            return
+        try:
+            system_drive = os.environ.get("SystemDrive", "C:") + "\\"
+            usage = psutil.disk_usage(system_drive)
+        except Exception:
+            logger.warning("Ignored Exception in system-drive disk_usage", exc_info=True)
+            return
+        threshold_gb = self.app.config.get("app.free_space_warn_gb", 10)
+        free_gb = usage.free / (1024 ** 3)
+        if free_gb < threshold_gb:
+            self._space_banner_lbl.setText(
+                f"Low disk space on {system_drive} — {free_gb:.1f} GB free "
+                f"(warning threshold: {threshold_gb} GB)."
+            )
+            self._space_banner.show()
+        else:
+            self._space_banner.hide()
+
     def _refresh_network(self) -> None:
         io = psutil.net_io_counters()
         self._net_sent.setText(f"Sent:       {_fmt(io.bytes_sent)}")
@@ -351,6 +398,7 @@ class DashboardModule(BaseModule):
             lbl.setWordWrap(True)
             return lbl
         self._widget = _DashboardWidget()
+        self._widget.set_app(self.app)
         return self._widget
 
     def on_start(self, app) -> None:
