@@ -242,6 +242,24 @@ Key definition files:
 - `navigation.json` — File Explorer navigation pane tweaks (Gallery, 3D Objects, Home, duplicate drives)
 - `definitions/builtins/*.json` — preset profiles (8 existing + 4 debloat presets)
 
+### UpdatesModule (`src/modules/updates/`)
+
+5-tab module in `ModuleGroup.TOOLS`, `requires_admin = True`. This installs updates — it is a different thing from `DiagnoseModule`'s embedded Windows Update *log* viewer.
+
+- **App Updates tab** (`_AppUpdatesTab` in `updates_module.py`) — winget-based via `winget_updater.py`. Live filter box, "Package Details" (`winget show`), "Add to Blocklist", post-update verification. "Update All" is routed through the same per-item loop as "Update Selected" rather than one opaque `winget upgrade --all` call, so progress/pass-fail is per-package.
+- **Windows Updates tab** (`_WinUpdatesTab`) — WUA COM via `windows_updater.py`'s `fetch_pending_updates()` / `install_updates_iter()` (per-item downloader/installer calls, real progress). Hide/show-hidden support, an opt-in restore point before install (`core/system_restore.py` — a real `Checkpoint-Computer`, NOT `BackupService.create_restore_point`, which is this app's own separate revert-log mechanism), post-install verification, WU HRESULT decoding (`core/wu_error_codes.py`).
+- **Microsoft Store tab** (`_StoreUpdatesTab`, `store_updates_tab.py`) — renders the `source == "msstore"` subset of the *same* winget scan the App Updates tab already ran, dispatched via `UpdatesModule._on_app_updates()` → `_store_tab.set_updates()`. Does **not** run its own winget scan. "Verify Store Updates" triggers `core/mdm_store_trigger.py` (MDM CIM class — needs `COMWorker`).
+- **Run All tab** (`_RunAllTab`, `run_all_tab.py`) — runs checked stages (wu/winget/store/cleanup/dism) sequentially in one worker, then writes run history and an HTML report.
+- **Settings tab** (`_UpdateSettingsTab`) — blocklist editor, verify/restore-point/driver toggles, and the Task Scheduler wiring for `--unattended` mode.
+
+**Shared stage logic** (`stage_runners.py`): `run_wu_stage` / `run_winget_stage` / `run_store_stage` / `run_cleanup_safe_stage` / `run_dism_stage`, each `(app, log_fn, is_cancelled_fn) -> dict`. Used by *both* `_RunAllTab` (threaded, `is_cancelled=lambda: worker.is_cancelled`) and `unattended_runner.py` (headless, `is_cancelled=lambda: False`) — extend this file rather than duplicating stage logic in either caller. `normalize_stage_data()` flattens the per-stage result dicts into the shape `report_generator.py` / `history_writer.py` expect.
+
+**Blocklist** (`core/blocklist.py`): `is_blocked(name, id, patterns)` is fnmatch-based — a pattern with no `*` is auto-wrapped as `*pattern*`. Stored at config key `updates.blocklist_patterns` (`list[str]`), not a separate file. `add_pattern(app, pattern)` backs the "Add to Blocklist" button on both the winget and WU tabs.
+
+**Unattended mode**: `python src/main.py --unattended --stages wu,winget,cleanup` — headless, no `QApplication`/`MainWindow`; calls `pythoncom.CoInitialize()` explicitly since there's no `COMWorker`/Qt event loop available. Requires admin — exits 1 immediately if not elevated. The Settings tab's "Create/Update Task" button wires this into Task Scheduler as `WinClientTool_UnattendedMaintenance` (`/rl HIGHEST`, `/sc DAILY /mo <N>`). The older winget-only `WinClientTool_UpdateCheck` task (`_save_legacy`) is kept as-is for existing users — don't merge it into the new one.
+
+**Worker tracking**: every tab here is a `QWidget` (not `BaseModule`) with its own `self._workers: list` and `_cancel_all()`, per the general widget-subclass rule below. `UpdatesModule.on_deactivate()` / `on_stop()` call `_cancel_all()` on all four stateful tabs explicitly — `BaseModule.cancel_all_workers()` only covers workers created directly on the module itself, not on child tab widgets.
+
 ## UI Patterns
 
 **Dark theme** — all modules use `#2d2d2d` backgrounds, `#3c3c3c` cards, `#e0e0e0` text. QSS styles in `src/ui/styles/dark.qss`.
@@ -290,6 +308,10 @@ Note: EventViewer, CBS, DISM, WU, Reliability, and CrashDumps are embedded in Di
 - **Widget subclasses** (`_ScanTab`, `_FixCard`, `_ToolCard`, `_DiskCard`) are `QWidget`, NOT `BaseModule`. They need their own `self._workers: list` and must expose a `cancel()` or `_cancel_all()` method for `on_deactivate()` to call.
 - **DiagnoseModule worker tracking**: `self._workers` covers per-tab loader workers; `_active_search` (a standalone `Worker`) must be cancelled separately in `on_stop()`.
 - **Timers in card helpers** — if a `_ToolCard` or card helper creates a `QTimer`, store it on the card (`card._auto_timer = timer`) so `_cancel_all_cards()` can stop it on deactivation.
+- **`subprocess` with `shell=True` discipline** — every `shell=True` call in this codebase (`tweak_engine.py`'s `command`/`script` steps, `backup_service.py`'s revert commands, `software_module.py`'s uninstall strings, `quick_cleanup_tab.py`'s one-click actions) runs a command string that traces back to a trusted, app-owned source: a bundled JSON tweak definition, a hardcoded string, or a registry-derived value the app doesn't let the user free-type into — never raw user input interpolated into the string. Keep it that way; if a new `shell=True` call needs to include user-typed text, don't string-format it in — pass args as a list with `shell=False`, or shell-quote properly (see `core/system_restore.py`'s `description.replace("'", "''")` for the one existing case that takes user text, going through PowerShell single-quote escaping rather than `shell=True`).
+- **Destructive-action confirmations** — `core/confirm.py`'s `confirm_destructive()` is scaffolding for *new* destructive actions (Yes/No, defaults to No, standard wording). Existing modules mostly hand-roll their own `QMessageBox.question()`/`.warning()` calls for this and have NOT been retrofitted — that's intentional, not an oversight; don't "clean up" the existing call sites to use the helper as a drive-by change.
+- **`QTabWidget.addTab()` fires `currentChanged` synchronously for the first tab added** — if a hub-style module (see DiagnoseModule) connects `currentChanged` before populating tabs, adding the first tab immediately triggers a real (potentially slow) data load during `create_widget()`, defeating the documented lazy-load-on-`on_activate` pattern. Connect `currentChanged` *after* the `addTab()` loop.
+- **Building a real `App()` at pytest collection time can return a `None` `QThreadPool`** — `QThreadPool.globalInstance()` called from module-level test code (executed during collection, before fixtures run) has been observed to come back `None` in this codebase's import graph, while the identical call inside a fixture or test function body (execution time) does not. Collection-time code should only do cheap, non-Qt-threading work (e.g. building a module class list); construct the real `App` in a fixture — see `tests/test_module_smoke.py`.
 
 ### Network Diagnostics `_ToolCard` Pattern (`src/modules/network_diagnostics/`)
 
