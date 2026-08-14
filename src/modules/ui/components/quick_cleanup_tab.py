@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QMessageBox, QProgressDialog,
 )
 
+from core.long_op_pool import get_long_op_pool
 from core.worker import Worker
 from modules.ui.components.category_group import CategoryGroup
 
@@ -883,7 +884,12 @@ class QuickCleanupTab(QWidget):
         w.signals.result.connect(_done)
         w.signals.error.connect(_err)
         self._workers.append(w)
-        QThreadPool.globalInstance().start(w)
+        if long_running:
+            # Can run for minutes (e.g. WU deep clean) — bounded pool, not
+            # the global one everything else shares.
+            get_long_op_pool().start(w)
+        else:
+            QThreadPool.globalInstance().start(w)
 
     def _flush_dns(self):
         self._run_action_command("ipconfig /flushdns", "DNS cache flushed", need_confirm=False)
@@ -951,7 +957,8 @@ class QuickCleanupTab(QWidget):
         w.signals.result.connect(_done)
         w.signals.error.connect(_err)
         self._workers.append(w)
-        QThreadPool.globalInstance().start(w)
+        # 10-30 min DISM run — bounded pool, not the global one everything else shares.
+        get_long_op_pool().start(w)
 
     def _rebuild_icon_cache(self):
         self._run_action_command(
@@ -965,6 +972,7 @@ class QuickCleanupTab(QWidget):
             "dism /Online /Cleanup-Image /StartComponentCleanup /SuppressDefaultActions",
             "WU deep clean started",
             need_confirm=True,
+            long_running=True,  # confirm text says 10-20 min; the default path's 60s timeout would kill it early
             confirm_text="This runs a deep Windows Update cleanup which may take 10–20 minutes. Continue?"
         )
 

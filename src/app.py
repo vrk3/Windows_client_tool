@@ -110,4 +110,6 @@ class App:
         self.config.save()
         self.logger.shutdown()
         self.thread_pool.waitForDone(5000)
+        from core.long_op_pool import get_long_op_pool
+        get_long_op_pool().waitForDone(5000)  # same best-effort grace period as thread_pool above
         App.instance = None

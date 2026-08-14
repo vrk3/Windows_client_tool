@@ -2,12 +2,13 @@
 import subprocess
 from typing import Optional
 
-from PyQt6.QtCore import QThreadPool, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QFrame, QTextEdit,
 )
 
+from core.long_op_pool import get_long_op_pool
 from core.worker import Worker
 from modules.cleanup.tabs._scan_tab import _ScanTab
 from modules.cleanup import cleanup_scanner as cs
@@ -49,6 +50,12 @@ class _LargeItemsTab(QWidget):
 
         dism_row = QHBoxLayout()
         dism_title = QLabel("<b>DISM Component Store Cleanup</b>")
+        self._analyze_btn = QPushButton("Analyze WinSxS")
+        self._analyze_btn.setToolTip(
+            "Runs: DISM /Online /Cleanup-Image /AnalyzeComponentStore\n"
+            "Reports how much space cleanup could reclaim WITHOUT deleting anything.\n"
+            "Fast (seconds) — run this first to see if the full cleanup is worth it."
+        )
         self._dism_btn = QPushButton("Run DISM Cleanup")
         self._dism_btn.setToolTip(
             "Runs: DISM /Online /Cleanup-Image /StartComponentCleanup\n"
@@ -57,6 +64,7 @@ class _LargeItemsTab(QWidget):
         )
         dism_row.addWidget(dism_title)
         dism_row.addStretch()
+        dism_row.addWidget(self._analyze_btn)
         dism_row.addWidget(self._dism_btn)
         dism_lay.addLayout(dism_row)
 
@@ -76,12 +84,43 @@ class _LargeItemsTab(QWidget):
         dism_lay.addWidget(self._dism_out)
 
         layout.addWidget(dism)
+        self._analyze_btn.clicked.connect(self._run_analyze)
         self._dism_btn.clicked.connect(self._run_dism)
+        self._analyze_worker: Optional[Worker] = None
         self._dism_worker: Optional[Worker] = None
-        self._dism_thread_pool = QThreadPool.globalInstance()
+        # DISM /StartComponentCleanup can run for minutes — a bounded pool of
+        # its own so it can't starve the global pool everything else shares.
+        self._dism_thread_pool = get_long_op_pool()
 
     def auto_scan(self):
         self._scan_tab.auto_scan()
+
+    def _run_analyze(self):
+        self._analyze_btn.setEnabled(False)
+        self._dism_out.clear()
+        self._dism_out.show()
+        self._dism_out.append("Analyzing component store (usually a few seconds)…\n")
+
+        def _do(_w):
+            proc = subprocess.run(
+                ["dism", "/Online", "/Cleanup-Image", "/AnalyzeComponentStore"],
+                capture_output=True, text=True, timeout=180,
+                creationflags=0x08000000,   # CREATE_NO_WINDOW
+            )
+            return (proc.stdout or "") + (proc.stderr or "")
+
+        def _done(output: str):
+            self._analyze_btn.setEnabled(True)
+            self._dism_out.append(output or "(No output)")
+
+        def _err(e: str):
+            self._analyze_btn.setEnabled(True)
+            self._dism_out.append(f"Error: {e}")
+
+        self._analyze_worker = Worker(_do)
+        self._analyze_worker.signals.result.connect(_done)
+        self._analyze_worker.signals.error.connect(_err)
+        self._dism_thread_pool.start(self._analyze_worker)
 
     def _run_dism(self):
         self._dism_btn.setEnabled(False)
@@ -113,6 +152,9 @@ class _LargeItemsTab(QWidget):
 
     def _cancel_all(self) -> None:
         self._scan_tab._cancel_all()
+        if self._analyze_worker is not None:
+            self._analyze_worker.cancel()
+            self._analyze_worker = None
         if self._dism_worker is not None:
             self._dism_worker.cancel()
             self._dism_worker = None
