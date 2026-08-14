@@ -33,3 +33,15 @@ class ConfigChangedData:
     key: str
     old_value: Any
     new_value: Any
+
+
+@dataclass
+class BalloonNotifyData:
+    title: str
+    message: str
+    icon_type: Optional[str] = None  # "info" | "warning" | "error"
+
+
+@dataclass
+class NavRequestData:
+    module_name: str

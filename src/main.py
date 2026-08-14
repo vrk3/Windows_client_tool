@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import sys
@@ -62,15 +63,28 @@ def _global_exception_handler(exc_type, exc_value, exc_tb):
         logger.warning("If dialog fails, at least the log was written", exc_info=True)
 
 
-def main():
-    qt_app = QApplication(sys.argv)
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Windows Client Tool")
+    parser.add_argument(
+        "--unattended", action="store_true",
+        help="Run maintenance stages headlessly (no GUI) and exit — used by the "
+             "scheduled task created from the Updates module's Settings tab.",
+    )
+    parser.add_argument(
+        "--stages", default="wu,winget,cleanup",
+        help="Comma-separated stages for --unattended: wu,winget,store,cleanup,dism",
+    )
+    # Ignore unknown args instead of erroring — PyInstaller/Qt may pass extras.
+    args, _unknown = parser.parse_known_args()
+    return args
 
-    # Initialize App singleton (wires all core services)
-    app = App()
 
-    # Install global exception handler (after logging is set up)
-    sys.excepthook = _global_exception_handler
+def register_all_modules(app) -> None:
+    """Import and register every module with `app.module_registry`.
 
+    Split out from main() so tests can build a module registry without also
+    standing up a QApplication/MainWindow — see tests/test_module_smoke.py.
+    """
     # Register all data modules
     from modules.dashboard.dashboard_module import DashboardModule
     from modules.perfmon.perfmon_module import PerfMonModule
@@ -160,6 +174,25 @@ def main():
     app.module_registry.register(DuplicateFinderModule())
     app.module_registry.register(HostsEditorModule())
     app.module_registry.register(StoreAppsModule())
+
+
+def main():
+    args = _parse_args()
+
+    if args.unattended:
+        _s("=== unattended mode ===")
+        from modules.updates.unattended_runner import run_unattended
+        sys.exit(run_unattended(args.stages.split(",")))
+
+    qt_app = QApplication(sys.argv)
+
+    # Initialize App singleton (wires all core services)
+    app = App()
+
+    # Install global exception handler (after logging is set up)
+    sys.excepthook = _global_exception_handler
+
+    register_all_modules(app)
 
     # Start modules
     _s("app.start() → module_registry.start_all()")

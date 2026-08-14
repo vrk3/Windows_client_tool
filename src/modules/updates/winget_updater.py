@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass
 from typing import List, Callable, Optional
 
+from core.blocklist import is_blocked
+
 
 @dataclass
 class AppUpdate:
@@ -42,10 +44,17 @@ def _run_winget(args: List[str], output_cb: Optional[Callable[[str], None]] = No
         return msg
 
 
-def fetch_updates() -> List[AppUpdate]:
-    """Run winget upgrade --include-unknown, parse and return list of updates."""
-    output = _run_winget(["upgrade", "--include-unknown"])
-    return _parse_upgrade_output(output)
+def fetch_updates(patterns: Optional[List[str]] = None) -> List[AppUpdate]:
+    """Run winget upgrade --include-unknown, parse and return list of updates.
+
+    patterns: optional blocklist patterns (id/name/source-agnostic) — matching
+    packages are excluded from the result.
+    """
+    output = _run_winget(["upgrade", "--include-unknown", "--accept-source-agreements"])
+    updates = _parse_upgrade_output(output)
+    if patterns:
+        updates = [u for u in updates if not is_blocked(u.name, u.winget_id, patterns)]
+    return updates
 
 
 def _parse_upgrade_output(output: str) -> List[AppUpdate]:
@@ -125,5 +134,13 @@ def install_all_updates(output_cb: Callable[[str], None]) -> None:
     _run_winget(
         ["upgrade", "--all", "--silent", "--accept-source-agreements",
          "--accept-package-agreements", "--include-unknown"],
+        output_cb=output_cb,
+    )
+
+
+def show_package_details(winget_id: str, output_cb: Callable[[str], None]) -> None:
+    """Run `winget show --id <id> --exact`, streaming output via output_cb."""
+    _run_winget(
+        ["show", "--id", winget_id, "--exact", "--accept-source-agreements"],
         output_cb=output_cb,
     )

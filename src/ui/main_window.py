@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 
 from core.admin_utils import is_admin, restart_as_admin
 from core.base_module import BaseModule
+from core.events import NOTIFY_BALLOON, NAV_REQUEST_MODULE
 from ui.sidebar_nav import SidebarNav
 from ui.status_bar import AppStatusBar
 from ui.toolbar import DynamicToolbar
@@ -102,8 +103,24 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
         self._setup_tray()
         self._sidebar.module_selected.connect(self._on_module_selected)
+        self._app.event_bus.subscribe(NOTIFY_BALLOON, self._on_notify_balloon)
+        self._app.event_bus.subscribe(NAV_REQUEST_MODULE, self._on_nav_request)
         self._schedule_update_check()
         self._show_module_warnings()
+
+    def _on_notify_balloon(self, data) -> None:
+        """Modules publish NOTIFY_BALLOON instead of reaching into MainWindow
+        directly, so this is the single place that maps to the tray icon."""
+        from PyQt6.QtWidgets import QSystemTrayIcon
+        icon_map = {
+            "warning": QSystemTrayIcon.MessageIcon.Warning,
+            "error": QSystemTrayIcon.MessageIcon.Critical,
+        }
+        icon = icon_map.get(getattr(data, "icon_type", None), QSystemTrayIcon.MessageIcon.Information)
+        self._tray_manager.show_balloon(data.title, data.message, icon)
+
+    def _on_nav_request(self, data) -> None:
+        self._navigate_to_module(data.module_name)
 
     def _restore_window_size(self) -> None:
         size = self._app.config.get("app.window_size", [1400, 900])
@@ -332,13 +349,19 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(3000, self._run_update_check)
 
     def _run_update_check(self) -> None:
+        # Set app.update_repo (in config.json, "owner/repo") to enable this —
+        # left blank until the project has a real public release repo, so we
+        # don't hit the GitHub API with a placeholder value on every launch.
+        repo = self._app.config.get("app.update_repo", "").strip()
+        if not repo:
+            return
+
         from core.worker import Worker
         from core.update_checker import UpdateChecker
         from modules.about.about_module import _APP_VERSION
-        _GITHUB_REPO = "your-user/windows-client-tool"  # update when published
 
         def _check(_w):
-            return UpdateChecker(_GITHUB_REPO, _APP_VERSION).check()
+            return UpdateChecker(repo, _APP_VERSION).check()
 
         worker = Worker(_check)
         worker.signals.result.connect(self._on_update_result)

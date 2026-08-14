@@ -1,4 +1,14 @@
 PyQt6>=6.6
 psutil>=5.9
-pytest>=7.0
 pyqtgraph>=0.13
+pywin32>=306
+WMI>=1.5.1
+requests>=2.31
+
+# Optional — enables packet capture in Network Diagnostics; the app degrades
+# gracefully without it (see network_diagnostics/network_tools.py).
+scapy>=2.5
+
+# Dev / test only
+pytest>=7.0
+pytest-timeout>=2.2
