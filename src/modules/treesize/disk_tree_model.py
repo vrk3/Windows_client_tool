@@ -10,12 +10,27 @@ from modules.treesize.disk_scanner import DiskNode, SIZE_UNKNOWN
 COLUMNS = ["Name", "Size", "% of Parent", "Files", "Last Modified"]
 COL_NAME, COL_SIZE, COL_PCT, COL_FILES, COL_MODIFIED = range(5)
 
-# Color sequence for pie chart
+# Categorical color sequence for the pie/donut chart. Validated (not eyeballed)
+# for the app's #2d2d2d dark surface via the dataviz skill's checker: fixed
+# hue order, OKLCH lightness band 0.48-0.67, chroma floor, CVD separation
+# (protan/deutan/tritan) on adjacent pairs — a donut chart rides the same
+# adjacent-pairs rule as a stacked bar, not the stricter all-pairs rule
+# scatter/bubble/choropleth need — and >=3:1 contrast against the surface for
+# every hue (the pie's legend draws label text IN the slice color, so this
+# needed to clear text-legible contrast, not just "distinguishable mark").
+# Assign in this fixed order; never cycle past it — see disk_tree_model.py's
+# usage for the >10-slice fallback (folds into a neutral "Other" bucket).
 _CHART_COLORS = [
-    QColor("#4488FF"), QColor("#FF8800"), QColor("#44DD88"),
-    QColor("#FF44AA"), QColor("#AAAA44"), QColor("#AA44FF"),
-    QColor("#44FFFF"), QColor("#FF8844"), QColor("#88FF44"),
-    QColor("#FF44FF"),
+    QColor("#9c9418"),  # olive-yellow
+    QColor("#3987e5"),  # blue
+    QColor("#d95926"),  # orange
+    QColor("#199e70"),  # teal-green
+    QColor("#c98500"),  # amber
+    QColor("#d55181"),  # magenta
+    QColor("#2fae2f"),  # green
+    QColor("#9085e9"),  # violet
+    QColor("#e66767"),  # red
+    QColor("#1a9ea0"),  # cyan-teal
 ]
 
 
@@ -507,14 +522,24 @@ class DiskTreeModel(QAbstractItemModel):
                 return node.last_modified or 0
             return ""
 
-        def do_sort(nodes: List[DiskNode]) -> List[DiskNode]:
-            return sorted(nodes, key=get_key, reverse=reverse)
+        def do_sort_recursive(nodes: List[DiskNode]) -> List[DiskNode]:
+            # Sort by the requested column first (this is what respects
+            # ascending/descending)...
+            by_column = sorted(nodes, key=get_key, reverse=reverse)
+            # ...then stable-partition folders before files, TreeSize-style —
+            # folders always lead regardless of sort direction; only the
+            # order *within* each group (folders among themselves, files
+            # among themselves) flips with ascending/descending. sorted()
+            # is stable, so this preserves the by-column order already
+            # established within each group.
+            sorted_nodes = sorted(by_column, key=lambda n: 0 if n.is_dir else 1)
+            for node in sorted_nodes:
+                if node.children:
+                    node.children = do_sort_recursive(node.children)
+            return sorted_nodes
 
         self.layoutAboutToBeChanged.emit()
-        self._roots = do_sort(self._roots)
-        for root in self._roots:
-            if root.children:
-                root.children = do_sort(root.children)
+        self._roots = do_sort_recursive(self._roots)
         self.layoutChanged.emit()
 
 

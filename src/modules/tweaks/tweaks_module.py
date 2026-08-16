@@ -793,17 +793,12 @@ class TweaksModule(BaseModule):
         """Revert one applied tweak back to its pre-apply state, without touching
         anything else — the per-row 'Disable' button. Uses BackupService.revert_tweak(),
         which targets just this tweak's most recent applied steps, unlike
-        restore_point()/the Restore Manager dialog which undo a whole session."""
-        if not self.app:
-            return
+        restore_point()/the Restore Manager dialog which undo a whole session.
 
-        reply = QMessageBox.question(
-            self._widget, "Disable Tweak",
-            f"Revert this tweak back to how it was before?\n\n  {tweak['name']}\n\n"
-            "Only this tweak is affected — anything else you've applied stays as-is.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        No confirmation dialog, by design (2026-08-16): this only ever restores a
+        previously-recorded before-value — the same trust level as "Apply" already
+        gets for low/medium risk tweaks, which also don't confirm."""
+        if not self.app:
             return
 
         logger.info("Disabling single tweak: %s", tweak.get("name", ""))

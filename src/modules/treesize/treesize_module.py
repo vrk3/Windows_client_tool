@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import threading
+from collections import deque
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,12 @@ def _get_drives():
 class _PieChart(QWidget):
     """Donut chart showing top-level folder proportions."""
 
+    # Reserved for the folded "everything past the top slices" bucket below —
+    # deliberately not one of _CHART_COLORS' validated categorical hues, so
+    # it can never be mistaken for (or collide with) a specific folder.
+    _OTHER_COLOR = QColor("#6b6b6b")
+    _MAX_SLICES = len(_CHART_COLORS) - 1  # leave one color reserved for "Other"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data: List[tuple] = []  # (name, size, color)
@@ -60,22 +67,42 @@ class _PieChart(QWidget):
         # Use immediate children of the first root for the pie chart
         # (after the single-root model fix, roots has only 1 entry)
         items = roots[0].children if roots else []
-        if not items:
+        dirs = [r for r in items if r.is_dir and r.size >= 0]
+        if not dirs:
             self.update()
             return
-        total = sum(r.size for r in items if r.is_dir and r.size >= 0)
+        # Always rank by actual size here, independent of whatever column the
+        # tree view itself is currently sorted by (e.g. Name) — this chart's
+        # whole point is "biggest folders", so it can't just take the first
+        # N children in display order.
+        dirs.sort(key=lambda r: r.size, reverse=True)
+        total = sum(r.size for r in dirs)
         if total == 0:
             self.update()
             return
-        for i, r in enumerate(items[:9]):
-            if not r.is_dir or r.size < 0:
-                continue
+
+        top = dirs[:self._MAX_SLICES]
+        rest = dirs[self._MAX_SLICES:]
+
+        for i, r in enumerate(top):
             self._data.append((
                 r.name[:14],
                 r.size,
                 _CHART_COLORS[i % len(_CHART_COLORS)],
                 r.size / total,
             ))
+
+        if rest:
+            # Fold everything past the top slices into one neutral slice
+            # instead of either cycling colors (reusing a hue for an
+            # unrelated folder is actively misleading) or silently dropping
+            # them (which also made the percentages not add up to 100%).
+            other_size = sum(r.size for r in rest)
+            self._data.append((
+                f"Other ({len(rest)})", other_size, self._OTHER_COLOR,
+                other_size / total,
+            ))
+
         self.update()
 
     def paintEvent(self, event):
@@ -233,6 +260,18 @@ class TreeSizeModule(BaseModule):
 
         # Track background scan threads for lazy loading
         self._expand_workers: List[threading.Thread] = []
+
+        # Auto-deep-scan: after the fast Phase 1 scan, keep expanding every
+        # directory stub in the background (same bounded-concurrency
+        # scan_shallow() workers manual expand already uses) until real sizes
+        # are known everywhere, so sort-by-size reflects true totals instead
+        # of "however much has been manually expanded so far". Deliberately
+        # NOT a thread pool doing unbounded recursion — that's what caused
+        # the old eager Phase 2 to freeze the UI (see disk_scanner.py).
+        self._auto_deep_scan_active: bool = False
+        self._auto_deep_queue: deque = deque()
+        self._auto_deep_dispatched: set = set()
+        self._resort_timer: Optional[QTimer] = None
 
         # navigation history
         self._nav_history: List[str] = []
@@ -455,6 +494,10 @@ class TreeSizeModule(BaseModule):
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.expanded.connect(self._on_tree_expanded)
 
+        self._resort_timer = QTimer(w)
+        self._resort_timer.setSingleShot(True)
+        self._resort_timer.timeout.connect(self._resort_after_deep_update)
+
         export_btn = QPushButton("Export…")
         export_btn.setMaximumWidth(80)
         export_btn.clicked.connect(self._do_export)
@@ -521,12 +564,102 @@ class TreeSizeModule(BaseModule):
         self._model.add_batch(nodes)
 
     def _on_children_ready(self, parent_path, children):
-        """Called from main thread when a directory's children are scanned."""
+        """Called from main thread when a directory's children are scanned —
+        either a manual expand-click or one step of the auto-deep-scan below."""
         parent = self._model.add_children_to_node(parent_path, children)
         if parent:
             self._model.unmark_loading(parent_path)
             self._model.update_parent_sizes(parent)
+
+        if self._auto_deep_scan_active:
+            for child in children:
+                if child.is_dir and child.path not in self._auto_deep_dispatched:
+                    self._auto_deep_queue.append(child.path)
+            self._dispatch_auto_deep_workers()
+            # Coalesce rapid updates into at most one re-sort/repaint per
+            # 200ms instead of one per directory — a large tree can produce
+            # thousands of these in quick succession.
+            if self._resort_timer:
+                self._resort_timer.start(200)
+        else:
+            self._pie_chart.set_data(self._model.get_roots())
+
+    def _dispatch_auto_deep_workers(self) -> None:
+        """Keep up to 4 concurrent scan_shallow() workers running against the
+        auto-deep-scan queue — the same bounded-concurrency pattern manual
+        expand already uses (see _on_tree_expanded), just driven automatically
+        instead of by clicks. Calls itself again (via _on_children_ready) as
+        each worker completes, until the queue drains."""
+        if not self._auto_deep_scan_active:
+            return
+        if self._scanner is None or self._scanner.is_cancelled():
+            self._auto_deep_scan_active = False
+            self._on_auto_deep_scan_finished()
+            return
+
+        self._expand_workers = [t for t in self._expand_workers if t.is_alive()]
+        while len(self._expand_workers) < 4 and self._auto_deep_queue:
+            path = self._auto_deep_queue.popleft()
+            if path in self._auto_deep_dispatched:
+                continue
+            self._auto_deep_dispatched.add(path)
+            self._model.mark_loading(path)
+            t = threading.Thread(
+                target=self._scanner.scan_shallow, args=(path,), daemon=True)
+            self._expand_workers.append(t)
+            t.start()
+
+        if not self._auto_deep_queue and not any(t.is_alive() for t in self._expand_workers):
+            self._auto_deep_scan_active = False
+            self._on_auto_deep_scan_finished()
+
+    def _start_auto_deep_scan(self, start_paths: List[str]) -> None:
+        self._auto_deep_scan_active = True
+        self._auto_deep_queue = deque(start_paths)
+        self._auto_deep_dispatched = set()
+        self._status_lbl.setText("Calculating folder sizes in the background…")
+        self._dispatch_auto_deep_workers()
+
+    def _resort_after_deep_update(self) -> None:
+        header = self._tree.header()
+        self._model.sort(header.sortIndicatorSection(), header.sortIndicatorOrder())
         self._pie_chart.set_data(self._model.get_roots())
+
+    def _on_auto_deep_scan_finished(self) -> None:
+        """The *real* end of a scan — Phase 1 plus every background deep-scan
+        step. This is where the UI actually returns to idle."""
+        self._auto_deep_scan_active = False
+        self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
+        self._pause_btn.setEnabled(False)
+        self._progress.hide()
+
+        header = self._tree.header()
+        self._model.sort(header.sortIndicatorSection(), header.sortIndicatorOrder())
+
+        roots = self._model.get_roots()
+        immediate_children = roots[0].children if roots else []
+        total_size = sum(r.size for r in immediate_children if r.size >= 0)
+        total_files = sum(r.file_count for r in immediate_children)
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        elapsed = 0
+        if self._scanner is not None:
+            import time
+            elapsed = int(time.time() - self._scanner._start_time)
+
+        stat_parts = [
+            f"{len(immediate_children)} items",
+            format_size(total_size),
+            f"{total_files:,} files",
+            f"{elapsed}s",
+        ]
+        self._status_lbl.setText(
+            f"{' · '.join(stat_parts)}  (fully calculated at {now})"
+        )
+
+        self._pie_chart.set_data(roots)
+        top_files = self._model.get_top_files(10)
+        self._top_files_panel.populate(top_files)
 
     def _on_progress(self, n):
         self._status_lbl.setText(f"Scanned {n:,} nodes…")
@@ -536,46 +669,37 @@ class TreeSizeModule(BaseModule):
         self._ad_badge.setVisible(count > 0)
 
     def _on_scan_finished(self):
+        """Phase 1 (fast top-level scan) is done. Sizes for anything below the
+        top level are still unknown at this point, so this is NOT the real
+        end of the operation — _start_auto_deep_scan below keeps going in the
+        background until real sizes are known everywhere. Stop/Pause stay
+        enabled; _on_auto_deep_scan_finished is the actual finish."""
         self._model.store_last_scan()
         delegate = self._tree.itemDelegateForColumn(COL_SIZE)
         if delegate:
             delegate.setDeltaMap(self._model.delta_map())
 
-        import time
-        stats = self._scanner.get_stats() if self._scanner else {}
-        elapsed = time.time() - (self._scanner._start_time if self._scanner else 0)
-
-        self._scan_btn.setEnabled(True)
-        self._stop_btn.setEnabled(False)
-        self._pause_btn.setEnabled(False)
-        self._progress.hide()
-
         roots = self._model.get_roots()
         immediate_children = roots[0].children if roots else []
-        total_size = sum(r.size for r in immediate_children if r.size >= 0)
-        total_files = sum(r.file_count for r in immediate_children)
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-
-        stat_parts = [
-            f"{len(immediate_children)} items",
-            format_size(total_size),
-            f"{total_files:,} files",
-            f"{int(elapsed)}s",
-        ]
-        self._status_lbl.setText(
-            f"{' · '.join(stat_parts)}  (scanned at {now})"
-        )
 
         self._model.sort(COL_SIZE, Qt.SortOrder.DescendingOrder)
         self._tree.expandToDepth(min(self._auto_expand_spin.value(), 1))
 
-        # Pie chart + top files
+        # Pie chart + top files (best-effort snapshot; refreshed again as the
+        # deep scan fills in real sizes)
         self._pie_chart.set_data(roots)
         top_files = self._model.get_top_files(10)
         self._top_files_panel.populate(top_files)
 
         self._add_to_history(self._current_scan_path)
         self._start_auto_refresh()
+
+        dir_stubs = [c.path for c in immediate_children
+                    if c.is_dir and not c._fully_loaded]
+        if dir_stubs:
+            self._start_auto_deep_scan(dir_stubs)
+        else:
+            self._on_auto_deep_scan_finished()
 
     def _on_scan_error(self, msg: str):
         self._scan_btn.setEnabled(True)
@@ -587,14 +711,19 @@ class TreeSizeModule(BaseModule):
     def _do_stop(self):
         if self._scanner is not None:
             self._scanner.cancel()
+        self._auto_deep_scan_active = False
+        self._auto_deep_queue.clear()
+        self._scan_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._pause_btn.setEnabled(False)
+        self._progress.hide()
         self._stop_auto_refresh()
         # Cancel any pending expand workers
         for t in self._expand_workers:
             if t.is_alive():
                 pass  # daemon threads; scanner cancellation will stop them
         self._expand_workers.clear()
+        self._status_lbl.setText(self._status_lbl.text() + "  (stopped — sizes may be incomplete)")
 
     def _toggle_pause(self):
         if not self._scanner:
@@ -629,6 +758,9 @@ class TreeSizeModule(BaseModule):
         self._expand_workers = [t for t in self._expand_workers if t.is_alive()]
 
         self._model.mark_loading(node.path)
+        # Tell the auto-deep-scan queue (if running) this path is already
+        # being handled, so it doesn't redundantly re-scan it later.
+        self._auto_deep_dispatched.add(node.path)
 
         if self._scanner is None or self._scanner.is_cancelled():
             self._scanner = DiskScanner()
