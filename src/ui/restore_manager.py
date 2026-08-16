@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import (
     QDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QMessageBox, QProgressBar, QPushButton, QSplitter,
-    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
+    QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
 from core.backup_service import BackupService, RestorePointInfo
@@ -83,11 +83,18 @@ class RestoreManagerDialog(QDialog):
         self._table.selectionModel().currentRowChanged.connect(self._on_row_changed)
         splitter.addWidget(self._table)
 
-        # Step details
-        self._detail = QTextEdit()
-        self._detail.setReadOnly(True)
-        self._detail.setPlaceholderText("Select a snapshot above to see its recorded changes.")
-        self._detail.setMaximumHeight(180)
+        # Step details — one row per recorded change, individually revertible
+        self._detail = QTableWidget(0, 4)
+        self._detail.setHorizontalHeaderLabels(["Step", "Target", "Before → After", "Status"])
+        dhdr = self._detail.horizontalHeader()
+        dhdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        dhdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        dhdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        dhdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self._detail.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._detail.verticalHeader().setVisible(False)
+        self._detail.selectionModel().currentRowChanged.connect(self._on_step_selection_changed)
         splitter.addWidget(self._detail)
         splitter.setSizes([380, 180])
         root.addWidget(splitter, stretch=1)
@@ -116,6 +123,13 @@ class RestoreManagerDialog(QDialog):
         self._delete_btn.setEnabled(False)
         self._delete_btn.clicked.connect(self._delete_selected)
         btns.addWidget(self._delete_btn)
+
+        self._revert_step_btn = QPushButton("↩  Revert This Step Only")
+        self._revert_step_btn.setToolTip(
+            "Undo just the selected change below, leaving the rest of this snapshot applied")
+        self._revert_step_btn.setEnabled(False)
+        self._revert_step_btn.clicked.connect(self._revert_selected_step)
+        btns.addWidget(self._revert_step_btn)
 
         btns.addStretch()
 
@@ -175,45 +189,104 @@ class RestoreManagerDialog(QDialog):
         self._load_detail(rp_id)
 
     def _load_detail(self, rp_id: str) -> None:
+        self._detail.setRowCount(0)
+        self._revert_step_btn.setEnabled(False)
         try:
             rows = self._backup._conn.execute(
-                """SELECT step_type, target, before_value, after_value,
-                          applied_at, reverted_at
-                   FROM tweak_steps WHERE restore_point_id=? ORDER BY applied_at""",
+                """SELECT id, step_type, target, before_value, after_value,
+                          reverted_at
+                   FROM tweak_steps WHERE restore_point_id=? ORDER BY rowid""",
                 (rp_id,),
             ).fetchall()
         except Exception as e:
-            self._detail.setPlainText(f"Could not load details: {e}")
+            logger.error("Could not load step details for %s: %s", rp_id, e)
+            self._status_lbl.setText(f"Could not load step details: {e}")
             return
+
+        for r in rows:
+            row = self._detail.rowCount()
+            self._detail.insertRow(row)
+
+            def _fmt(raw):
+                if not raw or raw == "null":
+                    return "—"
+                try:
+                    return str(json.loads(raw))
+                except Exception:
+                    logger.warning("Ignored Exception", exc_info=True)
+                    return str(raw)
+
+            before_after = f"{_fmt(r['before_value'])} → {_fmt(r['after_value'])}"
+            reverted = bool(r["reverted_at"])
+            status = f"✓ reverted {r['reverted_at'][:16]}" if reverted else "applied"
+
+            item0 = QTableWidgetItem(r["step_type"].upper())
+            item0.setData(Qt.ItemDataRole.UserRole, r["id"])
+            item0.setData(Qt.ItemDataRole.UserRole + 1, reverted)
+            self._detail.setItem(row, 0, item0)
+            self._detail.setItem(row, 1, QTableWidgetItem(r["target"]))
+            self._detail.setItem(row, 2, QTableWidgetItem(before_after))
+            self._detail.setItem(row, 3, QTableWidgetItem(status))
 
         if not rows:
-            self._detail.setPlainText(
-                "No individual steps were recorded.\n"
-                "(Manual snapshots or empty sessions have no step details.)"
-            )
+            self._detail.insertRow(0)
+            placeholder = QTableWidgetItem(
+                "No individual steps recorded (manual snapshots have none).")
+            self._detail.setItem(0, 0, placeholder)
+            self._detail.setSpan(0, 0, 1, 4)
+
+    def _on_step_selection_changed(self, current, _previous) -> None:
+        if not current.isValid():
+            self._revert_step_btn.setEnabled(False)
+            return
+        item = self._detail.item(current.row(), 0)
+        already_reverted = bool(item and item.data(Qt.ItemDataRole.UserRole + 1))
+        step_id = item.data(Qt.ItemDataRole.UserRole) if item else None
+        self._revert_step_btn.setEnabled(bool(step_id) and not already_reverted)
+
+    def _revert_selected_step(self) -> None:
+        row = self._detail.currentRow()
+        if row < 0:
+            return
+        item = self._detail.item(row, 0)
+        step_id = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not step_id:
+            return
+        target = self._detail.item(row, 1).text() if self._detail.item(row, 1) else "this change"
+
+        reply = QMessageBox.question(
+            self, "Revert Step",
+            f"Undo just this one change?\n\n  {target}\n\n"
+            "The rest of this snapshot's changes stay applied.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
-        lines = []
-        for r in rows:
-            reverted = ""
-            if r["reverted_at"]:
-                reverted = f"  ✓ reverted {r['reverted_at'][:16]}"
-            lines.append(f"[{r['step_type'].upper()}]  {r['target']}{reverted}")
-            before = r["before_value"]
-            after = r["after_value"]
-            if before and before != "null":
-                try:
-                    before = json.loads(before)
-                except Exception:
-                    logger.warning("Ignored Exception", exc_info=True)
-                lines.append(f"   Before : {before}")
-            if after and after != "null":
-                try:
-                    after = json.loads(after)
-                except Exception:
-                    logger.warning("Ignored Exception", exc_info=True)
-                lines.append(f"   After  : {after}")
-        self._detail.setPlainText("\n".join(lines))
+        rp_id, _ = self._get_selected_rp()
+        self._set_busy(True)
+        self._status_lbl.setText("Reverting step…")
+
+        def work(_worker):
+            return self._backup.revert_step(step_id)
+
+        def on_result(ok):
+            self._set_busy(False)
+            self._status_lbl.setText(
+                "✅ Step reverted." if ok else "❌ Could not revert this step — see logs.")
+            if rp_id:
+                self._load_detail(rp_id)
+                self._load()  # snapshot's step_count/status in the top table may change
+
+        def on_error(err):
+            self._set_busy(False)
+            self._status_lbl.setText(f"❌ Error: {err}")
+
+        w = Worker(work)
+        w.signals.result.connect(on_result)
+        w.signals.error.connect(on_error)
+        self._workers.append(w)
+        QThreadPool.globalInstance().start(w)
 
     # ------------------------------------------------------------------
     # Actions
@@ -338,6 +411,7 @@ class RestoreManagerDialog(QDialog):
         self._restore_btn.setEnabled(not busy)
         self._delete_btn.setEnabled(not busy)
         self._create_btn.setEnabled(not busy)
+        self._revert_step_btn.setEnabled(False if busy else self._revert_step_btn.isEnabled())
         if busy:
             self._progress.setRange(0, 0)
             self._progress.show()

@@ -652,6 +652,15 @@ class TweaksModule(BaseModule):
         self._apply_btn.clicked.connect(self._on_apply)
         layout.addWidget(self._apply_btn)
 
+        undo_btn = QPushButton("↩ Undo Applied Tweaks…")
+        undo_btn.setToolTip(
+            "Every apply here is recorded automatically. Open this to revert a "
+            "previous session — this is NOT the same as the 'System Restore' "
+            "module in the sidebar (that one is Windows' own OS restore points)."
+        )
+        undo_btn.clicked.connect(self._open_restore_manager)
+        layout.addWidget(undo_btn)
+
         self._progress = QProgressBar()
         self._progress.setVisible(False)
         self._progress.setMaximumWidth(200)
@@ -807,6 +816,10 @@ class TweaksModule(BaseModule):
         }
         self._preset_mgr.save_preset(name.strip(), data)
         self._refresh_preset_combo()
+        # _refresh_preset_combo() clears+repopulates the combo, which resets
+        # currentIndex to 0 (the first builtin) — reselect the preset we just saved
+        # so the UI doesn't silently jump to showing an unrelated preset.
+        self._preset_combo.setCurrentText(name.strip())
 
     def _on_export_preset(self) -> None:
         name = self._preset_combo.currentText()
@@ -830,6 +843,13 @@ class TweaksModule(BaseModule):
                     self._widget, "Import", f"Preset '{name}' imported.")
             except Exception as e:
                 QMessageBox.critical(self._widget, "Import failed", str(e))
+
+    def _open_restore_manager(self) -> None:
+        """Open the app's own change-history/undo dialog (Tools ▸ Restore Manager
+        uses the same dialog). Kept as a local import to match main_window.py's
+        lazy-import pattern for this dialog."""
+        from ui.restore_manager import RestoreManagerDialog
+        RestoreManagerDialog(self.app, self._widget).exec()
 
     def _on_select_all_tab(self) -> None:
         idx = self._tabs.currentIndex()

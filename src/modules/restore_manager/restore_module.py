@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 
 
 class RestoreManagerModule(BaseModule):
-    name = "Restore Manager"
+    # Deliberately NOT "Restore Manager" — that name is used by the Tools ▸ Restore
+    # Manager... dialog (ui/restore_manager.py), which undoes THIS app's own tweak
+    # changes and is a completely different feature from Windows System Restore.
+    # Two same-named "Restore Manager"s caused real user confusion (2026-08-14): a
+    # user looking here for "undo the tweak I just applied" found only OS restore
+    # points, with no path to the actual per-tweak undo.
+    name = "System Restore"
     icon = "♻️"
-    description = "Create and manage Windows System Restore points"
+    description = "Create and manage Windows System Restore points (OS-level, not this app's tweak undo — see Tools ▸ Restore Manager for that)"
     group = ModuleGroup.OPTIMIZE
     requires_admin = True
 

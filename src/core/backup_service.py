@@ -21,6 +21,8 @@ class StepRecord:
     before_value: Any
     after_value: Any
     revert_command: Optional[str] = None
+    value_name: str = ""        # registry only — the value name under `target` (the key path)
+    reg_kind: Optional[int] = None  # registry only — winreg.REG_* type, needed to write before_value back
 
 
 @dataclass
@@ -80,6 +82,14 @@ class BackupService:
             self._conn.execute(
                 "ALTER TABLE tweak_steps ADD COLUMN revert_command TEXT")
             logger.info("added revert_command column to tweak_steps")
+        if "value_name" not in cols:
+            self._conn.execute(
+                "ALTER TABLE tweak_steps ADD COLUMN value_name TEXT")
+            logger.info("added value_name column to tweak_steps")
+        if "reg_kind" not in cols:
+            self._conn.execute(
+                "ALTER TABLE tweak_steps ADD COLUMN reg_kind INTEGER")
+            logger.info("added reg_kind column to tweak_steps")
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
@@ -104,6 +114,11 @@ class BackupService:
         self._conn.commit()
         return rp_id
 
+    @staticmethod
+    def _json_safe(value: Any) -> Any:
+        """bytes (REG_BINARY before/after values) aren't JSON-serializable — hex-encode them."""
+        return value.hex() if isinstance(value, (bytes, bytearray)) else value
+
     def record_steps(self, tweak_id: str, steps: List[StepRecord],
                      restore_point_id: str) -> None:
         now = datetime.now().isoformat()
@@ -111,12 +126,16 @@ class BackupService:
             self._conn.execute(
                 """INSERT INTO tweak_steps
                    (id, tweak_id, restore_point_id, applied_at,
-                    step_type, target, before_value, after_value, revert_command)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                    step_type, target, before_value, after_value, revert_command,
+                    value_name, reg_kind)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (uuid.uuid4().hex, tweak_id, restore_point_id, now,
                  step.step_type, step.target,
-                 json.dumps(step.before_value), json.dumps(step.after_value),
-                 getattr(step, 'revert_command', None)),
+                 json.dumps(self._json_safe(step.before_value)),
+                 json.dumps(self._json_safe(step.after_value)),
+                 getattr(step, 'revert_command', None),
+                 getattr(step, 'value_name', ""),
+                 getattr(step, 'reg_kind', None)),
             )
         self._conn.commit()
 
@@ -201,7 +220,8 @@ class BackupService:
 
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
-            "SELECT step_type, target, before_value, revert_command, restore_point_id FROM tweak_steps WHERE id=?",
+            "SELECT step_type, target, before_value, revert_command, restore_point_id, "
+            "value_name, reg_kind FROM tweak_steps WHERE id=?",
             (step_id,),
         ).fetchone()
         if row is None:
@@ -213,20 +233,36 @@ class BackupService:
                       if row["before_value"] else None)
             revert_cmd = row["revert_command"]
             if step_type == "registry":
-                rp_folder = self._get_restore_point_folder(row["restore_point_id"])
-                if rp_folder:
-                    safe = target.replace("\\", "_").replace("/", "_")[:80]
-                    reg_file = os.path.join(rp_folder, "registry", f"{safe}.reg")
-                    if os.path.exists(reg_file):
-                        subprocess.run(
-                            ["reg", "import", reg_file],
-                            check=True, capture_output=True,
-                            creationflags=subprocess.CREATE_NO_WINDOW,
-                        )
-                    else:
-                        logger.warning("Registry backup file not found for %s", target)
+                # Direct per-value revert from the recorded before_value — NOT a whole-key
+                # .reg re-import. A .reg re-import is unreliable here: it's missing entirely
+                # for keys that didn't exist before the tweak created them (reg export fails
+                # silently on a nonexistent key), and gets overwritten every time the same key
+                # is touched by a later step, so a key hit by two tweaks in one session would
+                # only unwind the *last* touch. The before_value captured at apply time doesn't
+                # have either problem.
+                import winreg
+                value_name = row["value_name"] or ""
+                reg_kind = row["reg_kind"]
+                hive_name, _, sub = target.partition("\\")
+                hive = {
+                    "HKLM": winreg.HKEY_LOCAL_MACHINE, "HKCU": winreg.HKEY_CURRENT_USER,
+                    "HKCR": winreg.HKEY_CLASSES_ROOT, "HKU": winreg.HKEY_USERS,
+                    "HKCC": winreg.HKEY_CURRENT_CONFIG,
+                }.get(hive_name.upper(), winreg.HKEY_LOCAL_MACHINE)
+                if before is None:
+                    # No prior value recorded — the tweak created it from nothing, so
+                    # reverting means removing it, not writing some other value.
+                    try:
+                        with winreg.OpenKey(hive, sub, 0, winreg.KEY_SET_VALUE) as k:
+                            winreg.DeleteValue(k, value_name)
+                    except FileNotFoundError:
+                        pass  # already absent — fine
                 else:
-                    logger.warning("Restore point folder not found for %s", target)
+                    kind = reg_kind if reg_kind is not None else winreg.REG_DWORD
+                    if kind == winreg.REG_BINARY and isinstance(before, str):
+                        before = bytes.fromhex(before)
+                    with winreg.CreateKeyEx(hive, sub, access=winreg.KEY_SET_VALUE) as k:
+                        winreg.SetValueEx(k, value_name, 0, kind, before)
             elif step_type == "service":
                 import win32service
                 hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)

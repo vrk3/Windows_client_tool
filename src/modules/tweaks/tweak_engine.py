@@ -109,10 +109,23 @@ class TweakEngine:
         if kind == winreg.REG_BINARY and isinstance(data, str):
             data = bytes.fromhex(data)
 
-        with winreg.CreateKeyEx(hive, sub, access=winreg.KEY_SET_VALUE) as k:
-            winreg.SetValueEx(k, value_name, 0, kind, data)
+        try:
+            with winreg.CreateKeyEx(hive, sub, access=winreg.KEY_SET_VALUE) as k:
+                winreg.SetValueEx(k, value_name, 0, kind, data)
+        except PermissionError as e:
+            # A handful of Windows 11 keys (Feeds, Communications, WindowsAI, ...) are
+            # ACL-locked to TrustedInstaller/SYSTEM — even a full Administrator gets
+            # denied here. This is an OS permission wall, not a missing-elevation bug;
+            # re-raise with that context instead of a bare WinError 5 (confirmed
+            # 2026-08-14 on disable_taskbar_news / win11_chat_disable).
+            raise PermissionError(
+                f"{e}. This key is locked down by Windows itself on some builds "
+                "(TrustedInstaller/SYSTEM-only ACL) — Administrator rights alone can't "
+                "write it. Try the equivalent Settings app toggle instead if one exists."
+            ) from e
 
-        return StepRecord("registry", full_key, before, data)
+        return StepRecord("registry", full_key, before, data,
+                          value_name=value_name, reg_kind=kind)
 
     def _apply_service(self, step: Dict, rp_id: str) -> StepRecord:
         import win32service
