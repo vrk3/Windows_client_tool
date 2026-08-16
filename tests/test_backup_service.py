@@ -160,6 +160,68 @@ def test_revert_step_registry_missing_key_on_delete_is_not_a_failure(svc):
     assert result is True
 
 
+def test_revert_tweak_reverts_latest_applied_steps(svc):
+    """revert_tweak() targets one tweak's steps directly, without needing its
+    restore_point_id — powers the per-row Disable button in the Tweaks tab."""
+    rp_id = svc.create_restore_point("Single tweak: X", "Tweaks")
+    svc.record_steps(
+        "tweak_a",
+        [StepRecord("registry", r"HKCU\Software\Test", 0, 1,
+                    value_name="Val", reg_kind=winreg.REG_DWORD)],
+        rp_id,
+    )
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.CreateKeyEx", return_value=mock_key), patch("winreg.SetValueEx"):
+        result = svc.revert_tweak("tweak_a")
+    assert result.success is True
+    assert result.partial is False
+
+
+def test_revert_tweak_no_applied_steps_is_a_failure(svc):
+    """Disabling a tweak that was never applied (or already reverted) is an
+    explicit failure, not a silent no-op."""
+    result = svc.revert_tweak("never_applied")
+    assert result.success is False
+    assert result.errors
+
+
+def test_revert_tweak_only_touches_most_recent_session(svc):
+    """A tweak applied twice (two separate sessions, never reverted in between) —
+    revert_tweak() should only unwind the latest apply, leaving the older
+    session's steps untouched."""
+    rp_old = svc.create_restore_point("Single tweak: X (first)", "Tweaks")
+    svc.record_steps(
+        "tweak_b",
+        [StepRecord("registry", r"HKCU\Software\Test", 0, 1, value_name="Val")],
+        rp_old,
+    )
+    rp_new = svc.create_restore_point("Single tweak: X (second)", "Tweaks")
+    svc.record_steps(
+        "tweak_b",
+        [StepRecord("registry", r"HKCU\Software\Test", 1, 2, value_name="Val")],
+        rp_new,
+    )
+
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.CreateKeyEx", return_value=mock_key), patch("winreg.SetValueEx"):
+        result = svc.revert_tweak("tweak_b")
+    assert result.success is True
+
+    conn = sqlite3.connect(svc._db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT restore_point_id, reverted_at FROM tweak_steps WHERE tweak_id='tweak_b'"
+        " ORDER BY rowid"
+    ).fetchall()
+    conn.close()
+    assert rows[0]["restore_point_id"] == rp_old and rows[0]["reverted_at"] is None
+    assert rows[1]["restore_point_id"] == rp_new and rows[1]["reverted_at"] is not None
+
+
 def test_record_steps_hex_encodes_binary_before_value(svc):
     """REG_BINARY before/after values come back from winreg as bytes, which json.dumps
     can't serialize — record_steps must hex-encode them instead of crashing."""

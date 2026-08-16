@@ -186,6 +186,13 @@ class TweakRow(QWidget):
         self.apply_btn.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(self.apply_btn)
 
+        self.disable_btn = QPushButton("Disable")
+        self.disable_btn.setFixedWidth(70)
+        self.disable_btn.setToolTip("Revert this tweak back to how it was before it was applied")
+        self.disable_btn.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
+        self.disable_btn.setVisible(False)  # only shown once status is detected as "applied"
+        layout.addWidget(self.disable_btn)
+
         # Row highlight on hover
         self.setStyleSheet(
             "TweakRow:hover { background-color: #2a2d2e; }"
@@ -198,6 +205,7 @@ class TweakRow(QWidget):
             "unknown": "? Unknown",
         }
         self.status_label.setText(text_map.get(status, status))
+        self.disable_btn.setVisible(status == "applied")
 
     @property
     def is_checked(self) -> bool:
@@ -287,6 +295,10 @@ class TweakTab(QWidget):
     def set_row_apply_handler(self, handler) -> None:
         for row in self._rows.values():
             row.apply_btn.clicked.connect(lambda _, r=row: handler(r))
+
+    def set_row_disable_handler(self, handler) -> None:
+        for row in self._rows.values():
+            row.disable_btn.clicked.connect(lambda _, r=row: handler(r))
 
     def _on_selection_changed(self) -> None:
         count = sum(1 for r in self._rows.values() if r.is_checked)
@@ -500,7 +512,6 @@ class TweaksModule(BaseModule):
         self._log_output: Optional[QTextEdit] = None
         self._tabs: Optional[QTabWidget] = None
         self._signals = _Signals()
-        self._tweaks_loaded = False
         self._details_panel: Optional[_DetailsPanel] = None
 
     # ------------------------------------------------------------------
@@ -517,10 +528,12 @@ class TweaksModule(BaseModule):
         self.cancel_all_workers()
 
     def on_activate(self) -> None:
-        if not self._tweaks_loaded:
-            self._tweaks_loaded = True
-            self._detect_statuses()
-            self._detect_apps()
+        # Re-check every time the tab is opened, not just the first time — the
+        # underlying registry/service/appx state can change from outside this
+        # screen (a manual revert, another tool, a previous session), and a
+        # stale "Applied"/"Not Applied" label is actively misleading.
+        self._detect_statuses()
+        self._detect_apps()
 
     def on_deactivate(self) -> None:
         self.cancel_all_workers()
@@ -557,6 +570,7 @@ class TweaksModule(BaseModule):
             self._tabs.addTab(tab, category)
             tab.row_selected.connect(self._on_row_selected)
             tab.set_row_apply_handler(self._on_row_apply)
+            tab.set_row_disable_handler(self._on_row_disable)
 
         config = self.app.config if self.app else None
         self._app_tab = AppManagerTab(self._catalog, config)
@@ -748,6 +762,7 @@ class TweaksModule(BaseModule):
 
         errors = []
         logger.info("Applying single tweak: %s", tweak.get("name", ""))
+        self._log_output.setVisible(True)
 
         def _worker_fn(worker):
             self._engine.apply_tweak(
@@ -769,6 +784,55 @@ class TweaksModule(BaseModule):
             else:
                 self._log_output.append("✅ Tweak applied successfully.")
         logger.info("Single tweak applied: %d error(s)", len(errors))
+        self._detect_statuses()
+
+    def _on_row_disable(self, row: TweakRow) -> None:
+        self._on_disable_single_tweak(row.tweak)
+
+    def _on_disable_single_tweak(self, tweak: Dict) -> None:
+        """Revert one applied tweak back to its pre-apply state, without touching
+        anything else — the per-row 'Disable' button. Uses BackupService.revert_tweak(),
+        which targets just this tweak's most recent applied steps, unlike
+        restore_point()/the Restore Manager dialog which undo a whole session."""
+        if not self.app:
+            return
+
+        reply = QMessageBox.question(
+            self._widget, "Disable Tweak",
+            f"Revert this tweak back to how it was before?\n\n  {tweak['name']}\n\n"
+            "Only this tweak is affected — anything else you've applied stays as-is.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        logger.info("Disabling single tweak: %s", tweak.get("name", ""))
+        self._log_output.setVisible(True)
+
+        def _worker_fn(worker):
+            return self.app.backup.revert_tweak(tweak["id"])
+
+        w = Worker(_worker_fn)
+        w.signals.result.connect(self._on_single_disable_result)
+        w.signals.error.connect(lambda e: self._log_output.append(f"Error: {e}"))
+        self._workers.append(w)
+        self.app.thread_pool.start(w)
+
+    def _on_single_disable_result(self, result) -> None:
+        if self._log_output:
+            if result.success:
+                self._log_output.append("✅ Tweak disabled (reverted).")
+            elif result.partial:
+                self._log_output.append(
+                    f"⚠ Partially reverted — {len(result.failed_steps)} step(s) failed.")
+                for e in result.errors:
+                    self._log_output.append(f"⚠ {e}")
+            else:
+                self._log_output.append("❌ Could not disable this tweak.")
+                for e in result.errors:
+                    self._log_output.append(f"⚠ {e}")
+        logger.info("Single tweak disable: success=%s partial=%s failed=%d",
+                   result.success, result.partial, len(result.failed_steps))
         self._detect_statuses()
 
     # ------------------------------------------------------------------

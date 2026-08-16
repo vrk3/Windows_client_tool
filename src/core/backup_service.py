@@ -192,31 +192,59 @@ class BackupService:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(existing, f)
 
+    def _revert_steps(self, step_ids: List[str]) -> RestoreResult:
+        failed: List[str] = []
+        errors: List[str] = []
+        for step_id in step_ids:
+            ok = self.revert_step(step_id)
+            if not ok:
+                failed.append(step_id)
+                err_row = self._conn.execute(
+                    "SELECT revert_error FROM tweak_steps WHERE id=?", (step_id,)
+                ).fetchone()
+                errors.append(err_row["revert_error"] or "Unknown error")
+        success = len(failed) == 0
+        partial = bool(failed) and len(failed) < len(step_ids)
+        return RestoreResult(success=success, partial=partial,
+                             failed_steps=failed, errors=errors)
+
     def restore_point(self, restore_point_id: str) -> RestoreResult:
         rows = self._conn.execute(
             "SELECT id FROM tweak_steps WHERE restore_point_id=? AND reverted_at IS NULL",
             (restore_point_id,),
         ).fetchall()
-        failed: List[str] = []
-        errors: List[str] = []
-        for row in rows:
-            ok = self.revert_step(row["id"])
-            if not ok:
-                failed.append(row["id"])
-                err_row = self._conn.execute(
-                    "SELECT revert_error FROM tweak_steps WHERE id=?", (row["id"],)
-                ).fetchone()
-                errors.append(err_row["revert_error"] or "Unknown error")
-        success = len(failed) == 0
-        partial = bool(failed) and len(failed) < len(rows)
-        status = "restored" if success else "partial"
+        result = self._revert_steps([row["id"] for row in rows])
+        status = "restored" if result.success else "partial"
         self._conn.execute(
             "UPDATE restore_points SET status=? WHERE id=?",
             (status, restore_point_id),
         )
         self._conn.commit()
-        return RestoreResult(success=success, partial=partial,
-                             failed_steps=failed, errors=errors)
+        return result
+
+    def revert_tweak(self, tweak_id: str) -> RestoreResult:
+        """Revert just the most recent still-applied steps for ONE tweak, regardless
+        of whether it was applied alone or as part of a bigger 'Apply Selected'
+        session. Powers the per-row Disable button in the Tweaks tab — distinct
+        from restore_point(), which undoes an entire session at once.
+
+        Only the latest apply is targeted: if the same tweak was applied, reverted,
+        then re-applied, this reverts the re-apply, not the whole history.
+        """
+        latest = self._conn.execute(
+            "SELECT restore_point_id FROM tweak_steps "
+            "WHERE tweak_id=? AND reverted_at IS NULL ORDER BY rowid DESC LIMIT 1",
+            (tweak_id,),
+        ).fetchone()
+        if latest is None:
+            return RestoreResult(success=False, partial=False, failed_steps=[],
+                                 errors=["No applied (unreverted) steps found for this tweak."])
+        rows = self._conn.execute(
+            "SELECT id FROM tweak_steps WHERE tweak_id=? AND restore_point_id=? "
+            "AND reverted_at IS NULL",
+            (tweak_id, latest["restore_point_id"]),
+        ).fetchall()
+        return self._revert_steps([row["id"] for row in rows])
 
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
