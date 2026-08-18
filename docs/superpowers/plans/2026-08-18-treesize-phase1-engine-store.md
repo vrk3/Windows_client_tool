@@ -108,7 +108,7 @@ def test_owner_interning_dedupes():
 def test_build_child_lists_handles_out_of_order_parents():
     # MFT order gives no guarantee a parent is added before its child.
     s = NodeStore()
-    child = s.add(1, "child.txt", size=5)   # parent index 1 does not exist yet
+    child = s.add(2, "child.txt", size=5)   # parent index 2 does not exist yet
     root = s.add(-1, "C:", attrs=DIR)
     parent = s.add(root, "dir", attrs=DIR)
     assert (child, root, parent) == (0, 1, 2)
