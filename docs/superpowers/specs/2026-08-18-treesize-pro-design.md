@@ -267,8 +267,10 @@ the only thing that needs them — context menu, file operations, export.
 `size` and `alloc` are independent columns, not one derived from the other. The
 verification scan's 385.4 GB / 147.5 GB split (§1.1) is the reason.
 
-Budget: about 52 bytes per node plus roughly 30 bytes of name. A 5M-file volume lands near
-400 MB. A Python object per node with a `str` name is 5–10× that, which makes a full `C:`
+Budget, measured against the implemented store rather than estimated: 74 bytes per node
+in fixed columns (4+4+2+8+8+8+8+8+4+4+4+4+4+4) plus about 30 bytes of name, so 104
+bytes per node all in. A 5M-file volume lands near 500 MB and a 15M-file volume near
+1.5 GB. A Python object per node with a `str` name is 5–10× that, which makes a full `C:`
 scan unusable — the exact scenario this module exists to serve.
 
 ### 4.2 Rollup
@@ -653,7 +655,7 @@ environment so the suite can run at all (§1.3).
 |---|---|
 | MFT parsing errors produce wrong paths | Synthetic fixtures per attribute type; guardrails block system paths regardless of what the parser produced |
 | Destructive operation on a mis-assembled path | Guardrails, typed confirmation, dry-run, logged manifest |
-| Memory on very large volumes | Columnar store budgeted near 52 bytes per node; measured in phase 1 before any UI work |
+| Memory on very large volumes | Columnar store measured at 104 bytes per node all in (74 fixed + ~30 name); 5M files near 500 MB |
 | Treemap layout cost at high node counts | Off-thread layout, flattened rect array, depth-limited rendering |
 | Ribbon fidelity | Names verified against shipped help; colors sampled from the running product in phase 2 |
 | Cloud backends are the largest surface and the least testable | Deferred to phase 7, one per increment, behind a single interface; recorded-response fakes in CI |

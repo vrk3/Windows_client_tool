@@ -141,9 +141,9 @@ Create empty `src/modules/treesize/__init__.py`, `src/modules/treesize/store/__i
 # src/modules/treesize/store/node_store.py
 """Columnar store for scanned filesystem nodes.
 
-A node is an ``int`` index into parallel arrays, not an object. At roughly
-52 bytes per node plus name bytes, a five-million-file volume stays near
-400 MB; an object per node would be five to ten times that.
+A node is an ``int`` index into parallel arrays, not an object. At 104 bytes
+per node all in (74 fixed columns + ~30 of name), a five-million-file volume
+stays near 500 MB; an object per node would be five to ten times that.
 """
 import array
 from typing import Iterator
@@ -2642,7 +2642,7 @@ Expected: PASS, 7 tests
 ```
 
 Expected: all tests pass; the harness prints a summary with a plausible size for
-System32 and a bytes/node figure near the 52-byte budget from spec §4.1.
+System32 and a bytes/node figure near the 104-byte measured budget in spec §4.1.
 
 Then, in an **elevated** shell, confirm the fast path:
 
@@ -2668,7 +2668,7 @@ git commit -m "feat(treesize): add console verification harness for the scan eng
 - `.venv\Scripts\python.exe -m pytest -q` green, including the 160 pre-existing tests.
 - Unelevated scan of a directory tree produces correct totals via the walk engine.
 - Elevated scan of `C:\` selects the MFT engine and reports a total near the values in spec §1.1.
-- Measured bytes/node within range of the 52-byte budget; if materially above, that is a finding to resolve before phase 2 builds four consumers on the store.
+- Measured bytes/node within range of the 104-byte measured budget (74 fixed + ~30 name); if materially above, that is a finding to resolve before phase 2 builds four consumers on the store.
 
 ## Deferred to later phases, deliberately
 
