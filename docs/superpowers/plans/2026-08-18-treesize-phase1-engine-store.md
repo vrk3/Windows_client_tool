@@ -388,19 +388,31 @@ import array
 from .node_store import NodeStore, DIR
 
 
+_UNVISITED = -1
+_IN_PROGRESS = -2
+
+
 def compute_depths(store: NodeStore) -> array.array:
     n = len(store)
-    depth = array.array("i", [-1]) * n if n else array.array("i")
+    depth = array.array("i", [_UNVISITED]) * n if n else array.array("i")
     for i in range(n):
         if depth[i] >= 0:
             continue
         chain = []
         j = i
-        while j >= 0 and j < n and depth[j] < 0:
+        # _IN_PROGRESS marks nodes on the CURRENT walk. Without it, a parent
+        # cycle of length >= 2 (parent[x]=y, parent[y]=x) walks x,y,x,y...
+        # forever, because depth[] is only written after the walk completes.
+        # The nxt != j guard below catches only an immediate self-reference.
+        while 0 <= j < n and depth[j] == _UNVISITED:
+            depth[j] = _IN_PROGRESS
             chain.append(j)
             nxt = store.parent[j]
             j = nxt if (0 <= nxt < n and nxt != j) else -1
-        base = depth[j] if (0 <= j < n) else -1
+        if 0 <= j < n and depth[j] == _IN_PROGRESS:
+            base = -1        # cycle: treat the closing node as a root
+        else:
+            base = depth[j] if (0 <= j < n) else -1
         for k in reversed(chain):
             base += 1
             depth[k] = base
@@ -434,6 +446,11 @@ def rollup(store: NodeStore) -> None:
     for i in reversed(order):
         p = store.parent[i]
         if not (0 <= p < n) or p == i:
+            continue
+        # A well-formed child is exactly one deeper than its parent, so this
+        # never fires on legitimate data. On a parent cycle it fires in exactly
+        # one direction, so each byte is counted at most once.
+        if depth[p] >= depth[i]:
             continue
         store.size[p] += store.size[i]
         store.alloc[p] += store.alloc[i]
