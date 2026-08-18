@@ -1,8 +1,8 @@
 """Columnar store for scanned filesystem nodes.
 
-A node is an ``int`` index into parallel arrays, not an object. At roughly
-52 bytes per node plus name bytes, a five-million-file volume stays near
-400 MB; an object per node would be five to ten times that.
+A node is an ``int`` index into parallel arrays, not an object. At 104 bytes
+per node all in (74 fixed columns + ~30 of name), a five-million-file volume
+stays near 500 MB; an object per node would be five to ten times that.
 """
 import array
 from typing import Iterator
