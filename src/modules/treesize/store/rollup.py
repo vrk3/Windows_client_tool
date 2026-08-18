@@ -8,6 +8,9 @@ import array
 
 from .node_store import NodeStore, DIR
 
+_UNVISITED = -1
+_IN_PROGRESS = -2
+
 
 def compute_depths(store: NodeStore) -> array.array:
     n = len(store)
@@ -17,11 +20,16 @@ def compute_depths(store: NodeStore) -> array.array:
             continue
         chain = []
         j = i
-        while j >= 0 and j < n and depth[j] < 0:
+        while j >= 0 and j < n and depth[j] == _UNVISITED:
+            depth[j] = _IN_PROGRESS
             chain.append(j)
             nxt = store.parent[j]
             j = nxt if (0 <= nxt < n and nxt != j) else -1
-        base = depth[j] if (0 <= j < n) else -1
+        # If we stopped on a node with depth == _IN_PROGRESS, we detected a cycle; treat as root
+        if 0 <= j < n and depth[j] == _IN_PROGRESS:
+            base = -1
+        else:
+            base = depth[j] if (0 <= j < n) else -1
         for k in reversed(chain):
             base += 1
             depth[k] = base
@@ -55,6 +63,10 @@ def rollup(store: NodeStore) -> None:
     for i in reversed(order):
         p = store.parent[i]
         if not (0 <= p < n) or p == i:
+            continue
+        # On a cycle, depth[p] >= depth[i]; skip to prevent double-counting.
+        # Legitimate children are always exactly one level deeper than their parent.
+        if depth[p] >= depth[i]:
             continue
         store.size[p] += store.size[i]
         store.alloc[p] += store.alloc[i]
