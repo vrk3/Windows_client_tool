@@ -165,3 +165,77 @@ class MftTreeBuilder:
                 parent_idx = self._ensure_orphan_root()
             self.store.parent[node] = parent_idx
         self.store.build_child_lists()
+
+
+CHUNK_BYTES = 4 * 1024 * 1024
+
+
+class MftScanner:
+    """Streams the MFT and feeds records to an MftTreeBuilder.
+
+    ``reader`` is injectable so the whole class is testable against a byte
+    image with no volume handle and no elevation.
+    """
+
+    def __init__(self, volume_letter: str, info, reader=None,
+                 charge_all_hardlinks: bool = False) -> None:
+        self.letter = volume_letter.rstrip(":")
+        self.info = info
+        self.charge_all_hardlinks = charge_all_hardlinks
+        self._reader = reader or self._read_from_volume
+        self.builder: MftTreeBuilder | None = None
+
+    def _read_from_volume(self, offset: int, length: int) -> bytes:
+        from .volume_info import open_volume, read_at, _kernel32
+        handle = open_volume(self.letter)
+        if not handle:
+            return b""
+        try:
+            return read_at(handle, offset, length)
+        finally:
+            _kernel32.CloseHandle(handle)
+
+    def scan(self, store, on_batch=None, should_cancel=None,
+             wait_if_paused=None, batch_size: int = 500) -> int:
+        rec_size = self.info.bytes_per_record
+        total = self.info.mft_valid_length
+        self.builder = MftTreeBuilder(store, f"{self.letter}:",
+                                      self.charge_all_hardlinks)
+        parsed = 0
+        batch_start = len(store)
+        offset = self.info.mft_offset
+        end = offset + total
+        cancelled = False
+        seen = 0
+        while offset < end and not cancelled:
+            chunk = self._reader(offset, min(CHUNK_BYTES, end - offset))
+            if not chunk:
+                break
+            for pos in range(0, len(chunk) - rec_size + 1, rec_size):
+                # Checked inside the record loop, not per chunk: a 4 MB chunk
+                # is ~4000 records, and Stop must not wait for all of them.
+                if seen % batch_size == 0:
+                    if wait_if_paused:
+                        wait_if_paused()
+                    if should_cancel and should_cancel():
+                        cancelled = True
+                        break
+                seen += 1
+                record_no = (offset - self.info.mft_offset + pos) // rec_size
+                rec = bytearray(chunk[pos:pos + rec_size])
+                parsed_rec = parse_mft_record(rec, record_no,
+                                              self.info.bytes_per_sector)
+                if parsed_rec is None:
+                    continue
+                before = len(store)
+                self.builder.feed(parsed_rec)
+                if len(store) > before:
+                    parsed += len(store) - before
+                if on_batch and len(store) - batch_start >= batch_size:
+                    on_batch((batch_start, len(store)))
+                    batch_start = len(store)
+            offset += len(chunk)
+        self.builder.finish()
+        if on_batch and len(store) > batch_start:
+            on_batch((batch_start, len(store)))
+        return parsed
