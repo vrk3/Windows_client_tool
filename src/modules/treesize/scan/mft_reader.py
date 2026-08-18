@@ -211,7 +211,16 @@ class MftScanner:
             chunk = self._reader(offset, min(CHUNK_BYTES, end - offset))
             if not chunk:
                 break
-            for pos in range(0, len(chunk) - rec_size + 1, rec_size):
+            # A chunk length is not guaranteed to be a multiple of rec_size
+            # (a short read, or a non-record-aligned mft_valid_length on the
+            # final chunk). Only the whole-record prefix is consumed here;
+            # leftover tail bytes are simply re-read at the start of the next
+            # iteration by advancing offset by `usable`, not len(chunk), so
+            # offset stays record-aligned for the whole scan.
+            usable = (len(chunk) // rec_size) * rec_size
+            if usable == 0:
+                break          # fewer than one whole record available; cannot make progress
+            for pos in range(0, usable, rec_size):
                 # Checked inside the record loop, not per chunk: a 4 MB chunk
                 # is ~4000 records, and Stop must not wait for all of them.
                 if seen % batch_size == 0:
@@ -234,7 +243,7 @@ class MftScanner:
                 if on_batch and len(store) - batch_start >= batch_size:
                     on_batch((batch_start, len(store)))
                     batch_start = len(store)
-            offset += len(chunk)
+            offset += usable
         self.builder.finish()
         if on_batch and len(store) > batch_start:
             on_batch((batch_start, len(store)))
