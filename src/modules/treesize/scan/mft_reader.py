@@ -1,7 +1,7 @@
 """MFT record interpretation and volume streaming."""
 from dataclasses import dataclass, field
 
-from ..store.node_store import DIR, REPARSE, COMPRESSED, SPARSE, ADS
+from ..store.node_store import DIR, REPARSE, HARDLINK_DUP, COMPRESSED, SPARSE, ADS
 from .ntfs_structs import (
     FILE_RECORD_MAGIC, FixupError, apply_fixup, attr_value, iter_attributes,
     parse_attr_header, parse_file_name, parse_record_header,
@@ -98,3 +98,70 @@ def parse_mft_record(record: bytearray, record_no: int,
                 seen.add(key)
                 out.extra_names.append(ref)
     return out
+
+
+ROOT_RECORD_NO = 5
+FIRST_USER_RECORD = 16      # 0-15 are $MFT, $LogFile, $Bitmap and friends
+
+
+class MftTreeBuilder:
+    """Assembles ParsedRecords into a NodeStore.
+
+    Records arrive in MFT order, which says nothing about parent/child
+    ordering, so nodes are created first and linked in finish().
+    """
+
+    def __init__(self, store, volume_label: str = "C:",
+                 charge_all_hardlinks: bool = False) -> None:
+        self.store = store
+        self.volume_label = volume_label
+        self.charge_all_hardlinks = charge_all_hardlinks
+        self.root = -1
+        self.orphan_root: int | None = None
+        self._index_of: dict[int, int] = {}      # record_no -> node index
+        self._sequence: dict[int, int] = {}      # record_no -> sequence
+        self._pending: list[tuple[int, int, int]] = []   # node, parent_ref, parent_seq
+
+    def feed(self, rec: ParsedRecord) -> None:
+        if rec.base_ref:
+            return                              # $ATTRIBUTE_LIST extension record
+        if rec.record_no == ROOT_RECORD_NO:
+            self.root = self.store.add(-1, self.volume_label, attrs=rec.flags | DIR)
+            self._index_of[rec.record_no] = self.root
+            self._sequence[rec.record_no] = rec.sequence
+            return
+        if rec.record_no < FIRST_USER_RECORD or not rec.name:
+            return
+        idx = self.store.add(-1, rec.name, size=rec.size, alloc=rec.alloc,
+                             mtime=rec.mtime, ctime=rec.ctime, atime=rec.atime,
+                             attrs=rec.flags, owner_id=rec.security_id)
+        self._index_of[rec.record_no] = idx
+        self._sequence[rec.record_no] = rec.sequence
+        self._pending.append((idx, rec.parent_ref, rec.parent_seq))
+        for extra in rec.extra_names:
+            flags = rec.flags if self.charge_all_hardlinks else rec.flags | HARDLINK_DUP
+            size = rec.size if self.charge_all_hardlinks else 0
+            alloc = rec.alloc if self.charge_all_hardlinks else 0
+            dup = self.store.add(-1, extra.name, size=size, alloc=alloc,
+                                 mtime=rec.mtime, ctime=rec.ctime, atime=rec.atime,
+                                 attrs=flags, owner_id=rec.security_id)
+            self._pending.append((dup, extra.parent_ref, extra.parent_seq))
+
+    def _ensure_orphan_root(self) -> int:
+        if self.orphan_root is None:
+            parent = self.root if self.root >= 0 else -1
+            self.orphan_root = self.store.add(parent, "[Orphaned files]", attrs=DIR)
+        return self.orphan_root
+
+    def finish(self) -> None:
+        if self.root < 0:
+            self.root = self.store.add(-1, self.volume_label, attrs=DIR)
+            self._index_of[ROOT_RECORD_NO] = self.root
+            self._sequence[ROOT_RECORD_NO] = 1
+        for node, parent_ref, parent_seq in self._pending:
+            parent_idx = self._index_of.get(parent_ref)
+            known_seq = self._sequence.get(parent_ref)
+            if parent_idx is None or (known_seq is not None and known_seq != parent_seq):
+                parent_idx = self._ensure_orphan_root()
+            self.store.parent[node] = parent_idx
+        self.store.build_child_lists()
