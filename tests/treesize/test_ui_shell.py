@@ -31,24 +31,25 @@ def _scan():
 def test_ribbon_tabs_are_the_products_own(qapp):
     ribbon = Ribbon()
     tabs = [ribbon.tab_bar.tabText(i) for i in range(ribbon.tab_bar.count())]
-    assert tabs == ["File", "Home", "Scan", "Tools", "View", "Details", "Help"]
+    assert tabs == ["File", "Home", "Scan", "Tools", "View",
+                    "Details Tools", "Help"]
 
 
 def test_the_details_tab_is_contextual_and_starts_hidden(qapp):
     """A contextual tab appears with its object and disappears with it."""
     ribbon = Ribbon()
-    index = tabs_index(ribbon, "Details")
+    index = tabs_index(ribbon, "Details Tools")
     assert not ribbon.tab_bar.isTabVisible(index)
-    ribbon.set_contextual_visible("Details", True)
+    ribbon.set_contextual_visible("Details Tools", True)
     assert ribbon.tab_bar.isTabVisible(index)
 
 
 def test_hiding_a_contextual_tab_does_not_strand_the_user_on_it(qapp):
     ribbon = Ribbon()
-    index = tabs_index(ribbon, "Details")
-    ribbon.set_contextual_visible("Details", True)
+    index = tabs_index(ribbon, "Details Tools")
+    ribbon.set_contextual_visible("Details Tools", True)
     ribbon.tab_bar.setCurrentIndex(index)
-    ribbon.set_contextual_visible("Details", False)
+    ribbon.set_contextual_visible("Details Tools", False)
     assert ribbon.tab_bar.currentIndex() != index
 
 
@@ -59,7 +60,7 @@ def tabs_index(ribbon, name):
 
 def test_the_details_tab_follows_the_active_view(shell):
     shell.views.setCurrentWidget(shell.details)
-    index = tabs_index(shell.ribbon, "Details")
+    index = tabs_index(shell.ribbon, "Details Tools")
     assert shell.ribbon.tab_bar.isTabVisible(index)
     shell.views.setCurrentWidget(shell.chart)
     assert not shell.ribbon.tab_bar.isTabVisible(index)

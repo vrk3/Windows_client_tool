@@ -98,7 +98,7 @@ RIBBON: tuple = (
     # Contextual tab. Shown only while the Details view is active, which is
     # what "Details Tools" means in a ribbon: a tab that appears with its
     # object and disappears with it.
-    ("Details", (
+    ("Details Tools", (
         ("Columns", (("details.columns", "Choose\ncolumns", True, True),
                      ("details.reset", "Reset columns", False, False))),
         ("Fit", (("details.fit", "Fit columns to content", False, False),
@@ -163,7 +163,8 @@ MENUS: dict = {
 }
 
 #: Tabs that appear only in a particular context, with the tab that owns them.
-CONTEXTUAL_TABS = {"Details": "Details Tools"}
+#: Contextual tabs, by their tab text. Spec 5.2 names this one.
+CONTEXTUAL_TABS = {"Details Tools"}
 
 # Buttons that hold a checked/unchecked state rather than firing once.
 CHECKABLE = {

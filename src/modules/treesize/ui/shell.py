@@ -576,7 +576,7 @@ class TreeSizeShell(QWidget):
 
     def _update_contextual_tabs(self, *_args) -> None:
         self.ribbon.set_contextual_visible(
-            "Details", self.views.currentWidget() is self.details)
+            "Details Tools", self.views.currentWidget() is self.details)
 
     def _fit_details_columns(self) -> None:
         for column in range(self.details.columnCount()):
