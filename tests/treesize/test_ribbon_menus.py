@@ -109,18 +109,7 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 #: .setDefaultAction() connects to triggered internally, so every action in the
 #: ribbon reports a receiver whether or not anything useful happens. An earlier
 #: version of this test did exactly that and could never fail.
-NOT_YET_IMPLEMENTED = {
-    # Scheduling and the live watcher: spec phases 5 and 6.
-    "tools.scheduled",
-    # Separate tools the module does not host.
-    "tools.search", "tools.search.open", "tools.software", "tools.restore",
-    # Autosize-on-refresh is a stored preference with no consumer yet.
-    "details.autosize",
-    # Menu parents: the button face does nothing, the arrow opens a working menu.
-    "scan.select", "result.export", "scan.exclude", "view.select",
-    "scan.schedule",
-    "view.hidesmall", "unit.decimals",
-}
+NOT_YET_IMPLEMENTED = set()      # every ribbon id is wired
 
 
 def _connected_ids() -> set:

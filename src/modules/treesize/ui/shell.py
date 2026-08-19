@@ -34,6 +34,7 @@ from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .options_dialog import OptionsDialog, load_settings, save_settings
 from .ribbon import Ribbon
+from .search_dialog import DuplicatesDialog, SearchDialog
 from ..actions import exporters, scheduler
 from ..scan.watcher import Watcher, apply_change
 from .scan_worker import ScanWorker
@@ -147,6 +148,7 @@ class TreeSizeShell(QWidget):
         self._backstage_open = False
         self._group_scans = False
         self._comparison = None
+        self._autosize_columns = False
         self._watcher: Watcher | None = None
         self.config = None
         self._settings = load_settings(None)
@@ -279,6 +281,25 @@ class TreeSizeShell(QWidget):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
 
+        # Menu parents: clicking the FACE does the obvious thing rather than
+        # nothing, and the arrow still offers the variants. A split button
+        # whose left half is dead is a button that looks broken.
+        act("scan.select").triggered.connect(self._browse_for_folder)
+        act("result.export").triggered.connect(self.export_any)
+        act("scan.exclude").triggered.connect(self._exclude_pattern)
+        act("view.select").triggered.connect(self._cycle_view)
+        act("view.hidesmall").triggered.connect(self._prompt_hide_smaller)
+        act("unit.decimals").triggered.connect(self._prompt_decimals)
+        act("scan.schedule").triggered.connect(lambda: self.schedule_scan("DAILY"))
+        act("details.autosize").toggled.connect(self.set_autosize_columns)
+
+        act("tools.search").triggered.connect(self.open_search)
+        act("tools.search.open").triggered.connect(self.open_search)
+        act("tools.duplicates").triggered.connect(self.open_duplicates)
+        act("tools.scheduled").triggered.connect(self.manage_scheduled)
+        act("tools.restore").triggered.connect(self.open_system_restore)
+        act("tools.software").triggered.connect(self.open_installed_software)
+
         act("scan.watch").toggled.connect(self.set_watching)
         act("tools.snapshot").triggered.connect(self.create_snapshot)
         act("compare.saved").triggered.connect(self.compare_with_saved_scan)
@@ -369,6 +390,7 @@ class TreeSizeShell(QWidget):
         self._backstage_open = False
         self._group_scans = False
         self._comparison = None
+        self._autosize_columns = False
         self._watcher: Watcher | None = None
         self.config = None
         self._settings = load_settings(None)
@@ -383,6 +405,94 @@ class TreeSizeShell(QWidget):
             widget.setVisible(self.ribbon.action(action_id).isChecked())
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
+
+    # ---- menu-parent faces ----------------------------------------------
+
+    def _cycle_view(self) -> None:
+        """Advance to the next view tab, wrapping at the end."""
+        self.views.setCurrentIndex(
+            (self.views.currentIndex() + 1) % self.views.count())
+
+    def _prompt_hide_smaller(self) -> None:
+        megabytes, ok = QInputDialog.getInt(
+            self, "Hide elements smaller than",
+            "Hide anything below this many MB (0 shows everything):",
+            self._filters.min_size // (1 << 20), 0, 1_000_000)
+        if ok:
+            self._set_min_size(megabytes << 20,
+                               "off" if megabytes == 0 else "custom")
+
+    def _prompt_decimals(self) -> None:
+        current = self.directory_tree.tree_model._decimals
+        value, ok = QInputDialog.getInt(
+            self, "Decimals", "Digits after the decimal point:", current, 0, 3)
+        if ok:
+            self.set_decimals(value)
+
+    def set_autosize_columns(self, enabled: bool) -> None:
+        """Resize Details columns to their content after every refresh."""
+        self._autosize_columns = enabled
+        if enabled:
+            self._fit_details_columns()
+
+    # ---- tools ----------------------------------------------------------
+
+    def open_search(self) -> None:
+        if self._store is None:
+            QMessageBox.information(self, "Find files", "Scan something first.")
+            return
+        dialog = SearchDialog(self, self)
+        dialog.node_activated.connect(self.reveal_node)
+        dialog.exec()
+
+    def open_duplicates(self) -> None:
+        if self._store is None:
+            QMessageBox.information(self, "Find duplicates",
+                                    "Scan something first.")
+            return
+        DuplicatesDialog(self, self).exec()
+
+    def manage_scheduled(self) -> None:
+        """Report whether a scheduled scan exists, and offer to remove it.
+
+        Deliberately not a task editor: Windows already ships one, and a
+        half-featured copy of it would be worse than a button that opens the
+        real thing.
+        """
+        if scheduler.is_scheduled():
+            answer = QMessageBox.question(
+                self, "Scheduled scans",
+                f"A scheduled TreeSize scan exists ({scheduler.TASK_NAME}).\n\n"
+                f"Remove it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Open)
+            if answer == QMessageBox.StandardButton.Yes:
+                self.unschedule_scan()
+            elif answer == QMessageBox.StandardButton.Open:
+                self._launch(["mmc.exe", "taskschd.msc"])
+            return
+        answer = QMessageBox.question(
+            self, "Scheduled scans",
+            "No TreeSize scan is scheduled.\n\n"
+            "Open Windows Task Scheduler?",
+            QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel)
+        if answer == QMessageBox.StandardButton.Open:
+            self._launch(["mmc.exe", "taskschd.msc"])
+
+    def open_system_restore(self) -> None:
+        self._launch(["SystemPropertiesProtection.exe"])
+
+    def open_installed_software(self) -> None:
+        """Windows own uninstall list. Removing software is not this module's
+        job, and a second uninstaller is a liability, not a feature."""
+        self._launch(["control.exe", "appwiz.cpl"])
+
+    def _launch(self, args) -> None:
+        import subprocess
+        try:
+            subprocess.Popen(args)
+        except OSError as exc:
+            QMessageBox.warning(self, "Could not start", f"{args[0]}: {exc}")
 
     # ---- scheduling -----------------------------------------------------
 
@@ -741,6 +851,35 @@ class TreeSizeShell(QWidget):
         self.apply_settings(dict(DEFAULTS))
         self.scan_state.setText("Options reset to defaults")
 
+    # ---- menu-parent faces ----------------------------------------------
+
+    def _cycle_view(self) -> None:
+        """Advance to the next view tab, wrapping at the end."""
+        self.views.setCurrentIndex(
+            (self.views.currentIndex() + 1) % self.views.count())
+
+    def _prompt_hide_smaller(self) -> None:
+        megabytes, ok = QInputDialog.getInt(
+            self, "Hide elements smaller than",
+            "Hide anything below this many MB (0 shows everything):",
+            self._filters.min_size // (1 << 20), 0, 1_000_000)
+        if ok:
+            self._set_min_size(megabytes << 20,
+                               "off" if megabytes == 0 else "custom")
+
+    def _prompt_decimals(self) -> None:
+        current = self.directory_tree.tree_model._decimals
+        value, ok = QInputDialog.getInt(
+            self, "Decimals", "Digits after the decimal point:", current, 0, 3)
+        if ok:
+            self.set_decimals(value)
+
+    def set_autosize_columns(self, enabled: bool) -> None:
+        """Resize Details columns to their content after every refresh."""
+        self._autosize_columns = enabled
+        if enabled:
+            self._fit_details_columns()
+
     # ---- tools ----------------------------------------------------------
 
     def empty_recycle_bin(self) -> None:
@@ -829,6 +968,8 @@ class TreeSizeShell(QWidget):
 
     def _set_min_size(self, threshold: int, chosen: str) -> None:
         self._filters.min_size = threshold
+        # A typed-in threshold matches none of the presets, so none stays lit
+        # rather than one of them lying about the current value.
         for suffix in ("off", "1mb", "10mb", "100mb"):
             self.ribbon.action("hidesmall." + suffix).setChecked(suffix == chosen)
         if self._result is not None:
@@ -1126,6 +1267,8 @@ class TreeSizeShell(QWidget):
         current = self.views.currentWidget()
         if current is self.details:
             self.details.show_children_of(self._store, node)
+            if getattr(self, "_autosize_columns", False):
+                self._fit_details_columns()
         elif current is self.chart:
             self.chart.set_scan(self._store, node)
         elif current is self.top_files:
