@@ -22,12 +22,12 @@ from PyQt6.QtWidgets import (
 )
 
 from ..scan.filters import FilterSet
-from ..scan.scanner import Scanner
 from ..store.aggregates import AggregateCache
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .ribbon import Ribbon
+from .scan_worker import ScanWorker
 from .views.chart import ChartView
 from .views.details import DetailsView
 from .views.tables import (
@@ -59,7 +59,8 @@ class TreeSizeShell(QWidget):
         self._store = None
         self._root = -1
         self._result = None
-        self._scanner: Scanner | None = None
+        self._worker: ScanWorker | None = None
+        self._paused = False
         self._pool = QThreadPool.globalInstance()
 
         layout = QVBoxLayout(self)
@@ -163,6 +164,7 @@ class TreeSizeShell(QWidget):
                 lambda _checked=False, u=unit: self.set_unit(u))
 
         self.ribbon.action("scan.stop").triggered.connect(self.stop_scan)
+        self.ribbon.action("scan.pause").triggered.connect(self.toggle_pause)
         self.ribbon.action("scan.refresh").triggered.connect(self.refresh_scan)
         self.ribbon.action("scan.remove").triggered.connect(self.clear_scan)
         self.ribbon.action("tree.expand").triggered.connect(
@@ -214,24 +216,52 @@ class TreeSizeShell(QWidget):
             self.start_scan(target)
 
     def start_scan(self, target: str, filters: FilterSet | None = None) -> None:
-        """Scan synchronously.
+        """Run the scan on a worker thread and return immediately.
 
-        Phase 2 runs the scan on the calling thread. The engine already emits
-        batches and honours cancel/pause through callbacks, so moving this to a
-        Worker is a wiring change here and nothing at all in the engine -- but
-        it is not pretended to be done: the spec's threading contract (3.4)
-        belongs with the incremental tree population, which is phase 3 work.
+        Everything the UI needs during the scan arrives by signal; nothing
+        blocks here, which is what makes Stop and Pause mean anything.
         """
+        if self._worker is not None:
+            return                       # a scan is already running
         self.path_combo.setEditText(target)
         if self.path_combo.findText(target) < 0:
             self.path_combo.addItem(target)
+
+        worker = ScanWorker(target, filters=filters)
+        worker.signals.batch_ready.connect(self._on_batch)
+        worker.signals.finished.connect(self._on_finished)
+        worker.signals.failed.connect(self._on_failed)
+        worker.signals.cancelled.connect(self._on_cancelled)
+        self._worker = worker
+        self._paused = False
         self._set_scanning(True)
-        try:
-            self._scanner = Scanner(target, filters=filters)
-            result = self._scanner.scan()
-        finally:
-            self._set_scanning(False)
+        self._pool.start(worker)
+
+    def wait_for_scan(self, timeout_ms: int = 120_000) -> bool:
+        """Block until the running scan finishes. For tests and shutdown only."""
+        from PyQt6.QtCore import QDeadlineTimer, QCoreApplication
+        deadline = QDeadlineTimer(timeout_ms)
+        while self._worker is not None and not deadline.hasExpired():
+            QCoreApplication.processEvents()
+        return self._worker is None
+
+    def _on_batch(self, index_range) -> None:
+        start, end = index_range
+        self.scan_state.setText(f"Scanning… {end:,} items")
+
+    def _on_finished(self, result) -> None:
+        self._worker = None
         self.show_result(result)
+
+    def _on_failed(self, message: str) -> None:
+        self._worker = None
+        self._set_scanning(False)
+        self.scan_state.setText(f"Scan failed: {message}")
+
+    def _on_cancelled(self) -> None:
+        self._worker = None
+        self._set_scanning(False)
+        self.scan_state.setText("Scan stopped")
 
     def show_result(self, result) -> None:
         self._result = result
@@ -241,12 +271,28 @@ class TreeSizeShell(QWidget):
         letter = result.store.name(result.root)[:1]
         total, free = drive_space(letter) if letter.isalpha() else (0, 0)
         self.status_bar.show_result(result, total, free)
+        self._aggregates.clear()
         self._on_node_selected(result.root)
         self._set_scanning(False)
+        self.scan_state.setText("")
         self.scan_finished.emit(result)
 
     def stop_scan(self) -> None:
-        self._set_scanning(False)
+        if self._worker is not None:
+            self._worker.cancel()
+        else:
+            self._set_scanning(False)
+
+    def toggle_pause(self) -> None:
+        if self._worker is None:
+            return
+        self._paused = not self._paused
+        if self._paused:
+            self._worker.pause()
+            self.scan_state.setText("Paused")
+        else:
+            self._worker.resume()
+        self.ribbon.action("scan.pause").setText("Resume" if self._paused else "Pause")
 
     def refresh_scan(self) -> None:
         target = self.path_combo.currentText().strip()
