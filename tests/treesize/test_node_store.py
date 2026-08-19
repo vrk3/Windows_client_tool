@@ -61,3 +61,45 @@ def test_children_are_in_ascending_index_order():
     c = s.add(root, "c")
     s.build_child_lists()
     assert list(s.children(root)) == [a, b, c]
+
+
+def test_names_are_stored_utf8_not_utf16():
+    """The blob dominates per-node cost, and Windows filenames are near-all ASCII.
+
+    UTF-16-LE spent 2 bytes on every character regardless. Measured volume-wide
+    on a real C: scan, the name blob was ~63 of 137 bytes/node.
+    """
+    s = NodeStore()
+    s.add(-1, "notepad.exe")
+    assert len(s.names) == len("notepad.exe")
+
+
+def test_non_ascii_names_round_trip():
+    s = NodeStore()
+    names = ["Ordner", "Zürich.txt", "файл.bin", "日本語フォルダ", "emoji-🎵.mp3"]
+    idx = [s.add(-1, n) for n in names]
+    assert [s.name(i) for i in idx] == names
+
+
+def test_astral_plane_name_round_trips():
+    """A 4-byte UTF-8 character is 2 UTF-16 code units; name_len counts BYTES."""
+    s = NodeStore()
+    i = s.add(-1, "𝔘𝔫𝔦𝔠𝔬𝔡𝔢.txt")
+    assert s.name(i) == "𝔘𝔫𝔦𝔠𝔬𝔡𝔢.txt"
+
+
+def test_path_round_trips_non_ascii_components():
+    s = NodeStore()
+    root = s.add(-1, "C:", attrs=DIR)
+    sub = s.add(root, "Zürich", attrs=DIR)
+    leaf = s.add(sub, "файл.bin")
+    assert s.path(leaf) == "C:\\Zürich\\файл.bin"
+
+
+def test_a_long_windows_name_fits_the_length_column():
+    """name_len is 'H' (max 65,535). 255 chars of 4-byte UTF-8 is 1,020 bytes."""
+    s = NodeStore()
+    long_name = "𝔘" * 255
+    i = s.add(-1, long_name)
+    assert s.name_len[i] == 255 * 4
+    assert s.name(i) == long_name

@@ -1,8 +1,14 @@
 """Columnar store for scanned filesystem nodes.
 
-A node is an ``int`` index into parallel arrays, not an object. At 104 bytes
-per node all in (74 fixed columns + ~30 of name), a five-million-file volume
-stays near 500 MB; an object per node would be five to ten times that.
+A node is an ``int`` index into parallel arrays, not an object; an object per
+node would cost five to ten times this. The fixed columns measure 74 bytes,
+and the name blob adds the rest.
+
+Names are stored UTF-8, not UTF-16-LE. Windows filenames are near-universally
+ASCII, so UTF-16 spent two bytes a character to encode one byte of
+information: measured across a real 571,674-node C: scan, the blob was ~63 of
+137 bytes/node, and UTF-8 roughly halves that. ``name_len`` counts BYTES, not
+characters, which is what keeps a 4-byte astral-plane character correct.
 """
 import array
 from typing import Iterator
@@ -43,7 +49,7 @@ class NodeStore:
             mtime: int = 0, ctime: int = 0, atime: int = 0,
             attrs: int = 0, owner_id: int = -1) -> int:
         idx = len(self.parent)
-        encoded = name.encode("utf-16-le")
+        encoded = name.encode("utf-8")
         self.name_off.append(len(self.names))
         self.name_len.append(len(encoded))
         self.names += encoded
@@ -63,7 +69,7 @@ class NodeStore:
 
     def name(self, idx: int) -> str:
         off = self.name_off[idx]
-        return bytes(self.names[off:off + self.name_len[idx]]).decode("utf-16-le")
+        return bytes(self.names[off:off + self.name_len[idx]]).decode("utf-8")
 
     def path(self, idx: int) -> str:
         """Full path for a node, walking parents to a root.
