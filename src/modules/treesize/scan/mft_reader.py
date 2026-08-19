@@ -9,6 +9,7 @@ from .ntfs_structs import (
     parse_standard_information,
     ATTR_STANDARD_INFORMATION, ATTR_FILE_NAME, ATTR_DATA, ATTR_INDEX_ROOT,
     ATTR_REPARSE_POINT, NS_DOS, NS_POSIX, NS_WIN32, NS_WIN32_DOS,
+    decode_data_runs,
     FLAG_COMPRESSED, FLAG_SPARSE,
 )
 
@@ -207,6 +208,9 @@ class MftScanner:
         self.charge_all_hardlinks = charge_all_hardlinks
         self._reader = reader or self._read_from_volume
         self.builder: MftTreeBuilder | None = None
+        # Byte extents of the $MFT itself, filled in by scan(). One entry means
+        # either a contiguous table or a fallback to the old linear assumption.
+        self.extents: list[tuple[int, int]] = []
         # True when the MFT could not be read to the end. The tree is then a
         # PREFIX of the volume, not the volume, and its totals must not be
         # presented as authoritative.
@@ -223,6 +227,45 @@ class MftScanner:
         finally:
             _kernel32.CloseHandle(handle)
 
+    def _read_extents(self) -> list[tuple[int, int]]:
+        """Byte extents of the $MFT, decoded from record 0's own DATA run list.
+
+        The $MFT is a file like any other and is routinely fragmented on an aged
+        volume. Treating mft_offset..mft_offset+mft_valid_length as one span
+        reads other files' clusters as if they were records -- they fail the
+        FILE magic check and are skipped, so every record past the first extent
+        is silently lost and the volume simply looks smaller.
+
+        Falls back to the single linear span when record 0 cannot be read or
+        carries no usable run list. That is the previous behaviour, and it is
+        the right answer for a genuinely contiguous table.
+        """
+        info = self.info
+        linear = [(info.mft_offset, info.mft_valid_length)]
+        raw = self._reader(info.mft_offset, info.bytes_per_record)
+        if not raw or len(raw) < info.bytes_per_record:
+            return linear
+        rec = bytearray(raw)
+        if bytes(rec[0:4]) != FILE_RECORD_MAGIC:
+            return linear
+        try:
+            apply_fixup(rec, info.bytes_per_sector)
+            header = parse_record_header(rec)
+            for type_id, attr in iter_attributes(rec, header.attrs_offset):
+                if type_id != ATTR_DATA:
+                    continue
+                h = parse_attr_header(attr)
+                if not h.non_resident or h.name:
+                    continue          # named stream, not $MFT's own data
+                runs = decode_data_runs(bytes(attr), h.runs_offset)
+                extents = [(lcn * info.bytes_per_cluster,
+                            count * info.bytes_per_cluster)
+                           for lcn, count in runs if lcn is not None and count > 0]
+                return extents or linear
+        except (struct.error, IndexError, FixupError, UnicodeDecodeError):
+            return linear
+        return linear
+
     def scan(self, store, on_batch=None, should_cancel=None,
              wait_if_paused=None, batch_size: int = 500) -> int:
         rec_size = self.info.bytes_per_record
@@ -231,58 +274,71 @@ class MftScanner:
                                       self.charge_all_hardlinks)
         parsed = 0
         batch_start = len(store)
-        offset = self.info.mft_offset
-        end = offset + total
         cancelled = False
         seen = 0
-        while offset < end and not cancelled:
-            chunk = self._reader(offset, min(CHUNK_BYTES, end - offset))
-            if chunk is None:
-                # A failed read, not end of data. Without this distinction the
-                # scan stops here and reports a smaller volume rather than a
-                # broken one.
-                self.truncated = True
+        # `consumed` counts bytes of the $MFT DATA STREAM, not bytes of the
+        # volume. Record numbers are logical positions in that stream and are
+        # what parent references point at, so they must be derived from
+        # `consumed` -- never from a physical volume offset, which jumps
+        # arbitrarily at every extent boundary.
+        consumed = 0
+        self.extents = self._read_extents()
+        for ext_offset, ext_length in self.extents:
+            if cancelled or consumed >= total:
                 break
-            if not chunk:
-                break
-            # A chunk length is not guaranteed to be a multiple of rec_size
-            # (a short read, or a non-record-aligned mft_valid_length on the
-            # final chunk). Only the whole-record prefix is consumed here;
-            # leftover tail bytes are simply re-read at the start of the next
-            # iteration by advancing offset by `usable`, not len(chunk), so
-            # offset stays record-aligned for the whole scan.
-            usable = (len(chunk) // rec_size) * rec_size
-            if usable == 0:
-                # Fewer than one whole record available, so no progress is
-                # possible. If the MFT has not been consumed, this is a stall,
-                # not a clean finish.
-                if offset < end:
+            offset = ext_offset
+            end = ext_offset + min(ext_length, total - consumed)
+            while offset < end and not cancelled:
+                chunk = self._reader(offset, min(CHUNK_BYTES, end - offset))
+                if chunk is None:
+                    # A failed read, not end of data. Without this distinction
+                    # the scan stops here and reports a smaller volume rather
+                    # than a broken one.
                     self.truncated = True
-                break
-            for pos in range(0, usable, rec_size):
-                # Checked inside the record loop, not per chunk: a 4 MB chunk
-                # is ~4000 records, and Stop must not wait for all of them.
-                if seen % batch_size == 0:
-                    if wait_if_paused:
-                        wait_if_paused()
-                    if should_cancel and should_cancel():
-                        cancelled = True
-                        break
-                seen += 1
-                record_no = (offset - self.info.mft_offset + pos) // rec_size
-                rec = bytearray(chunk[pos:pos + rec_size])
-                parsed_rec = parse_mft_record(rec, record_no,
-                                              self.info.bytes_per_sector)
-                if parsed_rec is None:
-                    continue
-                before = len(store)
-                self.builder.feed(parsed_rec)
-                if len(store) > before:
-                    parsed += len(store) - before
-                if on_batch and len(store) - batch_start >= batch_size:
-                    on_batch((batch_start, len(store)))
-                    batch_start = len(store)
-            offset += usable
+                    break
+                if not chunk:
+                    break
+                # A chunk length is not guaranteed to be a multiple of rec_size
+                # (a short read, or a non-record-aligned extent tail). Only the
+                # whole-record prefix is consumed here; leftover tail bytes are
+                # re-read at the start of the next iteration by advancing by
+                # `usable`, not len(chunk), so the stream stays record-aligned.
+                usable = (len(chunk) // rec_size) * rec_size
+                if usable == 0:
+                    # Fewer than one whole record available, so no progress is
+                    # possible. If the MFT has not been consumed, this is a
+                    # stall, not a clean finish.
+                    self.truncated = True
+                    break
+                base = consumed
+                for pos in range(0, usable, rec_size):
+                    # Checked inside the record loop, not per chunk: a 4 MB
+                    # chunk is ~4000 records, and Stop must not wait for them.
+                    if seen % batch_size == 0:
+                        if wait_if_paused:
+                            wait_if_paused()
+                        if should_cancel and should_cancel():
+                            cancelled = True
+                            break
+                    seen += 1
+                    record_no = (base + pos) // rec_size
+                    rec = bytearray(chunk[pos:pos + rec_size])
+                    parsed_rec = parse_mft_record(rec, record_no,
+                                                  self.info.bytes_per_sector)
+                    if parsed_rec is None:
+                        continue
+                    before = len(store)
+                    self.builder.feed(parsed_rec)
+                    if len(store) > before:
+                        parsed += len(store) - before
+                    if on_batch and len(store) - batch_start >= batch_size:
+                        on_batch((batch_start, len(store)))
+                        batch_start = len(store)
+                offset += usable
+                consumed += usable
+        if not cancelled and consumed < total:
+            # The run list did not account for the whole valid MFT length.
+            self.truncated = True
         self.builder.finish()
         if on_batch and len(store) > batch_start:
             on_batch((batch_start, len(store)))

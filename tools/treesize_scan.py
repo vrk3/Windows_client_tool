@@ -90,7 +90,8 @@ def summarize(result: ScanResult, limit: int = 20) -> str:
         info = result.volume_info
         slots = info.mft_valid_length // max(info.bytes_per_record, 1)
         lines.append(f"MFT:       {slots:,} record slots "
-                     f"({info.mft_valid_length / (1024 ** 2):,.0f} MB)")
+                     f"({info.mft_valid_length / (1024 ** 2):,.0f} MB) "
+                     f"in {result.mft_extents:,} extent(s)")
     if result.node_count and result.elapsed > 0:
         lines.append(f"Rate:      {result.node_count / result.elapsed:,.0f} nodes/s")
     if not result.complete:

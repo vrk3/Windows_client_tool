@@ -41,6 +41,9 @@ class ScanResult:
     complete: bool = True
     errors: tuple[tuple[str, str], ...] = ()
     error_count: int = 0
+    # Number of $MFT extents followed. >1 means the table was fragmented and
+    # the run list was needed; 1 means contiguous, or a fallback to one span.
+    mft_extents: int = 0
 
 
 def _is_admin() -> bool:
@@ -105,6 +108,7 @@ class Scanner:
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,
                          wait_if_paused=self._wait_if_paused)
             root = scanner.builder.root
+            mft_extents = len(scanner.extents)
             complete = not scanner.truncated
             errors: tuple[tuple[str, str], ...] = ()
             error_count = 0
@@ -124,6 +128,7 @@ class Scanner:
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,
                          wait_if_paused=self._wait_if_paused)
             root = scanner.root
+            mft_extents = 0
             complete = scanner.error_count == 0
             errors = tuple(scanner.errors)
             error_count = scanner.error_count
@@ -131,4 +136,5 @@ class Scanner:
         return ScanResult(store=store, root=root, engine=engine,
                           node_count=len(store), excluded=self.filters.excluded_count,
                           volume_info=info, elapsed=time.monotonic() - started,
-                          complete=complete, errors=errors, error_count=error_count)
+                          complete=complete, errors=errors, error_count=error_count,
+                          mft_extents=mft_extents)
