@@ -1,8 +1,11 @@
 """MFT record interpretation and volume streaming."""
 import struct
+
+FILE_ATTRIBUTE_HIDDEN = 0x2
 from dataclasses import dataclass, field
 
-from ..store.node_store import DIR, REPARSE, HARDLINK_DUP, COMPRESSED, SPARSE, ADS
+from ..store.node_store import (DIR, REPARSE, HARDLINK_DUP, COMPRESSED, SPARSE,
+                                ADS, HIDDEN)
 from .ntfs_structs import (
     FILE_RECORD_MAGIC, FixupError, apply_fixup, attr_value, iter_attributes,
     parse_attr_header, parse_file_name, parse_record_header,
@@ -53,6 +56,8 @@ def _read_attributes(record: bytearray, header, out: "ParsedRecord",
             si = parse_standard_information(attr_value(attr, h))
             out.ctime, out.mtime, out.atime = si.ctime, si.mtime, si.atime
             out.security_id = si.security_id
+            if si.dos_attrs & FILE_ATTRIBUTE_HIDDEN:
+                out.flags |= HIDDEN
         elif type_id == ATTR_FILE_NAME:
             fn = parse_file_name(attr_value(attr, h))
             names.append((fn.namespace, NameRef(fn.name, fn.parent_ref, fn.parent_seq)))

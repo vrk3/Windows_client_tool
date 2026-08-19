@@ -48,15 +48,6 @@ def bytes_per_node(store: NodeStore) -> float:
     return fixed + len(store.names) / len(store)
 
 
-def filter_warning(engine: str, exclude_globs) -> str:
-    """Non-empty when the user asked for filters the selected engine ignores."""
-    if engine == "mft" and exclude_globs:
-        return ("WARNING: the MFT engine does not apply filters, so --exclude was "
-                "ignored and 'Excluded' below is 0. Scan a directory path instead "
-                "of a whole drive to filter.")
-    return ""
-
-
 def top_children(result: ScanResult, limit: int = 20) -> list[tuple[str, int, int]]:
     store = result.store
     rows = [(store.name(c), store.size[c], store.alloc[c])
@@ -120,11 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: target does not exist: {args.target}", file=sys.stderr)
         return 1
 
-    excludes = tuple(args.exclude)
-    scanner = Scanner(args.target, filters=FilterSet(exclude_globs=excludes))
-    warning = filter_warning(scanner.select_engine(), excludes)
-    if warning:
-        print(warning, file=sys.stderr)
+    scanner = Scanner(args.target,
+                      filters=FilterSet(exclude_globs=tuple(args.exclude)))
     result = scanner.scan()
     print(summarize(result, args.top))
     # A scan that could not read everything must not exit 0: these numbers are

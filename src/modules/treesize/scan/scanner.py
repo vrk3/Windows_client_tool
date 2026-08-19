@@ -4,11 +4,11 @@ Picks the MFT fast path when the target is a whole NTFS volume and the process
 is elevated, and falls back to the directory walk otherwise. ``get_volume_info``
 returning None is the normal fallback signal, not an error.
 
-Filters are applied by the walk engine, which drops entries before they reach
-the store. The MFT engine does not filter: records stream in MFT order with no
-parent/child ordering, so an entry cannot be dropped at feed time without
-orphaning its subtree. Filtering there needs a prune pass after tree assembly
-and is deferred; ``ScanResult.excluded`` is 0 on the MFT path.
+Both engines honour filters, by different routes. The walk engine drops entries
+before they reach the store. The MFT engine cannot -- records stream in MFT
+order with no parent/child ordering, so dropping a directory at feed time would
+orphan its children rather than remove them -- so it filters with a prune pass
+over the assembled tree instead. See prune.py.
 """
 import ctypes
 import os
@@ -20,6 +20,7 @@ from ..store.node_store import NodeStore
 from ..store.rollup import rollup
 from .filters import FilterSet
 from .mft_reader import MftScanner
+from .prune import prune_excluded
 from .volume_info import VolumeInfo, get_volume_info
 from .walk_scanner import WalkScanner
 
@@ -108,6 +109,9 @@ class Scanner:
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,
                          wait_if_paused=self._wait_if_paused)
             root = scanner.builder.root
+            # The MFT engine cannot drop entries as it meets them, so filtering
+            # is a prune pass over the assembled tree. See prune.py.
+            prune_excluded(store, root, self.filters)
             mft_extents = len(scanner.extents)
             complete = not scanner.truncated
             errors: tuple[tuple[str, str], ...] = ()

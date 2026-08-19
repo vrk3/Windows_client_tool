@@ -134,3 +134,20 @@ def test_malformed_attribute_skips_the_record_instead_of_aborting_the_scan():
 
 def test_truncated_file_name_attribute_skips_the_record():
     assert parse_mft_record(_rec(resident_attr(ATTR_FILE_NAME, b"\x00" * 8)), 1, SECTOR) is None
+
+
+def test_hidden_attribute_becomes_the_hidden_node_flag():
+    """Without this, exclude_hidden is inert on the MFT engine."""
+    from modules.treesize.store.node_store import HIDDEN
+    attrs = (resident_attr(ATTR_STANDARD_INFORMATION, std_info(dos_attrs=0x2))
+             + resident_attr(ATTR_FILE_NAME, file_name("secret.txt", parent=5)))
+    r = parse_mft_record(_rec(attrs), 1, SECTOR)
+    assert r.flags & HIDDEN
+
+
+def test_a_plain_file_is_not_marked_hidden():
+    from modules.treesize.store.node_store import HIDDEN
+    attrs = (resident_attr(ATTR_STANDARD_INFORMATION, std_info(dos_attrs=0x20))
+             + resident_attr(ATTR_FILE_NAME, file_name("plain.txt", parent=5)))
+    r = parse_mft_record(_rec(attrs), 1, SECTOR)
+    assert not (r.flags & HIDDEN)

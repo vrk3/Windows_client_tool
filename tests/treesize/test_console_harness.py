@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "tools"))
 
 from treesize_scan import (  # noqa: E402
-    bytes_per_node, filter_warning, format_size, main, summarize, top_children,
+    bytes_per_node, format_size, main, summarize, top_children,
 )
 from modules.treesize.scan.scanner import Scanner  # noqa: E402
 
@@ -77,10 +77,14 @@ def test_bytes_per_node_counts_real_column_widths(tmp_path):
     assert bytes_per_node(store) >= fixed
 
 
-def test_filter_warning_only_fires_when_mft_would_ignore_filters():
-    assert filter_warning("mft", ("*.tmp",)) != ""
-    assert filter_warning("mft", ()) == ""
-    assert filter_warning("walk", ("*.tmp",)) == ""
+def test_exclude_is_honoured_whichever_engine_runs(tmp_path, capsys):
+    """Both engines filter now -- the walk drops entries, the MFT prunes after."""
+    (tmp_path / "keep.bin").write_bytes(b"x" * 1000)
+    (tmp_path / "drop.tmp").write_bytes(b"y" * 8000)
+    assert main([str(tmp_path), "--exclude", "*.tmp"]) == 0
+    out = capsys.readouterr().out
+    assert "drop.tmp" not in out
+    assert "keep.bin" in out
 
 
 def test_summarize_of_an_empty_directory_does_not_divide_by_zero(tmp_path):

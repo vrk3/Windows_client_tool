@@ -6,7 +6,7 @@ nodes are then processed deepest-first via a counting sort.
 """
 import array
 
-from .node_store import NodeStore, DIR, HARDLINK_DUP
+from .node_store import NodeStore, DIR, HARDLINK_DUP, EXCLUDED
 
 _UNVISITED = -1
 _IN_PROGRESS = -2
@@ -67,6 +67,11 @@ def rollup(store: NodeStore) -> None:
         # On a cycle, depth[p] >= depth[i]; skip to prevent double-counting.
         # Legitimate children are always exactly one level deeper than their parent.
         if depth[p] >= depth[i]:
+            continue
+        # A filtered node contributes nothing and is not counted. The prune pass
+        # marks whole subtrees, so skipping the node here skips its descendants
+        # too -- their totals were never rolled into it.
+        if store.attrs[i] & EXCLUDED:
             continue
         store.size[p] += store.size[i]
         store.alloc[p] += store.alloc[i]

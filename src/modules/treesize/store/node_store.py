@@ -20,6 +20,7 @@ ADS = 0x08
 COMPRESSED = 0x10
 SPARSE = 0x20
 HIDDEN = 0x40
+EXCLUDED = 0x80
 
 
 class NodeStore:
