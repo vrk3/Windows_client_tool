@@ -6,12 +6,14 @@ than os.scandir on deep trees.
 """
 import ctypes
 import os
+import time
 from collections import deque
 from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Callable
 
 from ..store.node_store import NodeStore, DIR, REPARSE, HIDDEN
+from .mft_reader import BATCH_INTERVAL
 
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 FILE_ATTRIBUTE_DIRECTORY = 0x10
@@ -118,13 +120,15 @@ class WalkScanner:
 
     def __init__(self, root_path: str, bytes_per_cluster: int = 4096,
                  max_workers: int | None = None,
-                 exclude: Callable[[str, int, int], bool] | None = None) -> None:
+                 exclude: Callable[..., bool] | None = None,
+                 clock=time.monotonic) -> None:
         self.root_path = os.path.abspath(root_path)
         self.bytes_per_cluster = bytes_per_cluster
         # Reserved: the walk is single-threaded today. Kept so the threading
         # work deferred out of phase 1 does not change this constructor.
         self.max_workers = max_workers or min(32, (os.cpu_count() or 4) * 4)
         self.exclude = exclude
+        self._clock = clock
         self.root = -1
         # Directories that could not be listed. The list is capped so a scan of
         # a heavily locked-down tree cannot balloon; error_count is not, so the
@@ -148,6 +152,7 @@ class WalkScanner:
         self.root = store.add(-1, self.root_path, attrs=DIR)
         queue: deque[tuple[int, str]] = deque([(self.root, self.root_path)])
         batch_start = len(store)
+        batch_opened = self._clock()
         while queue:
             if wait_if_paused:
                 wait_if_paused()
@@ -163,7 +168,9 @@ class WalkScanner:
                 if entry.is_hidden:
                     flags |= HIDDEN
                 size = 0 if entry.is_dir else entry.size
-                if self.exclude is not None and self.exclude(entry.name, size, flags):
+                if self.exclude is not None and self.exclude(
+                        entry.name, size, flags, entry.mtime,
+                        os.path.join(path, entry.name)):
                     continue
                 idx = store.add(node, entry.name, size=size,
                                 alloc=self._alloc_for(size),
@@ -171,9 +178,12 @@ class WalkScanner:
                                 atime=entry.atime, attrs=flags)
                 if entry.is_dir and not entry.is_reparse:
                     queue.append((idx, os.path.join(path, entry.name)))
-            if on_batch and len(store) - batch_start >= batch_size:
+            if on_batch and len(store) > batch_start and (
+                    len(store) - batch_start >= batch_size
+                    or self._clock() - batch_opened >= BATCH_INTERVAL):
                 on_batch((batch_start, len(store)))
                 batch_start = len(store)
+                batch_opened = self._clock()
         store.build_child_lists()
         if on_batch and len(store) > batch_start:
             on_batch((batch_start, len(store)))

@@ -1,5 +1,6 @@
 """MFT record interpretation and volume streaming."""
 import struct
+import time
 
 FILE_ATTRIBUTE_HIDDEN = 0x2
 from dataclasses import dataclass, field
@@ -251,6 +252,11 @@ class MftTreeBuilder:
 
 CHUNK_BYTES = 4 * 1024 * 1024
 
+# Spec 3.4: a batch closes at 500 nodes OR 100 ms, whichever comes first. The
+# time bound is what keeps the UI fed on a slow target, where the count bound
+# may take longer to reach than a user will sit still for.
+BATCH_INTERVAL = 0.1
+
 
 class MftScanner:
     """Streams the MFT and feeds records to an MftTreeBuilder.
@@ -260,10 +266,11 @@ class MftScanner:
     """
 
     def __init__(self, volume_letter: str, info, reader=None,
-                 charge_all_hardlinks: bool = False) -> None:
+                 charge_all_hardlinks: bool = False, clock=time.monotonic) -> None:
         self.letter = volume_letter.rstrip(":")
         self.info = info
         self.charge_all_hardlinks = charge_all_hardlinks
+        self._clock = clock
         self._reader = reader or self._read_from_volume
         self.builder: MftTreeBuilder | None = None
         # Byte extents of the $MFT itself, filled in by scan(). One entry means
@@ -332,6 +339,7 @@ class MftScanner:
                                       self.charge_all_hardlinks)
         parsed = 0
         batch_start = len(store)
+        batch_opened = self._clock()
         cancelled = False
         seen = 0
         # `consumed` counts bytes of the $MFT DATA STREAM, not bytes of the
@@ -389,9 +397,12 @@ class MftScanner:
                     self.builder.feed(parsed_rec)
                     if len(store) > before:
                         parsed += len(store) - before
-                    if on_batch and len(store) - batch_start >= batch_size:
+                    if on_batch and len(store) > batch_start and (
+                            len(store) - batch_start >= batch_size
+                            or self._clock() - batch_opened >= BATCH_INTERVAL):
                         on_batch((batch_start, len(store)))
                         batch_start = len(store)
+                        batch_opened = self._clock()
                 offset += usable
                 consumed += usable
         if not cancelled and consumed < total:

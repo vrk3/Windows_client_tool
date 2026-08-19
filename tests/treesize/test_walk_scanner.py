@@ -102,10 +102,33 @@ def test_exclude_predicate_skips_matching_entries(tmp_path):
     (tmp_path / "keep.bin").write_bytes(b"x" * 1000)
     (tmp_path / "drop.tmp").write_bytes(b"y" * 5000)
     store = NodeStore()
-    scanner = WalkScanner(str(tmp_path),
-                          exclude=lambda name, size, attrs: name.endswith(".tmp"))
+    # The predicate gained mtime and path arguments when spec 3.6's age and
+    # path-glob rules landed; this lambda ignores them.
+    scanner = WalkScanner(
+        str(tmp_path),
+        exclude=lambda name, size, attrs, mtime=0, path=None: name.endswith(".tmp"))
     scanner.scan(store)
     rollup(store)
     assert store.size[scanner.root] == 1000
     names = {store.name(i) for i in range(len(store))}
     assert "drop.tmp" not in names
+
+
+def test_exclude_predicate_receives_the_full_path_and_mtime(tmp_path):
+    """Spec 3.6's path globs and age rules are unevaluable without these."""
+    sub = tmp_path / "node_modules"
+    sub.mkdir()
+    (sub / "dep.js").write_bytes(b"x" * 100)
+    seen = []
+
+    def record(name, size, attrs, mtime=0, path=None):
+        seen.append((name, mtime, path))
+        return False
+
+    WalkScanner(str(tmp_path), exclude=record).scan(NodeStore())
+    by_name = {name: (mtime, path) for name, mtime, path in seen}
+    assert "dep.js" in by_name
+    mtime, path = by_name["dep.js"]
+    assert mtime > 0, "a real FILETIME must reach the predicate"
+    assert path.endswith("node_modules\\dep.js")
+    assert path.startswith(str(tmp_path))

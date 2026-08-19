@@ -31,18 +31,24 @@ def prune_excluded(store: NodeStore, root: int, filters) -> int:
     and no explanation.
     """
     excluded_roots = 0
-    stack = [(child, False) for child in store.children(root)]
+    # Paths are accumulated on the way down rather than reconstructed per node
+    # with store.path(), which would walk to the root for every one of half a
+    # million nodes. Path globs are useless without them.
+    root_path = store.name(root)
+    stack = [(child, False, root_path) for child in store.children(root)]
     while stack:
-        node, inherited = stack.pop()
+        node, inherited, parent_path = stack.pop()
+        name = store.name(node)
+        path = parent_path + "\\" + name
         if inherited:
             store.attrs[node] |= EXCLUDED
             drop = True
         else:
-            drop = filters.excludes(store.name(node), store.size[node],
-                                    store.attrs[node])
+            drop = filters.excludes(name, store.size[node], store.attrs[node],
+                                    store.mtime[node], path)
             if drop:
                 store.attrs[node] |= EXCLUDED
                 excluded_roots += 1
         for child in store.children(node):
-            stack.append((child, drop))
+            stack.append((child, drop, path))
     return excluded_roots
