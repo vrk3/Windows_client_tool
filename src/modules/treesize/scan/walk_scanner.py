@@ -148,6 +148,7 @@ class WalkScanner:
     def __init__(self, root_path: str, bytes_per_cluster: int = 4096,
                  max_workers: int | None = None,
                  exclude: Callable[..., bool] | None = None,
+                 owner_resolver=None,
                  clock=time.monotonic) -> None:
         self.root_path = os.path.abspath(root_path)
         self.bytes_per_cluster = bytes_per_cluster
@@ -155,6 +156,10 @@ class WalkScanner:
         # work deferred out of phase 1 does not change this constructor.
         self.max_workers = max_workers or min(32, (os.cpu_count() or 4) * 4)
         self.exclude = exclude
+        # None means "do not read owners", which is the default: reading one
+        # costs a security call per file, and the Users view is not what most
+        # scans are for (spec 5.8).
+        self.owner_resolver = owner_resolver
         self._clock = clock
         self.root = -1
         # Directories that could not be listed. The list is capped so a scan of
@@ -162,6 +167,17 @@ class WalkScanner:
         # true scale of the gap is never lost.
         self.errors: list[tuple[str, str]] = []
         self.error_count = 0
+
+    def _owner_of(self, path: str, store: NodeStore) -> int:
+        """Interned owner index, or -1 when owners are not being collected.
+
+        An unreadable owner also gives -1: interning "" would hand the Users
+        view a nameless bucket that looks like a real account.
+        """
+        if self.owner_resolver is None:
+            return -1
+        name = self.owner_resolver.for_path(path)
+        return store.intern_owner(name) if name else -1
 
     def _record_error(self, path: str, why: str) -> None:
         self.error_count += 1
@@ -178,7 +194,8 @@ class WalkScanner:
              wait_if_paused=None, batch_size: int = 500) -> int:
         mtime, ctime, atime = root_timestamps(self.root_path)
         self.root = store.add(-1, self.root_path, attrs=DIR,
-                              mtime=mtime, ctime=ctime, atime=atime)
+                              mtime=mtime, ctime=ctime, atime=atime,
+                              owner_id=self._owner_of(self.root_path, store))
         queue: deque[tuple[int, str]] = deque([(self.root, self.root_path)])
         batch_start = len(store)
         batch_opened = self._clock()
@@ -201,12 +218,14 @@ class WalkScanner:
                         entry.name, size, flags, entry.mtime,
                         os.path.join(path, entry.name)):
                     continue
+                child_path = os.path.join(path, entry.name)
                 idx = store.add(node, entry.name, size=size,
                                 alloc=self._alloc_for(size),
                                 mtime=entry.mtime, ctime=entry.ctime,
-                                atime=entry.atime, attrs=flags)
+                                atime=entry.atime, attrs=flags,
+                                owner_id=self._owner_of(child_path, store))
                 if entry.is_dir and not entry.is_reparse:
-                    queue.append((idx, os.path.join(path, entry.name)))
+                    queue.append((idx, child_path))
             if on_batch and len(store) > batch_start and (
                     len(store) - batch_start >= batch_size
                     or self._clock() - batch_opened >= BATCH_INTERVAL):

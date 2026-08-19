@@ -31,11 +31,13 @@ class ScanSignals(QObject):
 
 class ScanWorker(QRunnable):
     def __init__(self, target: str, filters=None,
-                 charge_all_hardlinks: bool = False) -> None:
+                 charge_all_hardlinks: bool = False,
+                 collect_owners: bool = False) -> None:
         super().__init__()
         self.signals = ScanSignals()
         self.scanner = Scanner(target, filters=filters,
-                               charge_all_hardlinks=charge_all_hardlinks)
+                               charge_all_hardlinks=charge_all_hardlinks,
+                               collect_owners=collect_owners)
         self._cancelled = False
 
     # Cancellation and pause are the scanner's own callbacks; this class only

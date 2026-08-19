@@ -102,11 +102,26 @@ class FileGroupsView(AggregateTable):
 
 
 class UsersView(AggregateTable):
+    #: What by_owner() calls a node whose owner was never read.
+    UNKNOWN = "(unknown)"
+    OFF_NOTICE = ("Owners were not read for this scan — turn on "
+                  "“Determine the owner of every file” in Options and "
+                  "scan again.")
+
     def __init__(self, parent=None) -> None:
         super().__init__("Owner", parent)
 
     def show_subtree(self, store, node: int, cache) -> None:
-        self.show_rows(cache.get(store, node, "owner", aggregates.by_owner) or [])
+        rows = cache.get(store, node, "owner", aggregates.by_owner) or []
+        self.show_rows(rows)
+        if rows and all(row.label == self.UNKNOWN for row in rows):
+            # One "(unknown)" bucket holding the whole volume is not an
+            # answer to "who is using the space". Say why it is empty and
+            # where the switch is, rather than looking broken.
+            self.clear()
+            notice = QTreeWidgetItem([self.OFF_NOTICE, "", "", "", ""])
+            notice.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.addTopLevelItem(notice)
 
 
 class AgeView(AggregateTable):

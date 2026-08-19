@@ -100,6 +100,22 @@ class NodeStore:
         self._owner_ids[sid] = new_id
         return new_id
 
+    def rename_owner(self, owner_id: int, name: str) -> None:
+        """Give an existing owner bucket a better name, keeping every node's
+        owner_id valid.
+
+        The MFT path can only record a `$SECURE:<id>` placeholder while it
+        scans; naming it afterwards must not renumber anything, or half a
+        million owner_id values would have to be rewritten with it.
+        """
+        if not (0 <= owner_id < len(self._owners)) or not name:
+            return
+        old = self._owners[owner_id]
+        if self._owner_ids.get(old) == owner_id:
+            del self._owner_ids[old]
+        self._owners[owner_id] = name
+        self._owner_ids.setdefault(name, owner_id)
+
     def owner(self, owner_id: int) -> str:
         return self._owners[owner_id] if 0 <= owner_id < len(self._owners) else ""
 

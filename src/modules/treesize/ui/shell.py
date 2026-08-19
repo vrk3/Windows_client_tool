@@ -1152,6 +1152,20 @@ class TreeSizeShell(QWidget):
         if target:
             self.start_scan(target)
 
+    def make_scan_worker(self, target: str,
+                         filters: FilterSet | None = None) -> ScanWorker:
+        """Build the worker with the scan options the user actually chose.
+
+        Its own method because the options have to arrive here from Options,
+        and for a whole phase they did not: `charge_all_hardlinks` was a
+        checkbox that never reached a Scanner.
+        """
+        return ScanWorker(
+            target, filters=filters or self._filters,
+            charge_all_hardlinks=bool(
+                self._settings.get("charge_all_hardlinks", False)),
+            collect_owners=bool(self._settings.get("collect_owners", False)))
+
     def start_scan(self, target: str, filters: FilterSet | None = None) -> None:
         """Run the scan on a worker thread and return immediately.
 
@@ -1168,7 +1182,7 @@ class TreeSizeShell(QWidget):
         self._recent.insert(0, target)
         del self._recent[8:]
 
-        worker = ScanWorker(target, filters=filters or self._filters)
+        worker = self.make_scan_worker(target, filters)
         worker.signals.batch_ready.connect(self._on_batch)
         worker.signals.finished.connect(self._on_finished)
         worker.signals.failed.connect(self._on_failed)

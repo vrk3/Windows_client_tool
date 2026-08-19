@@ -24,6 +24,7 @@ DEFAULTS = {
     "mode": Mode.SIZE.value,
     "charge_all_hardlinks": False,
     "exclude_hidden": False,
+    "collect_owners": False,
     "confirm_permanent_delete": True,
     "treemap_depth": 6,
     "top_files_limit": 100,
@@ -70,6 +71,15 @@ class OptionsDialog(QDialog):
             "the first path seen. On counts it under every path, so totals "
             "exceed the space actually used.")
         scan_form.addRow(self.charge_hardlinks)
+
+        self.collect_owners = QCheckBox(
+            "Determine the owner of every file (slower)", scanning)
+        self.collect_owners.setChecked(bool(self._settings["collect_owners"]))
+        self.collect_owners.setToolTip(
+            "Fills the Owner column and the Users view. A walk scan pays one "
+            "security call per file for this; an MFT scan samples one file per "
+            "distinct owner instead and costs almost nothing.")
+        scan_form.addRow(self.collect_owners)
 
         self.exclude_hidden = QCheckBox("Exclude hidden files", scanning)
         self.exclude_hidden.setChecked(bool(self._settings["exclude_hidden"]))
@@ -124,6 +134,7 @@ class OptionsDialog(QDialog):
         self.mode.setCurrentIndex(max(0, self.mode.findData(DEFAULTS["mode"])))
         self.charge_hardlinks.setChecked(DEFAULTS["charge_all_hardlinks"])
         self.exclude_hidden.setChecked(DEFAULTS["exclude_hidden"])
+        self.collect_owners.setChecked(DEFAULTS["collect_owners"])
         self.treemap_depth.setValue(DEFAULTS["treemap_depth"])
         self.top_files_limit.setValue(DEFAULTS["top_files_limit"])
         self.confirm_permanent.setChecked(DEFAULTS["confirm_permanent_delete"])
@@ -135,6 +146,7 @@ class OptionsDialog(QDialog):
             "mode": self.mode.currentData(),
             "charge_all_hardlinks": self.charge_hardlinks.isChecked(),
             "exclude_hidden": self.exclude_hidden.isChecked(),
+            "collect_owners": self.collect_owners.isChecked(),
             "confirm_permanent_delete": self.confirm_permanent.isChecked(),
             "treemap_depth": self.treemap_depth.value(),
             "top_files_limit": self.top_files_limit.value(),
