@@ -110,3 +110,27 @@ def test_security_id_is_carried_through():
              + resident_attr(ATTR_FILE_NAME, file_name("a.txt", parent=5)))
     r = parse_mft_record(_rec(attrs), 1, SECTOR)
     assert r.security_id == 256
+
+
+def _truncated_nonresident_data() -> bytes:
+    """A DATA attribute that claims to be non-resident in only 0x18 bytes."""
+    body = bytearray(0x18)
+    struct.pack_into("<II", body, 0x00, ATTR_DATA, 0x18)
+    body[0x08] = 1
+    return bytes(body)
+
+
+def test_malformed_attribute_skips_the_record_instead_of_aborting_the_scan():
+    """A torn record must cost one record, not the whole volume.
+
+    The raw volume is read live with FILE_SHARE_WRITE and no snapshot, so
+    records genuinely do change under the reader. Letting struct.error escape
+    would abort a 460k-record scan on a single bad one.
+    """
+    attrs = (resident_attr(ATTR_FILE_NAME, file_name("a.txt", parent=5))
+             + _truncated_nonresident_data())
+    assert parse_mft_record(_rec(attrs), 1, SECTOR) is None
+
+
+def test_truncated_file_name_attribute_skips_the_record():
+    assert parse_mft_record(_rec(resident_attr(ATTR_FILE_NAME, b"\x00" * 8)), 1, SECTOR) is None

@@ -6,7 +6,7 @@ nodes are then processed deepest-first via a counting sort.
 """
 import array
 
-from .node_store import NodeStore, DIR
+from .node_store import NodeStore, DIR, HARDLINK_DUP
 
 _UNVISITED = -1
 _IN_PROGRESS = -2
@@ -73,5 +73,9 @@ def rollup(store: NodeStore) -> None:
         if store.attrs[i] & DIR:
             store.folder_count[p] += 1 + store.folder_count[i]
             store.file_count[p] += store.file_count[i]
-        else:
+        elif not (store.attrs[i] & HARDLINK_DUP):
+            # A HARDLINK_DUP node is an additional NAME for a file already
+            # counted under its primary name. It carries no size for the same
+            # reason, and counting it would inflate the file total -- WinSxS
+            # alone is dense enough with hardlinks to skew a volume figure.
             store.file_count[p] += 1

@@ -1,4 +1,5 @@
 """MFT record interpretation and volume streaming."""
+import struct
 from dataclasses import dataclass, field
 
 from ..store.node_store import DIR, REPARSE, HARDLINK_DUP, COMPRESSED, SPARSE, ADS
@@ -36,25 +37,14 @@ class ParsedRecord:
     extra_names: list[NameRef] = field(default_factory=list)
 
 
-def parse_mft_record(record: bytearray, record_no: int,
-                     bytes_per_sector: int) -> ParsedRecord | None:
-    """Interpret one MFT file record. Returns None if it is not a live file record."""
-    if len(record) < 0x30 or bytes(record[0:4]) != FILE_RECORD_MAGIC:
-        return None
-    try:
-        apply_fixup(record, bytes_per_sector)
-    except FixupError:
-        return None
-    header = parse_record_header(record)
-    if not header.in_use:
-        return None
+def _read_attributes(record: bytearray, header, out: "ParsedRecord",
+                     names: list[tuple[int, NameRef]]) -> None:
+    """Fold every attribute in one record into `out` and `names`.
 
-    out = ParsedRecord(record_no=record_no, sequence=header.sequence,
-                       base_ref=header.base_ref)
-    if header.is_directory:
-        out.flags |= DIR
-
-    names: list[tuple[int, NameRef]] = []
+    Split out of parse_mft_record purely so a torn record can be caught as a
+    unit: any struct/index/decode failure anywhere in here means the record is
+    untrustworthy in full, and the caller drops it.
+    """
     for type_id, attr in iter_attributes(record, header.attrs_offset):
         h = parse_attr_header(attr)
         if type_id == ATTR_STANDARD_INFORMATION:
@@ -80,6 +70,38 @@ def parse_mft_record(record: bytearray, record_no: int,
             out.flags |= DIR
         elif type_id == ATTR_REPARSE_POINT:
             out.flags |= REPARSE
+
+
+def parse_mft_record(record: bytearray, record_no: int,
+                     bytes_per_sector: int) -> ParsedRecord | None:
+    """Interpret one MFT file record. Returns None if it is not a live file record."""
+    if len(record) < 0x30 or bytes(record[0:4]) != FILE_RECORD_MAGIC:
+        return None
+    try:
+        apply_fixup(record, bytes_per_sector)
+    except FixupError:
+        return None
+    try:
+        header = parse_record_header(record)
+    except (struct.error, IndexError):
+        return None
+    if not header.in_use:
+        return None
+
+    out = ParsedRecord(record_no=record_no, sequence=header.sequence,
+                       base_ref=header.base_ref)
+    if header.is_directory:
+        out.flags |= DIR
+
+    names: list[tuple[int, NameRef]] = []
+    try:
+        _read_attributes(record, header, out, names)
+    except (struct.error, IndexError, UnicodeDecodeError):
+        # The volume is read live, with FILE_SHARE_WRITE and no snapshot, so a
+        # record can be torn mid-update: an attribute header may claim a length
+        # its bytes do not cover. Skipping the one record is right; letting the
+        # exception escape would abort a whole-volume scan on a single blip.
+        return None
 
     if names:
         # Win32 (1) and Win32&DOS (3) beat POSIX (0); DOS 8.3 (2) is last resort.

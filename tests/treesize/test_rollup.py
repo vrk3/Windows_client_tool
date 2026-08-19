@@ -132,3 +132,31 @@ def test_empty_store():
     assert len(d) == 0
     rollup(s)
     assert len(s) == 0
+
+
+def test_hardlink_duplicates_are_not_counted_as_extra_files():
+    """A hardlink alias is another NAME for a file already counted, not a new file.
+
+    WinSxS is dense with hardlinks, so counting each alias inflates the file
+    total well above what the volume actually holds.
+    """
+    s = NodeStore()
+    root = s.add(-1, "C:", attrs=DIR)
+    s.add(root, "real.bin", size=1000, alloc=1024)
+    s.add(root, "link.bin", size=0, alloc=0, attrs=HARDLINK_DUP)
+    s.build_child_lists()
+    rollup(s)
+    assert s.size[root] == 1000
+    assert s.file_count[root] == 1
+
+
+def test_charged_hardlinks_still_count_once():
+    """charge_all_hardlinks omits the flag, so both names carry size AND count."""
+    s = NodeStore()
+    root = s.add(-1, "C:", attrs=DIR)
+    s.add(root, "real.bin", size=1000, alloc=1024)
+    s.add(root, "link.bin", size=1000, alloc=1024)
+    s.build_child_lists()
+    rollup(s)
+    assert s.size[root] == 2000
+    assert s.file_count[root] == 2
