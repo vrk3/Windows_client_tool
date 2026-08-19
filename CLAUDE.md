@@ -171,19 +171,56 @@ The `DiagnoseModule` embeds 6 diagnostic viewers as sub-tabs (Event Viewer, CBS 
 
 ### TreeSize Module (`src/modules/treesize/`)
 
-Three key files:
-- `disk_scanner.py` — `DiskScanner` runs in a background thread, emits batches of `DiskNode` via `signals.batch_ready` every 500 nodes
-- `disk_tree_model.py` — `DiskTreeModel` (a `QAbstractItemModel`) receives batches via `add_batch()` on the main thread; must override `sort()` for interactive column sorting
-- `treesize_module.py` — wires scanner signals to model mutations; uses `threading.Thread(daemon=True)` for the scanner
+A full TreeSize Professional clone, not a simple folder-size viewer. Built from
+`docs/superpowers/specs/2026-08-18-treesize-pro-design.md`, which was derived from the
+installed product's bundled help and screenshots — where that spec or this code names a
+ribbon tab, view, or column, the name is the product's own.
 
-`DiskTreeModel.sort()` is required because `QAbstractItemModel` does not implement sorting by default:
+Three layers, and the boundary between them is load-bearing:
 
-```python
-def sort(self, column: int, order: Qt.SortOrder = ...) -> None:
-    self.layoutAboutToBeChanged.emit()
-    # sort self._roots and recursively sort children
-    self.layoutChanged.emit()
-```
+- **`scan/`** — the engine. `volume_info.py` (raw volume geometry), `ntfs_structs.py`
+  (byte-level NTFS parsing), `mft_reader.py` (streams `$MFT` directly, the fast path),
+  `walk_scanner.py` (`FindFirstFileExW` fallback), `filters.py`, `prune.py`,
+  `scanner.py` (engine selection + orchestration).
+- **`store/`** — `node_store.py` (columnar arrays; a node is an `int` index, not an
+  object), `rollup.py`, `aggregates.py` (per-view sums).
+- **`ui/`** — `shell.py` assembles the ribbon, tree, drive list, view tabs and status
+  bar; `treemap.py` is Qt-free layout; `views/` holds Chart, Details, and the aggregate
+  tables.
+
+**No PyQt6 imports in `scan/` or `store/`.** That is what lets ~450 engine tests run
+with no display and no elevation, and it is why every NTFS function takes `bytes` rather
+than a handle.
+
+**Two engines.** Elevated + whole NTFS drive → MFT reader (a full `C:` in ~20s).
+Anything else → walk scanner. `get_volume_info()` returning `None` is the normal signal
+to pick the walk engine, not an error.
+
+**`size` and `alloc` are independent columns**, never derived from one another. A real
+`C:` here reports 380.9 GB size against 139.9 GB allocated; the gap is sparse and
+compressed files.
+
+Gotchas that cost real debugging time, all recorded in
+`.superpowers/sdd/2026-08-18-treesize-phase1-engine-store/progress.md`:
+
+- **`$MFT` is fragmented on real volumes.** Reading `mft_offset .. +mft_valid_length` as
+  one span silently loses every record past the first extent — it cost 62% of the
+  volume here. Record 0's own `$DATA` run list gives the true extent map.
+- **Record numbers are LOGICAL positions in the MFT data stream**, not physical offsets.
+  Parent references use them, and physical offsets jump at every extent boundary.
+- **Sparse and compressed attributes report their real cost in `TotalAllocated` (0x40)**,
+  not `alloc_size` — NTFS emits that field for sparse too, not just compressed.
+- **A torn record must skip, not raise.** The volume is read live with no snapshot, so
+  records genuinely change mid-read.
+- **`QModelIndex.internalId()` cannot distinguish 0 from unset**, and the scan root is
+  node 0 — ids are stored as `node + 1`.
+- **Sorting must never reset the model** (it collapses the tree), and the sort key lives
+  on the model so folders expanded *after* a sort are ordered too.
+- **Size columns sort on the number, not the formatted text**, or "9 B" lands above
+  "10 GB".
+
+`tools/treesize_scan.py` is a console harness for the engine — it prints engine, totals,
+rate, bytes/node and a flag census, and **exits 2 when the scan was incomplete**.
 
 ### Cleanup Module (`src/modules/cleanup/`)
 
