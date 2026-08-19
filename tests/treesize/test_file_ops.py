@@ -167,3 +167,164 @@ def ctypes_cast(pointer):
     import ctypes
     return ctypes.cast(pointer,
                        ctypes.POINTER(file_ops.SHFILEOPSTRUCTW)).contents
+
+
+# ---- Move (spec 7.1) ----------------------------------------------------
+
+def test_move_hands_the_shell_a_destination(tmp_path, monkeypatch):
+    source = tmp_path / "a.bin"
+    source.write_bytes(b"x" * 10)
+    destination = tmp_path / "elsewhere"
+    destination.mkdir()
+    seen = {}
+
+    def fake_op(pointer):
+        struct = ctypes_cast(pointer)
+        seen["func"] = struct.wFunc
+        seen["to"] = struct.pTo
+        return 0
+
+    monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(fake_op))
+    pf = plan("Move", [(str(source), 10)])
+    ok, message = file_ops.move(pf, str(destination))
+    assert ok, message
+    assert seen["func"] == file_ops.FO_MOVE
+    assert seen["to"].startswith(str(destination))
+
+
+def test_move_refuses_a_destination_inside_what_is_being_moved(tmp_path):
+    """Moving a folder into its own subtree is a request the shell answers
+    with a bare error code; it is worth catching by name."""
+    folder = tmp_path / "src"
+    (folder / "deep").mkdir(parents=True)
+    pf = plan("Move", [(str(folder), 0)])
+    ok, message = file_ops.move(pf, str(folder / "deep"))
+    assert not ok
+    assert "into itself" in message
+
+
+def test_move_refuses_a_guarded_destination(tmp_path):
+    """The guardrails exist because a path-assembly bug could aim an
+    operation at something unrecoverable -- and a move INTO %SystemRoot% is
+    exactly as bad as a delete of it."""
+    source = tmp_path / "a.bin"
+    source.write_bytes(b"x")
+    pf = plan("Move", [(str(source), 1)])
+    ok, message = file_ops.move(pf, os.environ.get("SystemRoot", r"C:\Windows"))
+    assert not ok
+    assert "Refused" in message or "refuse" in message.lower()
+
+
+def test_move_dry_run_changes_nothing(tmp_path, monkeypatch):
+    source = tmp_path / "a.bin"
+    source.write_bytes(b"x" * 5)
+    destination = tmp_path / "to"
+    destination.mkdir()
+
+    def explode(_pointer):
+        raise AssertionError("a dry run must not reach the shell")
+
+    monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(explode))
+    pf = plan("Move", [(str(source), 5)])
+    ok, message = file_ops.move(pf, str(destination), dry_run=True)
+    assert ok
+    assert source.exists()
+    assert "Dry run" in message
+
+
+def test_move_needs_somewhere_to_move_to(tmp_path):
+    source = tmp_path / "a.bin"
+    source.write_bytes(b"x")
+    pf = plan("Move", [(str(source), 1)])
+    ok, message = file_ops.move(pf, str(tmp_path / "does-not-exist"))
+    assert not ok
+    assert "destination" in message.lower()
+
+
+# ---- Secure erase (spec 7.1) -------------------------------------------
+
+def test_overwrite_replaces_the_contents_and_keeps_the_length(tmp_path):
+    target = tmp_path / "secret.bin"
+    original = b"the quick brown fox" * 100
+    target.write_bytes(original)
+    written = file_ops.overwrite_file(str(target), passes=1)
+    after = target.read_bytes()
+    assert len(after) == len(original), "a shorter file leaves the tail behind"
+    assert after != original
+    assert written == len(original)
+
+
+def test_more_passes_write_more(tmp_path):
+    target = tmp_path / "secret.bin"
+    target.write_bytes(b"z" * 1000)
+    assert file_ops.overwrite_file(str(target), passes=3) == 3000
+
+
+def test_a_read_only_file_is_still_erasable(tmp_path):
+    """A read-only attribute is not a security boundary, and leaving such
+    files behind unerased is the failure this feature exists to prevent."""
+    import stat
+
+    target = tmp_path / "locked.bin"
+    target.write_bytes(b"secret data")
+    os.chmod(target, stat.S_IREAD)
+    try:
+        assert file_ops.overwrite_file(str(target), passes=1) == 11
+    finally:
+        os.chmod(target, stat.S_IWRITE)
+
+
+def test_secure_erase_removes_what_it_overwrote(tmp_path):
+    target = tmp_path / "secret.bin"
+    target.write_bytes(b"x" * 64)
+    pf = plan("Secure erase", [(str(target), 64)])
+    ok, message = file_ops.secure_erase(pf, passes=1)
+    assert ok, message
+    assert not target.exists()
+
+
+def test_secure_erase_walks_into_folders(tmp_path):
+    folder = tmp_path / "box"
+    (folder / "inner").mkdir(parents=True)
+    (folder / "a.bin").write_bytes(b"a" * 16)
+    (folder / "inner" / "b.bin").write_bytes(b"b" * 16)
+    pf = plan("Secure erase", [(str(folder), 32)])
+    ok, message = file_ops.secure_erase(pf, passes=1)
+    assert ok, message
+    assert not folder.exists()
+
+
+def test_secure_erase_dry_run_leaves_the_file_intact(tmp_path):
+    target = tmp_path / "secret.bin"
+    target.write_bytes(b"still here")
+    pf = plan("Secure erase", [(str(target), 10)])
+    ok, message = file_ops.secure_erase(pf, passes=1, dry_run=True)
+    assert ok
+    assert target.read_bytes() == b"still here"
+    assert "Dry run" in message
+
+
+def test_secure_erase_reports_what_it_could_not_erase(tmp_path, monkeypatch):
+    """A file that cannot be overwritten must NOT then be deleted: deleting
+    it would report success while leaving the contents recoverable."""
+    target = tmp_path / "secret.bin"
+    target.write_bytes(b"x" * 16)
+
+    def refuse(path, passes=1):
+        raise OSError("locked by another process")
+
+    monkeypatch.setattr(file_ops, "overwrite_file", refuse)
+    pf = plan("Secure erase", [(str(target), 16)])
+    ok, message = file_ops.secure_erase(pf, passes=1)
+    assert not ok
+    assert target.exists(), "an un-overwritten file must survive, not vanish"
+    assert "locked" in message or "1 item" in message
+
+
+def test_the_erase_manifest_is_logged_before_anything_is_touched(tmp_path, caplog):
+    target = tmp_path / "secret.bin"
+    target.write_bytes(b"x" * 8)
+    pf = plan("Secure erase", [(str(target), 8)])
+    with caplog.at_level("INFO"):
+        file_ops.secure_erase(pf, passes=1, dry_run=True)
+    assert any("manifest" in record.message.lower() for record in caplog.records)

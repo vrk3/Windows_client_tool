@@ -12,10 +12,13 @@ import os
 import subprocess
 
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QCheckBox, QMenu, QMessageBox
+from PyQt6.QtWidgets import (
+    QApplication, QCheckBox, QDialog, QFileDialog, QMenu, QMessageBox,
+)
 
 from ..actions import file_ops, guardrails
 from ..store.node_store import DIR
+from .confirm_dialog import TypedConfirmDialog
 
 
 def _reveal(path: str) -> None:
@@ -75,10 +78,15 @@ class RowActions:
                                  lambda: self._delete(node, recycle=True))
         permanent = menu.addAction("Delete permanently…",
                                    lambda: self._delete(node, recycle=False))
+        move = menu.addAction("Move to…", lambda: self._move(node))
+        erase = menu.addAction("Secure erase…",
+                               lambda: self._secure_erase(node))
         # A refused path gets a disabled entry with the reason in the tooltip,
-        # rather than an entry that looks available and then complains.
+        # rather than an entry that looks available and then complains. A move
+        # and an erase are exactly as destructive as a delete, so they are
+        # gated with them rather than beside them.
         if not guardrails.is_allowed(path, override=True):
-            for action in (recycle, permanent):
+            for action in (recycle, permanent, move, erase):
                 action.setEnabled(False)
                 action.setToolTip("Protected location")
         menu.addSeparator()
@@ -149,15 +157,65 @@ class RowActions:
                 self._warn("Refused", "\n".join(preflight.refusals))
                 return
 
+        if recycle:
+            confirm = QMessageBox(self._shell)
+            confirm.setIcon(QMessageBox.Icon.Warning)
+            confirm.setWindowTitle(preflight.operation)
+            confirm.setText(preflight.summary())
+            dry_run = QCheckBox(
+                "Dry run — log what would happen, change nothing")
+            confirm.setCheckBox(dry_run)
+            confirm.setStandardButtons(QMessageBox.StandardButton.Cancel
+                                       | QMessageBox.StandardButton.Ok)
+            confirm.setDefaultButton(QMessageBox.StandardButton.Cancel)
+            if confirm.exec() != QMessageBox.StandardButton.Ok:
+                return
+            wants_dry_run = dry_run.isChecked()
+        else:
+            # Spec 7.2 asks for a TYPED confirmation here, not a stronger
+            # sentence in a box that Enter walks straight through. There is
+            # nothing to undo a permanent delete with.
+            dialog = TypedConfirmDialog(
+                preflight.operation, preflight.summary(), phrase="DELETE",
+                caveat="This cannot be undone. The Recycle Bin is not "
+                       "involved.",
+                parent=self._shell)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            wants_dry_run = dialog.dry_run.isChecked()
+
+        ok, message = file_ops.execute(preflight, recycle=recycle,
+                                       dry_run=wants_dry_run)
+        if not ok:
+            self._warn(preflight.operation, message)
+            return
+        self._shell.scan_state.setText(message)
+        if not wants_dry_run:
+            self._shell.refresh_scan()
+
+    def _warn(self, title: str, message: str) -> None:
+        QMessageBox.warning(self._shell, title, message)
+
+    # ---- move and secure erase (spec 7.1) ------------------------------
+
+    def _move(self, node: int) -> None:
+        """Move to a folder the user picks. Plain confirmation: a move is
+        undoable by moving it back, which is what separates it from the two
+        operations that get a typed gate."""
+        store = self._shell._store
+        path = store.path(node)
+        destination = QFileDialog.getExistingDirectory(
+            self._shell, "Move to which folder?", os.path.dirname(path))
+        if not destination:
+            return
+        preflight = self._planned("Move", node, path)
+        if preflight is None:
+            return
         confirm = QMessageBox(self._shell)
-        confirm.setIcon(QMessageBox.Icon.Warning)
-        confirm.setWindowTitle(preflight.operation)
+        confirm.setIcon(QMessageBox.Icon.Question)
+        confirm.setWindowTitle("Move")
         confirm.setText(preflight.summary())
-        if not recycle:
-            # Spec 7.2: permanent delete gets a stronger gate than recycle,
-            # because there is nothing to undo it with.
-            confirm.setInformativeText(
-                "This cannot be undone. The Recycle Bin is not involved.")
+        confirm.setInformativeText(f"Destination: {destination}")
         dry_run = QCheckBox("Dry run — log what would happen, change nothing")
         confirm.setCheckBox(dry_run)
         confirm.setStandardButtons(QMessageBox.StandardButton.Cancel
@@ -165,15 +223,59 @@ class RowActions:
         confirm.setDefaultButton(QMessageBox.StandardButton.Cancel)
         if confirm.exec() != QMessageBox.StandardButton.Ok:
             return
+        ok, message = file_ops.move(preflight, destination,
+                                    dry_run=dry_run.isChecked())
+        self._report(ok, "Move", message, refresh=not dry_run.isChecked())
 
-        ok, message = file_ops.execute(preflight, recycle=recycle,
-                                       dry_run=dry_run.isChecked())
+    def _secure_erase(self, node: int) -> None:
+        """Overwrite then delete, behind a typed gate and the SSD caveat."""
+        store = self._shell._store
+        path = store.path(node)
+        preflight = self._planned("Secure erase", node, path)
+        if preflight is None:
+            return
+        dialog = TypedConfirmDialog(
+            "Secure erase", preflight.summary(), phrase="ERASE",
+            caveat=file_ops.SSD_CAVEAT, parent=self._shell)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        ok, message = file_ops.secure_erase(
+            preflight, dry_run=dialog.dry_run.isChecked())
+        self._report(ok, "Secure erase", message,
+                     refresh=not dialog.dry_run.isChecked())
+
+    def _planned(self, operation: str, node: int, path: str):
+        """Preflight, offering the override once if the path is guarded."""
+        store = self._shell._store
+        preflight = file_ops.plan(operation, [(path, store.size[node])],
+                                  override=False)
+        if preflight.allowed or not preflight.refusals:
+            return preflight
+        box = QMessageBox(self._shell)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Protected location")
+        box.setText("\n".join(preflight.refusals))
+        override = QCheckBox("I understand — operate here anyway")
+        box.setCheckBox(override)
+        box.setStandardButtons(QMessageBox.StandardButton.Cancel
+                               | QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if box.exec() != QMessageBox.StandardButton.Ok or not override.isChecked():
+            return None
+        retried = file_ops.plan(operation, [(path, store.size[node])],
+                                override=True)
+        if not retried.allowed:
+            self._warn("Refused", "\n".join(retried.refusals))
+            return None
+        return retried
+
+    def _report(self, ok: bool, title: str, message: str,
+                refresh: bool) -> None:
         if not ok:
-            self._warn(preflight.operation, message)
+            self._warn(title, message)
             return
         self._shell.scan_state.setText(message)
-        if not dry_run.isChecked():
+        if refresh:
+            # The store is a snapshot and the disk has just moved; anything
+            # else leaves the tree showing what is no longer there.
             self._shell.refresh_scan()
-
-    def _warn(self, title: str, message: str) -> None:
-        QMessageBox.warning(self._shell, title, message)

@@ -123,3 +123,83 @@ def test_properties_reports_the_stored_numbers(shell, monkeypatch):
     assert shown["title"] == "keep.bin"
     assert "1,000 B" in shown["text"], shown["text"]
     assert "Owner:" in shown["text"]
+
+
+# ---- Move and Secure erase (spec 7.1) -----------------------------------
+
+def test_the_menu_offers_move_and_secure_erase(shell):
+    """Spec 7.1 lists four operations. Two of them had no way in at all."""
+    menu = shell.row_actions.menu_for(_node_named(shell._store, "keep.bin"))
+    labels = [a.text() for a in menu.actions() if a.text()]
+    assert any(label.startswith("Move to") for label in labels), labels
+    assert any("Secure erase" in label for label in labels), labels
+
+
+def test_a_protected_path_disables_every_destructive_entry(shell, monkeypatch):
+    """The guardrails already greyed out the two deletes; the two new
+    operations are exactly as destructive and must be greyed out with them."""
+    monkeypatch.setattr(
+        "modules.treesize.ui.context_menu.guardrails.is_allowed",
+        lambda path, override=False: False)
+    menu = shell.row_actions.menu_for(_node_named(shell._store, "keep.bin"))
+    destructive = [a for a in menu.actions()
+                   if a.text().startswith(("Delete", "Move to", "Secure"))]
+    assert len(destructive) == 4, [a.text() for a in destructive]
+    assert not any(action.isEnabled() for action in destructive)
+
+
+def test_permanent_delete_now_asks_the_user_to_type_it(shell, monkeypatch):
+    """Spec 7.2 requires TYPED confirmation for permanent delete. It had a
+    plain warning box, which an Enter keypress walks straight through."""
+    from modules.treesize.ui import context_menu as menu_module
+
+    seen = {}
+
+    class _Dialog:
+        def __init__(self, title, summary, phrase="DELETE", caveat="",
+                     parent=None):
+            seen["phrase"] = phrase
+            seen["caveat"] = caveat
+            self.dry_run = type("C", (), {"isChecked": lambda self: False})()
+
+        def exec(self):
+            return 0                      # cancelled: nothing must happen
+
+    monkeypatch.setattr(menu_module, "TypedConfirmDialog", _Dialog)
+    monkeypatch.setattr(menu_module.file_ops, "execute",
+                        lambda *a, **k: pytest.fail("cancelled means nothing runs"))
+    shell.row_actions._delete(_node_named(shell._store, "keep.bin"),
+                              recycle=False)
+    assert seen["phrase"]
+
+
+def test_secure_erase_states_the_ssd_limitation(shell, monkeypatch):
+    """Spec 7.1: the feature ships with the limitation stated, not implying a
+    guarantee it cannot make."""
+    from modules.treesize.ui import context_menu as menu_module
+
+    seen = {}
+
+    class _Dialog:
+        def __init__(self, title, summary, phrase="DELETE", caveat="",
+                     parent=None):
+            seen["caveat"] = caveat
+            self.dry_run = type("C", (), {"isChecked": lambda self: False})()
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr(menu_module, "TypedConfirmDialog", _Dialog)
+    shell.row_actions._secure_erase(_node_named(shell._store, "keep.bin"))
+    assert "SSD" in seen["caveat"]
+
+
+def test_move_asks_where_to_and_does_nothing_when_cancelled(shell, monkeypatch,
+                                                            tmp_path):
+    from modules.treesize.ui import context_menu as menu_module
+
+    monkeypatch.setattr(menu_module.QFileDialog, "getExistingDirectory",
+                        staticmethod(lambda *a, **k: ""))
+    monkeypatch.setattr(menu_module.file_ops, "move",
+                        lambda *a, **k: pytest.fail("no destination, no move"))
+    shell.row_actions._move(_node_named(shell._store, "keep.bin"))
