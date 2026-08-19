@@ -93,6 +93,13 @@ class Scanner:
         if engine == "mft":
             letter = _drive_letter(self.target)
             info = get_volume_info(letter)
+            if info is None:
+                # select_engine() probed the volume a moment ago and it
+                # answered; it no longer does. Removable media, a dismount, a
+                # transient failure. Walking is a worse plan than the MFT but a
+                # far better one than crashing on info.bytes_per_record.
+                engine = "walk"
+        if engine == "mft":
             scanner = MftScanner(letter, info,
                                  charge_all_hardlinks=self.charge_all_hardlinks)
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,

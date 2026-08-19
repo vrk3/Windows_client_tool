@@ -106,8 +106,14 @@ class AttrHeader:
     runs_offset: int
 
 
-def parse_attr_header(attr: bytes) -> AttrHeader:
-    attr = bytes(attr)
+def parse_attr_header(attr) -> AttrHeader:
+    """Parse one attribute header.
+
+    Accepts a memoryview and does NOT copy it. iter_attributes yields views
+    precisely to avoid a copy per attribute; materialising the whole attribute
+    here would spend that saving several million times over on a full volume.
+    Only the name, which is a short slice and needs decoding, is copied.
+    """
     type_id, length = struct.unpack_from("<II", attr, 0x00)
     non_resident = bool(attr[0x08])
     name_len = attr[0x09]
@@ -115,7 +121,7 @@ def parse_attr_header(attr: bytes) -> AttrHeader:
     flags = struct.unpack_from("<H", attr, 0x0C)[0]
     name = ""
     if name_len and name_off:
-        name = attr[name_off:name_off + name_len * 2].decode("utf-16-le")
+        name = bytes(attr[name_off:name_off + name_len * 2]).decode("utf-16-le")
     if non_resident:
         runs_offset = struct.unpack_from("<H", attr, 0x20)[0]
         alloc_size = struct.unpack_from("<Q", attr, 0x28)[0]
@@ -131,11 +137,18 @@ def parse_attr_header(attr: bytes) -> AttrHeader:
                       value_length, value_length, 0, 0, 0)
 
 
-def attr_value(attr: bytes) -> bytes:
-    h = parse_attr_header(attr)
+def attr_value(attr, header: AttrHeader | None = None) -> bytes:
+    """The resident value bytes of an attribute, or b"" if non-resident.
+
+    Pass `header` when the caller has already parsed it -- every caller on the
+    scan hot path has -- so the header is not parsed twice per attribute. The
+    view is sliced before it is copied, so only the value itself is
+    materialised, not the whole attribute.
+    """
+    h = header if header is not None else parse_attr_header(attr)
     if h.non_resident:
         return b""
-    return bytes(attr)[h.value_offset:h.value_offset + h.value_length]
+    return bytes(attr[h.value_offset:h.value_offset + h.value_length])
 
 
 class StdInfo(NamedTuple):

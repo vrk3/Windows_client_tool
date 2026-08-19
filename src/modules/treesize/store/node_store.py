@@ -66,10 +66,22 @@ class NodeStore:
         return bytes(self.names[off:off + self.name_len[idx]]).decode("utf-16-le")
 
     def path(self, idx: int) -> str:
+        """Full path for a node, walking parents to a root.
+
+        Guards against a corrupt parent cycle the same way compute_depths does.
+        A cycle should cost a truncated-looking path, never a hung caller --
+        this runs on a UI thread in phase 2.
+        """
         parts = []
-        while idx >= 0:
+        seen = set()
+        n = len(self.parent)
+        while 0 <= idx < n and idx not in seen:
+            seen.add(idx)
             parts.append(self.name(idx))
-            idx = self.parent[idx]
+            nxt = self.parent[idx]
+            if nxt == idx:
+                break
+            idx = nxt
         return "\\".join(reversed(parts))
 
     def intern_owner(self, sid: str) -> int:

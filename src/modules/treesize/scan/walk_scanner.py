@@ -20,7 +20,6 @@ FILE_ATTRIBUTE_HIDDEN = 0x2
 FindExInfoBasic = 1
 FindExSearchNameMatch = 0
 FIND_FIRST_EX_LARGE_FETCH = 2
-ERROR_NO_MORE_FILES = 18
 
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
@@ -122,6 +121,8 @@ class WalkScanner:
                  exclude: Callable[[str, int, int], bool] | None = None) -> None:
         self.root_path = os.path.abspath(root_path)
         self.bytes_per_cluster = bytes_per_cluster
+        # Reserved: the walk is single-threaded today. Kept so the threading
+        # work deferred out of phase 1 does not change this constructor.
         self.max_workers = max_workers or min(32, (os.cpu_count() or 4) * 4)
         self.exclude = exclude
         self.root = -1

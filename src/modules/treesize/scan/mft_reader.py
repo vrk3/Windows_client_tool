@@ -8,7 +8,8 @@ from .ntfs_structs import (
     parse_attr_header, parse_file_name, parse_record_header,
     parse_standard_information,
     ATTR_STANDARD_INFORMATION, ATTR_FILE_NAME, ATTR_DATA, ATTR_INDEX_ROOT,
-    ATTR_REPARSE_POINT, NS_DOS, FLAG_COMPRESSED, FLAG_SPARSE,
+    ATTR_REPARSE_POINT, NS_DOS, NS_POSIX, NS_WIN32, NS_WIN32_DOS,
+    FLAG_COMPRESSED, FLAG_SPARSE,
 )
 
 
@@ -48,11 +49,11 @@ def _read_attributes(record: bytearray, header, out: "ParsedRecord",
     for type_id, attr in iter_attributes(record, header.attrs_offset):
         h = parse_attr_header(attr)
         if type_id == ATTR_STANDARD_INFORMATION:
-            si = parse_standard_information(attr_value(attr))
+            si = parse_standard_information(attr_value(attr, h))
             out.ctime, out.mtime, out.atime = si.ctime, si.mtime, si.atime
             out.security_id = si.security_id
         elif type_id == ATTR_FILE_NAME:
-            fn = parse_file_name(attr_value(attr))
+            fn = parse_file_name(attr_value(attr, h))
             names.append((fn.namespace, NameRef(fn.name, fn.parent_ref, fn.parent_seq)))
         elif type_id == ATTR_DATA:
             if h.name:
@@ -104,8 +105,8 @@ def parse_mft_record(record: bytearray, record_no: int,
         return None
 
     if names:
-        # Win32 (1) and Win32&DOS (3) beat POSIX (0); DOS 8.3 (2) is last resort.
-        preference = {1: 0, 3: 1, 0: 2, NS_DOS: 3}
+        # Win32 and Win32&DOS beat POSIX; the DOS 8.3 alias is a last resort.
+        preference = {NS_WIN32: 0, NS_WIN32_DOS: 1, NS_POSIX: 2, NS_DOS: 3}
         names.sort(key=lambda pair: preference.get(pair[0], 4))
         primary = names[0][1]
         out.name = primary.name
