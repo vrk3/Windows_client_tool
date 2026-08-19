@@ -69,8 +69,14 @@ def _read_attributes(record: bytearray, header, out: "ParsedRecord",
                 # the VCN-0 fragment states them once. See parse_attr_header.
                 if h.start_vcn == 0:
                     out.size += h.data_size
-                    out.alloc += (h.compressed_size if (h.flags & FLAG_COMPRESSED)
-                                  else h.alloc_size)
+                    # Sparse and compressed attributes both report their true
+                    # on-disk cost in TotalAllocated; alloc_size is the span
+                    # they occupy logically. Spec 1.1's reference scan reports
+                    # Allocated well BELOW Size for exactly this reason.
+                    if h.flags & (FLAG_COMPRESSED | FLAG_SPARSE):
+                        out.alloc += h.compressed_size
+                    else:
+                        out.alloc += h.alloc_size
                 if h.flags & FLAG_COMPRESSED:
                     out.flags |= COMPRESSED
                 if h.flags & FLAG_SPARSE:

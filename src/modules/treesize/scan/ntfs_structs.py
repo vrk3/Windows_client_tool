@@ -133,8 +133,12 @@ def parse_attr_header(attr) -> AttrHeader:
         runs_offset = struct.unpack_from("<H", attr, 0x20)[0]
         alloc_size = struct.unpack_from("<Q", attr, 0x28)[0]
         data_size = struct.unpack_from("<Q", attr, 0x30)[0]
+        # TotalAllocated. NTFS emits this field when the attribute is
+        # compressed OR SPARSE -- not compressed alone. For a sparse file
+        # alloc_size is the full VCN span, which the volume never gave up;
+        # this is the real cost.
         compressed_size = 0
-        if flags & FLAG_COMPRESSED:
+        if flags & (FLAG_COMPRESSED | FLAG_SPARSE):
             compressed_size = struct.unpack_from("<Q", attr, 0x40)[0]
         return AttrHeader(type_id, length, True, name, flags, 0, 0,
                           data_size, alloc_size, compressed_size, runs_offset,

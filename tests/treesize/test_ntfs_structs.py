@@ -6,7 +6,7 @@ from modules.treesize.scan.ntfs_structs import (
     parse_attr_header, parse_standard_information, parse_file_name,
     decode_data_runs,
     ATTR_STANDARD_INFORMATION, ATTR_FILE_NAME, ATTR_DATA, ATTR_END,
-    NS_WIN32, NS_DOS, FLAG_COMPRESSED,
+    NS_WIN32, NS_DOS, FLAG_COMPRESSED, FLAG_SPARSE,
 )
 
 SECTOR = 512
@@ -61,7 +61,7 @@ def nonresident_attr(type_id: int, *, data_size: int, alloc_size: int,
                      runs: bytes = b"\x00", flags: int = 0,
                      compressed_size: int = 0, name: str = "") -> bytes:
     name_b = name.encode("utf-16-le")
-    has_comp = bool(flags & FLAG_COMPRESSED)
+    has_comp = bool(flags & (FLAG_COMPRESSED | FLAG_SPARSE))
     runs_off = 0x48 if has_comp else 0x40
     runs_off += len(name_b)
     total = runs_off + len(runs)
@@ -246,3 +246,14 @@ def test_decode_sparse_run_has_no_lcn():
 def test_decode_runs_stops_at_terminator():
     data = bytes([0x21, 0x08, 0x00, 0x01, 0x00, 0x21, 0xFF, 0xFF, 0xFF])
     assert decode_data_runs(data, 0) == [(0x0100, 8)]
+
+
+def test_sparse_attribute_exposes_its_real_allocated_size():
+    """NTFS carries TotalAllocated (0x40) for SPARSE attributes, not only
+    compressed ones. For a sparse file, alloc_size is the full VCN span while
+    TotalAllocated is what the volume actually gave up."""
+    attr = nonresident_attr(ATTR_DATA, data_size=1 << 30, alloc_size=1 << 30,
+                            flags=FLAG_SPARSE, compressed_size=4096)
+    h = parse_attr_header(attr)
+    assert h.alloc_size == 1 << 30
+    assert h.compressed_size == 4096

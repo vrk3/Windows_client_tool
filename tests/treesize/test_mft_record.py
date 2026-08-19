@@ -80,9 +80,13 @@ def test_compressed_stream_uses_compressed_size_for_alloc():
 
 
 def test_sparse_stream_is_flagged():
+    # The fixture, not the assertion, changed here. It used to put the real
+    # cost in alloc_size, which is not where NTFS keeps it: for a sparse
+    # attribute alloc_size is the logical VCN span and TotalAllocated is what
+    # the volume actually gave up. The expectation is the same as it ever was.
     attrs = (resident_attr(ATTR_FILE_NAME, file_name("s.dat", parent=5))
-             + nonresident_attr(ATTR_DATA, data_size=385_000, alloc_size=4_096,
-                                flags=FLAG_SPARSE))
+             + nonresident_attr(ATTR_DATA, data_size=385_000, alloc_size=385_024,
+                                flags=FLAG_SPARSE, compressed_size=4_096))
     r = parse_mft_record(_rec(attrs), 1, SECTOR)
     assert r.size == 385_000
     assert r.alloc == 4_096
@@ -151,3 +155,37 @@ def test_a_plain_file_is_not_marked_hidden():
              + resident_attr(ATTR_FILE_NAME, file_name("plain.txt", parent=5)))
     r = parse_mft_record(_rec(attrs), 1, SECTOR)
     assert not (r.flags & HIDDEN)
+
+
+def test_sparse_file_is_charged_its_real_allocation_not_its_span():
+    """Spec 1.1: Pro reports C: as Size 385.4 GB against Allocated 147.5 GB.
+
+    Charging a sparse file its full VCN span instead of TotalAllocated is what
+    pushed our Allocated above Size, which is backwards for a volume with
+    56,235 sparse files on it.
+    """
+    attrs = (resident_attr(ATTR_STANDARD_INFORMATION, std_info())
+             + resident_attr(ATTR_FILE_NAME, file_name("sparse.vhdx", parent=5))
+             + nonresident_attr(ATTR_DATA, data_size=1 << 30, alloc_size=1 << 30,
+                                flags=FLAG_SPARSE, compressed_size=65536))
+    r = parse_mft_record(_rec(attrs), 1, SECTOR)
+    assert r.size == 1 << 30
+    assert r.alloc == 65536
+    assert r.flags & SPARSE
+
+
+def test_compressed_file_still_uses_its_compressed_size():
+    attrs = (resident_attr(ATTR_STANDARD_INFORMATION, std_info())
+             + resident_attr(ATTR_FILE_NAME, file_name("packed.bin", parent=5))
+             + nonresident_attr(ATTR_DATA, data_size=100000, alloc_size=102400,
+                                flags=FLAG_COMPRESSED, compressed_size=20480))
+    r = parse_mft_record(_rec(attrs), 1, SECTOR)
+    assert r.alloc == 20480
+
+
+def test_ordinary_file_still_uses_allocated_size():
+    attrs = (resident_attr(ATTR_STANDARD_INFORMATION, std_info())
+             + resident_attr(ATTR_FILE_NAME, file_name("plain.bin", parent=5))
+             + nonresident_attr(ATTR_DATA, data_size=5000, alloc_size=8192))
+    r = parse_mft_record(_rec(attrs), 1, SECTOR)
+    assert r.alloc == 8192
