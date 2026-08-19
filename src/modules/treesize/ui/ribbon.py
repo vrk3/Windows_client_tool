@@ -15,7 +15,7 @@ the shell wires behaviour without the ribbon knowing what anything does.
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QSizePolicy, QStackedWidget, QTabBar,
+    QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QStackedWidget, QTabBar,
     QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -46,7 +46,6 @@ RIBBON: tuple = (
         ("Tools", (("tools.search", "Open TreeSize\nFile Search", True, True),
                    ("tools.admin", "Start as administrator", False, False),
                    ("tools.options", "Options", False, True))),
-        ("License", (("help.license", "License", False, False),)),
     )),
     ("Scan", (
         ("Scan", (("scan.stop", "Stop", True, False),
@@ -98,10 +97,60 @@ RIBBON: tuple = (
     )),
     ("Help", (
         ("Help", (("help.contents", "Help contents", True, False),
-                  ("help.about", "About", False, False),
-                  ("help.license", "License", False, False))),
+                  ("help.about", "About", False, False))),
     )),
 )
+
+# Dropdown contents, keyed by the button's action id. A tuple entry is
+# (item_id, label); None is a separator. Items become QActions in the same
+# registry as the buttons, so the shell wires them exactly the same way.
+MENUS: dict = {
+    "scan.select": (),          # filled at runtime with the drive list
+    "scan.stop": (("scan.stop.all", "Stop all scans"),),
+    "scan.refresh": (("scan.refresh.all", "Refresh all scans"),
+                     ("scan.refresh.selected", "Refresh selected folder"),
+                     None,
+                     ("scan.watch", "Watch for file system changes")),
+    "tree.expand": (("tree.expand.1", "Expand one level"),
+                    ("tree.expand.2", "Expand two levels"),
+                    ("tree.expand.3", "Expand three levels"),
+                    None,
+                    ("tree.expand.all", "Expand all"),
+                    ("tree.collapse.all", "Collapse all")),
+    "unit.auto": (("unit.auto", "Auto"), None,
+                  ("unit.tb", "TB"), ("unit.gb", "GB"), ("unit.mb", "MB"),
+                  ("unit.kb", "KB"), ("unit.b", "B"), None,
+                  ("unit.decimals.0", "0 decimals"),
+                  ("unit.decimals.1", "1 decimal"),
+                  ("unit.decimals.2", "2 decimals")),
+    "unit.decimals": (("unit.decimals.0", "0 decimals"),
+                      ("unit.decimals.1", "1 decimal"),
+                      ("unit.decimals.2", "2 decimals")),
+    "result.export": (("export.csv", "Export to CSV…"),
+                      ("export.html", "Export to HTML…"),
+                      None,
+                      ("export.clipboard", "Copy to clipboard")),
+    "scan.exclude": (("exclude.selected", "Exclude selected folder"),
+                     ("exclude.pattern", "Exclude by pattern…"),
+                     None,
+                     ("exclude.clear", "Clear all exclusions")),
+    "view.select": (("view.go.chart", "Chart"),
+                    ("view.go.details", "Details"),
+                    ("view.go.extensions", "Extensions"),
+                    ("view.go.groups", "File groups"),
+                    ("view.go.users", "Users"),
+                    ("view.go.age", "Age of Files"),
+                    ("view.go.top", "Top Files")),
+    "view.hidesmall": (("hidesmall.off", "Show everything"),
+                       ("hidesmall.1mb", "Hide below 1 MB"),
+                       ("hidesmall.10mb", "Hide below 10 MB"),
+                       ("hidesmall.100mb", "Hide below 100 MB")),
+    "tools.options": (("tools.options.open", "Options…"), None,
+                      ("tools.options.export", "Export settings…"),
+                      ("tools.options.import", "Import settings…"),
+                      ("tools.options.reset", "Reset settings")),
+    "tools.search": (("tools.search.open", "Open TreeSize File Search"),),
+}
 
 # Buttons that hold a checked/unchecked state rather than firing once.
 CHECKABLE = {
@@ -109,6 +158,8 @@ CHECKABLE = {
     "unit.auto", "unit.tb", "unit.gb", "unit.mb", "unit.kb", "unit.b",
     "panel.drives", "panel.overview", "panel.status",
     "view.changes", "view.hideempty", "view.group", "scan.watch",
+    "unit.decimals.0", "unit.decimals.1", "unit.decimals.2",
+    "hidesmall.off", "hidesmall.1mb", "hidesmall.10mb", "hidesmall.100mb",
 }
 
 
@@ -131,12 +182,21 @@ class RibbonGroup(QFrame):
         outer.addWidget(label)
         self._small_column: QVBoxLayout | None = None
 
-    def add_button(self, action: QAction, large: bool, dropdown: bool) -> QToolButton:
+    def add_button(self, action: QAction, large: bool, dropdown: bool,
+                   menu: QMenu | None = None) -> QToolButton:
         button = QToolButton(self)
         button.setDefaultAction(action)
         button.setAutoRaise(True)
-        if dropdown:
+        if dropdown and menu is not None:
+            button.setMenu(menu)
+            # MenuButtonPopup splits the button: the face fires the action, the
+            # arrow opens the menu. That is Pro's behaviour -- clicking "Expand"
+            # expands, clicking its arrow offers how far.
             button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        elif dropdown:
+            # No menu was declared for this id, so do not draw an arrow. An
+            # arrow that opens nothing reads as broken, not as unfinished.
+            pass
         if large:
             button.setToolButtonStyle(
                 Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -171,6 +231,7 @@ class Ribbon(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.actions_by_id: dict[str, QAction] = {}
+        self.menus_by_id: dict[str, QMenu] = {}
         self._buttons: dict[str, list[QToolButton]] = {}
 
         layout = QVBoxLayout(self)
@@ -206,7 +267,8 @@ class Ribbon(QWidget):
             group = RibbonGroup(caption, page)
             for action_id, label, large, dropdown in buttons:
                 action = self._action(action_id, label)
-                group.add_button(action, large, dropdown)
+                group.add_button(action, large, dropdown,
+                                 self._menu(action_id) if dropdown else None)
             row.addWidget(group)
             separator = QFrame(page)
             separator.setFrameShape(QFrame.Shape.VLine)
@@ -231,8 +293,43 @@ class Ribbon(QWidget):
         self.actions_by_id[action_id] = action
         return action
 
+    def _menu(self, action_id: str) -> QMenu | None:
+        """One QMenu per action id, shared by every button that uses it."""
+        if action_id not in MENUS:
+            return None
+        existing = self.menus_by_id.get(action_id)
+        if existing is not None:
+            return existing
+        menu = QMenu(self)
+        for entry in MENUS[action_id]:
+            if entry is None:
+                menu.addSeparator()
+            else:
+                menu.addAction(self._action(entry[0], entry[1]))
+        self.menus_by_id[action_id] = menu
+        return menu
+
     def action(self, action_id: str) -> QAction:
         return self.actions_by_id[action_id]
+
+    def menu(self, action_id: str) -> QMenu | None:
+        return self.menus_by_id.get(action_id)
+
+    def set_menu_items(self, action_id: str, items) -> None:
+        """Rebuild a menu whose contents are only known at runtime.
+
+        The scan-target list is the case: it is whatever drives exist now, not
+        a fixed list decided when the ribbon was built.
+        """
+        menu = self.menus_by_id.get(action_id)
+        if menu is None:
+            return
+        menu.clear()
+        for label, callback in items:
+            if label is None:
+                menu.addSeparator()
+                continue
+            menu.addAction(label, callback)
 
     def set_enabled(self, action_id: str, enabled: bool) -> None:
         action = self.actions_by_id.get(action_id)

@@ -17,12 +17,13 @@ engine stays testable without a display.
 """
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QPushButton, QSplitter, QTabWidget,
-    QVBoxLayout, QWidget,
+    QApplication, QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
+    QMessageBox, QPushButton, QSplitter, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from ..scan.filters import FilterSet
 from ..store.aggregates import AggregateCache
+from ..store.node_store import EXCLUDED
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
@@ -60,6 +61,7 @@ class TreeSizeShell(QWidget):
         self._root = -1
         self._result = None
         self._worker: ScanWorker | None = None
+        self._filters = FilterSet()
         self._paused = False
         self._pool = QThreadPool.globalInstance()
 
@@ -181,9 +183,176 @@ class TreeSizeShell(QWidget):
             action.setChecked(True)
             action.toggled.connect(widget.setVisible)
 
+        self._wire_menus()
+
         self.ribbon.action("mode.size").setChecked(True)
         self.ribbon.action("unit.auto").setChecked(True)
+        self.ribbon.action("unit.decimals.1").setChecked(True)
+        self.ribbon.action("hidesmall.off").setChecked(True)
         self._set_scanning(False)
+
+    def _wire_menus(self) -> None:
+        """Give every dropdown item something to do.
+
+        A menu entry that does nothing is worse than an absent one: it reads as
+        broken rather than unfinished.
+        """
+        act = self.ribbon.action
+
+        for depth in (1, 2, 3):
+            act("tree.expand.%d" % depth).triggered.connect(
+                lambda _c=False, d=depth: self.directory_tree.expandToDepth(d - 1))
+        act("tree.expand.all").triggered.connect(self.directory_tree.expandAll)
+        act("tree.collapse.all").triggered.connect(self.directory_tree.collapseAll)
+
+        for decimals in (0, 1, 2):
+            act("unit.decimals.%d" % decimals).triggered.connect(
+                lambda _c=False, d=decimals: self.set_decimals(d))
+
+        for suffix, widget in (("chart", self.chart), ("details", self.details),
+                               ("extensions", self.extensions),
+                               ("groups", self.file_groups), ("users", self.users),
+                               ("age", self.ages), ("top", self.top_files)):
+            act("view.go." + suffix).triggered.connect(
+                lambda _c=False, w=widget: self.views.setCurrentWidget(w))
+
+        act("scan.refresh.all").triggered.connect(self.refresh_scan)
+        act("scan.refresh.selected").triggered.connect(self._refresh_selected)
+        act("scan.stop.all").triggered.connect(self.stop_scan)
+
+        act("export.csv").triggered.connect(lambda: self._export("csv"))
+        act("export.html").triggered.connect(lambda: self._export("html"))
+        act("export.clipboard").triggered.connect(self._export_clipboard)
+
+        act("exclude.selected").triggered.connect(self._exclude_selected)
+        act("exclude.pattern").triggered.connect(self._exclude_pattern)
+        act("exclude.clear").triggered.connect(self._clear_exclusions)
+
+        for suffix, threshold in (("off", 0), ("1mb", 1 << 20),
+                                  ("10mb", 10 << 20), ("100mb", 100 << 20)):
+            act("hidesmall." + suffix).triggered.connect(
+                lambda _c=False, t=threshold, sfx=suffix: self._set_min_size(t, sfx))
+
+        self._refresh_target_menu()
+
+    def _refresh_target_menu(self) -> None:
+        """The scan-target list is whatever drives exist now, not a fixed list."""
+        from .panels import list_drives
+        items = []
+        for letter, _total, _free in list_drives():
+            root = letter + ":" + chr(92)
+            items.append((root, lambda _c=False, r=root: self.start_scan(r)))
+        items.append((None, None))
+        items.append(("Select folder\u2026", self._browse_for_folder))
+        self.ribbon.set_menu_items("scan.select", items)
+
+    def _browse_for_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select folder to scan")
+        if folder:
+            self.start_scan(folder)
+
+    def set_decimals(self, decimals: int) -> None:
+        unit = self.directory_tree.tree_model.unit
+        self.directory_tree.tree_model.set_unit(unit, decimals)
+        for view in (self.details, self.extensions, self.file_groups,
+                     self.users, self.ages, self.top_files):
+            view.set_unit(unit, decimals)
+        for value in (0, 1, 2):
+            self.ribbon.action("unit.decimals.%d" % value).setChecked(value == decimals)
+        self._refresh_right_pane()
+
+    def _set_min_size(self, threshold: int, chosen: str) -> None:
+        self._filters.min_size = threshold
+        for suffix in ("off", "1mb", "10mb", "100mb"):
+            self.ribbon.action("hidesmall." + suffix).setChecked(suffix == chosen)
+        if self._result is not None:
+            self.refresh_scan()
+
+    def _refresh_selected(self) -> None:
+        node = getattr(self, "_selected", -1)
+        if self._store is not None and node >= 0:
+            self.start_scan(self._store.path(node))
+
+    def _exclude_selected(self) -> None:
+        node = getattr(self, "_selected", -1)
+        if self._store is None or node < 0:
+            return
+        name = self._store.name(node)
+        self._filters.exclude_globs = tuple(self._filters.exclude_globs) + (name,)
+        self.refresh_scan()
+
+    def _exclude_pattern(self) -> None:
+        pattern, ok = QInputDialog.getText(
+            self, "Exclude by pattern",
+            "Exclude names matching (for example *.tmp):")
+        if ok and pattern.strip():
+            self._filters.exclude_globs = (
+                tuple(self._filters.exclude_globs) + (pattern.strip(),))
+            self.refresh_scan()
+
+    def _clear_exclusions(self) -> None:
+        self._filters.exclude_globs = ()
+        self._filters.exclude_path_globs = ()
+        self._filters.min_size = 0
+        self.ribbon.action("hidesmall.off").setChecked(True)
+        if self._result is not None:
+            self.refresh_scan()
+
+    def _export_rows(self):
+        """The visible subtree as rows, which is what an export should contain."""
+        node = getattr(self, "_selected", self._root)
+        if self._store is None or node < 0:
+            return []
+        store = self._store
+        rows = [("Name", "Size (bytes)", "Allocated (bytes)", "Files",
+                 "Folders", "Path")]
+        for child in store.children(node):
+            if store.attrs[child] & EXCLUDED:
+                continue
+            rows.append((store.name(child), str(store.size[child]),
+                         str(store.alloc[child]), str(store.file_count[child]),
+                         str(store.folder_count[child]), store.path(child)))
+        return rows
+
+    def _export(self, kind: str) -> None:
+        rows = self._export_rows()
+        if len(rows) < 2:
+            QMessageBox.information(self, "Export", "Nothing to export.")
+            return
+        chooser = {"csv": "CSV (*.csv)", "html": "HTML (*.html)"}[kind]
+        path, _ = QFileDialog.getSaveFileName(self, "Export scan result", "", chooser)
+        if not path:
+            return
+        try:
+            if kind == "csv":
+                import csv
+                # utf-8-sig so Excel opens non-ASCII filenames correctly rather
+                # than mojibake, which is the whole point of exporting to CSV.
+                with open(path, "w", newline="", encoding="utf-8-sig") as handle:
+                    csv.writer(handle).writerows(rows)
+            else:
+                import html
+                body = "\n".join(
+                    "<tr>" + "".join("<td>%s</td>" % html.escape(cell)
+                                     for cell in row) + "</tr>"
+                    for row in rows)
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write("<!doctype html><meta charset=utf-8>"
+                                 "<style>table{border-collapse:collapse}"
+                                 "td,th{border:1px solid #999;padding:3px 6px}"
+                                 "</style><table>" + body + "</table>")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", str(exc))
+            return
+        self.scan_state.setText("Exported %s rows" % format(len(rows) - 1, ","))
+
+    def _export_clipboard(self) -> None:
+        rows = self._export_rows()
+        if len(rows) < 2:
+            return
+        QApplication.clipboard().setText(
+            "\n".join("\t".join(row) for row in rows))
+        self.scan_state.setText("Copied %s rows" % format(len(rows) - 1, ","))
 
     # ---- state ----------------------------------------------------------
 
@@ -227,7 +396,7 @@ class TreeSizeShell(QWidget):
         if self.path_combo.findText(target) < 0:
             self.path_combo.addItem(target)
 
-        worker = ScanWorker(target, filters=filters)
+        worker = ScanWorker(target, filters=filters or self._filters)
         worker.signals.batch_ready.connect(self._on_batch)
         worker.signals.finished.connect(self._on_finished)
         worker.signals.failed.connect(self._on_failed)
@@ -297,7 +466,7 @@ class TreeSizeShell(QWidget):
     def refresh_scan(self) -> None:
         target = self.path_combo.currentText().strip()
         if target:
-            self.start_scan(target)
+            self.start_scan(target, filters=self._filters)
 
     def clear_scan(self) -> None:
         self._store = None
