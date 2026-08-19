@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
 from modules.treesize.store.node_store import (                    # noqa: E402
-    NodeStore, COMPRESSED, SPARSE, REPARSE, ADS, HARDLINK_DUP, EXCLUDED)
+    NodeStore, COMPRESSED, DIR, SPARSE, REPARSE, ADS, HARDLINK_DUP, EXCLUDED)
 from modules.treesize.scan.filters import FilterSet                # noqa: E402
 from modules.treesize.scan.scanner import Scanner, ScanResult      # noqa: E402
 
@@ -76,6 +76,20 @@ def top_children(result: ScanResult, limit: int = 20) -> list[tuple[str, int, in
     return rows[:limit]
 
 
+def top_owners(store, limit: int = 10):
+    """(name, file count, bytes) per owner, largest first."""
+    totals: dict[str, list] = {}
+    for node in range(len(store)):
+        if store.attrs[node] & DIR:
+            continue
+        name = store.owner(store.owner_id[node]) or "(unknown)"
+        entry = totals.setdefault(name, [0, 0])
+        entry[0] += 1
+        entry[1] += store.size[node]
+    ranked = sorted(totals.items(), key=lambda item: item[1][1], reverse=True)
+    return [(name, count, owned) for name, (count, owned) in ranked[:limit]]
+
+
 def summarize(result: ScanResult, limit: int = 20) -> str:
     store = result.store
     root = result.root
@@ -114,6 +128,15 @@ def summarize(result: ScanResult, limit: int = 20) -> str:
             lines.append(f"           ... and {result.error_count - 5:,} more")
     census = ", ".join(f"{label} {count:,}" for label, count in flag_census(store))
     lines.append(f"Flags:     {census}")
+    if any(owner_id >= 0 for owner_id in store.owner_id):
+        # Only printed when owners were actually collected. On the MFT engine
+        # this is the ONLY way to see whether the sampled resolution turned
+        # "$SECURE:<id>" into real account names -- that path needs elevation
+        # and cannot be reached from a test.
+        lines.append("")
+        lines.append("Owners:")
+        for label, count, owned in top_owners(store):
+            lines.append(f"  {format_size(owned):>10}  {count:>9,} files  {label}")
     lines.append("")
     lines.append(f"Top {limit} under {store.name(root)}:")
     for name, size, alloc in top_children(result, limit):
@@ -127,6 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--top", type=int, default=20)
     parser.add_argument("--exclude", action="append", default=[],
                         help="glob to exclude, repeatable")
+    parser.add_argument("--owners", action="store_true",
+                        help="read file owners and print a per-owner breakdown "
+                             "(spec 5.8). On the walk engine this costs a "
+                             "security call per file; on the MFT engine it "
+                             "samples one file per distinct security id.")
     args = parser.parse_args(argv)
 
     if not os.path.exists(args.target):
@@ -134,7 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     scanner = Scanner(args.target,
-                      filters=FilterSet(exclude_globs=tuple(args.exclude)))
+                      filters=FilterSet(exclude_globs=tuple(args.exclude)),
+                      collect_owners=args.owners)
     result = scanner.scan()
     print(summarize(result, args.top))
     # A scan that could not read everything must not exit 0: these numbers are

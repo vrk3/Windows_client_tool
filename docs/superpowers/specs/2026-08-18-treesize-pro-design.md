@@ -188,9 +188,14 @@ entries, together giving roughly an order of magnitude fewer kernel transitions 
 `os.scandir` on deep trees. `WIN32_FIND_DATAW` supplies size, attributes, and all three
 timestamps in the same record.
 
-Directories are distributed across a bounded thread pool, default `min(32, cpu_count * 4)`
-since the work is I/O bound, each worker pushing discovered subdirectories onto a shared
-queue.
+**Amended 2026-08-19 — the walk is single-threaded.** This section originally
+required a bounded thread pool, default `min(32, cpu_count * 4)`, "since the work is I/O
+bound". It is not. `list_directory`'s cost is the Python loop building `DirEntry` objects,
+which holds the GIL; `FindNextFileW` itself returns from a buffer the kernel already
+filled. The pool was built and measured at **1.11x**, and reverted. The requirement rested
+on a rationale that measurement contradicts, so the requirement goes rather than the code.
+`WalkScanner.max_workers` is still accepted and still computed, so that the threading work
+deferred out of phase 1 needs no constructor change if a future measurement justifies it.
 
 Allocated size is real size rounded up to `BytesPerCluster`, not a per-file
 `GetCompressedFileSize` call, which would cost more than the walk itself. Compressed and
@@ -260,9 +265,18 @@ A node is an `int` index into parallel arrays, not an object.
 | `first_child`, `next_sibling` | `array('i')` | child list, -1 terminated |
 | `file_count`, `folder_count` | `array('L')` | subtree counts, filled by rollup |
 
-Names live in one shared `bytearray` as UTF-16LE, addressed by offset and length. Full
-paths are never stored; they are reconstructed by walking `parent` on demand, which is
-the only thing that needs them — context menu, file operations, export.
+Names live in one shared `bytearray`, addressed by offset and length. Full paths are
+never stored; they are reconstructed by walking `parent` on demand, which is the only
+thing that needs them — context menu, file operations, export.
+
+**Amended 2026-08-19 — the name blob is UTF-8, not UTF-16LE.** This section originally
+specified UTF-16LE. Measured against a real `C:`, UTF-16LE names put the store at 137
+bytes per node, against the budget of 104 that the *same section* states below. UTF-8
+brought it to 106. The code met this section's number by violating this section's method,
+so the method is corrected: the budget is the binding requirement and the encoding was
+the means. Names are decoded on access, which only the UI does, and only for rows on
+screen. (Windows filenames are UTF-16 and may contain unpaired surrogates; the blob uses
+`surrogatepass` so a name that round-trips through the store is byte-identical.)
 
 `size` and `alloc` are independent columns, not one derived from the other. The
 verification scan's 385.4 GB / 147.5 GB split (§1.1) is the reason.

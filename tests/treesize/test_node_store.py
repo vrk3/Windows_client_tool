@@ -103,3 +103,25 @@ def test_a_long_windows_name_fits_the_length_column():
     i = s.add(-1, long_name)
     assert s.name_len[i] == 255 * 4
     assert s.name(i) == long_name
+
+
+def test_a_name_with_a_lone_surrogate_does_not_kill_the_scan():
+    """NTFS stores UTF-16 code units without validating them, so a filename
+    can hold an unpaired surrogate. Plain utf-8 refuses to encode one, and
+    `add` is on the hot path of every scan with nothing catching it -- one
+    such file anywhere on the volume ended the whole scan."""
+    store = NodeStore()
+    node = store.add(-1, "bad\ud83dname")
+    assert store.name(node) == "bad\ud83dname", "the name must round-trip exactly"
+
+
+def test_surrogate_names_do_not_disturb_their_neighbours():
+    """The blob is shared and addressed by offset; an encoding that changes
+    length silently would misalign every name added after it."""
+    store = NodeStore()
+    first = store.add(-1, "before.txt")
+    odd = store.add(first, "\udcff")
+    after = store.add(first, "after.txt")
+    assert store.name(first) == "before.txt"
+    assert store.name(odd) == "\udcff"
+    assert store.name(after) == "after.txt"

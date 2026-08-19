@@ -50,7 +50,13 @@ class NodeStore:
             mtime: int = 0, ctime: int = 0, atime: int = 0,
             attrs: int = 0, owner_id: int = -1) -> int:
         idx = len(self.parent)
-        encoded = name.encode("utf-8")
+        # surrogatepass, not plain utf-8: NTFS stores UTF-16 code units
+        # without validating them, so a filename can carry an unpaired
+        # surrogate. Plain utf-8 REFUSES to encode one, and this method is on
+        # the hot path of every scan with nothing catching it -- one such file
+        # anywhere on the volume ended the entire scan. surrogatepass encodes
+        # and decodes it byte-for-byte instead.
+        encoded = name.encode("utf-8", "surrogatepass")
         self.name_off.append(len(self.names))
         self.name_len.append(len(encoded))
         self.names += encoded
@@ -70,7 +76,8 @@ class NodeStore:
 
     def name(self, idx: int) -> str:
         off = self.name_off[idx]
-        return bytes(self.names[off:off + self.name_len[idx]]).decode("utf-8")
+        return bytes(self.names[off:off + self.name_len[idx]]).decode(
+            "utf-8", "surrogatepass")
 
     def path(self, idx: int) -> str:
         """Full path for a node, walking parents to a root.

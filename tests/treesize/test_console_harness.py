@@ -158,3 +158,19 @@ def test_mft_record_slots_reported_when_geometry_is_known():
 def test_record_slots_not_reported_for_a_walk_scan():
     text = summarize(_fake_result(True))
     assert "record slots" not in text
+
+
+def test_owners_flag_reports_who_owns_the_space(tmp_path, capsys):
+    """The MFT owner-sampling path cannot be reached from the UI without an
+    elevated session, so the harness has to be able to exercise it."""
+    (tmp_path / "a.txt").write_bytes(b"x" * 10)
+    main([str(tmp_path), "--owners"])
+    out = capsys.readouterr().out
+    assert "Owners:" in out
+    assert "\\" in out or "(unknown)" in out, out
+
+
+def test_owners_are_left_alone_without_the_flag(tmp_path, capsys):
+    (tmp_path / "a.txt").write_bytes(b"x" * 10)
+    main([str(tmp_path)])
+    assert "Owners:" not in capsys.readouterr().out
