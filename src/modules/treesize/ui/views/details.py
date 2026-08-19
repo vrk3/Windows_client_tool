@@ -16,6 +16,13 @@ from ...store.node_store import (
 )
 
 
+def _signed(value: int, unit, decimals: int) -> str:
+    """A change, with an explicit + so growth and shrinkage read differently
+    at a glance. format_bytes already carries the minus sign."""
+    text = format_bytes(value, unit, decimals)
+    return "+" + text if value > 0 else text
+
+
 def _attribute_letters(attrs: int) -> str:
     """Compact flag column, the way Explorer shows attributes.
 

@@ -110,9 +110,6 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 #: ribbon reports a receiver whether or not anything useful happens. An earlier
 #: version of this test did exactly that and could never fail.
 NOT_YET_IMPLEMENTED = {
-    # Comparison and snapshots: spec phase 5, needs saved scans on disk.
-    "compare.path", "compare.saved", "compare.snapshot", "view.changes",
-    "tools.snapshot",
     # Scheduling and the live watcher: spec phases 5 and 6.
     "scan.schedule", "scan.watch", "tools.scheduled",
     # Separate tools the module does not host.

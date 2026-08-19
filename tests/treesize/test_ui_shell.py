@@ -295,7 +295,7 @@ def test_chart_tab_is_first_because_the_chart_is_a_view_not_a_panel(shell):
     assert shell.views.tabText(0) == "Chart"
     assert [shell.views.tabText(i) for i in range(shell.views.count())] == [
         "Chart", "Details", "Extensions", "File groups", "Users",
-        "Age of Files", "Top Files"]
+        "Age of Files", "Top Files", "History"]
 
 
 def test_extensions_view_totals_the_subtree(shell):

@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..scan.filters import FilterSet
+from ..store import compare, scan_file, snapshots
 from ..store.aggregates import AggregateCache
 from ..store.node_store import EXCLUDED
 from .backstage import Backstage, FindResults, TitleRow
@@ -35,6 +36,7 @@ from .scan_worker import ScanWorker
 from .tree_model import NodeIndexRole
 from .views.chart import ChartView
 from .views.details import DEFAULT_COLUMNS, DetailsView
+from .views.history import HistoryView
 from .views.tables import (
     AgeView, ExtensionsView, FileGroupsView, TopFilesView, UsersView,
 )
@@ -53,7 +55,7 @@ UNIT_ACTIONS = {
 # not a separate panel -- that is spec 5.1's arrangement and the thing most
 # clones get wrong.
 VIEW_TABS = ("Chart", "Details", "Extensions", "File groups", "Users",
-             "Age of Files", "Top Files")
+             "Age of Files", "Top Files", "History")
 
 
 class TreeSizeShell(QWidget):
@@ -112,13 +114,15 @@ class TreeSizeShell(QWidget):
         self.users = UsersView(self.views)
         self.ages = AgeView(self.views)
         self.top_files = TopFilesView(parent=self.views)
+        self.history = HistoryView(self.views)
         for widget, title in ((self.chart, "Chart"),
                               (self.details, "Details"),
                               (self.extensions, "Extensions"),
                               (self.file_groups, "File groups"),
                               (self.users, "Users"),
                               (self.ages, "Age of Files"),
-                              (self.top_files, "Top Files")):
+                              (self.top_files, "Top Files"),
+                              (self.history, "History")):
             self.views.addTab(widget, title)
         self._aggregates = AggregateCache()
 
@@ -136,6 +140,7 @@ class TreeSizeShell(QWidget):
         self._recent: list[str] = []
         self._backstage_open = False
         self._group_scans = False
+        self._comparison = None
         self.config = None
         self._settings = load_settings(None)
 
@@ -179,6 +184,7 @@ class TreeSizeShell(QWidget):
         self.details.node_activated.connect(self._drill_into)
         self.chart.node_clicked.connect(self._on_node_selected)
         self.top_files.node_activated.connect(self._drill_into)
+        self.history.snapshot_chosen.connect(self.compare_with_file)
 
         # One context menu for every pane: the same right-click must offer the
         # same things wherever it happens, or the module stops feeling like a
@@ -236,6 +242,7 @@ class TreeSizeShell(QWidget):
         self.ribbon.action("unit.auto").setChecked(True)
         self.ribbon.action("unit.decimals.1").setChecked(True)
         self.ribbon.action("hidesmall.off").setChecked(True)
+        self.ribbon.set_enabled("view.changes", False)
         self._set_scanning(False)
 
     def _wire_menus(self) -> None:
@@ -262,6 +269,12 @@ class TreeSizeShell(QWidget):
                                ("age", self.ages), ("top", self.top_files)):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
+
+        act("tools.snapshot").triggered.connect(self.create_snapshot)
+        act("compare.saved").triggered.connect(self.compare_with_saved_scan)
+        act("compare.snapshot").triggered.connect(self.compare_with_snapshot)
+        act("compare.path").triggered.connect(self.compare_with_path)
+        act("view.changes").toggled.connect(self.set_show_changes)
 
         act("details.reset").triggered.connect(
             lambda: self.details.set_visible_columns(DEFAULT_COLUMNS))
@@ -338,6 +351,7 @@ class TreeSizeShell(QWidget):
             return
         self._backstage_open = False
         self._group_scans = False
+        self._comparison = None
         self.config = None
         self._settings = load_settings(None)
         self.backstage.hide()
@@ -351,6 +365,126 @@ class TreeSizeShell(QWidget):
             widget.setVisible(self.ribbon.action(action_id).isChecked())
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
+
+    # ---- snapshots and comparison ---------------------------------------
+
+    def _snapshots(self):
+        try:
+            return snapshots.enumerate_snapshots()
+        except OSError:
+            return []
+
+    def create_snapshot(self) -> None:
+        if self._store is None:
+            QMessageBox.information(self, "Create snapshot",
+                                    "Scan something first.")
+            return
+        target = self.path_combo.currentText().strip() or self._store.name(self._root)
+        engine = self._result.engine if self._result else ""
+        cluster = (self._result.volume_info.bytes_per_cluster
+                   if self._result and self._result.volume_info else 0)
+        try:
+            path = snapshots.create(self._store, self._root, target,
+                                    engine=engine, bytes_per_cluster=cluster)
+        except OSError as exc:
+            QMessageBox.warning(self, "Create snapshot", str(exc))
+            return
+        self.scan_state.setText(f"Snapshot saved: {os.path.basename(path)}")
+        if self.views.currentWidget() is self.history:
+            self.history.set_snapshots(self._snapshots())
+
+    def save_scan_as(self) -> None:
+        if self._store is None:
+            QMessageBox.information(self, "Save scan", "Scan something first.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save scan", "", "TreeSize scan (*.tss)")
+        if not path:
+            return
+        header = scan_file.ScanHeader(
+            target=self.path_combo.currentText().strip(),
+            engine=self._result.engine if self._result else "")
+        try:
+            scan_file.save(path, self._store, self._root, header)
+        except OSError as exc:
+            QMessageBox.warning(self, "Save scan", str(exc))
+            return
+        self.scan_state.setText("Scan saved")
+
+    def compare_with_saved_scan(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Compare with saved scan", "",
+            "TreeSize scans (*.tss *.tssnap)")
+        if path:
+            self.compare_with_file(path)
+
+    def compare_with_snapshot(self) -> None:
+        available = self._snapshots()
+        if not available:
+            QMessageBox.information(
+                self, "Compare with snapshot",
+                "No snapshots yet. Use Tools then Create snapshot after a scan.")
+            return
+        labels = [f"{s.when}  —  {s.target}" for s in available]
+        choice, ok = QInputDialog.getItem(self, "Compare with snapshot",
+                                          "Snapshot:", labels, 0, False)
+        if ok and choice in labels:
+            self.compare_with_file(available[labels.index(choice)].path)
+
+    def compare_with_path(self) -> None:
+        """Compare the current scan against a live folder, scanned now."""
+        if self._store is None:
+            QMessageBox.information(self, "Compare with path", "Scan something first.")
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Compare with path")
+        if not folder:
+            return
+        from ..scan.scanner import Scanner
+        try:
+            other = Scanner(folder, filters=self._filters).scan()
+        except OSError as exc:
+            QMessageBox.warning(self, "Compare with path", str(exc))
+            return
+        self._show_comparison(other.store, other.root, folder)
+
+    def compare_with_file(self, path: str) -> None:
+        if self._store is None:
+            QMessageBox.information(self, "Compare", "Scan something first.")
+            return
+        try:
+            other_store, other_root, header = scan_file.load(path)
+        except (scan_file.ScanFileError, OSError) as exc:
+            QMessageBox.warning(self, "Compare", str(exc))
+            return
+        self._show_comparison(other_store, other_root,
+                              header.target or os.path.basename(path))
+
+    def _show_comparison(self, other_store, other_root, label: str) -> None:
+        """Diff runs OLD then NEW: the saved scan is the past, this is now."""
+        delta = compare.diff(other_store, other_root, self._store, self._root)
+        self._comparison = delta
+        self.views.setCurrentWidget(self.history)
+        self.history.set_snapshots(self._snapshots())
+        self.history.show_comparison(
+            f"Compared against {label}: {compare.summarise(delta)}")
+        self.details.show_comparison(compare.flatten(delta))
+        self.views.setCurrentWidget(self.details)
+        # Show size changes only becomes meaningful once a comparison exists,
+        # which is exactly what spec 5.5 says.
+        self.ribbon.set_enabled("view.changes", True)
+        self.ribbon.action("view.changes").setChecked(True)
+
+    def set_show_changes(self, enabled: bool) -> None:
+        if enabled and self._comparison is None:
+            self.ribbon.action("view.changes").setChecked(False)
+            self.scan_state.setText(
+                "Compare against a saved scan or snapshot first")
+            return
+        if enabled:
+            self.details.show_comparison(compare.flatten(self._comparison))
+        else:
+            self.details.show_children_of(self._store,
+                                          getattr(self, "_selected", self._root))
 
     # ---- find, filters, help --------------------------------------------
 
@@ -647,6 +781,7 @@ class TreeSizeShell(QWidget):
         self._filters.exclude_path_globs = ()
         self._filters.min_size = 0
         self.ribbon.action("hidesmall.off").setChecked(True)
+        self.ribbon.set_enabled("view.changes", False)
         if self._result is not None:
             self.refresh_scan()
 
@@ -893,6 +1028,8 @@ class TreeSizeShell(QWidget):
             self.chart.set_scan(self._store, node)
         elif current is self.top_files:
             self.top_files.show_subtree(self._store, node, self._aggregates)
+        elif current is self.history:
+            self.history.set_snapshots(self._snapshots())
         elif current in (self.extensions, self.file_groups, self.users, self.ages):
             current.show_subtree(self._store, node, self._aggregates)
 
