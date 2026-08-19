@@ -15,6 +15,8 @@ The shell owns wiring and no scanning: it hands a target to a Worker and turns
 results into widget state. That keeps the whole file readable and means the
 engine stays testable without a display.
 """
+import os
+
 from PyQt6.QtCore import QModelIndex, Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
@@ -32,6 +34,8 @@ from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .options_dialog import OptionsDialog, load_settings, save_settings
 from .ribbon import Ribbon
+from ..actions import exporters, scheduler
+from ..scan.watcher import Watcher, apply_change
 from .scan_worker import ScanWorker
 from .tree_model import NodeIndexRole
 from .views.chart import ChartView
@@ -60,6 +64,8 @@ VIEW_TABS = ("Chart", "Details", "Extensions", "File groups", "Users",
 
 class TreeSizeShell(QWidget):
     scan_finished = pyqtSignal(object)
+    #: Emitted from the watcher thread; consumed on the UI thread.
+    _changes_seen = pyqtSignal(object)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -141,6 +147,7 @@ class TreeSizeShell(QWidget):
         self._backstage_open = False
         self._group_scans = False
         self._comparison = None
+        self._watcher: Watcher | None = None
         self.config = None
         self._settings = load_settings(None)
 
@@ -236,6 +243,8 @@ class TreeSizeShell(QWidget):
         self.backstage.scan_requested.connect(self.start_scan)
         self.backstage.action_requested.connect(self._run_command)
 
+        self._changes_seen.connect(self._on_watched_changes)
+
         self._wire_menus()
 
         self.ribbon.action("mode.size").setChecked(True)
@@ -270,6 +279,7 @@ class TreeSizeShell(QWidget):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
 
+        act("scan.watch").toggled.connect(self.set_watching)
         act("tools.snapshot").triggered.connect(self.create_snapshot)
         act("compare.saved").triggered.connect(self.compare_with_saved_scan)
         act("compare.snapshot").triggered.connect(self.compare_with_snapshot)
@@ -301,8 +311,15 @@ class TreeSizeShell(QWidget):
         act("scan.refresh.selected").triggered.connect(self._refresh_selected)
         act("scan.stop.all").triggered.connect(self.stop_scan)
 
-        act("export.csv").triggered.connect(lambda: self._export("csv"))
-        act("export.html").triggered.connect(lambda: self._export("html"))
+        act("export.file").triggered.connect(self.export_any)
+        for extension in ("csv", "xlsx", "pdf", "html", "xml", "db", "txt"):
+            act("export." + extension).triggered.connect(
+                lambda _c=False, e=extension: self._export(e))
+        act("schedule.daily").triggered.connect(
+            lambda: self.schedule_scan("DAILY"))
+        act("schedule.weekly").triggered.connect(
+            lambda: self.schedule_scan("WEEKLY"))
+        act("schedule.remove").triggered.connect(self.unschedule_scan)
         act("export.clipboard").triggered.connect(self._export_clipboard)
 
         act("exclude.selected").triggered.connect(self._exclude_selected)
@@ -352,6 +369,7 @@ class TreeSizeShell(QWidget):
         self._backstage_open = False
         self._group_scans = False
         self._comparison = None
+        self._watcher: Watcher | None = None
         self.config = None
         self._settings = load_settings(None)
         self.backstage.hide()
@@ -365,6 +383,68 @@ class TreeSizeShell(QWidget):
             widget.setVisible(self.ribbon.action(action_id).isChecked())
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
+
+    # ---- scheduling -----------------------------------------------------
+
+    def schedule_scan(self, frequency: str) -> None:
+        target = self.path_combo.currentText().strip()
+        if not target:
+            QMessageBox.information(self, "Schedule scan",
+                                    "Pick a scan target first.")
+            return
+        ok, message = scheduler.schedule(target, frequency)
+        if ok:
+            QMessageBox.information(self, "Schedule scan", message)
+        else:
+            QMessageBox.warning(self, "Schedule scan", message)
+        self.scan_state.setText(message)
+
+    def unschedule_scan(self) -> None:
+        ok, message = scheduler.unschedule()
+        QMessageBox.information(self, "Scheduled scan", message)
+        self.scan_state.setText(message)
+
+    # ---- live updates ---------------------------------------------------
+
+    def set_watching(self, enabled: bool) -> None:
+        """Spec 3.5. Off by default: it holds a handle on the scanned root."""
+        if not enabled:
+            self._stop_watching()
+            return
+        target = self.path_combo.currentText().strip()
+        if self._store is None or not target or not os.path.isdir(target):
+            self.ribbon.action("scan.watch").setChecked(False)
+            self.scan_state.setText("Scan a folder first to watch it")
+            return
+        self._watcher = Watcher(target, self._changes_seen.emit)
+        self._watcher.start()
+        self.scan_state.setText(f"Watching {target}")
+
+    def _stop_watching(self) -> None:
+        if self._watcher is not None:
+            self._watcher.stop()
+            self._watcher = None
+            self.scan_state.setText("")
+
+    def _on_watched_changes(self, changes) -> None:
+        """Apply a coalesced batch. Runs on the UI thread by signal.
+
+        The watcher fires from its own thread, so the store must not be touched
+        there: it is emitted through a signal and mutated here, which is the
+        same threading contract the scan worker follows.
+        """
+        if self._store is None:
+            return
+        total = 0
+        for change in changes:
+            total += apply_change(self._store, self._root, change.path)
+        if total:
+            self.directory_tree.tree_model.refresh_values()
+            self.scan_overview.show_node(self._store,
+                                         getattr(self, "_selected", self._root),
+                                         self.directory_tree.tree_model.unit)
+            from .formatting import format_bytes
+            self.scan_state.setText(f"Watching — {format_bytes(total)} changed")
 
     # ---- snapshots and comparison ---------------------------------------
 
@@ -801,37 +881,57 @@ class TreeSizeShell(QWidget):
                          str(store.folder_count[child]), store.path(child)))
         return rows
 
-    def _export(self, kind: str) -> None:
-        rows = self._export_rows()
-        if len(rows) < 2:
-            QMessageBox.information(self, "Export", "Nothing to export.")
+    def _has_rows_to_export(self) -> bool:
+        """Checked BEFORE the file dialog opens.
+
+        Asking someone to name a file and then telling them there was nothing
+        to put in it is a worse order than saying so first.
+        """
+        if len(self._export_rows()) >= 2:
+            return True
+        QMessageBox.information(self, "Export", "There is nothing to export.")
+        return False
+
+    def export_any(self) -> None:
+        """One dialog offering every format this machine can produce."""
+        if not self._has_rows_to_export():
             return
-        chooser = {"csv": "CSV (*.csv)", "html": "HTML (*.html)"}[kind]
-        path, _ = QFileDialog.getSaveFileName(self, "Export scan result", "", chooser)
+        formats = exporters.available_formats()
+        chooser = ";;".join(formats.values())
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export scan result", "", chooser)
+        if path:
+            self._export_to(path)
+
+    def _export(self, kind: str) -> None:
+        if not self._has_rows_to_export():
+            return
+        formats = exporters.available_formats()
+        if kind not in formats:
+            QMessageBox.information(
+                self, "Export",
+                f"The {kind.upper()} format needs a package that is not "
+                f"installed on this machine.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export scan result", "", formats[kind])
         if not path:
             return
+        if not os.path.splitext(path)[1]:
+            path += "." + kind
+        self._export_to(path)
+
+    def _export_to(self, path: str) -> None:
+        rows = self._export_rows()
+        title = self.path_combo.currentText().strip() or "TreeSize scan"
         try:
-            if kind == "csv":
-                import csv
-                # utf-8-sig so Excel opens non-ASCII filenames correctly rather
-                # than mojibake, which is the whole point of exporting to CSV.
-                with open(path, "w", newline="", encoding="utf-8-sig") as handle:
-                    csv.writer(handle).writerows(rows)
-            else:
-                import html
-                body = "\n".join(
-                    "<tr>" + "".join("<td>%s</td>" % html.escape(cell)
-                                     for cell in row) + "</tr>"
-                    for row in rows)
-                with open(path, "w", encoding="utf-8") as handle:
-                    handle.write("<!doctype html><meta charset=utf-8>"
-                                 "<style>table{border-collapse:collapse}"
-                                 "td,th{border:1px solid #999;padding:3px 6px}"
-                                 "</style><table>" + body + "</table>")
-        except OSError as exc:
+            exporters.export(path, rows, title=title)
+        except exporters.ExportError as exc:
             QMessageBox.warning(self, "Export failed", str(exc))
             return
-        self.scan_state.setText("Exported %s rows" % format(len(rows) - 1, ","))
+        self.scan_state.setText(
+            "Exported %s rows to %s" % (format(len(rows) - 1, ","),
+                                        os.path.basename(path)))
 
     def _export_clipboard(self) -> str:
         """Copy the visible rows and RETURN what was copied.
@@ -966,6 +1066,8 @@ class TreeSizeShell(QWidget):
             self.start_scan(target, filters=self._filters)
 
     def clear_scan(self) -> None:
+        self._stop_watching()
+        self.ribbon.action("scan.watch").setChecked(False)
         self._store = None
         self._root = -1
         self._result = None

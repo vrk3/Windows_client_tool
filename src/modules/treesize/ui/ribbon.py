@@ -61,7 +61,7 @@ RIBBON: tuple = (
                      ("compare.snapshot", "Compare with snapshot", False, False),
                      ("compare.path", "Compare with path", False, False),
                      ("view.changes", "Show size changes", False, False))),
-        ("Schedule", (("scan.schedule", "Schedule\nthis scan", True, False),)),
+        ("Schedule", (("scan.schedule", "Schedule\nthis scan", True, True),)),
     )),
     ("Tools", (
         ("Settings", (("tools.options", "Options", True, True),)),
@@ -135,8 +135,15 @@ MENUS: dict = {
     "unit.decimals": (("unit.decimals.0", "0 decimals"),
                       ("unit.decimals.1", "1 decimal"),
                       ("unit.decimals.2", "2 decimals")),
-    "result.export": (("export.csv", "Export to CSV…"),
+    "result.export": (("export.file", "Export…"),
+                      None,
+                      ("export.csv", "Export to CSV…"),
+                      ("export.xlsx", "Export to Excel…"),
+                      ("export.pdf", "Export to PDF…"),
                       ("export.html", "Export to HTML…"),
+                      ("export.xml", "Export to XML…"),
+                      ("export.db", "Export to SQLite…"),
+                      ("export.txt", "Export to Text…"),
                       None,
                       ("export.clipboard", "Copy to clipboard")),
     "scan.exclude": (("exclude.selected", "Exclude selected folder"),
@@ -159,6 +166,10 @@ MENUS: dict = {
                       ("tools.options.import", "Import settings…"),
                       ("tools.options.reset", "Reset settings")),
     "tools.search": (("tools.search.open", "Open TreeSize File Search"),),
+    "scan.schedule": (("schedule.daily", "Run this scan daily"),
+                      ("schedule.weekly", "Run this scan weekly"),
+                      None,
+                      ("schedule.remove", "Remove the scheduled task")),
     "details.columns": (),      # filled at runtime from the Details view
 }
 

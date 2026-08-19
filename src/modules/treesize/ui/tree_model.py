@@ -107,6 +107,14 @@ class DirectoryTreeModel(QAbstractItemModel):
     def unit(self) -> Unit:
         return self._unit
 
+    def refresh_values(self) -> None:
+        """Repaint every row without moving any of them.
+
+        A live update changes numbers, not structure, so a reset here would
+        collapse the tree under someone who is watching a folder grow.
+        """
+        self._repaint_all()
+
     def _repaint_all(self) -> None:
         if self._store is None or not len(self._store):
             return

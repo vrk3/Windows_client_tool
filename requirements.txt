@@ -9,6 +9,12 @@ requests>=2.31
 # gracefully without it (see network_diagnostics/network_tools.py).
 scapy>=2.5
 
+# Optional — TreeSize export formats. Excel and PDF are offered only when
+# these are present; every other format needs nothing beyond the standard
+# library (see modules/treesize/actions/exporters.py).
+openpyxl>=3.1
+reportlab>=4.0
+
 # Dev / test only
 pytest>=7.0
 pytest-timeout>=2.2

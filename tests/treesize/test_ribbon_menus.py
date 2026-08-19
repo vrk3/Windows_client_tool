@@ -111,13 +111,14 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 #: version of this test did exactly that and could never fail.
 NOT_YET_IMPLEMENTED = {
     # Scheduling and the live watcher: spec phases 5 and 6.
-    "scan.schedule", "scan.watch", "tools.scheduled",
+    "tools.scheduled",
     # Separate tools the module does not host.
     "tools.search", "tools.search.open", "tools.software", "tools.restore",
     # Autosize-on-refresh is a stored preference with no consumer yet.
     "details.autosize",
     # Menu parents: the button face does nothing, the arrow opens a working menu.
     "scan.select", "result.export", "scan.exclude", "view.select",
+    "scan.schedule",
     "view.hidesmall", "unit.decimals",
 }
 
@@ -140,6 +141,8 @@ def _connected_ids() -> set:
     ids |= {"view.go." + s for s in ("chart", "details", "extensions",
                                      "groups", "users", "age", "top")}
     ids |= {"hidesmall." + s for s in ("off", "1mb", "10mb", "100mb")}
+    ids |= {"export." + e for e in ("csv", "xlsx", "pdf", "html",
+                                    "xml", "db", "txt")}
     ids |= set(re.findall(r'"(mode\.[a-z]+)"', src))
     ids |= set(re.findall(r'"(unit\.[a-z]+)"', src))
     ids |= set(re.findall(r'"(panel\.[a-z]+)"', src))

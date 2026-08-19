@@ -76,6 +76,10 @@ class TreeSizeModule(BaseModule):
     def cancel_all_workers(self) -> None:
         if self._shell is not None:
             self._shell.stop_scan()
+            # The watcher holds a handle on the scanned root, so leaving it
+            # running after the pane is deactivated would keep a volume busy
+            # for a view nobody is looking at.
+            self._shell._stop_watching()
 
     def get_status_info(self) -> str:
         return self._last_summary
