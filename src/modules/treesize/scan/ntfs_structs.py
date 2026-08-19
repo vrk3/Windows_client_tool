@@ -104,6 +104,7 @@ class AttrHeader:
     alloc_size: int
     compressed_size: int
     runs_offset: int
+    start_vcn: int = 0
 
 
 def parse_attr_header(attr) -> AttrHeader:
@@ -123,6 +124,12 @@ def parse_attr_header(attr) -> AttrHeader:
     if name_len and name_off:
         name = bytes(attr[name_off:name_off + name_len * 2]).decode("utf-16-le")
     if non_resident:
+        # A non-resident attribute too large for one record is split across
+        # several. ONLY the fragment starting at VCN 0 carries the true
+        # data_size and alloc_size; later fragments repeat the header with a
+        # non-zero start VCN, so counting them multiplies the file's size by
+        # its fragment count.
+        start_vcn = struct.unpack_from("<Q", attr, 0x10)[0]
         runs_offset = struct.unpack_from("<H", attr, 0x20)[0]
         alloc_size = struct.unpack_from("<Q", attr, 0x28)[0]
         data_size = struct.unpack_from("<Q", attr, 0x30)[0]
@@ -130,7 +137,8 @@ def parse_attr_header(attr) -> AttrHeader:
         if flags & FLAG_COMPRESSED:
             compressed_size = struct.unpack_from("<Q", attr, 0x40)[0]
         return AttrHeader(type_id, length, True, name, flags, 0, 0,
-                          data_size, alloc_size, compressed_size, runs_offset)
+                          data_size, alloc_size, compressed_size, runs_offset,
+                          start_vcn)
     value_length = struct.unpack_from("<I", attr, 0x10)[0]
     value_offset = struct.unpack_from("<H", attr, 0x14)[0]
     return AttrHeader(type_id, length, False, name, flags, value_offset,

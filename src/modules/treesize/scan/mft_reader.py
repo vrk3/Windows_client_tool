@@ -65,8 +65,12 @@ def _read_attributes(record: bytearray, header, out: "ParsedRecord",
             if h.name:
                 out.flags |= ADS
             if h.non_resident:
-                out.size += h.data_size
-                out.alloc += h.compressed_size if (h.flags & FLAG_COMPRESSED) else h.alloc_size
+                # Later fragments of a split attribute repeat these sizes; only
+                # the VCN-0 fragment states them once. See parse_attr_header.
+                if h.start_vcn == 0:
+                    out.size += h.data_size
+                    out.alloc += (h.compressed_size if (h.flags & FLAG_COMPRESSED)
+                                  else h.alloc_size)
                 if h.flags & FLAG_COMPRESSED:
                     out.flags |= COMPRESSED
                 if h.flags & FLAG_SPARSE:
@@ -150,6 +154,9 @@ class MftTreeBuilder:
         # NTFS $Secure id -> index into the store's interned owner table. The
         # cache keeps this to one dict lookup per record instead of formatting
         # a string half a million times.
+        # base record_no -> (size, alloc, flags) contributed by its extension
+        # records, applied in finish() once every base node exists.
+        self._spill: dict[int, tuple[int, int, int]] = {}
         self._owner_of: dict[int, int] = {}
         self._index_of: dict[int, int] = {}      # record_no -> node index
         self._sequence: dict[int, int] = {}      # record_no -> sequence
@@ -177,7 +184,16 @@ class MftTreeBuilder:
 
     def feed(self, rec: ParsedRecord) -> None:
         if rec.base_ref:
-            return                              # $ATTRIBUTE_LIST extension record
+            # An $ATTRIBUTE_LIST extension record: attributes that outgrew the
+            # base record. It is not a file of its own and must never become a
+            # node, but its $DATA belongs to the base. Buffered rather than
+            # applied now, because MFT order gives no guarantee the base record
+            # has been seen yet.
+            if rec.size or rec.alloc or (rec.flags & ADS):
+                size, alloc, flags = self._spill.get(rec.base_ref, (0, 0, 0))
+                self._spill[rec.base_ref] = (size + rec.size, alloc + rec.alloc,
+                                             flags | (rec.flags & ADS))
+            return
         if rec.record_no == ROOT_RECORD_NO:
             self.root = self.store.add(-1, self.volume_label, attrs=rec.flags | DIR)
             self._index_of[rec.record_no] = self.root
@@ -207,6 +223,13 @@ class MftTreeBuilder:
         return self.orphan_root
 
     def finish(self) -> None:
+        for base_no, (size, alloc, flags) in self._spill.items():
+            node = self._index_of.get(base_no)
+            if node is None:
+                continue        # base deleted, or outside the scanned range
+            self.store.size[node] += size
+            self.store.alloc[node] += alloc
+            self.store.attrs[node] |= flags
         if self.root < 0:
             self.root = self.store.add(-1, self.volume_label, attrs=DIR)
             self._index_of[ROOT_RECORD_NO] = self.root
