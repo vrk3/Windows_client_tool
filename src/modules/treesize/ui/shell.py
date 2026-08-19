@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 from ..scan.filters import FilterSet
 from ..store.aggregates import AggregateCache
 from ..store.node_store import EXCLUDED
+from .context_menu import RowActions
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
@@ -62,6 +63,7 @@ class TreeSizeShell(QWidget):
         self._result = None
         self._worker: ScanWorker | None = None
         self._filters = FilterSet()
+        self.row_actions = RowActions(self)
         self._paused = False
         self._pool = QThreadPool.globalInstance()
 
@@ -153,6 +155,19 @@ class TreeSizeShell(QWidget):
         self.details.node_activated.connect(self._drill_into)
         self.chart.node_clicked.connect(self._on_node_selected)
         self.top_files.node_activated.connect(self._drill_into)
+
+        # One context menu for every pane: the same right-click must offer the
+        # same things wherever it happens, or the module stops feeling like a
+        # single product.
+        self.directory_tree.customContextMenuRequested.connect(
+            self._tree_context_menu)
+        for table in (self.details, self.top_files, self.extensions,
+                      self.file_groups, self.users, self.ages):
+            table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.details.customContextMenuRequested.connect(
+            lambda pos: self._table_context_menu(self.details, pos))
+        self.top_files.customContextMenuRequested.connect(
+            lambda pos: self._table_context_menu(self.top_files, pos))
         # Aggregates are computed lazily per tab: building all six for every
         # selection would walk the subtree six times for five views nobody is
         # looking at.
@@ -482,6 +497,35 @@ class TreeSizeShell(QWidget):
         self.scan_overview.clear()
         self.status_bar.clear()
         self._set_scanning(False)
+
+    # ---- context menus --------------------------------------------------
+
+    def _tree_context_menu(self, pos) -> None:
+        index = self.directory_tree.indexAt(pos)
+        if not index.isValid():
+            return
+        from .tree_model import NodeIndexRole
+        node = index.data(NodeIndexRole)
+        if node is None:
+            return
+        menu = self.row_actions.menu_for(int(node), self.directory_tree)
+        if menu is not None:
+            menu.exec(self.directory_tree.viewport().mapToGlobal(pos))
+
+    def _table_context_menu(self, table, pos) -> None:
+        item = table.itemAt(pos)
+        if item is None:
+            return
+        from PyQt6.QtCore import Qt as _Qt
+        node = item.data(0, _Qt.ItemDataRole.UserRole)
+        if node is None:
+            from .views.tables import NodeRole
+            node = item.data(0, NodeRole)
+        if node is None:
+            return
+        menu = self.row_actions.menu_for(int(node), table)
+        if menu is not None:
+            menu.exec(table.viewport().mapToGlobal(pos))
 
     # ---- selection ------------------------------------------------------
 
