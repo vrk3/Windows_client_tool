@@ -101,19 +101,73 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 
 # ---- every entry does something ----------------------------------------
 
-def test_every_menu_entry_is_connected(shell):
-    """An entry wired to nothing looks like it worked. None may be inert."""
-    from PyQt6.QtCore import QObject
-    unwired = []
-    for action_id, entries in MENUS.items():
-        for entry in entries:
-            if entry is None:
-                continue
-            action = shell.ribbon.action(entry[0])
-            if action.receivers(action.triggered) == 0:
-                unwired.append(entry[0])
-    # The runtime-filled target menu carries no static entries.
-    assert unwired == [], f"menu entries with no handler: {sorted(unwired)}"
+#: Ribbon ids that are deliberately not implemented yet. Every one of these is
+#: a real gap, not a decision — they are listed so the count is honest and so
+#: adding a handler shows up as a test failure telling you to shorten the list.
+#:
+#: Do NOT use QAction.receivers(triggered) to detect this: QToolButton
+#: .setDefaultAction() connects to triggered internally, so every action in the
+#: ribbon reports a receiver whether or not anything useful happens. An earlier
+#: version of this test did exactly that and could never fail.
+NOT_YET_IMPLEMENTED = {
+    "compare.path", "compare.saved", "compare.snapshot",
+    "help.about", "help.contents",
+    "result.email", "scan.schedule", "scan.watch", "tree.find",
+    "tools.admin", "tools.mapdrive", "tools.recyclebin", "tools.restore",
+    "tools.scheduled", "tools.snapshot", "tools.software",
+    "tools.search", "tools.search.open",
+    "tools.options", "tools.options.open", "tools.options.export",
+    "tools.options.import", "tools.options.reset",
+    "view.changes", "view.group", "view.hideempty",
+    # Menu parents: the face does nothing, the arrow opens a working menu.
+    "scan.select", "result.export", "scan.exclude", "view.select",
+    "view.hidesmall", "unit.decimals",
+}
+
+
+def _connected_ids() -> set:
+    """Ids the shell explicitly connects, read from its source.
+
+    Static analysis rather than introspection, for the reason in the comment
+    above: Qt's own internal connections make runtime introspection useless
+    here.
+    """
+    import re
+    from pathlib import Path
+    import modules.treesize.ui.shell as shell_module
+    src = Path(shell_module.__file__).read_text(encoding="utf-8")
+    ids = set(re.findall(r'action\("([^"]+)"\)\.(?:triggered|toggled)', src))
+    ids |= set(re.findall(r'act\("([^"]+)"\)\.triggered', src))
+    ids |= {"tree.expand.%d" % d for d in (1, 2, 3)}
+    ids |= {"unit.decimals.%d" % d for d in (0, 1, 2)}
+    ids |= {"view.go." + s for s in ("chart", "details", "extensions",
+                                     "groups", "users", "age", "top")}
+    ids |= {"hidesmall." + s for s in ("off", "1mb", "10mb", "100mb")}
+    ids |= set(re.findall(r'"(mode\.[a-z]+)"', src))
+    ids |= set(re.findall(r'"(unit\.[a-z]+)"', src))
+    ids |= set(re.findall(r'"(panel\.[a-z]+)"', src))
+    return ids
+
+
+def test_no_ribbon_id_is_silently_unimplemented(qapp):
+    """Every id is either wired, or on the list admitting it is not.
+
+    The point is that the gap cannot grow quietly: a new button with no
+    handler fails here until someone either wires it or writes it down.
+    """
+    button_ids = {i for _t, groups in RIBBON for _c, buttons in groups
+                  for i, _l, _lg, _d in buttons}
+    menu_ids = {e[0] for entries in MENUS.values() for e in entries if e}
+    unaccounted = (button_ids | menu_ids) - _connected_ids() - NOT_YET_IMPLEMENTED
+    assert unaccounted == set(), (
+        f"ribbon ids that do nothing and are not declared unimplemented: "
+        f"{sorted(unaccounted)}")
+
+
+def test_the_unimplemented_list_has_no_stale_entries(qapp):
+    """Wiring something must shorten the list, or the count drifts from truth."""
+    stale = NOT_YET_IMPLEMENTED & _connected_ids()
+    assert stale == set(), f"listed as unimplemented but actually wired: {sorted(stale)}"
 
 
 def test_scan_target_menu_lists_real_drives(shell):
