@@ -15,6 +15,12 @@ scapy>=2.5
 openpyxl>=3.1
 reportlab>=4.0
 
+# Optional — TreeSize remote scan targets (spec section 6). SSH/SFTP and
+# WebDAV are offered only when these are present; local drives and folders
+# need neither.
+paramiko>=3.4
+httpx>=0.27
+
 # Dev / test only
 pytest>=7.0
 pytest-timeout>=2.2

@@ -406,6 +406,67 @@ class TreeSizeShell(QWidget):
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
 
+    # ---- remote targets -------------------------------------------------
+
+    def scan_remote(self) -> None:
+        """Scan an SSH or WebDAV target into the same store (spec 6).
+
+        Runs on the calling thread deliberately: the remote walk is one request
+        per directory, and threading it before the local scan\u2019s incremental
+        population exists would mean two different threading stories to keep
+        straight. It honours the same cancel contract, so moving it later is
+        wiring rather than redesign.
+        """
+        from .remote_dialog import RemoteTargetDialog
+        from ..targets.base import TargetError
+        from ..store.node_store import DIR
+        from ..store.node_store import NodeStore
+        from ..store.rollup import rollup
+
+        dialog = RemoteTargetDialog(self)
+        if dialog.exec() != RemoteTargetDialog.DialogCode.Accepted:
+            return
+        target, label = dialog.selected()
+        if target is None:
+            QMessageBox.warning(self, "Remote target", label)
+            return
+
+        self._set_scanning(True)
+        store = NodeStore()
+        root = store.add(-1, label, attrs=DIR)
+        try:
+            target.enumerate(store, root, on_batch=self._on_batch)
+        except TargetError as exc:
+            QMessageBox.warning(self, "Remote target", str(exc))
+            self._set_scanning(False)
+            return
+        except Exception as exc:                    # noqa: BLE001
+            QMessageBox.warning(self, "Remote target",
+                                f"{type(exc).__name__}: {exc}")
+            self._set_scanning(False)
+            return
+        finally:
+            target.close()
+        rollup(store)
+
+        errors = tuple(getattr(target, "errors", ()) or ())
+
+        class _Result:
+            pass
+
+        result = _Result()
+        result.store, result.root = store, root
+        result.node_count = len(store)
+        result.excluded = 0
+        result.engine = target.id
+        result.volume_info = None            # no cluster geometry remotely
+        result.complete = not errors
+        result.errors = errors
+        result.error_count = len(errors)
+        result.elapsed = 0.0
+        self.path_combo.setEditText(label)
+        self.show_result(result)
+
     # ---- menu-parent faces ----------------------------------------------
 
     def _cycle_view(self) -> None:
@@ -851,6 +912,67 @@ class TreeSizeShell(QWidget):
         self.apply_settings(dict(DEFAULTS))
         self.scan_state.setText("Options reset to defaults")
 
+    # ---- remote targets -------------------------------------------------
+
+    def scan_remote(self) -> None:
+        """Scan an SSH or WebDAV target into the same store (spec 6).
+
+        Runs on the calling thread deliberately: the remote walk is one request
+        per directory, and threading it before the local scan\u2019s incremental
+        population exists would mean two different threading stories to keep
+        straight. It honours the same cancel contract, so moving it later is
+        wiring rather than redesign.
+        """
+        from .remote_dialog import RemoteTargetDialog
+        from ..targets.base import TargetError
+        from ..store.node_store import DIR
+        from ..store.node_store import NodeStore
+        from ..store.rollup import rollup
+
+        dialog = RemoteTargetDialog(self)
+        if dialog.exec() != RemoteTargetDialog.DialogCode.Accepted:
+            return
+        target, label = dialog.selected()
+        if target is None:
+            QMessageBox.warning(self, "Remote target", label)
+            return
+
+        self._set_scanning(True)
+        store = NodeStore()
+        root = store.add(-1, label, attrs=DIR)
+        try:
+            target.enumerate(store, root, on_batch=self._on_batch)
+        except TargetError as exc:
+            QMessageBox.warning(self, "Remote target", str(exc))
+            self._set_scanning(False)
+            return
+        except Exception as exc:                    # noqa: BLE001
+            QMessageBox.warning(self, "Remote target",
+                                f"{type(exc).__name__}: {exc}")
+            self._set_scanning(False)
+            return
+        finally:
+            target.close()
+        rollup(store)
+
+        errors = tuple(getattr(target, "errors", ()) or ())
+
+        class _Result:
+            pass
+
+        result = _Result()
+        result.store, result.root = store, root
+        result.node_count = len(store)
+        result.excluded = 0
+        result.engine = target.id
+        result.volume_info = None            # no cluster geometry remotely
+        result.complete = not errors
+        result.errors = errors
+        result.error_count = len(errors)
+        result.elapsed = 0.0
+        self.path_combo.setEditText(label)
+        self.show_result(result)
+
     # ---- menu-parent faces ----------------------------------------------
 
     def _cycle_view(self) -> None:
@@ -949,6 +1071,8 @@ class TreeSizeShell(QWidget):
             items.append((root, lambda _c=False, r=root: self.start_scan(r)))
         items.append((None, None))
         items.append(("Select folder\u2026", self._browse_for_folder))
+        items.append((None, None))
+        items.append(("Remote target\u2026", self.scan_remote))
         self.ribbon.set_menu_items("scan.select", items)
 
     def _browse_for_folder(self) -> None:
