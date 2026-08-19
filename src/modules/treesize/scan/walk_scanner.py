@@ -11,11 +11,12 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Callable
 
-from ..store.node_store import NodeStore, DIR, REPARSE
+from ..store.node_store import NodeStore, DIR, REPARSE, HIDDEN
 
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 FILE_ATTRIBUTE_DIRECTORY = 0x10
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+FILE_ATTRIBUTE_HIDDEN = 0x2
 FindExInfoBasic = 1
 FindExSearchNameMatch = 0
 FIND_FIRST_EX_LARGE_FETCH = 2
@@ -59,6 +60,7 @@ class DirEntry:
     name: str
     is_dir: bool
     is_reparse: bool
+    is_hidden: bool
     size: int
     ctime: int
     mtime: int
@@ -90,6 +92,7 @@ def list_directory(path: str) -> list[DirEntry]:
                     name=name,
                     is_dir=bool(attrs & FILE_ATTRIBUTE_DIRECTORY),
                     is_reparse=bool(attrs & FILE_ATTRIBUTE_REPARSE_POINT),
+                    is_hidden=bool(attrs & FILE_ATTRIBUTE_HIDDEN),
                     size=(data.nFileSizeHigh << 32) | data.nFileSizeLow,
                     ctime=data.ftCreationTime.value,
                     mtime=data.ftLastWriteTime.value,
@@ -135,6 +138,8 @@ class WalkScanner:
                     flags |= DIR
                 if entry.is_reparse:
                     flags |= REPARSE
+                if entry.is_hidden:
+                    flags |= HIDDEN
                 size = 0 if entry.is_dir else entry.size
                 if self.exclude is not None and self.exclude(entry.name, size, flags):
                     continue
