@@ -45,6 +45,11 @@ class TreeSizeModule(BaseModule):
         # the pane by descent and leaves every other module's styling alone.
         apply_theme(self._shell)
         self._shell.scan_finished.connect(self._on_scan_finished)
+        config = getattr(self, "_config", None)
+        if config is not None:
+            from modules.treesize.ui.options_dialog import load_settings
+            self._shell.config = config
+            self._shell.apply_settings(load_settings(config))
         # Elevation only changes which engine is chosen, never whether the
         # module works, so it is a note rather than a gate.
         self._shell.ribbon.set_enabled("tools.admin", not _is_admin())
@@ -53,6 +58,10 @@ class TreeSizeModule(BaseModule):
 
     def on_start(self, app) -> None:
         self._app = app
+        # on_start runs BEFORE create_widget, so only the reference is stored
+        # here -- touching the shell would be touching a widget that does not
+        # exist yet.
+        self._config = getattr(app, "config", None)
 
     def on_activate(self) -> None:
         if self._shell is not None:

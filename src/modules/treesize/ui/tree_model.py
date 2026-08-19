@@ -14,10 +14,10 @@ layoutChanged, never a model reset: a reset on a multi-million-node model
 collapses the whole tree and throws away the user's expansion state.
 """
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
-from PyQt6.QtWidgets import QApplication, QStyle
 
 from ..store.node_store import DIR, EXCLUDED
 from .formatting import Mode, Unit, bar_fraction, format_value
+from .icons import IconProvider
 
 COLUMN_NAME = 0
 COLUMN_VALUE = 1
@@ -42,8 +42,7 @@ class DirectoryTreeModel(QAbstractItemModel):
         # access by row, so each expanded parent's children are materialised
         # once and reused.
         self._children: dict[int, tuple[int, ...]] = {}
-        self._dir_icon = None
-        self._file_icon = None
+        self._icons = IconProvider()
         # Sorting must apply to folders expanded AFTER the sort, not only to
         # the ones already materialised, or expanding a new folder silently
         # yields MFT order. Held here and applied inside children_of().
@@ -208,13 +207,16 @@ class DirectoryTreeModel(QAbstractItemModel):
         return None
 
     def _icon_for(self, node: int):
-        """Two shared QIcons, not one per row -- an icon per node would cost
-        more than the entire node store."""
-        if self._dir_icon is None:
-            style = QApplication.style()
-            self._dir_icon = style.standardIcon(QStyle.StandardPixmap.SP_DirIcon)
-            self._file_icon = style.standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-        return self._dir_icon if self._store.attrs[node] & DIR else self._file_icon
+        """Explorer's own icon for the row, cached per extension.
+
+        Per extension, not per file: a volume has a few hundred distinct
+        extensions and half a million files, so an icon per file would cost
+        more memory than the entire node store.
+        """
+        store = self._store
+        if store.attrs[node] & DIR:
+            return self._icons.folder()
+        return self._icons.for_name(store.name(node))
 
     # ---- sorting --------------------------------------------------------
 

@@ -42,6 +42,7 @@ class TreemapWidget(QWidget):
         self._grid: HitGrid | None = None
         self._hover = -1
         self._colors: dict[int, QColor] = {}
+        self.max_depth = 6
 
     def set_scan(self, store, root: int) -> None:
         self._store = store
@@ -55,7 +56,8 @@ class TreemapWidget(QWidget):
             self.update()
             return
         self._rects = build_treemap(self._store, self._root,
-                                    float(self.width()), float(self.height()))
+                                    float(self.width()), float(self.height()),
+                                    max_depth=self.max_depth)
         self._grid = HitGrid(self._rects, float(self.width()), float(self.height()))
         self.update()
 

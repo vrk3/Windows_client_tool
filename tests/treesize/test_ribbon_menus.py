@@ -111,14 +111,13 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 #: version of this test did exactly that and could never fail.
 NOT_YET_IMPLEMENTED = {
     "compare.path", "compare.saved", "compare.snapshot",
-    "help.about", "help.contents",
+    "help.contents",
     "result.email", "scan.schedule", "scan.watch", "tree.find",
-    "tools.admin", "tools.mapdrive", "tools.recyclebin", "tools.restore",
+    "tools.restore",
     "tools.scheduled", "tools.snapshot", "tools.software",
     "tools.search", "tools.search.open",
-    "tools.options", "tools.options.open", "tools.options.export",
-    "tools.options.import", "tools.options.reset",
-    "view.changes", "view.group", "view.hideempty",
+    "tools.options.export",
+    "tools.options.import", "view.changes", "view.group", "view.hideempty",
     # Menu parents: the face does nothing, the arrow opens a working menu.
     "scan.select", "result.export", "scan.exclude", "view.select",
     "view.hidesmall", "unit.decimals",

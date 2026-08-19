@@ -29,6 +29,7 @@ from .context_menu import RowActions
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
+from .options_dialog import OptionsDialog, load_settings, save_settings
 from .ribbon import Ribbon
 from .scan_worker import ScanWorker
 from .views.chart import ChartView
@@ -133,6 +134,8 @@ class TreeSizeShell(QWidget):
                       self.status_bar)
         self._recent: list[str] = []
         self._backstage_open = False
+        self.config = None
+        self._settings = load_settings(None)
 
         self._wire()
         self.drive_list.refresh()
@@ -257,6 +260,14 @@ class TreeSizeShell(QWidget):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
 
+        act("tools.options.open").triggered.connect(self.open_options)
+        act("tools.options").triggered.connect(self.open_options)
+        act("tools.options.reset").triggered.connect(self.reset_options)
+        act("tools.recyclebin").triggered.connect(self.empty_recycle_bin)
+        act("tools.mapdrive").triggered.connect(self.map_network_drive)
+        act("help.about").triggered.connect(self.show_about)
+        act("tools.admin").triggered.connect(self.explain_elevation)
+
         act("scan.refresh.all").triggered.connect(self.refresh_scan)
         act("scan.refresh.selected").triggered.connect(self._refresh_selected)
         act("scan.stop.all").triggered.connect(self.stop_scan)
@@ -310,6 +321,8 @@ class TreeSizeShell(QWidget):
         if not self._backstage_open:
             return
         self._backstage_open = False
+        self.config = None
+        self._settings = load_settings(None)
         self.backstage.hide()
         self.ribbon.pages.show()
         for widget in self._body:
@@ -321,6 +334,87 @@ class TreeSizeShell(QWidget):
             widget.setVisible(self.ribbon.action(action_id).isChecked())
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
+
+    # ---- options --------------------------------------------------------
+
+    def apply_settings(self, settings: dict) -> None:
+        """Push settings into the widgets that consume them."""
+        self._settings = dict(settings)
+        try:
+            self.set_unit(Unit(settings["unit"]))
+            self.set_decimals(int(settings["decimals"]))
+            self.set_mode(Mode(settings["mode"]))
+        except (ValueError, KeyError):
+            # A stored value from an older build should not stop the module
+            # opening; the defaults already loaded are usable.
+            pass
+        self._filters.exclude_hidden = bool(settings.get("exclude_hidden", False))
+        self.top_files._limit = int(settings.get("top_files_limit", 100))
+        self.chart.treemap.max_depth = int(settings.get("treemap_depth", 6))
+        self._aggregates.clear()
+        self._refresh_right_pane()
+
+    def open_options(self) -> None:
+        dialog = OptionsDialog(self._settings, self)
+        if dialog.exec() != OptionsDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        save_settings(self.config, values)
+        self.apply_settings(values)
+        self.scan_state.setText("Options saved")
+
+    def reset_options(self) -> None:
+        from .options_dialog import DEFAULTS
+        save_settings(self.config, dict(DEFAULTS))
+        self.apply_settings(dict(DEFAULTS))
+        self.scan_state.setText("Options reset to defaults")
+
+    # ---- tools ----------------------------------------------------------
+
+    def empty_recycle_bin(self) -> None:
+        import ctypes
+        if QMessageBox.question(
+                self, "Empty Recycle Bin",
+                "Permanently remove everything in the Recycle Bin?"
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        # SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND: the
+        # confirmation above is ours, so the shell must not ask again.
+        result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 0x7)
+        if result == 0:
+            self.scan_state.setText("Recycle Bin emptied")
+        else:
+            self.scan_state.setText("Recycle Bin was already empty")
+
+    def map_network_drive(self) -> None:
+        import subprocess
+        subprocess.Popen(["rundll32.exe", "shell32.dll,SHHelpShortcuts_RunDLL",
+                          "Connect"])
+
+    def show_about(self) -> None:
+        QMessageBox.information(
+            self, "About TreeSize",
+            "TreeSize\n\nDisk space analysis built on a direct NTFS MFT reader, "
+            "with a directory-walk fallback when the fast path is unavailable.\n\n"
+            "Part of the Windows client tool.")
+
+    def explain_elevation(self) -> None:
+        import ctypes
+        try:
+            elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except Exception:                       # noqa: BLE001
+            elevated = False
+        if elevated:
+            QMessageBox.information(
+                self, "Already elevated",
+                "This session is already running as administrator, so whole-drive "
+                "scans use the fast MFT path.")
+            return
+        QMessageBox.information(
+            self, "Start as administrator",
+            "Whole-drive scans use a much faster path when elevated, and can "
+            "read locations a normal user cannot.\n\nRestart the application as "
+            "administrator to enable it. Folder scans work either way.")
 
     def _refresh_target_menu(self) -> None:
         """The scan-target list is whatever drives exist now, not a fixed list."""
