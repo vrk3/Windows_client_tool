@@ -23,11 +23,16 @@ from PyQt6.QtWidgets import (
 
 from ..scan.filters import FilterSet
 from ..scan.scanner import Scanner
+from ..store.aggregates import AggregateCache
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
 from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .ribbon import Ribbon
+from .views.chart import ChartView
 from .views.details import DetailsView
+from .views.tables import (
+    AgeView, ExtensionsView, FileGroupsView, TopFilesView, UsersView,
+)
 
 MODE_ACTIONS = {
     "mode.size": Mode.SIZE,
@@ -39,9 +44,11 @@ UNIT_ACTIONS = {
     "unit.auto": Unit.AUTO, "unit.tb": Unit.TB, "unit.gb": Unit.GB,
     "unit.mb": Unit.MB, "unit.kb": Unit.KB, "unit.b": Unit.B,
 }
-# Views that exist in phase 2. The rest are tabs in the spec's strip and land
-# in phase 3; they are not shown yet rather than shown empty.
-VIEW_TABS = ("Details",)
+# The right-hand tab strip, in the product's order. The chart is a VIEW here,
+# not a separate panel -- that is spec 5.1's arrangement and the thing most
+# clones get wrong.
+VIEW_TABS = ("Chart", "Details", "Extensions", "File groups", "Users",
+             "Age of Files", "Top Files")
 
 
 class TreeSizeShell(QWidget):
@@ -77,8 +84,22 @@ class TreeSizeShell(QWidget):
         left.setStretchFactor(1, 1)
 
         self.views = QTabWidget(self.splitter)
+        self.chart = ChartView(self.views)
         self.details = DetailsView(self.views)
-        self.views.addTab(self.details, "Details")
+        self.extensions = ExtensionsView(self.views)
+        self.file_groups = FileGroupsView(self.views)
+        self.users = UsersView(self.views)
+        self.ages = AgeView(self.views)
+        self.top_files = TopFilesView(parent=self.views)
+        for widget, title in ((self.chart, "Chart"),
+                              (self.details, "Details"),
+                              (self.extensions, "Extensions"),
+                              (self.file_groups, "File groups"),
+                              (self.users, "Users"),
+                              (self.ages, "Age of Files"),
+                              (self.top_files, "Top Files")):
+            self.views.addTab(widget, title)
+        self._aggregates = AggregateCache()
 
         self.splitter.addWidget(left)
         self.splitter.addWidget(self.views)
@@ -127,6 +148,12 @@ class TreeSizeShell(QWidget):
         self.directory_tree.node_selected.connect(self._on_node_selected)
         self.directory_tree.node_activated.connect(self._on_node_selected)
         self.details.node_activated.connect(self._drill_into)
+        self.chart.node_clicked.connect(self._on_node_selected)
+        self.top_files.node_activated.connect(self._drill_into)
+        # Aggregates are computed lazily per tab: building all six for every
+        # selection would walk the subtree six times for five views nobody is
+        # looking at.
+        self.views.currentChanged.connect(lambda _i: self._refresh_right_pane())
 
         for action_id, mode in MODE_ACTIONS.items():
             self.ribbon.action(action_id).triggered.connect(
@@ -165,7 +192,9 @@ class TreeSizeShell(QWidget):
 
     def set_unit(self, unit: Unit) -> None:
         self.directory_tree.tree_model.set_unit(unit)
-        self.details.set_unit(unit)
+        for view in (self.details, self.extensions, self.file_groups,
+                     self.users, self.ages, self.top_files):
+            view.set_unit(unit)
         for action_id, candidate in UNIT_ACTIONS.items():
             self.ribbon.action(action_id).setChecked(candidate is unit)
         self._refresh_right_pane()
@@ -228,8 +257,13 @@ class TreeSizeShell(QWidget):
         self._store = None
         self._root = -1
         self._result = None
+        self._aggregates.clear()
         self.directory_tree.tree_model.clear()
         self.details.show_children_of(None, -1)
+        self.chart.set_scan(None, -1)
+        for view in (self.extensions, self.file_groups, self.users,
+                     self.ages, self.top_files):
+            view.clear()
         self.scan_overview.clear()
         self.status_bar.clear()
         self._set_scanning(False)
@@ -240,12 +274,22 @@ class TreeSizeShell(QWidget):
         self._selected = node
         self.scan_overview.show_node(self._store, node,
                                      self.directory_tree.tree_model.unit)
-        self.details.show_children_of(self._store, node)
+        self._refresh_right_pane()
 
     def _refresh_right_pane(self) -> None:
+        """Populate only the visible view."""
         node = getattr(self, "_selected", self._root)
-        if self._store is not None:
+        if self._store is None or node < 0:
+            return
+        current = self.views.currentWidget()
+        if current is self.details:
             self.details.show_children_of(self._store, node)
+        elif current is self.chart:
+            self.chart.set_scan(self._store, node)
+        elif current is self.top_files:
+            self.top_files.show_subtree(self._store, node, self._aggregates)
+        elif current in (self.extensions, self.file_groups, self.users, self.ages):
+            current.show_subtree(self._store, node, self._aggregates)
 
     def _drill_into(self, node: int) -> None:
         self._on_node_selected(node)
