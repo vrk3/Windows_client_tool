@@ -15,11 +15,21 @@ scapy>=2.5
 openpyxl>=3.1
 reportlab>=4.0
 
-# Optional — TreeSize remote scan targets (spec section 6). SSH/SFTP and
-# WebDAV are offered only when these are present; local drives and folders
-# need neither.
+# Optional — TreeSize remote scan targets (spec section 6). Each backend is
+# offered only when its package is present, and says which one it wants when
+# it is not; local drives and folders need none of them. Outlook needs only
+# pywin32, which is already a hard dependency above.
+#   paramiko    -> SSH / SFTP
+#   httpx       -> WebDAV, and SharePoint through Microsoft Graph
+#   boto3       -> AWS S3
+#   azure-*     -> Azure Blob Storage
+#   google-*    -> Google Drive
 paramiko>=3.4
 httpx>=0.27
+boto3>=1.34
+azure-storage-blob>=12.19
+google-api-python-client>=2.120
+google-auth-oauthlib>=1.2
 
 # Dev / test only
 pytest>=7.0

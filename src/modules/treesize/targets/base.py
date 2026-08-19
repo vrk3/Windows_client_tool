@@ -15,8 +15,21 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from ..store.node_store import DIR
+
 #: What a service says when it wants us to slow down or come back later.
 THROTTLE_STATUSES = (429, 503)
+
+#: The Unix epoch in FILETIME terms, and its tick rate. Every remote gives a
+#: Unix timestamp; every node in the store holds a Windows FILETIME.
+FILETIME_EPOCH_OFFSET = 11_644_473_600
+FILETIME_TICKS_PER_SECOND = 10_000_000
+
+
+def unix_to_filetime(seconds: float) -> int:
+    if not seconds or seconds < 0:
+        return 0
+    return int((seconds + FILETIME_EPOCH_OFFSET) * FILETIME_TICKS_PER_SECOND)
 
 
 def retry_on_throttle(call, attempts: int = 5, base_delay: float = 0.5,
@@ -68,12 +81,29 @@ class Credentials:
     extra: dict = field(default_factory=dict)
 
 
+#: The connect dialog's fields, in the order it lays them out.
+FORM_FIELDS = ("host", "port", "username", "password", "root")
+
+
 class ScanTarget(ABC):
     id: str = ""
     display_name: str = ""
     icon: str = ""
     #: False for anything read-only or remote without a delete story.
     file_ops: bool = False
+
+    #: What this backend calls each field of the connect dialog. Spec 6.1
+    #: keeps ONE dialog for every backend -- "they differ in which fields
+    #: matter, not in what a connection is" -- so the difference shows up
+    #: here rather than in seven dialogs. A field mapped to None is not used
+    #: by this backend and is hidden, because a Port box on an S3 connection
+    #: is not a harmless extra: it invites a value that goes nowhere.
+    form_labels: dict = {"host": "Host", "port": "Port", "username": "User",
+                         "password": "Password", "root": "Path"}
+    #: Fields without which the connection cannot even be attempted. Checked
+    #: in the dialog so the refusal names the field, rather than surfacing as
+    #: an SDK error three layers down.
+    required_fields: tuple = ("host",)
 
     def __init__(self, credentials: Credentials | None = None) -> None:
         self.credentials = credentials or Credentials()
@@ -130,7 +160,6 @@ class RemoteEnumerator:
              should_cancel=None, wait_if_paused=None,
              batch_size: int = 500) -> int:
         from collections import deque
-        from ..store.node_store import DIR
 
         queue = deque([(root, root_path)])
         batch_start = len(store)
@@ -148,7 +177,13 @@ class RemoteEnumerator:
                 # local walker treats an access-denied folder.
                 self.record_error(path, str(exc))
                 continue
-            for name, size, is_dir, mtime in entries:
+            for entry in entries:
+                # A fifth element is the key to descend by, for backends whose
+                # children are addressed by an opaque id rather than by a path
+                # (Graph does this). Four elements means the path is the name
+                # joined onto its parent, which is the SSH and WebDAV case.
+                name, size, is_dir, mtime = entry[:4]
+                child_key = entry[4] if len(entry) > 4 else None
                 attrs = DIR if is_dir else 0
                 child = store.add(node, name, size=0 if is_dir else size,
                                   # No cluster geometry remotely, so allocated
@@ -156,7 +191,9 @@ class RemoteEnumerator:
                                   alloc=0 if is_dir else size,
                                   mtime=mtime, attrs=attrs)
                 if is_dir:
-                    queue.append((child, _join(path, name)))
+                    queue.append(
+                        (child, child_key if child_key is not None
+                         else _join(path, name)))
             if on_batch and len(store) - batch_start >= batch_size:
                 on_batch((batch_start, len(store)))
                 batch_start = len(store)
@@ -169,6 +206,59 @@ class RemoteEnumerator:
 def _join(path: str, name: str) -> str:
     """POSIX-style join: remote targets are not Windows paths."""
     return (path.rstrip("/") + "/" + name) if path else name
+
+
+class PrefixTreeBuilder:
+    """Synthesize a folder tree from flat object keys (spec 6.2).
+
+    S3 and Azure Blob have no folders at all: "a/b/c.txt" is one key whose
+    slashes mean nothing to the service. Every view in this pane is a tree, so
+    the slashes are given their conventional meaning here, once, instead of in
+    each backend.
+
+    Folders are created on first sight and reused after, which is what keeps a
+    million keys under one prefix from producing a million copies of it.
+    """
+
+    def __init__(self, store, root: int) -> None:
+        self._store = store
+        self._root = root
+        self._folders: dict[str, int] = {"": root}
+        self._files: set[str] = set()
+
+    def add(self, key: str, size: int, mtime: int = 0) -> None:
+        if not key or key.endswith("/"):
+            # A zero-byte key ending in "/" is a console's way of drawing an
+            # empty folder. It is not a file, and naming a node after it gives
+            # every such folder a nameless 0-byte child.
+            if key:
+                self._folder_for(key.rstrip("/"))
+            return
+        if key in self._files:
+            return
+        self._files.add(key)
+        head, _, name = key.rpartition("/")
+        parent = self._folder_for(head) if head else self._root
+        self._store.add(parent, name, size=size,
+                        # No cluster geometry in an object store; reporting a
+                        # rounded-up allocation would be inventing a number.
+                        alloc=size, mtime=mtime)
+
+    def _folder_for(self, prefix: str) -> int:
+        if not prefix:
+            return self._root
+        existing = self._folders.get(prefix)
+        if existing is not None:
+            return existing
+        head, _, name = prefix.rpartition("/")
+        parent = self._folder_for(head) if head else self._root
+        node = self._store.add(parent, name, size=0, alloc=0, attrs=DIR)
+        self._folders[prefix] = node
+        return node
+
+    def finish(self) -> int:
+        self._store.build_child_lists()
+        return len(self._store)
 
 
 _REGISTRY: dict = {}

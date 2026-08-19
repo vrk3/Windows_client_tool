@@ -12,19 +12,10 @@ import time
 from xml.etree import ElementTree
 
 from .base import (
-    Credentials, RemoteEnumerator, ScanTarget, TargetError, register,
-    retry_on_throttle,
+    Credentials, FILETIME_EPOCH_OFFSET, FILETIME_TICKS_PER_SECOND,
+    RemoteEnumerator, ScanTarget, TargetError, register, retry_on_throttle,
+    unix_to_filetime,
 )
-
-FILETIME_EPOCH_OFFSET = 11_644_473_600
-FILETIME_TICKS_PER_SECOND = 10_000_000
-
-
-def unix_to_filetime(seconds: float) -> int:
-    """Remote timestamps are Unix seconds; the store holds Windows FILETIME."""
-    if not seconds or seconds < 0:
-        return 0
-    return int((seconds + FILETIME_EPOCH_OFFSET) * FILETIME_TICKS_PER_SECOND)
 
 
 class SshTarget(ScanTarget):
@@ -111,6 +102,8 @@ class WebDavTarget(ScanTarget):
     display_name = "WebDAV"
     icon = "🌐"
     file_ops = False
+    form_labels = {"host": "Server URL", "port": None, "username": "User",
+                   "password": "Password", "root": "Path"}
 
     DAV = "{DAV:}"
     PROPFIND_BODY = (

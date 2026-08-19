@@ -343,13 +343,19 @@ def test_an_unusable_backend_is_disabled_with_a_reason(qapp):
 
 
 def test_a_missing_host_is_refused_before_connecting(qapp):
+    """SSH cannot connect to nothing, and finding that out from paramiko is
+    a worse experience than being told in the dialog."""
     from modules.treesize.ui.remote_dialog import RemoteTargetDialog
     dialog = RemoteTargetDialog()
+    index = next((i for i in range(dialog.backend.count())
+                  if dialog.backend.itemData(i) == "ssh"), None)
+    if index is None or not dialog._classes["ssh"][1]:
+        pytest.skip("paramiko is not installed on this machine")
+    dialog.backend.setCurrentIndex(index)
     dialog.host.setText("   ")
     target, message = dialog.selected()
-    if target is None and "host is required" not in message:
-        pytest.skip("selected backend is unavailable on this machine")
     assert target is None
+    assert "required" in message
 
 
 def test_a_filled_in_dialog_produces_a_usable_target(qapp):
@@ -548,10 +554,17 @@ def test_webdav_retries_a_throttled_propfind(qapp):
 # ---- remembering a password from the dialog (spec 6.2) ------------------
 
 def _usable_backend(dialog):
+    """A usable backend that actually HAS a password to remember.
+
+    Outlook is usable wherever pywin32 is and has no password field at all,
+    so "the first usable one" is not the same question.
+    """
     for i in range(dialog.backend.count()):
-        if dialog._classes[dialog.backend.itemData(i)][1]:
-            dialog.backend.setCurrentIndex(i)
-            return dialog.backend.itemData(i)
+        target_id = dialog.backend.itemData(i)
+        target_class, usable, _why = dialog._classes[target_id]
+        if usable and target_class.form_labels.get("password"):
+            dialog.select_backend(target_id)
+            return target_id
     return None
 
 
