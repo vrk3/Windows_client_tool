@@ -54,6 +54,7 @@ def main():
     from modules.reliability.reliability_module import ReliabilityModule
     from modules.crash_dumps.crash_dump_module import CrashDumpModule
     from modules.perfmon.perfmon_module import PerfMonModule
+    from modules.treesize.treesize_module import TreeSizeModule
     from modules.process_explorer.process_explorer_module import ProcessExplorerModule
 
     app.module_registry.register(EventViewerModule())
@@ -64,6 +65,7 @@ def main():
     app.module_registry.register(CrashDumpModule())
     app.module_registry.register(PerfMonModule())
     app.module_registry.register(ProcessExplorerModule())
+    app.module_registry.register(TreeSizeModule())
 
     # Start modules (calls on_start before create_widget)
     app.start()
