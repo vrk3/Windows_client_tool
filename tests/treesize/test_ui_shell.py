@@ -297,3 +297,94 @@ def test_clearing_empties_the_aggregate_views(shell):
     assert shell.extensions.topLevelItemCount() > 0
     shell.clear_scan()
     assert shell.extensions.topLevelItemCount() == 0
+
+
+# ---- title row, find box, backstage -------------------------------------
+
+def test_quick_access_buttons_show_glyphs_not_labels(shell):
+    """setDefaultAction would bind the button text to the action label and the
+    QAT would read 'Refresh scan / Stop / Export', swamping the row."""
+    from PyQt6.QtWidgets import QToolButton
+    glyphs = [b.text() for b in shell.title_row.findChildren(QToolButton)]
+    assert glyphs == ["⟳", "■", "⇪"]
+    tips = [b.toolTip() for b in shell.title_row.findChildren(QToolButton)]
+    assert tips == ["Refresh scan", "Stop", "Export"]
+
+
+def test_quick_access_buttons_follow_action_enablement(shell):
+    from PyQt6.QtWidgets import QToolButton
+    stop_button = shell.title_row.findChildren(QToolButton)[1]
+    shell.ribbon.action("scan.stop").setEnabled(False)
+    assert not stop_button.isEnabled()
+    shell.ribbon.action("scan.stop").setEnabled(True)
+    assert stop_button.isEnabled()
+
+
+def test_find_box_searches_ribbon_commands(shell):
+    """Pro's Find option finds COMMANDS, not files."""
+    shell.title_row.find_box.setText("expand")
+    assert shell.find_results.count() > 0
+    labels = [shell.find_results.item(i).text()
+              for i in range(shell.find_results.count())]
+    assert any("Expand" in l for l in labels)
+
+
+def test_find_box_stays_quiet_for_one_character(shell):
+    shell.title_row.find_box.setText("e")
+    assert shell.find_results.isHidden()
+
+
+def test_choosing_a_find_result_runs_the_command(shell):
+    shell.views.setCurrentWidget(shell.details)
+    shell.title_row.find_box.setText("Users")
+    item = next(shell.find_results.item(i)
+                for i in range(shell.find_results.count())
+                if "view.go.users" in shell.find_results.item(i).text())
+    shell.find_results._chosen(item)
+    assert shell.views.currentWidget() is shell.users
+
+
+def test_the_file_tab_opens_the_backstage_and_hides_the_body(shell):
+    # isHidden(), not isVisible(): the fixture never calls show(), so nothing
+    # is "visible" and isVisible() would be False for every widget either way.
+    # isHidden() reports the explicit hide state, which is what is under test.
+    shell.ribbon.tab_bar.setCurrentIndex(0)          # File
+    assert not shell.backstage.isHidden()
+    assert shell.nav_bar.isHidden(), "the nav bar must not show through"
+    assert shell.splitter.isHidden()
+    assert shell.ribbon.pages.isHidden()
+
+
+def test_leaving_the_file_tab_restores_the_body(shell):
+    shell.ribbon.tab_bar.setCurrentIndex(0)
+    shell.ribbon.tab_bar.setCurrentIndex(1)
+    assert shell.backstage.isHidden()
+    assert not shell.nav_bar.isHidden()
+    assert not shell.splitter.isHidden()
+    assert not shell.ribbon.pages.isHidden()
+
+
+def test_closing_the_backstage_honours_panel_toggles(shell):
+    """Restoring the body must not force back a panel the user switched off."""
+    shell.ribbon.action("panel.status").setChecked(False)
+    shell.ribbon.tab_bar.setCurrentIndex(0)
+    shell.ribbon.tab_bar.setCurrentIndex(1)
+    assert shell.status_bar.isHidden()
+
+
+def test_backstage_lists_recent_targets(shell, tmp_path):
+    (tmp_path / "a.bin").write_bytes(b"x")
+    shell.start_scan(str(tmp_path))
+    assert shell.wait_for_scan(60_000)
+    shell.ribbon.tab_bar.setCurrentIndex(0)
+    entries = [shell.backstage.recent.item(i).text()
+               for i in range(shell.backstage.recent.count())]
+    assert str(tmp_path) in entries
+
+
+def test_backstage_shows_a_hint_when_there_are_no_scans(qapp):
+    from modules.treesize.ui.backstage import Backstage
+    page = Backstage()
+    page.set_recent([])
+    assert page.recent.count() == 1
+    assert not (page.recent.item(0).flags() & Qt.ItemFlag.ItemIsEnabled)

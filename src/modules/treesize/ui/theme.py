@@ -120,6 +120,40 @@ QScrollBar::handle:vertical {{
 }}
 QScrollBar::handle:vertical:hover {{ background: {muted}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+
+#titleRow {{ background: {ribbon}; border-bottom: 1px solid {border}; }}
+#paneTitle {{ color: {text}; font-weight: 600; }}
+#qatButton {{
+    color: {muted}; padding: 1px 6px; border: 1px solid transparent;
+    border-radius: 2px; font-size: 13px;
+}}
+#qatButton:hover {{ background: {selection}; color: {text}; }}
+#findOption {{
+    background: {bg}; color: {text}; border: 1px solid {border};
+    border-radius: 2px; padding: 2px 6px;
+}}
+#findOption:focus {{ border: 1px solid {accent}; }}
+#findResults {{
+    background: {panel}; border: 1px solid {accent}; color: {text};
+}}
+#findResults::item {{ padding: 3px 8px; }}
+#findResults::item:selected {{ background: {selection}; }}
+
+#backstage {{ background: {bg}; }}
+#backstageRail {{ background: {ribbon}; border-right: 1px solid {border}; }}
+#backstageBack, #backstageEntry {{
+    background: transparent; color: {text}; border: none;
+    text-align: left; padding: 7px 10px; border-radius: 2px;
+}}
+#backstageBack:hover, #backstageEntry:hover {{ background: {selection}; }}
+#backstageHeading {{ color: {text}; font-size: 17px; font-weight: 600; }}
+#recentList {{ background: {bg}; border: none; color: {text}; }}
+#recentList::item {{ padding: 5px 4px; }}
+#recentList::item:selected {{ background: {selection}; }}
+#breadcrumb {{
+    background: transparent; color: {accent}; border: none; padding: 1px 4px;
+}}
+#breadcrumb:hover {{ text-decoration: underline; }}
 """
 
 

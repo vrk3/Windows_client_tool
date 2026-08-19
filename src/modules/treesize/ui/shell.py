@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 from ..scan.filters import FilterSet
 from ..store.aggregates import AggregateCache
 from ..store.node_store import EXCLUDED
+from .backstage import Backstage, FindResults, TitleRow
 from .context_menu import RowActions
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
@@ -72,9 +73,22 @@ class TreeSizeShell(QWidget):
         layout.setSpacing(0)
 
         self.ribbon = Ribbon(self)
+        self.title_row = TitleRow(self.ribbon, self)
+        layout.addWidget(self.title_row)
         layout.addWidget(self.ribbon)
 
-        layout.addWidget(self._build_nav_bar())
+        self.find_results = FindResults(self.ribbon, self)
+        layout.addWidget(self.find_results)
+
+        # The File tab opens a full-pane page, not a dropdown. It replaces the
+        # whole body rather than sitting inside it, which is what "backstage"
+        # means in a ribbon application.
+        self.backstage = Backstage(self)
+        self.backstage.hide()
+        layout.addWidget(self.backstage, 1)
+
+        self.nav_bar = self._build_nav_bar()
+        layout.addWidget(self.nav_bar)
 
         self.scan_overview = ScanOverview(self)
         layout.addWidget(self.scan_overview)
@@ -114,6 +128,11 @@ class TreeSizeShell(QWidget):
 
         self.status_bar = TreeSizeStatusBar(self)
         layout.addWidget(self.status_bar)
+
+        self._body = (self.nav_bar, self.splitter, self.scan_overview,
+                      self.status_bar)
+        self._recent: list[str] = []
+        self._backstage_open = False
 
         self._wire()
         self.drive_list.refresh()
@@ -198,6 +217,13 @@ class TreeSizeShell(QWidget):
             action.setChecked(True)
             action.toggled.connect(widget.setVisible)
 
+        self.title_row.find_requested.connect(self.find_results.search)
+        self.find_results.command_chosen.connect(self._run_command)
+        self.ribbon.tab_changed.connect(self._on_tab_changed)
+        self.backstage.closed.connect(self._close_backstage)
+        self.backstage.scan_requested.connect(self.start_scan)
+        self.backstage.action_requested.connect(self._run_command)
+
         self._wire_menus()
 
         self.ribbon.action("mode.size").setChecked(True)
@@ -249,6 +275,52 @@ class TreeSizeShell(QWidget):
                 lambda _c=False, t=threshold, sfx=suffix: self._set_min_size(t, sfx))
 
         self._refresh_target_menu()
+
+    def _run_command(self, action_id: str) -> None:
+        """Fire a ribbon command by id, from the Find box or the backstage.
+
+        A menu parent (Export, Select scan target) has no useful click action of
+        its own, so its menu is popped up instead of triggering nothing.
+        """
+        self._close_backstage()
+        menu = self.ribbon.menu(action_id)
+        action = self.ribbon.actions_by_id.get(action_id)
+        if menu is not None and menu.actions():
+            menu.popup(self.mapToGlobal(self.rect().topLeft()))
+            return
+        if action is not None:
+            action.trigger()
+
+    def _on_tab_changed(self, name: str) -> None:
+        if name == "File":
+            self.backstage.set_recent(self._recent)
+            for widget in self._body:
+                widget.hide()
+            self.ribbon.pages.hide()
+            self.backstage.show()
+            self._backstage_open = True
+        else:
+            self._close_backstage()
+
+    def _close_backstage(self) -> None:
+        # Tracked explicitly rather than read off isVisible(): a widget that has
+        # not been shown yet reports isVisible() False even while the backstage
+        # is the active page, and this method would then return without ever
+        # restoring the body.
+        if not self._backstage_open:
+            return
+        self._backstage_open = False
+        self.backstage.hide()
+        self.ribbon.pages.show()
+        for widget in self._body:
+            widget.show()
+        # Panel toggles own the visibility of two of these, so honour them
+        # rather than forcing everything back on.
+        for action_id, widget in (("panel.overview", self.scan_overview),
+                                  ("panel.status", self.status_bar)):
+            widget.setVisible(self.ribbon.action(action_id).isChecked())
+        if self.ribbon.tab_bar.currentIndex() == 0:
+            self.ribbon.tab_bar.setCurrentIndex(1)
 
     def _refresh_target_menu(self) -> None:
         """The scan-target list is whatever drives exist now, not a fixed list."""
@@ -416,6 +488,10 @@ class TreeSizeShell(QWidget):
         self.path_combo.setEditText(target)
         if self.path_combo.findText(target) < 0:
             self.path_combo.addItem(target)
+        if target in self._recent:
+            self._recent.remove(target)
+        self._recent.insert(0, target)
+        del self._recent[8:]
 
         worker = ScanWorker(target, filters=filters or self._filters)
         worker.signals.batch_ready.connect(self._on_batch)
