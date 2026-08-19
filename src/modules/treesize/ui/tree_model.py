@@ -48,6 +48,7 @@ class DirectoryTreeModel(QAbstractItemModel):
         # yields MFT order. Held here and applied inside children_of().
         self._sort_key = None
         self._sort_desc = True
+        self._hide_empty = False
 
     # ---- population -----------------------------------------------------
 
@@ -65,6 +66,16 @@ class DirectoryTreeModel(QAbstractItemModel):
 
     def clear(self) -> None:
         self.set_scan(None, -1)
+
+    def set_hide_empty(self, hidden: bool) -> None:
+        if hidden == self._hide_empty:
+            return
+        self._hide_empty = hidden
+        # The child lists are cached, so they have to be dropped and the views
+        # told, or the change would not appear until something else reset them.
+        self.beginResetModel()
+        self._children.clear()
+        self.endResetModel()
 
     def set_mode(self, mode: Mode) -> None:
         """Mode is pane state: it repaints every row but moves none of them."""
@@ -117,6 +128,11 @@ class DirectoryTreeModel(QAbstractItemModel):
             return cached
         store = self._store
         kids = [c for c in store.children(node) if not (store.attrs[c] & EXCLUDED)]
+        if self._hide_empty:
+            # Zero SIZE, not zero children: a folder holding only empty files
+            # is what "empty" means to someone freeing space.
+            kids = [c for c in kids
+                    if store.size[c] > 0 or not (store.attrs[c] & DIR)]
         if self._sort_key is not None:
             kids.sort(key=self._sort_key, reverse=self._sort_desc)
         result = tuple(kids)

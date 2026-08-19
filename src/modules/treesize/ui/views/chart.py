@@ -10,8 +10,13 @@ per-pixel cushion: at tens of thousands of tiles the difference is invisible
 and the cost is not.
 """
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFontMetrics, QLinearGradient, QPainter, QPen
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtGui import (
+    QColor, QFontMetrics, QLinearGradient, QPainter, QPen,
+)
+from PyQt6.QtWidgets import (
+    QButtonGroup, QHBoxLayout, QLabel, QPushButton, QToolButton, QVBoxLayout,
+    QWidget,
+)
 
 from ...store.node_store import DIR
 from ..formatting import format_bytes
@@ -147,6 +152,135 @@ class TreemapWidget(QWidget):
             self.node_drilled.emit(hit.node)
 
 
+class SliceChart(QWidget):
+    """Pie or bar over the immediate children of the current node.
+
+    Deliberately only ONE level deep, unlike the treemap. A pie of a whole
+    subtree is unreadable, and Pro's pie answers a different question from its
+    treemap: "how is this folder divided", not "where is everything".
+
+    Children past the tenth are folded into one neutral "Other" slice rather
+    than cycling the palette. Reusing a hue for an unrelated folder is actively
+    misleading, and dropping them silently makes the percentages not add to 100.
+    """
+
+    MAX_SLICES = 10
+    OTHER_COLOR = QColor(0x6B, 0x6B, 0x6B)
+
+    node_clicked = pyqtSignal(int)
+
+    def __init__(self, bars: bool = False, parent=None) -> None:
+        super().__init__(parent)
+        self._bars = bars
+        self._store = None
+        self._rows: list = []          # (node, name, size, fraction, color)
+        self.setMinimumHeight(160)
+
+    def set_scan(self, store, node: int) -> None:
+        self._store = store
+        self._rows = []
+        if store is not None and 0 <= node < len(store):
+            from ...store.node_store import EXCLUDED
+            kids = [c for c in store.children(node)
+                    if not (store.attrs[c] & EXCLUDED) and store.size[c] > 0]
+            kids.sort(key=lambda n: store.size[n], reverse=True)
+            total = sum(store.size[c] for c in kids)
+            if total > 0:
+                head, tail = kids[:self.MAX_SLICES], kids[self.MAX_SLICES:]
+                for i, child in enumerate(head):
+                    self._rows.append((child, store.name(child),
+                                       store.size[child],
+                                       store.size[child] / total,
+                                       PALETTE[i % len(PALETTE)]))
+                if tail:
+                    folded = sum(store.size[c] for c in tail)
+                    self._rows.append((-1, f"Other ({len(tail)})", folded,
+                                       folded / total, self.OTHER_COLOR))
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self.rect(), QColor(0x1F, 0x1F, 0x1F))
+        if not self._rows:
+            painter.setPen(QColor(0x9D, 0x9D, 0x9D))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                             "Nothing to chart")
+            return
+        if self._bars:
+            self._paint_bars(painter)
+        else:
+            self._paint_pie(painter)
+
+    def _paint_pie(self, painter: QPainter) -> None:
+        size = min(self.height() - 16, self.width() // 2)
+        cx, cy, r = size // 2 + 12, self.height() // 2, size // 2 - 6
+        angle = 90 * 16                     # start at twelve o'clock
+        for _node, _name, _size, fraction, color in self._rows:
+            sweep = -int(360 * 16 * fraction)
+            painter.setPen(QPen(QColor(0x1F, 0x1F, 0x1F), 1))
+            painter.setBrush(color)
+            painter.drawPie(cx - r, cy - r, r * 2, r * 2, angle, sweep)
+            angle += sweep
+        # Donut hole, which is what keeps small slices legible at the centre.
+        painter.setBrush(QColor(0x1F, 0x1F, 0x1F))
+        painter.setPen(Qt.PenStyle.NoPen)
+        inner = int(r * 0.55)
+        painter.drawEllipse(cx - inner, cy - inner, inner * 2, inner * 2)
+        self._paint_legend(painter, size + 28)
+
+    def _paint_bars(self, painter: QPainter) -> None:
+        metrics = QFontMetrics(painter.font())
+        row_height = max(18, metrics.height() + 6)
+        label_width = 160
+        for i, (_node, name, size, fraction, color) in enumerate(self._rows):
+            y = 8 + i * row_height
+            if y + row_height > self.height():
+                break
+            painter.setPen(QColor(0xF1, 0xF1, 0xF1))
+            painter.drawText(8, y + metrics.ascent(),
+                             metrics.elidedText(name, Qt.TextElideMode.ElideMiddle,
+                                                label_width - 12))
+            track = self.width() - label_width - 110
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(0x2A, 0x2D, 0x2E))
+            painter.drawRect(label_width, y, track, row_height - 8)
+            painter.setBrush(color)
+            painter.drawRect(label_width, y, int(track * fraction), row_height - 8)
+            painter.setPen(QColor(0x9D, 0x9D, 0x9D))
+            painter.drawText(label_width + track + 8, y + metrics.ascent(),
+                             f"{format_bytes(size)}  {fraction * 100:.1f}%")
+
+    def _paint_legend(self, painter: QPainter, x: int) -> None:
+        metrics = QFontMetrics(painter.font())
+        step = metrics.height() + 4
+        for i, (_node, name, size, fraction, color) in enumerate(self._rows):
+            y = 12 + i * step
+            if y + step > self.height():
+                break
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawRect(x, y, 10, 10)
+            painter.setPen(QColor(0xF1, 0xF1, 0xF1))
+            painter.drawText(x + 16, y + metrics.ascent() - 2,
+                             f"{name}  —  {format_bytes(size)}  "
+                             f"({fraction * 100:.1f}%)")
+
+    def mousePressEvent(self, event):
+        """Clicking a bar selects that folder. Pie slices are not hit-tested:
+        the angle maths is easy to get subtly wrong and a wrong selection is
+        worse than none."""
+        if not self._bars or not self._rows:
+            return
+        metrics = QFontMetrics(self.font())
+        row_height = max(18, metrics.height() + 6)
+        index = int((event.position().y() - 8) // row_height)
+        if 0 <= index < len(self._rows):
+            node = self._rows[index][0]
+            if node >= 0:
+                self.node_clicked.emit(node)
+
+
 class ChartView(QWidget):
     """Treemap plus the breadcrumb that tracks drill depth."""
 
@@ -156,25 +290,65 @@ class ChartView(QWidget):
         super().__init__(parent)
         self._store = None
         self._trail: list[int] = []
+        self._chart_mode = 0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         crumb_bar = QWidget(self)
-        self._crumbs = QHBoxLayout(crumb_bar)
-        self._crumbs.setContentsMargins(6, 2, 6, 2)
+        crumb_row = QHBoxLayout(crumb_bar)
+        crumb_row.setContentsMargins(6, 2, 6, 2)
+        crumb_row.setSpacing(2)
+        self._crumbs = QHBoxLayout()
+        self._crumbs.setContentsMargins(0, 0, 0, 0)
         self._crumbs.setSpacing(2)
+        crumb_row.addLayout(self._crumbs, 1)
+
+        # Treemap / Pie / Bar, as Pro offers. The treemap answers "where is
+        # everything"; the pie and bar answer "how is THIS folder divided",
+        # which is a different question and why all three exist.
+        self._mode_buttons = QButtonGroup(self)
+        self._mode_buttons.setExclusive(True)
+        for index, label in enumerate(("Treemap", "Pie", "Bar")):
+            button = QToolButton(crumb_bar)
+            button.setText(label)
+            button.setCheckable(True)
+            button.setChecked(index == 0)
+            button.setAutoRaise(True)
+            button.setObjectName("chartModeButton")
+            self._mode_buttons.addButton(button, index)
+            crumb_row.addWidget(button)
+        self._mode_buttons.idClicked.connect(self.set_chart_mode)
         layout.addWidget(crumb_bar)
 
         self.treemap = TreemapWidget(self)
-        layout.addWidget(self.treemap, 1)
+        self.pie = SliceChart(bars=False, parent=self)
+        self.bars = SliceChart(bars=True, parent=self)
+        self.pie.hide()
+        self.bars.hide()
+        for widget in (self.treemap, self.pie, self.bars):
+            layout.addWidget(widget, 1)
         self.treemap.node_clicked.connect(self.node_clicked)
         self.treemap.node_drilled.connect(self.drill_to)
+        self.pie.node_clicked.connect(self.node_clicked)
+        self.bars.node_clicked.connect(self.node_clicked)
+
+    def set_chart_mode(self, index: int) -> None:
+        for i, widget in enumerate((self.treemap, self.pie, self.bars)):
+            widget.setVisible(i == index)
+        self._chart_mode = index
+        if self._trail:
+            self._show(self._trail[-1])
+
+    def _show(self, node: int) -> None:
+        self.treemap.set_scan(self._store, node)
+        self.pie.set_scan(self._store, node)
+        self.bars.set_scan(self._store, node)
 
     def set_scan(self, store, root: int) -> None:
         self._store = store
         self._trail = [root] if root >= 0 else []
-        self.treemap.set_scan(store, root)
+        self._show(root)
         self._rebuild_crumbs()
 
     def drill_to(self, node: int) -> None:
@@ -184,7 +358,7 @@ class ChartView(QWidget):
             self._trail = self._trail[:self._trail.index(node) + 1]
         else:
             self._trail.append(node)
-        self.treemap.set_scan(self._store, node)
+        self._show(node)
         self._rebuild_crumbs()
         self.node_clicked.emit(node)
 

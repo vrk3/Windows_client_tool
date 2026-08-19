@@ -15,7 +15,7 @@ The shell owns wiring and no scanning: it hands a target to a Worker and turns
 results into widget state. That keeps the whole file readable and means the
 engine stays testable without a display.
 """
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import QModelIndex, Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
     QMessageBox, QPushButton, QSplitter, QTabWidget, QVBoxLayout, QWidget,
@@ -32,6 +32,7 @@ from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .options_dialog import OptionsDialog, load_settings, save_settings
 from .ribbon import Ribbon
 from .scan_worker import ScanWorker
+from .tree_model import NodeIndexRole
 from .views.chart import ChartView
 from .views.details import DetailsView
 from .views.tables import (
@@ -134,6 +135,7 @@ class TreeSizeShell(QWidget):
                       self.status_bar)
         self._recent: list[str] = []
         self._backstage_open = False
+        self._group_scans = False
         self.config = None
         self._settings = load_settings(None)
 
@@ -260,6 +262,14 @@ class TreeSizeShell(QWidget):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
 
+        act("tree.find").triggered.connect(self.find_in_tree)
+        act("view.hideempty").toggled.connect(self.set_hide_empty)
+        act("view.group").toggled.connect(self.set_group_scans)
+        act("help.contents").triggered.connect(self.show_help)
+        act("result.email").triggered.connect(self.email_result)
+        act("tools.options.export").triggered.connect(self.export_settings)
+        act("tools.options.import").triggered.connect(self.import_settings)
+
         act("tools.options.open").triggered.connect(self.open_options)
         act("tools.options").triggered.connect(self.open_options)
         act("tools.options.reset").triggered.connect(self.reset_options)
@@ -321,6 +331,7 @@ class TreeSizeShell(QWidget):
         if not self._backstage_open:
             return
         self._backstage_open = False
+        self._group_scans = False
         self.config = None
         self._settings = load_settings(None)
         self.backstage.hide()
@@ -334,6 +345,147 @@ class TreeSizeShell(QWidget):
             widget.setVisible(self.ribbon.action(action_id).isChecked())
         if self.ribbon.tab_bar.currentIndex() == 0:
             self.ribbon.tab_bar.setCurrentIndex(1)
+
+    # ---- find, filters, help --------------------------------------------
+
+    def find_in_tree(self, text: str | None = None) -> None:
+        """Select the largest node whose name matches, and reveal it.
+
+        Largest rather than first: on a real scan a name fragment matches
+        hundreds of nodes, and the one worth jumping to is almost always the
+        big one -- that is the question this tool exists to answer.
+        """
+        if self._store is None:
+            return
+        if text is None:
+            text, ok = QInputDialog.getText(self, "Find in tree",
+                                            "Find a file or folder by name:")
+            if not ok:
+                return
+        query = (text or "").strip().lower()
+        if not query:
+            return
+        store = self._store
+        best, best_size = -1, -1
+        for node in range(len(store)):
+            if store.attrs[node] & EXCLUDED:
+                continue
+            if query in store.name(node).lower() and store.size[node] > best_size:
+                best, best_size = node, store.size[node]
+        if best < 0:
+            self.scan_state.setText(f"No match for {text!r}")
+            return
+        self.reveal_node(best)
+        self.scan_state.setText(f"Found {store.name(best)}")
+
+    def reveal_node(self, node: int) -> None:
+        """Expand the tree down to a node and select it."""
+        store = self._store
+        if store is None or not (0 <= node < len(store)):
+            return
+        chain = []
+        walker = node
+        seen = set()
+        while walker >= 0 and walker not in seen:
+            seen.add(walker)
+            chain.append(walker)
+            if walker == self._root:
+                break
+            walker = store.parent[walker]
+        model = self.directory_tree.tree_model
+        index = model.index(0, 0, QModelIndex())
+        for ancestor in reversed(chain[:-1]):
+            self.directory_tree.expand(index)
+            kids = model.children_of(int(index.data(NodeIndexRole)))
+            if ancestor not in kids:
+                break
+            index = model.index(kids.index(ancestor), 0, index)
+        self.directory_tree.setCurrentIndex(index)
+        self.directory_tree.scrollTo(index)
+        self._on_node_selected(node)
+
+    def set_hide_empty(self, hidden: bool) -> None:
+        """Hide zero-byte folders. Pro's "Hide empty folders"."""
+        self.directory_tree.tree_model.set_hide_empty(hidden)
+        self._refresh_right_pane()
+
+    def set_group_scans(self, grouped: bool) -> None:
+        # Grouping applies to multiple scan roots, and this pane holds one at
+        # a time. Recorded as state so the toggle is not a lie, and honoured
+        # the moment multi-scan lands.
+        self._group_scans = grouped
+
+    def show_help(self) -> None:
+        QMessageBox.information(
+            self, "TreeSize help",
+            "Pick a drive from the Drive List, or a folder via Select scan "
+            "target.\n\n"
+            "Home changes what the numbers mean (Mode) and how they are "
+            "written (Unit). Scan controls a running scan. View switches the "
+            "right-hand pane and toggles the panels.\n\n"
+            "Right-click any row to open it, reveal it in Explorer, exclude "
+            "it, or delete it.\n\n"
+            "Whole-drive scans are far faster when the application runs as "
+            "administrator, which lets it read the NTFS master file table "
+            "directly.")
+
+    def email_result(self) -> None:
+        """Hand the summary to the default mail client via a mailto: link."""
+        import urllib.parse
+        import webbrowser
+        rows = self._export_rows()
+        if len(rows) < 2:
+            QMessageBox.information(self, "Send by email", "Nothing to send.")
+            return
+        target = self.path_combo.currentText().strip() or "scan"
+        body = "\n".join("\t".join(row) for row in rows[:40])
+        if len(rows) > 41:
+            body += f"\n… and {len(rows) - 41:,} more rows"
+        link = "mailto:?subject=%s&body=%s" % (
+            urllib.parse.quote(f"TreeSize scan of {target}"),
+            urllib.parse.quote(body))
+        # mailto has a length limit in most clients, so the body is the first
+        # 40 rows rather than the whole scan; Export is the route for the rest.
+        webbrowser.open(link)
+
+    def export_settings(self) -> None:
+        import json
+        path, _ = QFileDialog.getSaveFileName(self, "Export settings", "",
+                                              "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(self._settings, handle, indent=2)
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", str(exc))
+            return
+        self.scan_state.setText("Settings exported")
+
+    def import_settings(self) -> None:
+        import json
+        path, _ = QFileDialog.getOpenFileName(self, "Import settings", "",
+                                              "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as handle:
+                values = json.load(handle)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Import failed", str(exc))
+            return
+        if not isinstance(values, dict):
+            QMessageBox.warning(self, "Import failed",
+                                "That file does not contain TreeSize settings.")
+            return
+        from .options_dialog import DEFAULTS, save_settings
+        merged = dict(DEFAULTS)
+        # Only known keys are taken: an arbitrary JSON file must not be able to
+        # inject settings this build has never heard of.
+        merged.update({k: v for k, v in values.items() if k in DEFAULTS})
+        save_settings(self.config, merged)
+        self.apply_settings(merged)
+        self.scan_state.setText("Settings imported")
 
     # ---- options --------------------------------------------------------
 
@@ -680,7 +832,6 @@ class TreeSizeShell(QWidget):
         index = self.directory_tree.indexAt(pos)
         if not index.isValid():
             return
-        from .tree_model import NodeIndexRole
         node = index.data(NodeIndexRole)
         if node is None:
             return

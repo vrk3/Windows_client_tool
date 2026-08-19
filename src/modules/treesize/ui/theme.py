@@ -150,6 +150,15 @@ QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 #recentList {{ background: {bg}; border: none; color: {text}; }}
 #recentList::item {{ padding: 5px 4px; }}
 #recentList::item:selected {{ background: {selection}; }}
+#chartModeButton {{
+    color: {muted}; padding: 2px 10px; border: 1px solid transparent;
+    border-radius: 2px;
+}}
+#chartModeButton:checked {{
+    background: {selection}; color: {text}; border: 1px solid {accent};
+}}
+#chartModeButton:hover {{ color: {text}; }}
+#optionsNote {{ color: {muted}; }}
 #breadcrumb {{
     background: transparent; color: {accent}; border: none; padding: 1px 4px;
 }}

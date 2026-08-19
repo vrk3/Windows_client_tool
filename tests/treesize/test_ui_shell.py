@@ -388,3 +388,127 @@ def test_backstage_shows_a_hint_when_there_are_no_scans(qapp):
     page.set_recent([])
     assert page.recent.count() == 1
     assert not (page.recent.item(0).flags() & Qt.ItemFlag.ItemIsEnabled)
+
+
+# ---- find, hide empty, chart modes --------------------------------------
+
+def test_find_selects_the_largest_match(shell):
+    """A name fragment matches hundreds of nodes on a real scan; the one worth
+    jumping to is almost always the big one."""
+    shell.find_in_tree("dll")
+    assert shell._store.name(shell._selected) == "huge.dll"
+
+
+def test_find_reports_when_nothing_matches(shell):
+    shell.find_in_tree("zzzz-no-such-thing")
+    assert "No match" in shell.scan_state.text()
+
+
+def test_find_ignores_an_empty_query(shell):
+    before = shell.scan_state.text()
+    shell.find_in_tree("   ")
+    assert shell.scan_state.text() == before
+
+
+def test_reveal_expands_the_tree_to_the_node(shell):
+    from PyQt6.QtCore import QModelIndex
+    target = next(i for i in range(len(shell._store))
+                  if shell._store.name(i) == "huge.dll")
+    shell.reveal_node(target)
+    assert shell._selected == target
+    root_index = shell.directory_tree.tree_model.index(0, 0, QModelIndex())
+    assert shell.directory_tree.isExpanded(root_index)
+
+
+def test_hide_empty_folders_removes_zero_sized_ones(qapp):
+    from modules.treesize.store.node_store import NodeStore, DIR
+    from modules.treesize.store.rollup import rollup
+    from modules.treesize.ui.tree_model import DirectoryTreeModel
+    from PyQt6.QtCore import QModelIndex
+
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    store.add(root, "full", size=0, attrs=DIR)
+    store.add(store.add(root, "empty", size=0, attrs=DIR), "x", size=0)
+    store.add(root, "data.bin", size=500)
+    store.build_child_lists()
+    rollup(store)
+
+    model = DirectoryTreeModel()
+    model.set_scan(store, root)
+    root_index = model.index(0, 0, QModelIndex())
+    before = model.rowCount(root_index)
+    model.set_hide_empty(True)
+    root_index = model.index(0, 0, QModelIndex())
+    assert model.rowCount(root_index) < before
+
+
+def test_hide_empty_keeps_zero_byte_files(qapp):
+    """'Empty' means a folder that frees nothing, not every zero-byte entry."""
+    from modules.treesize.store.node_store import NodeStore, DIR
+    from modules.treesize.store.rollup import rollup
+    from modules.treesize.ui.tree_model import DirectoryTreeModel
+    from PyQt6.QtCore import QModelIndex, Qt
+
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    store.add(root, "marker.txt", size=0)
+    store.build_child_lists()
+    rollup(store)
+    model = DirectoryTreeModel()
+    model.set_scan(store, root)
+    model.set_hide_empty(True)
+    root_index = model.index(0, 0, QModelIndex())
+    assert model.rowCount(root_index) == 1
+
+
+def test_chart_offers_treemap_pie_and_bar(shell):
+    labels = [b.text() for b in shell.chart._mode_buttons.buttons()]
+    assert labels == ["Treemap", "Pie", "Bar"]
+
+
+def test_switching_chart_mode_swaps_the_widget(shell):
+    shell.chart.set_chart_mode(1)
+    assert shell.chart.pie.isHidden() is False
+    assert shell.chart.treemap.isHidden() is True
+    shell.chart.set_chart_mode(2)
+    assert shell.chart.bars.isHidden() is False
+    assert shell.chart.pie.isHidden() is True
+
+
+def test_pie_folds_the_tail_into_one_other_slice(qapp):
+    """Cycling the palette would reuse a hue for an unrelated folder, and
+    dropping the tail would stop the percentages adding to 100."""
+    from modules.treesize.store.node_store import NodeStore, DIR
+    from modules.treesize.store.rollup import rollup
+    from modules.treesize.ui.views.chart import SliceChart
+
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    for i in range(30):
+        store.add(root, f"f{i}.bin", size=100 * (30 - i))
+    store.build_child_lists()
+    rollup(store)
+
+    chart = SliceChart()
+    chart.set_scan(store, root)
+    assert len(chart._rows) == SliceChart.MAX_SLICES + 1
+    assert chart._rows[-1][1].startswith("Other (")
+    assert sum(row[3] for row in chart._rows) == pytest.approx(1.0)
+
+
+def test_settings_import_ignores_unknown_keys(shell, tmp_path):
+    import json
+    from modules.treesize.ui.options_dialog import DEFAULTS
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({"decimals": 2, "evil": "payload"}))
+    from PyQt6.QtWidgets import QFileDialog
+    original = QFileDialog.getOpenFileName
+    QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (str(path), ""))
+    try:
+        shell.import_settings()
+    finally:
+        QFileDialog.getOpenFileName = original
+    assert shell._settings["decimals"] == 2
+    assert "evil" not in shell._settings
+    assert set(shell._settings) == set(DEFAULTS)

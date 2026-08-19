@@ -110,15 +110,14 @@ def test_a_menu_is_shared_between_the_tabs_that_use_it(qapp):
 #: ribbon reports a receiver whether or not anything useful happens. An earlier
 #: version of this test did exactly that and could never fail.
 NOT_YET_IMPLEMENTED = {
-    "compare.path", "compare.saved", "compare.snapshot",
-    "help.contents",
-    "result.email", "scan.schedule", "scan.watch", "tree.find",
-    "tools.restore",
-    "tools.scheduled", "tools.snapshot", "tools.software",
-    "tools.search", "tools.search.open",
-    "tools.options.export",
-    "tools.options.import", "view.changes", "view.group", "view.hideempty",
-    # Menu parents: the face does nothing, the arrow opens a working menu.
+    # Comparison and snapshots: spec phase 5, needs saved scans on disk.
+    "compare.path", "compare.saved", "compare.snapshot", "view.changes",
+    "tools.snapshot",
+    # Scheduling and the live watcher: spec phases 5 and 6.
+    "scan.schedule", "scan.watch", "tools.scheduled",
+    # Separate tools the module does not host.
+    "tools.search", "tools.search.open", "tools.software", "tools.restore",
+    # Menu parents: the button face does nothing, the arrow opens a working menu.
     "scan.select", "result.export", "scan.exclude", "view.select",
     "view.hidesmall", "unit.decimals",
 }
@@ -136,7 +135,7 @@ def _connected_ids() -> set:
     import modules.treesize.ui.shell as shell_module
     src = Path(shell_module.__file__).read_text(encoding="utf-8")
     ids = set(re.findall(r'action\("([^"]+)"\)\.(?:triggered|toggled)', src))
-    ids |= set(re.findall(r'act\("([^"]+)"\)\.triggered', src))
+    ids |= set(re.findall(r'act\("([^"]+)"\)\.(?:triggered|toggled)', src))
     ids |= {"tree.expand.%d" % d for d in (1, 2, 3)}
     ids |= {"unit.decimals.%d" % d for d in (0, 1, 2)}
     ids |= {"view.go." + s for s in ("chart", "details", "extensions",
