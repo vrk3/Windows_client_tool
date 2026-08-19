@@ -367,3 +367,281 @@ def test_a_filled_in_dialog_produces_a_usable_target(qapp):
     assert target.credentials.host == "example.test"
     assert target.credentials.root == "/data"
     assert "example.test" in label
+
+
+# ---- credential storage (spec 6.2) --------------------------------------
+
+class _FakeVault:
+    """Stands in for Windows Credential Manager: same three operations."""
+
+    def __init__(self) -> None:
+        self.entries: dict[str, tuple[str, str]] = {}
+
+    def write(self, key, username, secret):
+        self.entries[key] = (username, secret)
+
+    def read(self, key):
+        return self.entries.get(key)
+
+    def erase(self, key):
+        self.entries.pop(key, None)
+
+
+def test_a_saved_password_comes_back():
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    store = CredentialStore(vault)
+    store.save("ssh", Credentials(host="box", username="ana", password="s3cret"))
+    assert store.load("ssh", "box", "ana") == ("ana", "s3cret")
+
+
+def test_credentials_are_keyed_by_backend_host_and_user():
+    """Two accounts on one host, and one account on two hosts, must not
+    overwrite each other -- a single key per backend would do exactly that."""
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    store = CredentialStore(vault)
+    store.save("ssh", Credentials(host="box", username="ana", password="one"))
+    store.save("ssh", Credentials(host="box", username="bo", password="two"))
+    store.save("webdav", Credentials(host="box", username="ana", password="three"))
+    assert store.load("ssh", "box", "ana")[1] == "one"
+    assert store.load("ssh", "box", "bo")[1] == "two"
+    assert store.load("webdav", "box", "ana")[1] == "three"
+
+
+def test_an_unknown_credential_is_absent_not_an_error():
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    store = CredentialStore(_FakeVault())
+    assert store.load("ssh", "nothing-here", "nobody") is None
+
+
+def test_forgetting_a_credential_removes_it():
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    store = CredentialStore(vault)
+    store.save("ssh", Credentials(host="box", username="ana", password="s3cret"))
+    store.forget("ssh", "box", "ana")
+    assert store.load("ssh", "box", "ana") is None
+
+
+def test_an_empty_password_is_not_written_to_the_vault():
+    """Saving an empty secret would shadow a real stored one on the next load."""
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    store = CredentialStore(vault)
+    store.save("ssh", Credentials(host="box", username="ana", password=""))
+    assert vault.entries == {}
+
+
+def test_a_vault_that_refuses_does_not_break_the_scan():
+    """Credential Manager can be locked down by policy. A scan that would
+    otherwise run must not die because the password could not be cached."""
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    class _Broken:
+        def write(self, *_a):
+            raise OSError("policy")
+
+        def read(self, *_a):
+            raise OSError("policy")
+
+        def erase(self, *_a):
+            raise OSError("policy")
+
+    store = CredentialStore(_Broken())
+    store.save("ssh", Credentials(host="box", username="ana", password="x"))
+    assert store.load("ssh", "box", "ana") is None
+    store.forget("ssh", "box", "ana")
+
+
+# ---- throttling (spec 6.2) ----------------------------------------------
+
+class _Throttleable:
+    def __init__(self, status, headers=None):
+        self.status_code = status
+        self.headers = headers or {}
+
+
+def test_a_throttled_call_is_retried_with_a_doubling_delay():
+    from modules.treesize.targets.base import retry_on_throttle
+
+    replies = [_Throttleable(429), _Throttleable(503), _Throttleable(207)]
+    slept: list[float] = []
+    result = retry_on_throttle(lambda: replies.pop(0), base_delay=0.5,
+                               sleep=slept.append)
+    assert result.status_code == 207
+    assert slept == [0.5, 1.0]
+
+
+def test_a_retry_after_header_wins_over_the_computed_delay():
+    """The server knows when it will be ready; we are guessing."""
+    from modules.treesize.targets.base import retry_on_throttle
+
+    replies = [_Throttleable(429, {"Retry-After": "7"}), _Throttleable(200)]
+    slept: list[float] = []
+    retry_on_throttle(lambda: replies.pop(0), base_delay=0.5, sleep=slept.append)
+    assert slept == [7.0]
+
+
+def test_a_nonsense_retry_after_falls_back_to_the_computed_delay():
+    from modules.treesize.targets.base import retry_on_throttle
+
+    replies = [_Throttleable(503, {"Retry-After": "Tue, 01 Jan 2030 00:00:00 GMT"}),
+               _Throttleable(200)]
+    slept: list[float] = []
+    retry_on_throttle(lambda: replies.pop(0), base_delay=0.25, sleep=slept.append)
+    assert slept == [0.25]
+
+
+def test_giving_up_returns_the_throttled_response_rather_than_raising():
+    """The caller already reports a bad status as a per-directory error; a
+    raise here would end the whole scan on one busy folder."""
+    from modules.treesize.targets.base import retry_on_throttle
+
+    slept: list[float] = []
+    result = retry_on_throttle(lambda: _Throttleable(429), attempts=3,
+                               base_delay=0.1, sleep=slept.append)
+    assert result.status_code == 429
+    assert len(slept) == 2, "no sleep after the last attempt"
+
+
+def test_a_successful_call_never_sleeps():
+    from modules.treesize.targets.base import retry_on_throttle
+
+    slept: list[float] = []
+    retry_on_throttle(lambda: _Throttleable(207), sleep=slept.append)
+    assert slept == []
+
+
+def test_webdav_retries_a_throttled_propfind(qapp):
+    """The one backend that can actually be throttled today."""
+    class _Client:
+        def __init__(self):
+            self.calls = 0
+
+        def request(self, *_a, **_k):
+            self.calls += 1
+            if self.calls == 1:
+                return _Throttleable(429)
+            reply = _Throttleable(207)
+            reply.text = (
+                '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">'
+                '<d:response><d:href>/dav/f.txt</d:href><d:propstat><d:prop>'
+                '<d:resourcetype/><d:getcontentlength>12</d:getcontentlength>'
+                "</d:prop></d:propstat></d:response></d:multistatus>")
+            return reply
+
+    client = _Client()
+    walker = remote._WebDavWalker(
+        WebDavTarget(Credentials(host="http://x")), client)
+    walker.sleep = lambda _seconds: None
+    entries = list(walker.list_dir("/dav"))
+    assert client.calls == 2
+    assert entries == [("f.txt", 12, False, 0)]
+
+
+# ---- remembering a password from the dialog (spec 6.2) ------------------
+
+def _usable_backend(dialog):
+    for i in range(dialog.backend.count()):
+        if dialog._classes[dialog.backend.itemData(i)][1]:
+            dialog.backend.setCurrentIndex(i)
+            return dialog.backend.itemData(i)
+    return None
+
+
+def test_the_dialog_offers_to_remember_a_password(qapp):
+    from modules.treesize.ui.remote_dialog import RemoteTargetDialog
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    dialog = RemoteTargetDialog(credential_store=CredentialStore(_FakeVault()))
+    assert not dialog.remember.isChecked(), (
+        "storing a secret is opt-in, not something that happens because the "
+        "user connected once")
+
+
+def test_a_remembered_password_reaches_the_vault(qapp):
+    from modules.treesize.ui.remote_dialog import RemoteTargetDialog
+    from modules.treesize.targets.credential_store import (
+        CredentialStore, credential_key,
+    )
+
+    vault = _FakeVault()
+    dialog = RemoteTargetDialog(credential_store=CredentialStore(vault))
+    target_id = _usable_backend(dialog)
+    if target_id is None:
+        pytest.skip("no remote backend is installed on this machine")
+    dialog.host.setText("example.test")
+    dialog.username.setText("ana")
+    dialog.password.setText("s3cret")
+    dialog.remember.setChecked(True)
+    target, _label = dialog.selected()
+    assert target is not None
+    key = credential_key(target_id, "example.test", "ana")
+    assert vault.entries[key] == ("ana", "s3cret")
+
+
+def test_unticking_remember_clears_a_previously_stored_password(qapp):
+    """Otherwise the only way to forget a password is Credential Manager."""
+    from modules.treesize.ui.remote_dialog import RemoteTargetDialog
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    dialog = RemoteTargetDialog(credential_store=CredentialStore(vault))
+    target_id = _usable_backend(dialog)
+    if target_id is None:
+        pytest.skip("no remote backend is installed on this machine")
+    CredentialStore(vault).save(
+        target_id, Credentials(host="example.test", username="ana",
+                               password="old"))
+    dialog.host.setText("example.test")
+    dialog.username.setText("ana")
+    dialog.password.setText("old")
+    dialog.remember.setChecked(False)
+    dialog.selected()
+    assert vault.entries == {}
+
+
+def test_a_stored_password_is_offered_back(qapp):
+    from modules.treesize.ui.remote_dialog import RemoteTargetDialog
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    dialog = RemoteTargetDialog(credential_store=CredentialStore(vault))
+    target_id = _usable_backend(dialog)
+    if target_id is None:
+        pytest.skip("no remote backend is installed on this machine")
+    CredentialStore(vault).save(
+        target_id, Credentials(host="example.test", username="ana",
+                               password="s3cret"))
+    dialog.host.setText("example.test")
+    dialog.username.setText("ana")
+    dialog.recall_password()
+    assert dialog.password.text() == "s3cret"
+    assert dialog.remember.isChecked()
+
+
+def test_recall_leaves_a_typed_password_alone(qapp):
+    """Overwriting what the user just typed with a stale stored secret is how
+    a rotated password produces an unexplainable auth failure."""
+    from modules.treesize.ui.remote_dialog import RemoteTargetDialog
+    from modules.treesize.targets.credential_store import CredentialStore
+
+    vault = _FakeVault()
+    dialog = RemoteTargetDialog(credential_store=CredentialStore(vault))
+    target_id = _usable_backend(dialog)
+    if target_id is None:
+        pytest.skip("no remote backend is installed on this machine")
+    CredentialStore(vault).save(
+        target_id, Credentials(host="example.test", username="ana",
+                               password="stored"))
+    dialog.host.setText("example.test")
+    dialog.username.setText("ana")
+    dialog.password.setText("typed")
+    dialog.recall_password()
+    assert dialog.password.text() == "typed"

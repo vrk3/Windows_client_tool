@@ -559,3 +559,112 @@ def test_settings_import_ignores_unknown_keys(shell, tmp_path):
     assert shell._settings["decimals"] == 2
     assert "evil" not in shell._settings
     assert set(shell._settings) == set(DEFAULTS)
+
+
+# ---- panel fidelity (spec 5.6, 5.7) -------------------------------------
+
+def test_the_drive_list_paints_a_proportional_bar_for_free_space(qapp):
+    """Spec 5.6: the % Free column carries a bar, not just a number."""
+    from modules.treesize.ui.directory_tree import ProportionBarDelegate
+    from modules.treesize.ui.tree_model import BarFractionRole
+
+    drives = DriveList()
+    drives.refresh([("C", 1000, 250), ("D", 2000, 2000)])
+    assert isinstance(drives.itemDelegateForColumn(3), ProportionBarDelegate)
+    assert drives.topLevelItem(0).data(3, BarFractionRole) == pytest.approx(0.25)
+    assert drives.topLevelItem(1).data(3, BarFractionRole) == pytest.approx(1.0)
+
+
+def test_a_drive_with_no_reported_size_gets_no_bar(qapp):
+    """A total of 0 is a drive that would not answer, not a full one."""
+    from modules.treesize.ui.tree_model import BarFractionRole
+
+    drives = DriveList()
+    drives.refresh([("Z", 0, 0)])
+    assert drives.topLevelItem(0).data(3, BarFractionRole) == pytest.approx(0.0)
+
+
+def test_the_scan_overview_wraps_or_truncates_on_demand(qapp):
+    """Spec 5.7: right-clicking chooses wrap or truncate, as Pro does."""
+    overview = ScanOverview()
+    assert overview.display_mode() == ScanOverview.TRUNCATE
+    overview.set_display_mode(ScanOverview.WRAP)
+    assert overview.display_mode() == ScanOverview.WRAP
+    assert all(label.wordWrap() for label in overview._labels.values())
+    overview.set_display_mode(ScanOverview.TRUNCATE)
+    assert not any(label.wordWrap() for label in overview._labels.values())
+
+
+def test_truncating_the_overview_never_loses_the_value(qapp):
+    """Elision is a display choice; the underlying text must survive it."""
+    store, root = _scan()
+    overview = ScanOverview()
+    overview.show_node(store, root)
+    overview.set_display_mode(ScanOverview.TRUNCATE)
+    assert overview.full_text("Size") == "Size: 8.4 GB"
+    overview.set_display_mode(ScanOverview.WRAP)
+    assert overview._labels["Size"].text() == "Size: 8.4 GB"
+
+
+def test_the_overview_context_menu_offers_both_choices(qapp):
+    overview = ScanOverview()
+    menu = overview.build_context_menu()
+    labels = [action.text() for action in menu.actions()]
+    assert labels == ["Wrap", "Truncate"]
+    assert [action.isChecked() for action in menu.actions()] == [False, True]
+
+
+# ---- bars follow the theme (spec 5.3) -----------------------------------
+
+def test_the_bar_colors_follow_the_active_theme(qapp):
+    """Both sheets define bar_track; nothing was reading it, so a light pane
+    painted its bars on a near-black track."""
+    from modules.treesize.ui.directory_tree import ProportionBarDelegate
+    from modules.treesize.ui.theme import apply_theme
+
+    shell = TreeSizeShell()
+    apply_theme(shell, light=True)
+    delegate = shell.directory_tree._delegate
+    assert delegate._track.name().lower() == LIGHT["bar_track"].lower()
+    assert delegate._fill.name().lower() == LIGHT["accent"].lower()
+    apply_theme(shell, light=False)
+    assert delegate._track.name().lower() == DARK["bar_track"].lower()
+
+
+def test_every_proportional_bar_in_the_pane_is_repainted(qapp):
+    """The tree is not the only place with a bar: Details, the tables and the
+    drive list all use the same delegate."""
+    from modules.treesize.ui.directory_tree import ProportionBarDelegate
+    from modules.treesize.ui.theme import apply_theme
+
+    shell = TreeSizeShell()
+    apply_theme(shell, light=True)
+    delegates = shell.findChildren(ProportionBarDelegate)
+    assert len(delegates) >= 3, "expected the tree, Details and the drive list"
+    assert all(d._track.name().lower() == LIGHT["bar_track"].lower()
+               for d in delegates)
+
+
+def test_no_class_in_the_pane_defines_a_method_twice():
+    """A duplicated block silently overrides the first copy and runs green:
+    90 identical lines of scan_remote and four other methods shipped that way.
+    Nothing in a test suite notices, because both copies behave the same --
+    until someone edits one of them."""
+    import ast
+    import pathlib
+
+    ui = pathlib.Path(__file__).resolve().parents[2] / "src" / "modules" / "treesize" / "ui"
+    duplicates = []
+    for path in sorted(ui.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            seen: set[str] = set()
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if item.name in seen:
+                        duplicates.append(
+                            f"{path.name}:{item.lineno} {node.name}.{item.name}")
+                    seen.add(item.name)
+    assert not duplicates, "redefined methods: " + ", ".join(duplicates)

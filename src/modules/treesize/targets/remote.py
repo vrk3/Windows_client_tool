@@ -13,6 +13,7 @@ from xml.etree import ElementTree
 
 from .base import (
     Credentials, RemoteEnumerator, ScanTarget, TargetError, register,
+    retry_on_throttle,
 )
 
 FILETIME_EPOCH_OFFSET = 11_644_473_600
@@ -167,15 +168,24 @@ class _WebDavWalker(RemoteEnumerator):
     def __init__(self, target, client) -> None:
         super().__init__(target)
         self._client = client
+        #: Overridable so the tests do not actually wait out a backoff.
+        self.sleep = time.sleep
+
+    def _propfind(self, path: str):
+        return self._client.request(
+            "PROPFIND", path,
+            headers={"Depth": "1", "Content-Type": "application/xml"},
+            content=WebDavTarget.PROPFIND_BODY)
 
     def list_dir(self, path: str):
         # Depth 1: one request per directory. Depth "infinity" is refused by
         # most servers and would stream the whole tree into memory on the ones
         # that allow it.
-        response = self._client.request(
-            "PROPFIND", path,
-            headers={"Depth": "1", "Content-Type": "application/xml"},
-            content=WebDavTarget.PROPFIND_BODY)
+        # A shared WebDAV server throttles a whole-tree walk long before it
+        # refuses one; retrying is the difference between a slow scan and a
+        # tree full of holes (spec 6.2).
+        response = retry_on_throttle(lambda: self._propfind(path),
+                                     sleep=self.sleep)
         status = getattr(response, "status_code", 0)
         if status not in (207, 200):
             raise TargetError(f"PROPFIND {path} returned {status}")

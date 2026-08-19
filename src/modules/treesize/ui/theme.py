@@ -191,3 +191,22 @@ def palette(light: bool | None = None) -> dict:
 
 def apply_theme(widget, light: bool | None = None) -> None:
     widget.setStyleSheet(stylesheet(light))
+    _repaint_bars(widget, palette(light))
+
+
+def _repaint_bars(widget, colors: dict) -> None:
+    """Push the sheet's bar colors into every proportional-bar delegate.
+
+    A delegate paints outside the stylesheet, so a sheet alone cannot reach
+    it -- which is why a light pane used to paint its bars on the dark
+    theme's near-black track. Delegates are QObject children of their views,
+    so findChildren reaches every one of them: the tree, Details, the tables
+    and the drive list, without theme.py having to know they exist.
+    """
+    from PyQt6.QtGui import QColor
+
+    from .directory_tree import ProportionBarDelegate
+
+    fill, track = QColor(colors["accent"]), QColor(colors["bar_track"])
+    for delegate in widget.findChildren(ProportionBarDelegate):
+        delegate.set_bar_colors(fill, track)

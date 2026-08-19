@@ -8,12 +8,15 @@ import string
 from ctypes import wintypes
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QFontMetrics
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QTreeWidget,
+    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QMenu, QTreeWidget,
     QTreeWidgetItem, QWidget,
 )
 
+from .directory_tree import ProportionBarDelegate
 from .formatting import Unit, format_bytes, format_count
+from .tree_model import BarFractionRole
 
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 _kernel32.GetLogicalDrives.restype = wintypes.DWORD
@@ -67,6 +70,9 @@ class DriveList(QTreeWidget):
         self.setUniformRowHeights(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # The same delegate the tree uses, so a drive's free space reads the
+        # way every other proportional value in the pane reads (spec 5.6).
+        self.setItemDelegateForColumn(3, ProportionBarDelegate(self))
         self.itemDoubleClicked.connect(self._on_double_clicked)
 
     def refresh(self, drives=None) -> None:
@@ -80,6 +86,10 @@ class DriveList(QTreeWidget):
                 f"{percent_free:.1f}%",
             ])
             item.setData(0, Qt.ItemDataRole.UserRole, letter)
+            # A drive that reports no total is one that would not answer --
+            # a full bar would claim it is entirely free, which is a guess.
+            item.setData(3, BarFractionRole,
+                         (percent_free / 100.0) if total else 0.0)
             for column in (1, 2, 3):
                 item.setTextAlignment(column, Qt.AlignmentFlag.AlignRight
                                       | Qt.AlignmentFlag.AlignVCenter)
@@ -97,22 +107,85 @@ class ScanOverview(QWidget):
     FIELDS = ("Size", "Allocated", "Files", "Folders",
               "Last Modified", "Last Accessed", "Owner")
 
+    #: Right-click chooses between these two, as Pro does. Truncate is the
+    #: default because the bar is one row high; wrapping it silently steals
+    #: vertical space from the panes below.
+    WRAP = "wrap"
+    TRUNCATE = "truncate"
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 2, 8, 2)
         layout.setSpacing(16)
         self._labels: dict[str, QLabel] = {}
+        self._full: dict[str, str] = {}
+        self._display_mode = self.TRUNCATE
         for field in self.FIELDS:
             label = QLabel(f"{field}: —")
             label.setObjectName("scanOverviewField")
             self._labels[field] = label
+            self._full[field] = f"{field}: —"
             layout.addWidget(label)
         layout.addStretch(1)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+    # -- display mode ----------------------------------------------------
+
+    def display_mode(self) -> str:
+        return self._display_mode
+
+    def set_display_mode(self, mode: str) -> None:
+        if mode not in (self.WRAP, self.TRUNCATE):
+            return
+        self._display_mode = mode
+        self._apply_display()
+
+    def full_text(self, field: str) -> str:
+        """The untruncated text. Elision is a display choice, and the value
+        has to survive it -- otherwise switching back to Wrap shows the
+        ellipsis the previous mode baked in."""
+        return self._full.get(field, "")
+
+    def build_context_menu(self) -> QMenu:
+        menu = QMenu(self)
+        for label, mode in (("Wrap", self.WRAP), ("Truncate", self.TRUNCATE)):
+            action = QAction(label, menu)
+            action.setCheckable(True)
+            action.setChecked(self._display_mode == mode)
+            action.triggered.connect(
+                lambda _checked=False, m=mode: self.set_display_mode(m))
+            menu.addAction(action)
+        return menu
+
+    def contextMenuEvent(self, event) -> None:
+        self.build_context_menu().exec(event.globalPos())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._display_mode == self.TRUNCATE:
+            self._apply_display()
+
+    def _apply_display(self) -> None:
+        wrapping = self._display_mode == self.WRAP
+        for field, label in self._labels.items():
+            label.setWordWrap(wrapping)
+            text = self._full[field]
+            if wrapping or label.width() <= 0:
+                label.setText(text)
+                continue
+            metrics = QFontMetrics(label.font())
+            label.setText(metrics.elidedText(
+                text, Qt.TextElideMode.ElideRight, label.width()))
+
+    def _set_field(self, field: str, text: str) -> None:
+        self._full[field] = text
+        self._labels[field].setText(text)
 
     def clear(self) -> None:
-        for field, label in self._labels.items():
-            label.setText(f"{field}: —")
+        for field in self._labels:
+            self._set_field(field, f"{field}: —")
+        self._apply_display()
 
     def show_node(self, store, node: int, unit: Unit = Unit.AUTO,
                   decimals: int = 1) -> None:
@@ -129,7 +202,8 @@ class ScanOverview(QWidget):
             "Owner": store.owner(store.owner_id[node]) or "—",
         }
         for field, text in values.items():
-            self._labels[field].setText(f"{field}: {text}")
+            self._set_field(field, f"{field}: {text}")
+        self._apply_display()
 
 
 def format_filetime(value: int) -> str:

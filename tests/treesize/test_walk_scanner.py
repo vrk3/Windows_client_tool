@@ -132,3 +132,38 @@ def test_exclude_predicate_receives_the_full_path_and_mtime(tmp_path):
     assert mtime > 0, "a real FILETIME must reach the predicate"
     assert path.endswith("node_modules\\dep.js")
     assert path.startswith(str(tmp_path))
+
+
+def test_the_scan_root_carries_its_own_timestamps(tmp_path):
+    """Every child gets mtime/ctime/atime from its DirEntry, but the root is
+    added before the walk starts and used to get nothing -- so selecting the
+    scanned folder showed "Last Modified: —" in the overview and Details."""
+    (tmp_path / "a.txt").write_bytes(b"x" * 10)
+    store = NodeStore()
+    scanner = WalkScanner(str(tmp_path))
+    scanner.scan(store)
+    root = scanner.root
+    assert store.mtime[root] > 0
+    assert store.ctime[root] > 0
+    assert store.atime[root] > 0
+
+
+def test_a_root_that_cannot_be_stat_ed_still_scans(tmp_path, monkeypatch):
+    """A timestamp is decoration; failing the scan over one would not be."""
+    import os as os_module
+
+    real_stat = os_module.stat
+
+    def _refuse(path, *args, **kwargs):
+        if str(path) == str(tmp_path):
+            raise OSError("nope")
+        return real_stat(path, *args, **kwargs)
+
+    (tmp_path / "a.txt").write_bytes(b"x")
+    monkeypatch.setattr(
+        "modules.treesize.scan.walk_scanner.os.stat", _refuse)
+    store = NodeStore()
+    scanner = WalkScanner(str(tmp_path))
+    scanner.scan(store)
+    assert store.mtime[scanner.root] == 0
+    assert len(store) == 2

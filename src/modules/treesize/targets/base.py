@@ -11,8 +11,47 @@ Remote targets have no cluster geometry, so `alloc` is set equal to `size` and
 the status bar omits the cluster field. Reporting a rounded-up allocation the
 remote end never told us would be inventing data.
 """
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+#: What a service says when it wants us to slow down or come back later.
+THROTTLE_STATUSES = (429, 503)
+
+
+def retry_on_throttle(call, attempts: int = 5, base_delay: float = 0.5,
+                      sleep=time.sleep):
+    """Run `call()`, retrying while the service reports throttling (spec 6.2).
+
+    Returns the LAST response rather than raising when the attempts run out.
+    Every backend already turns a bad status into a per-directory error and
+    keeps walking; raising here would end a whole scan over one busy folder.
+
+    A `Retry-After` in seconds beats the doubling delay: the server knows when
+    it will be ready and this end is only guessing.
+    """
+    delay = base_delay
+    result = None
+    for attempt in range(max(1, attempts)):
+        result = call()
+        if getattr(result, "status_code", None) not in THROTTLE_STATUSES:
+            return result
+        if attempt == attempts - 1:
+            break
+        sleep(_retry_after(result, delay))
+        delay *= 2
+    return result
+
+
+def _retry_after(response, fallback: float) -> float:
+    headers = getattr(response, "headers", None) or {}
+    value = headers.get("Retry-After") or headers.get("retry-after")
+    try:
+        # The HTTP-date form is also legal and is deliberately not honoured:
+        # parsing it means trusting a remote clock against ours.
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return fallback
 
 
 class TargetError(Exception):

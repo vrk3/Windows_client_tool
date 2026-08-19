@@ -16,6 +16,11 @@ from ..store.node_store import NodeStore, DIR, REPARSE, HIDDEN
 from .mft_reader import BATCH_INTERVAL
 
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+# Unix epoch expressed in the FILETIME epoch (1601-01-01), and its tick rate.
+# Every timestamp in the store is a FILETIME; os.stat is the one place a Unix
+# timestamp gets in, so it converts here rather than anywhere downstream.
+FILETIME_EPOCH_OFFSET = 11_644_473_600
+FILETIME_TICKS_PER_SECOND = 10_000_000
 FILE_ATTRIBUTE_DIRECTORY = 0x10
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -54,6 +59,28 @@ _kernel32.FindFirstFileExW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, wintypes.
                                        ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
 _kernel32.FindNextFileW.argtypes = [wintypes.HANDLE, wintypes.LPVOID]
 _kernel32.FindClose.argtypes = [wintypes.HANDLE]
+
+
+def _to_filetime(seconds: float) -> int:
+    if not seconds or seconds < 0:
+        return 0
+    return int((seconds + FILETIME_EPOCH_OFFSET) * FILETIME_TICKS_PER_SECOND)
+
+
+def root_timestamps(path: str) -> tuple[int, int, int]:
+    """(mtime, ctime, atime) for the scan root, as FILETIMEs.
+
+    The root is added before the walk begins, so no DirEntry ever describes
+    it -- which is why selecting the scanned folder used to show a dash for
+    every date. A root that cannot be stat-ed still scans: a timestamp is
+    decoration, and losing the whole scan over one would not be.
+    """
+    try:
+        info = os.stat(path)
+    except OSError:
+        return 0, 0, 0
+    return (_to_filetime(info.st_mtime), _to_filetime(info.st_ctime),
+            _to_filetime(info.st_atime))
 
 
 @dataclass(frozen=True)
@@ -149,7 +176,9 @@ class WalkScanner:
 
     def scan(self, store: NodeStore, on_batch=None, should_cancel=None,
              wait_if_paused=None, batch_size: int = 500) -> int:
-        self.root = store.add(-1, self.root_path, attrs=DIR)
+        mtime, ctime, atime = root_timestamps(self.root_path)
+        self.root = store.add(-1, self.root_path, attrs=DIR,
+                              mtime=mtime, ctime=ctime, atime=atime)
         queue: deque[tuple[int, str]] = deque([(self.root, self.root_path)])
         batch_start = len(store)
         batch_opened = self._clock()

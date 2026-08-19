@@ -6,17 +6,19 @@ reason, rather than being absent — "SSH is not listed" sends people hunting,
 "SSH needs paramiko" tells them what to do.
 """
 from PyQt6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit,
-    QSpinBox, QVBoxLayout,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
+    QLineEdit, QSpinBox, QVBoxLayout,
 )
 
 from ..targets import available_targets
 from ..targets.base import Credentials
+from ..targets.credential_store import CredentialStore
 
 
 class RemoteTargetDialog(QDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, credential_store=None) -> None:
         super().__init__(parent)
+        self.credential_store = credential_store or CredentialStore()
         self.setWindowTitle("Scan a remote target")
         self.setMinimumWidth(420)
         layout = QVBoxLayout(self)
@@ -34,9 +36,11 @@ class RemoteTargetDialog(QDialog):
                 index = self.backend.count() - 1
                 self.backend.model().item(index).setEnabled(False)
         form.addRow("Type:", self.backend)
+        self.backend.currentIndexChanged.connect(self.recall_password)
 
         self.host = QLineEdit(self)
         self.host.setPlaceholderText("hostname, or https://host/dav for WebDAV")
+        self.host.editingFinished.connect(self.recall_password)
         form.addRow("Host:", self.host)
 
         self.port = QSpinBox(self)
@@ -45,6 +49,7 @@ class RemoteTargetDialog(QDialog):
         form.addRow("Port:", self.port)
 
         self.username = QLineEdit(self)
+        self.username.editingFinished.connect(self.recall_password)
         form.addRow("User:", self.username)
 
         self.password = QLineEdit(self)
@@ -54,10 +59,17 @@ class RemoteTargetDialog(QDialog):
         self.root = QLineEdit(self)
         self.root.setText("/")
         form.addRow("Path:", self.root)
+
+        # Opt-in: connecting once is not consent to keep the secret.
+        self.remember = QCheckBox(
+            "Remember this password in Windows Credential Manager", self)
+        form.addRow("", self.remember)
         layout.addLayout(form)
 
         note = QLabel(
-            "Credentials are used for this scan only and are not stored.",
+            "Passwords are kept in Windows Credential Manager when you ask "
+            "for them to be, and never written to a settings file. Unticking "
+            "the box forgets a password that was stored earlier.",
             self)
         note.setObjectName("optionsNote")
         note.setWordWrap(True)
@@ -69,6 +81,27 @@ class RemoteTargetDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def recall_password(self) -> None:
+        """Offer back a stored password for this backend, host and user.
+
+        A password already typed into the box wins: overwriting it with a
+        stale stored secret is how a rotated password turns into an auth
+        failure nobody can explain.
+        """
+        host = self.host.text().strip()
+        if not host or self.password.text():
+            return
+        target_id = self.backend.currentData()
+        found = self.credential_store.load(
+            target_id, host, self.username.text().strip())
+        if not found:
+            return
+        username, secret = found
+        if username and not self.username.text().strip():
+            self.username.setText(username)
+        self.password.setText(secret)
+        self.remember.setChecked(True)
 
     def selected(self):
         """(target instance, label) for the chosen backend, or (None, reason)."""
@@ -85,5 +118,12 @@ class RemoteTargetDialog(QDialog):
         )
         if not credentials.host:
             return None, "A host is required."
+        if self.remember.isChecked():
+            self.credential_store.save(target_id, credentials)
+        else:
+            # Unticking is the only way to forget one from inside the app;
+            # otherwise the user is sent to Credential Manager to clean up.
+            self.credential_store.forget(
+                target_id, credentials.host, credentials.username)
         label = f"{target_class.display_name}: {credentials.host}{credentials.root}"
         return target_class(credentials), label
