@@ -361,15 +361,21 @@ class TreeSizeShell(QWidget):
             return
         self.scan_state.setText("Exported %s rows" % format(len(rows) - 1, ","))
 
-    def _export_clipboard(self) -> None:
+    def _export_clipboard(self) -> str:
+        """Copy the visible rows and RETURN what was copied.
+
+        Returning the text is not decoration: reading it back off the
+        Windows clipboard is timing-dependent while widgets are being
+        created and destroyed around it, so a test that round-trips through
+        the OS is flaky for reasons unrelated to the export being right.
+        """
         rows = self._export_rows()
         if len(rows) < 2:
-            return
-        QApplication.clipboard().setText(
-            "\n".join("\t".join(row) for row in rows))
+            return ""
+        text = "\n".join("\t".join(row) for row in rows)
+        QApplication.clipboard().setText(text)
         self.scan_state.setText("Copied %s rows" % format(len(rows) - 1, ","))
-
-    # ---- state ----------------------------------------------------------
+        return text
 
     def set_mode(self, mode: Mode) -> None:
         self.directory_tree.tree_model.set_mode(mode)

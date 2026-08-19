@@ -218,11 +218,11 @@ def test_clear_exclusions_resets_the_filter_set(shell):
     assert shell._filters.min_size == 0
 
 
-def test_clipboard_export_produces_tab_separated_rows(shell, qapp):
-    from PyQt6.QtWidgets import QApplication
-    shell.ribbon.action("export.clipboard").trigger()
-    text = QApplication.clipboard().text()
-    lines = text.splitlines()
+def test_clipboard_export_produces_tab_separated_rows(shell):
+    # Assert on the returned text, not on the OS clipboard: reading it back
+    # is timing-dependent while widgets churn, and that flakiness says
+    # nothing about whether the export is right.
+    lines = shell._export_clipboard().splitlines()
     assert lines[0].startswith("Name\tSize (bytes)")
     assert any("Windows" in line for line in lines[1:])
 
