@@ -147,9 +147,33 @@ class MftTreeBuilder:
         self.charge_all_hardlinks = charge_all_hardlinks
         self.root = -1
         self.orphan_root: int | None = None
+        # NTFS $Secure id -> index into the store's interned owner table. The
+        # cache keeps this to one dict lookup per record instead of formatting
+        # a string half a million times.
+        self._owner_of: dict[int, int] = {}
         self._index_of: dict[int, int] = {}      # record_no -> node index
         self._sequence: dict[int, int] = {}      # record_no -> sequence
         self._pending: list[tuple[int, int, int]] = []   # node, parent_ref, parent_seq
+
+    def _owner_index(self, security_id: int) -> int:
+        """Intern a $Secure id and return an OWNER TABLE INDEX, not the id.
+
+        `owner_id` is a column of indices into store._owners on every code
+        path; putting a raw security id there instead made store.owner()
+        read an unrelated integer as a list position. It was silent only
+        because the table was empty.
+
+        Resolving these to account names means walking $Secure, which belongs
+        with the Users view in phase 3. Until then the entry is an explicit
+        "$SECURE:<id>" marker. Phase 3 can rewrite store._owners in place and
+        every node's owner_id stays valid.
+        """
+        cached = self._owner_of.get(security_id)
+        if cached is not None:
+            return cached
+        index = self.store.intern_owner(f"$SECURE:{security_id}")
+        self._owner_of[security_id] = index
+        return index
 
     def feed(self, rec: ParsedRecord) -> None:
         if rec.base_ref:
@@ -163,7 +187,7 @@ class MftTreeBuilder:
             return
         idx = self.store.add(-1, rec.name, size=rec.size, alloc=rec.alloc,
                              mtime=rec.mtime, ctime=rec.ctime, atime=rec.atime,
-                             attrs=rec.flags, owner_id=rec.security_id)
+                             attrs=rec.flags, owner_id=self._owner_index(rec.security_id))
         self._index_of[rec.record_no] = idx
         self._sequence[rec.record_no] = rec.sequence
         self._pending.append((idx, rec.parent_ref, rec.parent_seq))
@@ -173,7 +197,7 @@ class MftTreeBuilder:
             alloc = rec.alloc if self.charge_all_hardlinks else 0
             dup = self.store.add(-1, extra.name, size=size, alloc=alloc,
                                  mtime=rec.mtime, ctime=rec.ctime, atime=rec.atime,
-                                 attrs=flags, owner_id=rec.security_id)
+                                 attrs=flags, owner_id=self._owner_index(rec.security_id))
             self._pending.append((dup, extra.parent_ref, extra.parent_seq))
 
     def _ensure_orphan_root(self) -> int:

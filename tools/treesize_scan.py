@@ -11,7 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
-from modules.treesize.store.node_store import NodeStore            # noqa: E402
+from modules.treesize.store.node_store import (                    # noqa: E402
+    NodeStore, COMPRESSED, SPARSE, REPARSE, ADS, HARDLINK_DUP, EXCLUDED)
 from modules.treesize.scan.filters import FilterSet                # noqa: E402
 from modules.treesize.scan.scanner import Scanner, ScanResult      # noqa: E402
 
@@ -46,6 +47,25 @@ def bytes_per_node(store: NodeStore) -> float:
         return 0.0
     fixed = sum(getattr(store, column).itemsize for column in COLUMNS)
     return fixed + len(store.names) / len(store)
+
+
+FLAG_NAMES = (("compressed", COMPRESSED), ("sparse", SPARSE),
+              ("reparse", REPARSE), ("ads", ADS),
+              ("hardlink-dup", HARDLINK_DUP), ("excluded", EXCLUDED))
+
+
+def flag_census(store: NodeStore) -> list[tuple[str, int]]:
+    """Count nodes carrying each flag.
+
+    Exists to answer one recurring question with data instead of a guess: when
+    Size sits below Allocated, is that ordinary cluster rounding, or is
+    compressed/sparse detection broken? Zero compressed AND zero sparse across
+    a whole volume would be the suspicious answer.
+    """
+    counts = []
+    for label, bit in FLAG_NAMES:
+        counts.append((label, sum(1 for a in store.attrs if a & bit)))
+    return counts
 
 
 def top_children(result: ScanResult, limit: int = 20) -> list[tuple[str, int, int]]:
@@ -92,6 +112,8 @@ def summarize(result: ScanResult, limit: int = 20) -> str:
             lines.append(f"           {path} -- {why}")
         if result.error_count > 5:
             lines.append(f"           ... and {result.error_count - 5:,} more")
+    census = ", ".join(f"{label} {count:,}" for label, count in flag_census(store))
+    lines.append(f"Flags:     {census}")
     lines.append("")
     lines.append(f"Top {limit} under {store.name(root)}:")
     for name, size, alloc in top_children(result, limit):

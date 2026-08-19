@@ -10,6 +10,7 @@ Win32 FILE_ATTRIBUTE_* word. The two overlap numerically (Win32 HIDDEN is 0x2,
 which is node REPARSE) so mixing them silently filters the wrong entries.
 """
 import fnmatch
+import threading
 from dataclasses import dataclass, field
 
 from ..store.node_store import DIR, HIDDEN
@@ -22,10 +23,18 @@ class FilterSet:
     max_size: int | None = None
     exclude_hidden: bool = False
     excluded_count: int = field(default=0, init=False)
+    # `excluded_count += 1` is a read-modify-write. CPython's GIL makes it
+    # safe today -- a 10-thread test could not lose an update -- but the walk
+    # scanner is meant to be threaded (deferred out of phase 1) and that
+    # guarantee does not survive a free-threaded build. The lock is taken only
+    # on the exclusion branch, so the common path pays nothing.
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False,
+                                  repr=False, compare=False)
 
     def reset(self) -> None:
         """Zero the running tally so one FilterSet can drive repeated scans."""
-        self.excluded_count = 0
+        with self._lock:
+            self.excluded_count = 0
 
     def excludes(self, name: str, size: int, attrs: int) -> bool:
         lowered = name.lower()
@@ -41,5 +50,6 @@ class FilterSet:
             elif self.max_size is not None and size > self.max_size:
                 hit = True
         if hit:
-            self.excluded_count += 1
+            with self._lock:
+                self.excluded_count += 1
         return hit
