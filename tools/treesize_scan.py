@@ -82,6 +82,15 @@ def summarize(result: ScanResult, limit: int = 20) -> str:
     ]
     if result.volume_info:
         lines.append(f"Cluster:   {result.volume_info.bytes_per_cluster:,} bytes")
+    if result.engine == "mft" and result.volume_info:
+        # How many record slots the MFT claims to hold, so the operator can
+        # compare against Nodes above. A node count far below this is the
+        # signature of an MFT that was not read end to end -- fragmentation
+        # being the likeliest cause, since only the first extent is followed.
+        info = result.volume_info
+        slots = info.mft_valid_length // max(info.bytes_per_record, 1)
+        lines.append(f"MFT:       {slots:,} record slots "
+                     f"({info.mft_valid_length / (1024 ** 2):,.0f} MB)")
     if result.node_count and result.elapsed > 0:
         lines.append(f"Rate:      {result.node_count / result.elapsed:,.0f} nodes/s")
     if not result.complete:

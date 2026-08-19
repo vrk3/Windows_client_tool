@@ -135,3 +135,22 @@ def test_main_exits_nonzero_on_a_genuinely_unreadable_target(capsys):
     out = capsys.readouterr().out
     assert "INCOMPLETE SCAN" in out
     assert "Access is denied." in out
+
+
+def test_mft_record_slots_reported_when_geometry_is_known():
+    """The elevated run must be able to answer 'did we read the whole MFT?'."""
+    from modules.treesize.scan.volume_info import VolumeInfo
+    info = VolumeInfo(bytes_per_sector=512, bytes_per_cluster=4096,
+                      bytes_per_record=1024, mft_start_lcn=100,
+                      mft_valid_length=1024 * 500, total_clusters=1000)
+    r = _fake_result(True)
+    r.engine = "mft"
+    r.volume_info = info
+    text = summarize(r)
+    assert "500" in text
+    assert "record slots" in text
+
+
+def test_record_slots_not_reported_for_a_walk_scan():
+    text = summarize(_fake_result(True))
+    assert "record slots" not in text
