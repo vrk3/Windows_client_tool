@@ -31,7 +31,53 @@ def _scan():
 def test_ribbon_tabs_are_the_products_own(qapp):
     ribbon = Ribbon()
     tabs = [ribbon.tab_bar.tabText(i) for i in range(ribbon.tab_bar.count())]
-    assert tabs == ["File", "Home", "Scan", "Tools", "View", "Help"]
+    assert tabs == ["File", "Home", "Scan", "Tools", "View", "Details", "Help"]
+
+
+def test_the_details_tab_is_contextual_and_starts_hidden(qapp):
+    """A contextual tab appears with its object and disappears with it."""
+    ribbon = Ribbon()
+    index = tabs_index(ribbon, "Details")
+    assert not ribbon.tab_bar.isTabVisible(index)
+    ribbon.set_contextual_visible("Details", True)
+    assert ribbon.tab_bar.isTabVisible(index)
+
+
+def test_hiding_a_contextual_tab_does_not_strand_the_user_on_it(qapp):
+    ribbon = Ribbon()
+    index = tabs_index(ribbon, "Details")
+    ribbon.set_contextual_visible("Details", True)
+    ribbon.tab_bar.setCurrentIndex(index)
+    ribbon.set_contextual_visible("Details", False)
+    assert ribbon.tab_bar.currentIndex() != index
+
+
+def tabs_index(ribbon, name):
+    return next(i for i in range(ribbon.tab_bar.count())
+                if ribbon.tab_bar.tabText(i) == name)
+
+
+def test_the_details_tab_follows_the_active_view(shell):
+    shell.views.setCurrentWidget(shell.details)
+    index = tabs_index(shell.ribbon, "Details")
+    assert shell.ribbon.tab_bar.isTabVisible(index)
+    shell.views.setCurrentWidget(shell.chart)
+    assert not shell.ribbon.tab_bar.isTabVisible(index)
+
+
+def test_details_column_chooser_hides_and_shows(shell):
+    from modules.treesize.ui.views.details import COLUMNS
+    shell.views.setCurrentWidget(shell.details)
+    assert "Path" not in shell.details.visible_columns()
+    shell.details.set_visible_columns(COLUMNS)
+    assert "Path" in shell.details.visible_columns()
+
+
+def test_the_name_column_can_never_be_hidden(shell):
+    """A table of sizes with no names is useless, and the chooser is reached
+    from the header of a table you can no longer read."""
+    shell.details.set_visible_columns(("Size",))
+    assert "Name" in shell.details.visible_columns()
 
 
 def test_an_action_shared_by_two_tabs_is_one_object(qapp):

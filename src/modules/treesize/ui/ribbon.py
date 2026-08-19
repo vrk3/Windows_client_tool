@@ -95,6 +95,15 @@ RIBBON: tuple = (
                   ("view.hideempty", "Hide empty folders", False, False),
                   ("view.hidesmall", "Hide elements smaller than", False, True))),
     )),
+    # Contextual tab. Shown only while the Details view is active, which is
+    # what "Details Tools" means in a ribbon: a tab that appears with its
+    # object and disappears with it.
+    ("Details", (
+        ("Columns", (("details.columns", "Choose\ncolumns", True, True),
+                     ("details.reset", "Reset columns", False, False))),
+        ("Fit", (("details.fit", "Fit columns to content", False, False),
+                 ("details.autosize", "Autosize on refresh", False, False))),
+    )),
     ("Help", (
         ("Help", (("help.contents", "Help contents", True, False),
                   ("help.about", "About", False, False))),
@@ -150,7 +159,11 @@ MENUS: dict = {
                       ("tools.options.import", "Import settings…"),
                       ("tools.options.reset", "Reset settings")),
     "tools.search": (("tools.search.open", "Open TreeSize File Search"),),
+    "details.columns": (),      # filled at runtime from the Details view
 }
+
+#: Tabs that appear only in a particular context, with the tab that owns them.
+CONTEXTUAL_TABS = {"Details": "Details Tools"}
 
 # Buttons that hold a checked/unchecked state rather than firing once.
 CHECKABLE = {
@@ -159,6 +172,7 @@ CHECKABLE = {
     "panel.drives", "panel.overview", "panel.status",
     "view.changes", "view.hideempty", "view.group", "scan.watch",
     "unit.decimals.0", "unit.decimals.1", "unit.decimals.2",
+    "details.autosize",
     "hidesmall.off", "hidesmall.1mb", "hidesmall.10mb", "hidesmall.100mb",
 }
 
@@ -255,6 +269,12 @@ class Ribbon(QWidget):
         # The File tab opens a backstage page, not a dropdown, so it sits at
         # index 0 and is handled by the shell rather than the stack.
         self.tab_bar.insertTab(0, "File")
+        self._contextual = {}
+        for name in CONTEXTUAL_TABS:
+            index = next(i for i in range(self.tab_bar.count())
+                         if self.tab_bar.tabText(i) == name)
+            self._contextual[name] = index
+            self.tab_bar.setTabVisible(index, False)
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
         self.tab_bar.setCurrentIndex(1)
 
@@ -335,6 +355,15 @@ class Ribbon(QWidget):
         action = self.actions_by_id.get(action_id)
         if action is not None:
             action.setEnabled(enabled)
+
+    def set_contextual_visible(self, name: str, visible: bool) -> None:
+        """Show or hide a contextual tab, without stranding the user on it."""
+        index = self._contextual.get(name)
+        if index is None:
+            return
+        if not visible and self.tab_bar.currentIndex() == index:
+            self.tab_bar.setCurrentIndex(1)
+        self.tab_bar.setTabVisible(index, visible)
 
     def _on_tab_changed(self, index: int) -> None:
         name = self.tab_bar.tabText(index)

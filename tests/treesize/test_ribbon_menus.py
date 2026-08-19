@@ -117,6 +117,8 @@ NOT_YET_IMPLEMENTED = {
     "scan.schedule", "scan.watch", "tools.scheduled",
     # Separate tools the module does not host.
     "tools.search", "tools.search.open", "tools.software", "tools.restore",
+    # Autosize-on-refresh is a stored preference with no consumer yet.
+    "details.autosize",
     # Menu parents: the button face does nothing, the arrow opens a working menu.
     "scan.select", "result.export", "scan.exclude", "view.select",
     "view.hidesmall", "unit.decimals",

@@ -34,7 +34,7 @@ from .ribbon import Ribbon
 from .scan_worker import ScanWorker
 from .tree_model import NodeIndexRole
 from .views.chart import ChartView
-from .views.details import DetailsView
+from .views.details import DEFAULT_COLUMNS, DetailsView
 from .views.tables import (
     AgeView, ExtensionsView, FileGroupsView, TopFilesView, UsersView,
 )
@@ -196,6 +196,7 @@ class TreeSizeShell(QWidget):
         # selection would walk the subtree six times for five views nobody is
         # looking at.
         self.views.currentChanged.connect(lambda _i: self._refresh_right_pane())
+        self.views.currentChanged.connect(self._update_contextual_tabs)
 
         for action_id, mode in MODE_ACTIONS.items():
             self.ribbon.action(action_id).triggered.connect(
@@ -261,6 +262,11 @@ class TreeSizeShell(QWidget):
                                ("age", self.ages), ("top", self.top_files)):
             act("view.go." + suffix).triggered.connect(
                 lambda _c=False, w=widget: self.views.setCurrentWidget(w))
+
+        act("details.reset").triggered.connect(
+            lambda: self.details.set_visible_columns(DEFAULT_COLUMNS))
+        act("details.fit").triggered.connect(self._fit_details_columns)
+        act("details.columns").triggered.connect(self._popup_column_menu)
 
         act("tree.find").triggered.connect(self.find_in_tree)
         act("view.hideempty").toggled.connect(self.set_hide_empty)
@@ -567,6 +573,19 @@ class TreeSizeShell(QWidget):
             "Whole-drive scans use a much faster path when elevated, and can "
             "read locations a normal user cannot.\n\nRestart the application as "
             "administrator to enable it. Folder scans work either way.")
+
+    def _update_contextual_tabs(self, *_args) -> None:
+        self.ribbon.set_contextual_visible(
+            "Details", self.views.currentWidget() is self.details)
+
+    def _fit_details_columns(self) -> None:
+        for column in range(self.details.columnCount()):
+            if not self.details.isColumnHidden(column):
+                self.details.resizeColumnToContents(column)
+
+    def _popup_column_menu(self) -> None:
+        from PyQt6.QtCore import QPoint
+        self.details._column_menu(QPoint(0, 0))
 
     def _refresh_target_menu(self) -> None:
         """The scan-target list is whatever drives exist now, not a fixed list."""
