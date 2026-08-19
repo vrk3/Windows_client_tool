@@ -97,20 +97,23 @@ def get_volume_info(letter: str) -> VolumeInfo | None:
         _kernel32.CloseHandle(handle)
 
 
-def read_at(handle: int, offset: int, length: int) -> bytes:
-    """Read `length` bytes starting at absolute byte `offset` from a raw volume handle.
+def read_at(handle: int, offset: int, length: int) -> bytes | None:
+    """Read `length` bytes at absolute byte `offset` from a raw volume handle.
 
     Uses SetFilePointerEx with a genuine 64-bit offset: volumes are far larger
-    than 2 GB, and the MFT commonly sits well past that boundary. Returns b"" on
-    failure rather than raising, so callers can treat an unreadable region the
-    same way they treat an unopenable volume.
+    than 2 GB, and the MFT commonly sits well past that boundary.
+
+    Returns None if the read FAILED, and bytes if it succeeded -- including b""
+    for a legitimate zero-byte read at end of data. The two must stay
+    distinguishable: a caller that treats a failure as end-of-data silently
+    truncates its scan and returns a plausible number that is quietly wrong.
     """
     ok = _kernel32.SetFilePointerEx(handle, ctypes.c_longlong(offset), None, FILE_BEGIN)
     if not ok:
-        return b""
+        return None
     buf = ctypes.create_string_buffer(length)
     read = wintypes.DWORD(0)
     ok = _kernel32.ReadFile(handle, buf, length, ctypes.byref(read), None)
     if not ok:
-        return b""
+        return None
     return buf.raw[:read.value]

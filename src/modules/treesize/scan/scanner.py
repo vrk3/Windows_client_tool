@@ -35,6 +35,12 @@ class ScanResult:
     excluded: int
     volume_info: VolumeInfo | None
     elapsed: float
+    # False when the scan could not read everything it was asked to: a failed
+    # volume read, or a directory it was denied. The totals are then a LOWER
+    # BOUND, not a measurement, and no caller should present them as final.
+    complete: bool = True
+    errors: tuple[tuple[str, str], ...] = ()
+    error_count: int = 0
 
 
 def _is_admin() -> bool:
@@ -92,6 +98,12 @@ class Scanner:
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,
                          wait_if_paused=self._wait_if_paused)
             root = scanner.builder.root
+            complete = not scanner.truncated
+            errors: tuple[tuple[str, str], ...] = ()
+            error_count = 0
+            if scanner.truncated:
+                errors = ((f"{letter}:", "MFT read failed before the end of the table"),)
+                error_count = 1
         else:
             cluster = DEFAULT_CLUSTER_BYTES
             letter = _drive_letter(self.target) or os.path.splitdrive(self.target)[0][:1]
@@ -105,7 +117,11 @@ class Scanner:
             scanner.scan(store, on_batch=on_batch, should_cancel=should_cancel,
                          wait_if_paused=self._wait_if_paused)
             root = scanner.root
+            complete = scanner.error_count == 0
+            errors = tuple(scanner.errors)
+            error_count = scanner.error_count
         rollup(store)
         return ScanResult(store=store, root=root, engine=engine,
                           node_count=len(store), excluded=self.filters.excluded_count,
-                          volume_info=info, elapsed=time.monotonic() - started)
+                          volume_info=info, elapsed=time.monotonic() - started,
+                          complete=complete, errors=errors, error_count=error_count)

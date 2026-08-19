@@ -59,8 +59,14 @@ def test_get_volume_info_reads_c_drive_when_elevated():
     assert v.bytes_per_record >= 1024
 
 
-def test_read_at_invalid_handle_returns_empty_bytes():
-    assert read_at(0, 0, 512) == b""
+def test_read_at_invalid_handle_returns_none_not_empty_bytes():
+    """None is failure; b"" would be a legitimate zero-byte read at end of data.
+
+    This test previously asserted b"" for failure. That conflation is exactly
+    what let a failed volume read masquerade as end-of-MFT and silently
+    truncate a scan, so the contract -- and this test -- changed.
+    """
+    assert read_at(0, 0, 512) is None
 
 
 @pytest.mark.skipif(

@@ -1,5 +1,8 @@
+import ctypes
 import os
 import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "tools"))
 
@@ -49,7 +52,7 @@ def test_main_returns_zero_on_success(tmp_path, capsys):
 
 
 def test_main_returns_error_for_missing_target(capsys):
-    assert main(["C:\definitely-not-real-8271"]) == 1
+    assert main(["C:\\definitely-not-real-8271"]) == 1
 
 
 def test_main_honours_exclude_on_the_walk_engine(tmp_path, capsys):
@@ -83,3 +86,52 @@ def test_filter_warning_only_fires_when_mft_would_ignore_filters():
 def test_summarize_of_an_empty_directory_does_not_divide_by_zero(tmp_path):
     text = summarize(Scanner(str(tmp_path)).scan())
     assert "Nodes:     1" in text
+
+
+def _fake_result(complete, errors=(), error_count=0):
+    """A one-node ScanResult, built directly so formatting is tested in isolation."""
+    from modules.treesize.store.node_store import NodeStore, DIR
+    from modules.treesize.scan.scanner import ScanResult
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    store.build_child_lists()
+    return ScanResult(store=store, root=root, engine="walk", node_count=1,
+                      excluded=0, volume_info=None, elapsed=0.1,
+                      complete=complete, errors=errors, error_count=error_count)
+
+
+def test_summarize_shouts_when_the_scan_was_incomplete():
+    text = summarize(_fake_result(False, (("C:\\locked", "Access is denied."),), 1))
+    assert "INCOMPLETE SCAN" in text
+    assert "LOWER BOUND" in text
+    assert "C:\\locked" in text
+    assert "Access is denied." in text
+
+
+def test_summarize_says_nothing_extra_when_the_scan_was_complete():
+    text = summarize(_fake_result(True))
+    assert "INCOMPLETE" not in text
+    assert "Unread" not in text
+
+
+def test_summarize_caps_the_listed_errors_but_reports_the_full_count():
+    errs = tuple((f"C:\\d{i}", "Access is denied.") for i in range(40))
+    text = summarize(_fake_result(False, errs, 40))
+    assert "40 location(s) could not be read" in text
+    assert "and 35 more" in text
+
+
+@pytest.mark.skipif(
+    ctypes.windll.shell32.IsUserAnAdmin(),
+    reason="System Volume Information is readable when elevated",
+)
+def test_main_exits_nonzero_on_a_genuinely_unreadable_target(capsys):
+    """C:\\System Volume Information exists but is denied to a normal user.
+
+    Exercises the whole chain for real: FindFirstFileExW failure -> on_error ->
+    WalkScanner.errors -> ScanResult.complete -> exit code.
+    """
+    assert main(["C:\\System Volume Information"]) == 2
+    out = capsys.readouterr().out
+    assert "INCOMPLETE SCAN" in out
+    assert "Access is denied." in out

@@ -84,6 +84,13 @@ def summarize(result: ScanResult, limit: int = 20) -> str:
         lines.append(f"Cluster:   {result.volume_info.bytes_per_cluster:,} bytes")
     if result.node_count and result.elapsed > 0:
         lines.append(f"Rate:      {result.node_count / result.elapsed:,.0f} nodes/s")
+    if not result.complete:
+        lines.insert(0, "*** INCOMPLETE SCAN -- the totals below are a LOWER BOUND ***")
+        lines.append(f"Unread:    {result.error_count:,} location(s) could not be read")
+        for path, why in result.errors[:5]:
+            lines.append(f"           {path} -- {why}")
+        if result.error_count > 5:
+            lines.append(f"           ... and {result.error_count - 5:,} more")
     lines.append("")
     lines.append(f"Top {limit} under {store.name(root)}:")
     for name, size, alloc in top_children(result, limit):
@@ -108,8 +115,12 @@ def main(argv: list[str] | None = None) -> int:
     warning = filter_warning(scanner.select_engine(), excludes)
     if warning:
         print(warning, file=sys.stderr)
-    print(summarize(scanner.scan(), args.top))
-    return 0
+    result = scanner.scan()
+    print(summarize(result, args.top))
+    # A scan that could not read everything must not exit 0: these numbers are
+    # the phase-1 acceptance figures, and an incomplete run silently passing as
+    # a good one is the whole failure mode this guards against.
+    return 0 if result.complete else 2
 
 
 if __name__ == "__main__":

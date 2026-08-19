@@ -206,12 +206,17 @@ class MftScanner:
         self.charge_all_hardlinks = charge_all_hardlinks
         self._reader = reader or self._read_from_volume
         self.builder: MftTreeBuilder | None = None
+        # True when the MFT could not be read to the end. The tree is then a
+        # PREFIX of the volume, not the volume, and its totals must not be
+        # presented as authoritative.
+        self.truncated = False
 
-    def _read_from_volume(self, offset: int, length: int) -> bytes:
+    def _read_from_volume(self, offset: int, length: int) -> bytes | None:
+        """None means the read failed, distinct from b"" meaning end of data."""
         from .volume_info import open_volume, read_at, _kernel32
         handle = open_volume(self.letter)
         if not handle:
-            return b""
+            return None
         try:
             return read_at(handle, offset, length)
         finally:
@@ -231,6 +236,12 @@ class MftScanner:
         seen = 0
         while offset < end and not cancelled:
             chunk = self._reader(offset, min(CHUNK_BYTES, end - offset))
+            if chunk is None:
+                # A failed read, not end of data. Without this distinction the
+                # scan stops here and reports a smaller volume rather than a
+                # broken one.
+                self.truncated = True
+                break
             if not chunk:
                 break
             # A chunk length is not guaranteed to be a multiple of rec_size
@@ -241,7 +252,12 @@ class MftScanner:
             # offset stays record-aligned for the whole scan.
             usable = (len(chunk) // rec_size) * rec_size
             if usable == 0:
-                break          # fewer than one whole record available; cannot make progress
+                # Fewer than one whole record available, so no progress is
+                # possible. If the MFT has not been consumed, this is a stall,
+                # not a clean finish.
+                if offset < end:
+                    self.truncated = True
+                break
             for pos in range(0, usable, rec_size):
                 # Checked inside the record loop, not per chunk: a 4 MB chunk
                 # is ~4000 records, and Stop must not wait for all of them.

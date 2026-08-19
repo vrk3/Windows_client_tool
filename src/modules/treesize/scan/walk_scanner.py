@@ -75,12 +75,21 @@ def _long_path(path: str) -> str:
     return "\\\\?\\" + path
 
 
-def list_directory(path: str) -> list[DirEntry]:
+def list_directory(path: str, on_error=None) -> list[DirEntry]:
+    """Entries in `path`, or [] if it could not be opened.
+
+    An empty list is ambiguous by itself -- an empty folder and a folder we were
+    denied look identical -- so a caller that cares passes `on_error(path, why)`
+    and learns which it was. Without that, a locked subtree silently contributes
+    zero bytes to a total the user is expected to trust.
+    """
     data = WIN32_FIND_DATAW()
     handle = _kernel32.FindFirstFileExW(
         _long_path(os.path.join(path, "*")), FindExInfoBasic, ctypes.byref(data),
         FindExSearchNameMatch, None, FIND_FIRST_EX_LARGE_FETCH)
     if not handle or handle == INVALID_HANDLE_VALUE:
+        if on_error is not None:
+            on_error(path, ctypes.FormatError(ctypes.get_last_error()).strip())
         return []
     out: list[DirEntry] = []
     try:
@@ -106,6 +115,8 @@ def list_directory(path: str) -> list[DirEntry]:
 
 
 class WalkScanner:
+    MAX_RECORDED_ERRORS = 100
+
     def __init__(self, root_path: str, bytes_per_cluster: int = 4096,
                  max_workers: int | None = None,
                  exclude: Callable[[str, int, int], bool] | None = None) -> None:
@@ -114,6 +125,16 @@ class WalkScanner:
         self.max_workers = max_workers or min(32, (os.cpu_count() or 4) * 4)
         self.exclude = exclude
         self.root = -1
+        # Directories that could not be listed. The list is capped so a scan of
+        # a heavily locked-down tree cannot balloon; error_count is not, so the
+        # true scale of the gap is never lost.
+        self.errors: list[tuple[str, str]] = []
+        self.error_count = 0
+
+    def _record_error(self, path: str, why: str) -> None:
+        self.error_count += 1
+        if len(self.errors) < self.MAX_RECORDED_ERRORS:
+            self.errors.append((path, why))
 
     def _alloc_for(self, size: int) -> int:
         if size == 0:
@@ -132,7 +153,7 @@ class WalkScanner:
             if should_cancel and should_cancel():
                 break
             node, path = queue.popleft()
-            for entry in list_directory(path):
+            for entry in list_directory(path, on_error=self._record_error):
                 flags = 0
                 if entry.is_dir:
                     flags |= DIR
