@@ -232,3 +232,50 @@ def test_comparing_a_scan_with_itself_reports_no_change():
     delta = compare.diff(old, old_root, old, old_root)
     assert delta.change == 0
     assert compare.flatten(delta) == []
+
+
+# ---- scale --------------------------------------------------------------
+
+def test_a_large_store_round_trips_intact(tmp_path):
+    """Every other test here uses a handful of nodes.
+
+    The format carries hundreds of thousands in real use, with a name blob in
+    the tens of megabytes, and it had never been asked to. What breaks at that
+    size and not at five nodes: an array typecode that is too narrow, a length
+    prefix that overflows, an offset column that quietly transposes. A saved
+    scan that reloads WRONG is the worst failure this format has available,
+    because nothing about it looks like a failure.
+
+    Deliberately kept to ~40k nodes so the suite stays quick;
+    `tools/treesize_scanfile_check.py` does the same thing against a real
+    quarter-million-node scan of the Windows directory.
+    """
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    folders = [store.add(root, f"folder-{i:04d}", attrs=DIR) for i in range(200)]
+    for index, folder in enumerate(folders):
+        for j in range(200):
+            store.add(folder, f"file-{index:04d}-{j:04d}-\u00e9\u4e2d.bin",
+                      size=index * 1000 + j, alloc=(index * 1000 + j + 4095)
+                      // 4096 * 4096, mtime=133_000_000_000_000_000 + j)
+    store.build_child_lists()
+    rollup(store)
+    assert len(store) > 40_000
+    # ~960 KB: a blob measured in megabytes, not the handful of bytes
+    # every other test in this file uses.
+    assert len(store.names) > 900_000
+
+    path = str(tmp_path / "big.tsscan")
+    scan_file.save(path, store, root, scan_file.ScanHeader(target="C:"))
+    loaded, loaded_root, _header = scan_file.load(path)
+
+    assert len(loaded) == len(store)
+    assert loaded_root == root
+    for name, _typecode in scan_file.COLUMNS:
+        assert list(getattr(loaded, name)) == list(getattr(store, name)), name
+    assert bytes(loaded.names) == bytes(store.names)
+    # Names as STRINGS, not just bytes: the blob can match while name_off and
+    # name_len are transposed against each other.
+    assert loaded.name(len(store) - 1) == store.name(len(store) - 1)
+    assert loaded.size[loaded_root] == store.size[root]
+    assert loaded.file_count[loaded_root] == store.file_count[root]
