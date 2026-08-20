@@ -4,6 +4,23 @@ A comprehensive Windows 11 optimization and system diagnostics utility with a mo
 
 ## Features
 
+### Disk Space & Logs
+- **TreeSize**: A full disk-space analyser. Reads the NTFS `$MFT` directly
+  when run elevated on an NTFS volume — a whole `C:` in about 20 seconds —
+  and falls back to a directory walk everywhere else. Treemap, pie and bar
+  charts; per-extension, per-file-group, per-owner and per-age breakdowns;
+  saved scans, snapshots and comparison; duplicate finder; file search;
+  scheduled scans; live watching of a scanned folder; exports to CSV, Excel,
+  PDF, HTML, XML, JSON, SQLite and text. Besides local drives it can scan
+  SSH/SFTP, WebDAV and Outlook mailboxes; S3, Azure Blob, SharePoint and
+  Google Drive additionally need their vendor SDK installed (`boto3`,
+  `azure-storage-blob`, `google-api-python-client`) and report themselves as
+  unavailable until it is.
+- **Log Viewer**: A CMTrace-style viewer for ConfigMgr logs and plain text
+  alike. Severity colouring, live tailing that survives a log rollover, a
+  case-insensitive filter, find with wrap-around, and it opens a
+  several-hundred-megabyte log at its tail rather than trying to hold it all.
+
 ### System Analysis & Optimization
 - **Dashboard**: Live monitoring of CPU, memory, disk, network usage
 - **Event Viewer**: Parse Windows Event logs (System, Application, Security)
@@ -95,6 +112,8 @@ This is a system optimization tool. Contributions should focus on:
 ## Roadmap
 
 - [x] Core modules implementation
+- [x] TreeSize disk-space analyser (MFT and walk engines)
+- [x] CMTrace-style log viewer
 - [ ] Full AI-powered recommendations (Ollama integration)
 - [ ] Enhanced restore manager
 - [ ] Additional diagnostic modules
