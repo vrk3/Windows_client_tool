@@ -4,7 +4,7 @@ from PyQt6.QtCore import QModelIndex, Qt
 
 from modules.treesize.store.node_store import NodeStore, DIR, EXCLUDED
 from modules.treesize.store.rollup import rollup
-from modules.treesize.ui.formatting import Mode, Unit
+from modules.treesize.ui.formatting import Mode, Unit, format_value
 from modules.treesize.ui.panels import (
     DriveList, ScanOverview, TreeSizeStatusBar, format_filetime,
 )
@@ -668,3 +668,45 @@ def test_no_class_in_the_pane_defines_a_method_twice():
                             f"{path.name}:{item.lineno} {node.name}.{item.name}")
                     seen.add(item.name)
     assert not duplicates, "redefined methods: " + ", ".join(duplicates)
+
+
+# ---- Mode is pane state (spec 5.5) --------------------------------------
+
+def test_mode_reaches_the_chart_not_only_the_tree(shell):
+    """Spec 5.5: "It is pane state, not per-view state." Mode reached the tree
+    model and stopped there, so asking for Allocated space on a volume where
+    size and allocated differ by 240 GB redrew an identical chart."""
+    shell.set_mode(Mode.ALLOCATED)
+    assert shell.directory_tree.tree_model.mode is Mode.ALLOCATED
+    assert shell.chart._value_mode is Mode.ALLOCATED
+    assert shell.chart.treemap._mode is Mode.ALLOCATED
+    assert shell.chart.pie._mode is Mode.ALLOCATED
+    assert shell.chart.bars._mode is Mode.ALLOCATED
+
+
+def test_the_treemap_redraws_when_the_mode_changes(shell):
+    """One 9 GB file against one 9-byte file: by size the small one is a
+    sliver, by file count they are equal halves. Two genuinely different
+    pictures, and the chart used to draw the first one for both."""
+    shell.views.setCurrentWidget(shell.chart)
+    shell.chart.treemap.resize(400, 400)
+
+    shell.set_mode(Mode.SIZE)
+    shell.chart.set_scan(shell._store, shell._root)
+    by_size = {r.node: round(r.w * r.h) for r in shell.chart.treemap._rects}
+    shell.set_mode(Mode.FILES)
+    by_files = {r.node: round(r.w * r.h) for r in shell.chart.treemap._rects}
+    assert by_size, "the treemap laid out nothing at all"
+    assert by_files != by_size
+
+
+def test_a_file_reads_as_one_file_not_zero(shell):
+    """rollup charges a file to its parent, so file_count on the file itself
+    is 0. Under Number of files every file row read "0", which is not a count
+    -- it is where the tally happens to be kept."""
+    model = shell.directory_tree.tree_model
+    shell.set_mode(Mode.FILES)
+    leaf = next(i for i in range(len(shell._store))
+                if shell._store.name(i) == "tiny.txt")
+    assert format_value(shell._store, leaf, Mode.FILES) == "1"
+    assert model.mode is Mode.FILES

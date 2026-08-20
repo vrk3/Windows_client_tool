@@ -1140,9 +1140,17 @@ class TreeSizeShell(QWidget):
         return text
 
     def set_mode(self, mode: Mode) -> None:
+        """Spec 5.5: Mode is PANE state, not per-view state.
+
+        It reached the tree and stopped there, so asking for Allocated space
+        on a volume where size and allocated differ by 240 GB redrew an
+        identical chart. The chart is part of the pane.
+        """
         self.directory_tree.tree_model.set_mode(mode)
+        self.chart.set_value_mode(mode)
         for action_id, candidate in MODE_ACTIONS.items():
             self.ribbon.action(action_id).setChecked(candidate is mode)
+        self._refresh_right_pane()
 
     def set_unit(self, unit: Unit) -> None:
         self.directory_tree.tree_model.set_unit(unit)

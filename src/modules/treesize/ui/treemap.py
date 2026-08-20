@@ -15,6 +15,8 @@ than degrading linearly.
 """
 from dataclasses import dataclass
 
+from .formatting import Mode, weight_value
+
 
 @dataclass(frozen=True)
 class Rect:
@@ -102,12 +104,18 @@ MIN_TILE = 3.0          # below this a rect is not worth recursing into
 
 
 def build_treemap(store, root: int, width: float, height: float,
-                  max_depth: int = 6, min_tile: float = MIN_TILE) -> list[Rect]:
+                  max_depth: int = 6, min_tile: float = MIN_TILE,
+                  mode: Mode = Mode.SIZE) -> list[Rect]:
     """Flatten a subtree into drawable rectangles, parents before children.
 
     Recursion stops at `max_depth` or when a tile is too small to show
     anything useful -- without that a full C:\\ builds millions of sub-pixel
     rectangles that nobody can see and every one of which must be hit-tested.
+
+    `mode` is spec 5.5's pane mode: it decides what area MEANS here, exactly
+    as it decides what the tree bars mean. Weighting by size regardless of it
+    redrew an identical picture when the user asked for allocated space, on a
+    volume where the two differ by 240 GB.
     """
     from ..store.node_store import DIR, EXCLUDED
 
@@ -121,11 +129,12 @@ def build_treemap(store, root: int, width: float, height: float,
         if not (store.attrs[node] & DIR):
             continue
         kids = [c for c in store.children(node)
-                if not (store.attrs[c] & EXCLUDED) and store.size[c] > 0]
+                if not (store.attrs[c] & EXCLUDED)
+                and weight_value(store, c, mode) > 0]
         if not kids:
             continue
-        kids.sort(key=lambda n: store.size[n], reverse=True)
-        values = [store.size[n] for n in kids]
+        kids.sort(key=lambda n: weight_value(store, n, mode), reverse=True)
+        values = [weight_value(store, n, mode) for n in kids]
         # Inset by one pixel so a child never sits flush against its parent's
         # border; that gap is what makes nesting legible at a glance.
         boxes = squarify(values, x + 1, y + 1, max(0.0, w - 2), max(0.0, h - 2))

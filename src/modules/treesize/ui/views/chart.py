@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ...store.node_store import DIR
-from ..formatting import format_bytes
+from ..formatting import Mode, format_value, weight_value
 from ..treemap import HitGrid, build_treemap
 
 # One hue per top-level branch, cycled. Chosen for even spacing round the wheel
@@ -48,6 +48,14 @@ class TreemapWidget(QWidget):
         self._hover = -1
         self._colors: dict[int, QColor] = {}
         self.max_depth = 6
+        self._mode = Mode.SIZE
+
+    def set_value_mode(self, mode: Mode) -> None:
+        """Spec 5.5's pane mode: what a tile's AREA measures."""
+        if mode is self._mode:
+            return
+        self._mode = mode
+        self._rebuild()
 
     def set_scan(self, store, root: int) -> None:
         self._store = store
@@ -62,7 +70,7 @@ class TreemapWidget(QWidget):
             return
         self._rects = build_treemap(self._store, self._root,
                                     float(self.width()), float(self.height()),
-                                    max_depth=self.max_depth)
+                                    max_depth=self.max_depth, mode=self._mode)
         self._grid = HitGrid(self._rects, float(self.width()), float(self.height()))
         self.update()
 
@@ -131,7 +139,7 @@ class TreemapWidget(QWidget):
             self._hover = node
             if node >= 0 and self._store is not None:
                 self.setToolTip(f"{self._store.path(node)}\n"
-                                f"{format_bytes(self._store.size[node])}")
+                                f"{format_value(self._store, node, self._mode)}")
             else:
                 self.setToolTip("")
             self.update()
@@ -173,30 +181,61 @@ class SliceChart(QWidget):
         super().__init__(parent)
         self._bars = bars
         self._store = None
-        self._rows: list = []          # (node, name, size, fraction, color)
+        self._node = -1
+        self._mode = Mode.SIZE
+        #: (node, name, text, fraction, color) -- `text` is preformatted
+        #: because what a slice MEANS depends on the mode, and neither painter
+        #: should have to work that out again.
+        self._rows: list = []
         self.setMinimumHeight(160)
+
+    def set_value_mode(self, mode: Mode) -> None:
+        if mode is self._mode:
+            return
+        self._mode = mode
+        self.set_scan(self._store, self._node)
 
     def set_scan(self, store, node: int) -> None:
         self._store = store
+        self._node = node
         self._rows = []
         if store is not None and 0 <= node < len(store):
             from ...store.node_store import EXCLUDED
+
+            def weight(n):
+                return weight_value(store, n, self._mode)
+
             kids = [c for c in store.children(node)
-                    if not (store.attrs[c] & EXCLUDED) and store.size[c] > 0]
-            kids.sort(key=lambda n: store.size[n], reverse=True)
-            total = sum(store.size[c] for c in kids)
+                    if not (store.attrs[c] & EXCLUDED) and weight(c) > 0]
+            kids.sort(key=weight, reverse=True)
+            total = sum(weight(c) for c in kids)
             if total > 0:
                 head, tail = kids[:self.MAX_SLICES], kids[self.MAX_SLICES:]
                 for i, child in enumerate(head):
                     self._rows.append((child, store.name(child),
-                                       store.size[child],
-                                       store.size[child] / total,
+                                       format_value(store, child, self._mode),
+                                       weight(child) / total,
                                        PALETTE[i % len(PALETTE)]))
                 if tail:
-                    folded = sum(store.size[c] for c in tail)
-                    self._rows.append((-1, f"Other ({len(tail)})", folded,
+                    folded = sum(weight(c) for c in tail)
+                    self._rows.append((-1, f"Other ({len(tail)})",
+                                       self._fold_text(folded),
                                        folded / total, self.OTHER_COLOR))
         self.update()
+
+    def _fold_text(self, folded: int) -> str:
+        """The "Other" slice has no node, so it cannot go through format_value.
+
+        Under Percent it carries no absolute number at all -- the share it is
+        drawn at already IS the number, and printing "100.0%" beside a 12%
+        wedge would be worse than printing nothing.
+        """
+        from ..formatting import format_bytes, format_count
+        if self._mode is Mode.FILES:
+            return format_count(folded)
+        if self._mode is Mode.PERCENT:
+            return ""
+        return format_bytes(folded)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -233,7 +272,7 @@ class SliceChart(QWidget):
         metrics = QFontMetrics(painter.font())
         row_height = max(18, metrics.height() + 6)
         label_width = 160
-        for i, (_node, name, size, fraction, color) in enumerate(self._rows):
+        for i, (_node, name, text, fraction, color) in enumerate(self._rows):
             y = 8 + i * row_height
             if y + row_height > self.height():
                 break
@@ -249,12 +288,12 @@ class SliceChart(QWidget):
             painter.drawRect(label_width, y, int(track * fraction), row_height - 8)
             painter.setPen(QColor(0x9D, 0x9D, 0x9D))
             painter.drawText(label_width + track + 8, y + metrics.ascent(),
-                             f"{format_bytes(size)}  {fraction * 100:.1f}%")
+                             f"{text}  {fraction * 100:.1f}%")
 
     def _paint_legend(self, painter: QPainter, x: int) -> None:
         metrics = QFontMetrics(painter.font())
         step = metrics.height() + 4
-        for i, (_node, name, size, fraction, color) in enumerate(self._rows):
+        for i, (_node, name, text, fraction, color) in enumerate(self._rows):
             y = 12 + i * step
             if y + step > self.height():
                 break
@@ -263,7 +302,7 @@ class SliceChart(QWidget):
             painter.drawRect(x, y, 10, 10)
             painter.setPen(QColor(0xF1, 0xF1, 0xF1))
             painter.drawText(x + 16, y + metrics.ascent() - 2,
-                             f"{name}  —  {format_bytes(size)}  "
+                             f"{name}  —  {text}  "
                              f"({fraction * 100:.1f}%)")
 
     def mousePressEvent(self, event):
@@ -291,6 +330,7 @@ class ChartView(QWidget):
         self._store = None
         self._trail: list[int] = []
         self._chart_mode = 0
+        self._value_mode = Mode.SIZE
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -332,6 +372,14 @@ class ChartView(QWidget):
         self.treemap.node_drilled.connect(self.drill_to)
         self.pie.node_clicked.connect(self.node_clicked)
         self.bars.node_clicked.connect(self.node_clicked)
+
+    def set_value_mode(self, mode: Mode) -> None:
+        """Spec 5.5's Mode. Distinct from set_chart_mode, which chooses
+        between treemap, pie and bar -- that one picks the SHAPE, this one
+        picks what the shape is measuring."""
+        self._value_mode = mode
+        for widget in (self.treemap, self.pie, self.bars):
+            widget.set_value_mode(mode)
 
     def set_chart_mode(self, index: int) -> None:
         for i, widget in enumerate((self.treemap, self.pie, self.bars)):
