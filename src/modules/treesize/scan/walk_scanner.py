@@ -12,7 +12,9 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Callable
 
-from ..store.node_store import NodeStore, DIR, REPARSE, HIDDEN
+from ..store.node_store import (
+    NodeStore, COMPRESSED, DIR, HIDDEN, REPARSE, SPARSE,
+)
 from .mft_reader import BATCH_INTERVAL
 
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
@@ -24,6 +26,12 @@ FILETIME_TICKS_PER_SECOND = 10_000_000
 FILE_ATTRIBUTE_DIRECTORY = 0x10
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 FILE_ATTRIBUTE_HIDDEN = 0x2
+# These two are WIN32 bits, and they are NOT the node flags of the same name
+# (node COMPRESSED is 0x10, node SPARSE is 0x20). The two words overlap
+# numerically and mean different things -- ruling F4 -- so every one of these
+# is translated below, never copied.
+FILE_ATTRIBUTE_SPARSE_FILE = 0x200
+FILE_ATTRIBUTE_COMPRESSED = 0x800
 FindExInfoBasic = 1
 FindExSearchNameMatch = 0
 FIND_FIRST_EX_LARGE_FETCH = 2
@@ -93,6 +101,14 @@ class DirEntry:
     ctime: int
     mtime: int
     atime: int
+    #: Free: they arrive in the same WIN32_FIND_DATAW record as the size. Spec
+    #: 3.3 declines the per-file GetCompressedFileSize call that would give a
+    #: correct `alloc` here, because that one costs more than the walk itself
+    #: -- but that is an argument about `alloc`, and it does not reach these.
+    #: Defaulted so that the many callers building a DirEntry by hand, tests
+    #: included, do not all have to say "not compressed, not sparse".
+    is_compressed: bool = False
+    is_sparse: bool = False
 
 
 def _long_path(path: str) -> str:
@@ -130,6 +146,8 @@ def list_directory(path: str, on_error=None) -> list[DirEntry]:
                     is_dir=bool(attrs & FILE_ATTRIBUTE_DIRECTORY),
                     is_reparse=bool(attrs & FILE_ATTRIBUTE_REPARSE_POINT),
                     is_hidden=bool(attrs & FILE_ATTRIBUTE_HIDDEN),
+                    is_compressed=bool(attrs & FILE_ATTRIBUTE_COMPRESSED),
+                    is_sparse=bool(attrs & FILE_ATTRIBUTE_SPARSE_FILE),
                     size=(data.nFileSizeHigh << 32) | data.nFileSizeLow,
                     ctime=data.ftCreationTime.value,
                     mtime=data.ftLastWriteTime.value,
@@ -213,6 +231,10 @@ class WalkScanner:
                     flags |= REPARSE
                 if entry.is_hidden:
                     flags |= HIDDEN
+                if entry.is_compressed:
+                    flags |= COMPRESSED
+                if entry.is_sparse:
+                    flags |= SPARSE
                 size = 0 if entry.is_dir else entry.size
                 if self.exclude is not None and self.exclude(
                         entry.name, size, flags, entry.mtime,
