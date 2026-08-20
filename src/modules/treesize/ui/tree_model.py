@@ -115,6 +115,23 @@ class DirectoryTreeModel(QAbstractItemModel):
         """
         self._repaint_all()
 
+    def refresh_structure(self) -> None:
+        """Rows appeared or vanished: drop the cached child lists and relayout.
+
+        The watcher inserts a node for a created file and marks a deleted one
+        EXCLUDED, neither of which `children_of` would notice on its own --
+        the tuple it cached is what the view keeps asking for. layoutChanged
+        rather than a reset, for the same reason sorting uses it: a reset
+        collapses the tree and discards the selection.
+
+        Node indices never move (nodes are only appended), so an internalId
+        stays valid across this and persistent indexes survive.
+        """
+        self.layoutAboutToBeChanged.emit()
+        self._children.clear()
+        self.layoutChanged.emit()
+        self._repaint_all()
+
     def _repaint_all(self) -> None:
         if self._store is None or not len(self._store):
             return

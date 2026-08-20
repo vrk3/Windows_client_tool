@@ -61,7 +61,7 @@ _kernel32.FindNextFileW.argtypes = [wintypes.HANDLE, wintypes.LPVOID]
 _kernel32.FindClose.argtypes = [wintypes.HANDLE]
 
 
-def _to_filetime(seconds: float) -> int:
+def to_filetime(seconds: float) -> int:
     if not seconds or seconds < 0:
         return 0
     return int((seconds + FILETIME_EPOCH_OFFSET) * FILETIME_TICKS_PER_SECOND)
@@ -79,8 +79,8 @@ def root_timestamps(path: str) -> tuple[int, int, int]:
         info = os.stat(path)
     except OSError:
         return 0, 0, 0
-    return (_to_filetime(info.st_mtime), _to_filetime(info.st_ctime),
-            _to_filetime(info.st_atime))
+    return (to_filetime(info.st_mtime), to_filetime(info.st_ctime),
+            to_filetime(info.st_atime))
 
 
 @dataclass(frozen=True)

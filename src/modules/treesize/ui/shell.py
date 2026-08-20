@@ -606,16 +606,31 @@ class TreeSizeShell(QWidget):
         """
         if self._store is None:
             return
+        # Without the cluster size, `alloc` cannot be recomputed and is left
+        # alone rather than guessed -- see watcher._alloc_for.
+        cluster = (self._result.volume_info.bytes_per_cluster
+                   if self._result and self._result.volume_info else 0)
         total = 0
+        structural = False
         for change in changes:
-            total += apply_change(self._store, self._root, change.path)
-        if total:
+            applied = apply_change(self._store, self._root, change.path, cluster)
+            total += applied.delta
+            structural = structural or applied.structural
+        if not total and not structural:
+            return
+        if structural:
+            # A row appeared or vanished. The model caches a child tuple per
+            # node, so a repaint alone would leave the new file invisible and
+            # the deleted one still listed.
+            self.directory_tree.tree_model.refresh_structure()
+        else:
             self.directory_tree.tree_model.refresh_values()
-            self.scan_overview.show_node(self._store,
-                                         getattr(self, "_selected", self._root),
-                                         self.directory_tree.tree_model.unit)
-            from .formatting import format_bytes
-            self.scan_state.setText(f"Watching — {format_bytes(total)} changed")
+        self.scan_overview.show_node(self._store,
+                                     getattr(self, "_selected", self._root),
+                                     self.directory_tree.tree_model.unit)
+        self._refresh_right_pane()
+        from .formatting import format_bytes
+        self.scan_state.setText(f"Watching — {format_bytes(total)} changed")
 
     # ---- snapshots and comparison ---------------------------------------
 
