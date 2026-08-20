@@ -156,3 +156,87 @@ def test_a_missing_optional_package_is_reported_not_crashed(tmp_path, monkeypatc
     monkeypatch.setattr(exporters, "_require", refuse)
     with pytest.raises(ExportError, match="not installed"):
         export(str(tmp_path / "out.xlsx"), ROWS)
+
+
+# ---- Excel's hard row ceiling ------------------------------------------
+#
+# openpyxl does NOT enforce it. `append()` accepts rows past the end without
+# complaint and `save()` writes them into the sheet XML, producing a file that
+# reports success here and that Excel then refuses to open, or "repairs" by
+# dropping content. Verified directly against openpyxl 3.1.5. A volume with
+# more than a million entries is entirely ordinary -- a build server, a NAS,
+# anything with node_modules -- so this is reachable, and it fails silently,
+# which is the worst way for an export to fail.
+
+def _rows(count):
+    return [("Name", "Size")] + [(f"file-{i}.bin", str(i)) for i in range(count)]
+
+
+def test_xlsx_stays_within_excels_row_limit(tmp_path, monkeypatch):
+    openpyxl = pytest.importorskip("openpyxl")
+    monkeypatch.setattr(exporters, "XLSX_MAX_ROWS", 10)
+    path = tmp_path / "capped.xlsx"
+
+    exporters.export(str(path), _rows(50))
+
+    book = openpyxl.load_workbook(str(path))
+    assert book.active.max_row <= 10, "the file exceeds the limit it claims"
+    book.close()
+
+
+def test_xlsx_says_how_much_it_left_out(tmp_path, monkeypatch):
+    """Stated in the document, as the PDF export already does. A truncation
+    the user cannot see is indistinguishable from data loss."""
+    openpyxl = pytest.importorskip("openpyxl")
+    monkeypatch.setattr(exporters, "XLSX_MAX_ROWS", 10)
+    path = tmp_path / "capped.xlsx"
+
+    exporters.export(str(path), _rows(50))
+
+    book = openpyxl.load_workbook(str(path))
+    sheet = book.active
+    last = " ".join(str(c.value) for c in sheet[sheet.max_row] if c.value)
+    assert "50" in last, f"the note does not say the real total: {last!r}"
+    assert "8" in last, f"the note does not say how many were shown: {last!r}"
+    book.close()
+
+
+def test_a_scan_under_the_limit_is_not_truncated_or_annotated(tmp_path,
+                                                              monkeypatch):
+    openpyxl = pytest.importorskip("openpyxl")
+    monkeypatch.setattr(exporters, "XLSX_MAX_ROWS", 100)
+    path = tmp_path / "whole.xlsx"
+
+    exporters.export(str(path), _rows(20))
+
+    book = openpyxl.load_workbook(str(path))
+    sheet = book.active
+    assert sheet.max_row == 21, "header plus twenty rows, and nothing else"
+    assert sheet.cell(row=21, column=1).value == "file-19.bin"
+    book.close()
+
+
+def test_column_widths_still_come_from_the_content(tmp_path):
+    """The width pass was rewritten from one scan per column to one scan
+    total; it still has to produce the same widths."""
+    openpyxl = pytest.importorskip("openpyxl")
+    path = tmp_path / "wide.xlsx"
+    rows = [("Name", "Size"),
+            ("a-very-considerably-longer-name-than-the-header.bin", "1"),
+            ("short.bin", "2")]
+
+    exporters.export(str(path), rows)
+
+    book = openpyxl.load_workbook(str(path))
+    widths = book.active.column_dimensions
+    assert widths["A"].width > widths["B"].width
+    assert widths["A"].width == min(60, len(rows[1][0]) + 2)
+    book.close()
+
+
+def test_ragged_rows_do_not_break_the_width_pass(tmp_path):
+    """A row shorter than the header must not index past the width list."""
+    pytest.importorskip("openpyxl")
+    path = tmp_path / "ragged.xlsx"
+    exporters.export(str(path), [("A", "B", "C"), ("only-one",), ("x", "y")])
+    assert path.exists()

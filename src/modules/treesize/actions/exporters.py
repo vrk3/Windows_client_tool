@@ -174,18 +174,55 @@ def _write_sqlite(path, rows, title):
         connection.close()
 
 
+#: Excel's hard ceiling on rows per worksheet. openpyxl does not enforce it
+#: -- verified against 3.1.5: append() accepts rows past the end and save()
+#: writes them, producing a file Excel will not open.
+XLSX_MAX_ROWS = 1_048_576
+
+
 def _write_xlsx(path, rows, title):
     openpyxl = _require("openpyxl", "openpyxl")
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = "Scan"
-    for row in rows:
+
+    # openpyxl does NOT enforce Excel's row ceiling: append() accepts rows
+    # past the end without complaint and save() writes them into the sheet
+    # XML, so the export "succeeds" and Excel then refuses to open the file
+    # or repairs it by dropping content. Silent data loss, and reachable --
+    # a million entries is an ordinary build server. Capped here, and the
+    # cap is STATED in the sheet, exactly as the PDF export states its own.
+    body = rows[1:]
+    total = len(body)
+    truncated = total > XLSX_MAX_ROWS - 1
+    if truncated:
+        body = body[:XLSX_MAX_ROWS - 2]     # header + the note row
+
+    sheet.append(list(rows[0]))
+    for row in body:
         sheet.append(list(row))
+    if truncated:
+        sheet.append([f"Showing the first {len(body):,} of {total:,} rows — "
+                      f"a worksheet cannot hold more than "
+                      f"{XLSX_MAX_ROWS:,}."])
+
     for cell in sheet[1]:
         cell.font = openpyxl.styles.Font(bold=True)
     sheet.freeze_panes = "A2"
-    for index, name in enumerate(rows[0], start=1):
-        longest = max(len(str(row[index - 1])) for row in rows)
+
+    # ONE pass for every column, not one pass per column. At 243k rows and
+    # six columns the old form made 1.5M str() calls to answer six questions.
+    # A short row is tolerated rather than indexing past the header, which is
+    # what it used to do.
+    widths = [len(str(value)) for value in rows[0]]
+    for row in body:
+        for index, value in enumerate(row):
+            if index >= len(widths):
+                break
+            length = len(str(value))
+            if length > widths[index]:
+                widths[index] = length
+    for index, longest in enumerate(widths, start=1):
         sheet.column_dimensions[
             openpyxl.utils.get_column_letter(index)].width = min(60, longest + 2)
     workbook.save(path)
