@@ -21,6 +21,7 @@ rounding up to a block size the service never mentioned would be inventing
 data.
 """
 from ..store.node_store import DIR
+from . import device_flow
 from .base import (
     Credentials, PrefixTreeBuilder, RemoteEnumerator, ScanTarget, TargetError,
     register, retry_on_throttle, unix_to_filetime,
@@ -261,11 +262,13 @@ class GoogleDriveTarget(ScanTarget):
         except ImportError as exc:
             raise TargetError(str(exc)) from exc
 
-        token = self.credentials.password or self.credentials.extra.get("token")
+        token = device_flow.access_token_for(
+            self.credentials, device_flow.google(),
+            on_refresh=self._store_refreshed)
         if not token:
             raise TargetError(
-                "Google Drive needs an OAuth token. Authorise the app and "
-                "paste the token, or point at a saved credentials file.")
+                "Google Drive needs a sign-in. Use Sign in… to authorise this "
+                "machine, or paste an OAuth token.")
         try:
             self._client = build(
                 "drive", "v3",
@@ -405,11 +408,19 @@ class SharePointTarget(ScanTarget):
             raise TargetError(why)
         import httpx
 
-        token = self.credentials.password or self.credentials.extra.get("token")
+        # Spec 6.2 asks for Entra ID app auth, not a pasted token. A Graph
+        # access token lives about an hour, so a scan set up in the morning
+        # used to be dead by lunchtime; with a stored refresh token this
+        # renews itself instead.
+        token = device_flow.access_token_for(
+            self.credentials, device_flow.microsoft(
+                self.credentials.extra.get("tenant", "")),
+            on_refresh=self._store_refreshed)
         if not token:
             raise TargetError(
-                "SharePoint needs an access token from your Entra ID app "
-                "registration.")
+                "SharePoint needs a sign-in. Use Sign in… to authorise this "
+                "machine against your Entra ID app registration, or paste an "
+                "access token.")
         self._client = httpx.Client(
             base_url=self.GRAPH_ROOT,
             headers={"Authorization": f"Bearer {token}"},

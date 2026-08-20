@@ -12,20 +12,24 @@ paramiko" tells them what to do.
 """
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
-    QLineEdit, QSpinBox, QVBoxLayout,
+    QLineEdit, QPushButton, QSpinBox, QVBoxLayout,
 )
 
 from ..targets import available_targets
 from ..targets.base import FORM_FIELDS, Credentials
 from ..targets.credential_store import CredentialStore
 
+#: Backends that can sign in interactively instead of being handed a token.
+DEVICE_FLOW_BACKENDS = ("sharepoint", "gdrive")
+
 PLACEHOLDERS = {
     "ssh": {"host": "hostname or IP"},
     "webdav": {"host": "https://host/dav"},
     "s3": {"host": "my-bucket", "root": "logs/ (blank for the whole bucket)"},
     "azure": {"host": "https://account.blob.core.windows.net"},
-    "gdrive": {"password": "OAuth access token"},
-    "sharepoint": {"username": "b!xxxxxxxx", "password": "Bearer token"},
+    "gdrive": {"password": "paste a token, or use Sign in…"},
+    "sharepoint": {"username": "b!xxxxxxxx",
+                   "password": "paste a token, or use Sign in…"},
     "outlook": {"host": "leave blank for the default mailbox"},
 }
 
@@ -34,6 +38,10 @@ class RemoteTargetDialog(QDialog):
     def __init__(self, parent=None, credential_store=None) -> None:
         super().__init__(parent)
         self.credential_store = credential_store or CredentialStore()
+        # What a device-flow sign-in produced, if one has happened. Set
+        # here so that connecting WITHOUT signing in is not an
+        # AttributeError -- which is every backend except two.
+        self._signed_in: dict = {}
         self.setWindowTitle("Scan a remote target")
         self.setMinimumWidth(440)
         layout = QVBoxLayout(self)
@@ -76,6 +84,18 @@ class RemoteTargetDialog(QDialog):
             label = QLabel("", self)
             self._labels[field] = label
             form.addRow(label, getattr(self, field))
+
+        # Spec 6.2. Shown only for the backends that have a device flow;
+        # everything else authenticates with what is already in the form.
+        self.sign_in_button = QPushButton("Sign in\u2026", self)
+        self.sign_in_button.setToolTip(
+            "Authorise this machine through your app registration, so the "
+            "token renews itself instead of expiring in an hour.")
+        self.sign_in_button.clicked.connect(self.sign_in)
+        form.addRow("", self.sign_in_button)
+        self.sign_in_status = QLabel("", self)
+        self.sign_in_status.setWordWrap(True)
+        form.addRow("", self.sign_in_status)
 
         # Opt-in: connecting once is not consent to keep the secret.
         self.remember = QCheckBox(
@@ -158,6 +178,10 @@ class RemoteTargetDialog(QDialog):
                 editor.setPlaceholderText(placeholders.get(field, ""))
         # A backend with no password field has nothing to remember.
         self.remember.setVisible(self.row_is_used("password"))
+        signs_in = target_class.id in DEVICE_FLOW_BACKENDS
+        self.sign_in_button.setVisible(signs_in)
+        self.sign_in_status.setVisible(signs_in and bool(
+            self.sign_in_status.text()))
         self._retune_root_default(target_class)
 
     def _retune_root_default(self, target_class) -> None:
@@ -177,6 +201,33 @@ class RemoteTargetDialog(QDialog):
             self.root.setText("/")
 
     # -- credentials ------------------------------------------------------
+
+    # -- device-flow sign-in (spec 6.2) ----------------------------------
+
+    def sign_in(self) -> None:
+        """Run the device flow and keep what it produced."""
+        from .device_signin_dialog import DeviceSignInDialog
+
+        backend_id = self.backend.currentData()
+        dialog = DeviceSignInDialog(backend_id, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.token is None:
+            return
+        token = dialog.token
+        self._signed_in = {
+            "client_id": dialog.client_id,
+            "refresh_token": token.refresh_token,
+        }
+        if dialog.tenant:
+            self._signed_in["tenant"] = dialog.tenant
+        # The access token goes in the password box so the very first scan
+        # works without a round trip to refresh a token we already hold.
+        self.password.setText(token.access_token)
+        self.sign_in_status.setText(
+            "Signed in. The token will renew itself from now on."
+            if token.refresh_token else
+            "Signed in, but the provider returned no refresh token — this "
+            "will expire and need signing in again.")
+        self.sign_in_status.setVisible(True)
 
     def recall_password(self) -> None:
         """Offer back a stored password for this backend, host and user.
@@ -212,6 +263,11 @@ class RemoteTargetDialog(QDialog):
             password=self.password.text(),
             root=self.root.text().strip() or "/",
         )
+        # The refresh token and the app it belongs to travel in `extra`, not
+        # in `password`: password is the PASTED token, and access_token_for
+        # deliberately prefers a pasted one. Putting the signed-in token there
+        # too would make it impossible to tell the two apart.
+        credentials.extra.update(self._signed_in)
         missing = self._first_missing(target_class, credentials)
         if missing:
             # Named, because "a host is required" on a Google Drive

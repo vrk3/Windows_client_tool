@@ -122,6 +122,17 @@ class ScanTarget(ABC):
                   wait_if_paused=None, batch_size: int = 500) -> int:
         """Fill `store` beneath `root`. Returns the node count."""
 
+    def _store_refreshed(self, token) -> None:
+        """Keep a rotated refresh token (spec 6.2).
+
+        Providers that rotate refresh tokens invalidate the old one, so
+        dropping the new one makes the next scan demand a fresh sign-in for
+        no reason the user can see. On the base class because every
+        token-bearing backend needs exactly this.
+        """
+        if getattr(token, "refresh_token", ""):
+            self.credentials.extra["refresh_token"] = token.refresh_token
+
     def supports_file_ops(self) -> bool:
         return self.file_ops
 
