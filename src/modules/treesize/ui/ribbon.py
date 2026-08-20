@@ -126,6 +126,11 @@ MENUS: dict = {
                     ("tree.expand.3", "Expand three levels"),
                     None,
                     ("tree.expand.all", "Expand all"),
+                    # Spec 5.4's fifth entry. A fixed depth is too shallow on
+                    # one branch and too deep on the next; a threshold is the
+                    # one that follows where the space actually went.
+                    ("tree.expand.size", "Expand to size…"),
+                    None,
                     ("tree.collapse.all", "Collapse all")),
     "unit.auto": (("unit.auto", "Auto"), None,
                   ("unit.tb", "TB"), ("unit.gb", "GB"), ("unit.mb", "MB"),

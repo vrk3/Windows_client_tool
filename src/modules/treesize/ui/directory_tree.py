@@ -10,7 +10,11 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeView,
 )
 
-from .tree_model import BarFractionRole, COLUMN_VALUE, DirectoryTreeModel, NodeIndexRole
+from ..store.node_store import DIR
+from .formatting import weight_value
+from .tree_model import (
+    BarFractionRole, COLUMN_VALUE, DirectoryTreeModel, NodeIndexRole,
+)
 
 # Sampled from Pro's dark scheme; the light sheet overrides via set_bar_colors.
 BAR_FILL = QColor(0x3D, 0x8B, 0xD4)
@@ -97,6 +101,48 @@ class DirectoryTree(QTreeView):
         if top.isValid():
             self.expand(top)
             self.setCurrentIndex(top)
+
+    def expand_to_size(self, threshold: float, limit: int = 5000) -> int:
+        """Expand every folder worth at least `threshold` (spec 5.4).
+
+        Pro's expand-to-size-threshold: the one Expand entry that answers
+        "show me everything worth looking at and nothing else", rather than a
+        fixed depth that is too shallow on one branch and too deep on the next.
+
+        Judged on the CURRENT mode, so under Number of files the threshold is
+        a file count -- the column being looked at is the one it applies to.
+        Under Percent it falls back to size: percent-of-parent is not
+        monotonic down a branch (a lone child of a tiny folder is 100% of it),
+        so a percentage cannot prune anything, and a threshold that prunes
+        nothing expands the entire volume.
+
+        `limit` is not a nicety. "Everything over 1 MB" on a real volume is
+        hundreds of thousands of rows, and opening them all is a freeze.
+        """
+        model = self._model
+        store = model._store
+        if store is None or not len(store):
+            return 0
+
+        opened = 0
+        stack = [model.index(0, 0, QModelIndex())]
+        while stack and opened < limit:
+            index = stack.pop()
+            if not index.isValid():
+                continue
+            node = int(index.internalId()) - 1
+            if not (0 <= node < len(store)) or not (store.attrs[node] & DIR):
+                continue
+            if weight_value(store, node, model.mode) < threshold:
+                # A subtree total only ever shrinks going down, so a folder
+                # under the threshold cannot contain one over it. Not
+                # descending is what keeps this cheap on a whole volume.
+                continue
+            self.expand(index)
+            opened += 1
+            for row in range(model.rowCount(index)):
+                stack.append(model.index(row, 0, index))
+        return opened
 
     def selected_node(self) -> int:
         index = self.currentIndex()

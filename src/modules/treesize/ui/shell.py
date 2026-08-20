@@ -275,6 +275,7 @@ class TreeSizeShell(QWidget):
             act("tree.expand.%d" % depth).triggered.connect(
                 lambda _c=False, d=depth: self.directory_tree.expandToDepth(d - 1))
         act("tree.expand.all").triggered.connect(self.directory_tree.expandAll)
+        act("tree.expand.size").triggered.connect(self.expand_to_threshold)
         act("tree.collapse.all").triggered.connect(self.directory_tree.collapseAll)
 
         for decimals in (0, 1, 2):
@@ -496,6 +497,28 @@ class TreeSizeShell(QWidget):
             self, "Decimals", "Digits after the decimal point:", current, 0, 3)
         if ok:
             self.set_decimals(value)
+
+    def expand_to_threshold(self) -> int:
+        """Spec 5.4's expand-to-size-threshold.
+
+        Asked for in MB because that is the unit anyone thinks in when they
+        mean "big enough to bother with"; under Number of files it is a plain
+        count, since a file count in megabytes is nonsense.
+        """
+        mode = self.directory_tree.tree_model.mode
+        counting = mode is Mode.FILES
+        label = ("Expand folders holding at least this many files:"
+                 if counting else
+                 "Expand folders larger than (MB):")
+        value, ok = QInputDialog.getDouble(
+            self, "Expand to size", label,
+            100.0 if counting else 100.0, 0.0, 1e9, 0 if counting else 1)
+        if not ok:
+            return 0
+        threshold = value if counting else value * (1024 ** 2)
+        opened = self.directory_tree.expand_to_size(threshold)
+        self.scan_state.setText(f"Expanded {format(opened, ',')} folder(s)")
+        return opened
 
     def set_autosize_columns(self, enabled: bool) -> None:
         """Resize Details columns to their content after every refresh."""
