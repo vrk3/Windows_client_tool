@@ -103,9 +103,20 @@ class LogViewerWidget(QWidget):
         self.next_button = QPushButton("Next", self)
         self.next_button.clicked.connect(self.find_next)
         find_row.addWidget(self.next_button)
-        self.only_matching = QCheckBox("Show only matches", self)
-        self.only_matching.toggled.connect(lambda _c: self._apply_filters())
-        find_row.addWidget(self.only_matching)
+
+        # Find JUMPS to the next match and leaves everything on screen.
+        # Filter HIDES everything that does not match. Two different jobs, so
+        # two boxes -- the previous "Show only matches" checkbox shared Find's
+        # text and only re-applied when it was toggled, so editing the text
+        # afterwards silently did nothing.
+        find_row.addSpacing(16)
+        find_row.addWidget(QLabel("Filter:", self))
+        self.filter_box = QLineEdit(self)
+        self.filter_box.setPlaceholderText(
+            "show only lines containing… (case insensitive)")
+        self.filter_box.setClearButtonEnabled(True)
+        self.filter_box.textChanged.connect(lambda _t: self._apply_filters())
+        find_row.addWidget(self.filter_box, 1)
         layout.addLayout(find_row)
 
         self.table = QTableView(self)
@@ -214,7 +225,7 @@ class LogViewerWidget(QWidget):
         component = self.component.currentText()
         self.model.set_filter(
             levels=levels,
-            needle=self.find_box.text() if self.only_matching.isChecked() else "",
+            needle=self.filter_box.text(),
             component="" if component == "All" else component)
         self._update_status()
 

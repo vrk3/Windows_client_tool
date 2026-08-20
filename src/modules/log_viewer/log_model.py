@@ -122,8 +122,13 @@ class LogModel(QAbstractTableModel):
             return False
         if self._component and entry.source != self._component:
             return False
-        if self._needle and self._needle not in entry.message.lower():
-            return False
+        if self._needle:
+            # The whole ROW as the user sees it, not just the message.
+            # Typing "warning" has to find the warning row of a CMTrace log,
+            # where the word lives in the type attribute rather than the text.
+            haystack = f"{entry.message} {entry.level} {entry.source}".lower()
+            if self._needle not in haystack:
+                return False
         return True
 
     def _reindex(self) -> None:

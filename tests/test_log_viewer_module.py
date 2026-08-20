@@ -145,9 +145,10 @@ def test_filtering_by_component(viewer):
     assert viewer.model.rowCount() == 2
 
 
-def test_show_only_matches_filters_by_the_find_text(viewer):
-    viewer.find_box.setText("broke")
-    viewer.only_matching.setChecked(True)
+def test_the_filter_box_hides_non_matching_rows(viewer):
+    """Replaces the old "Show only matches" checkbox, which shared Find's
+    text and only re-applied when toggled."""
+    viewer.filter_box.setText("broke")
     assert viewer.model.rowCount() == 1
 
 
@@ -278,3 +279,78 @@ def test_searching_survives_the_log_growing_underneath_it(viewer, log):
     viewer.provider.set_entries(_Growing())
     results = viewer.provider.search(SearchQuery(text="broke"))
     assert results is not None
+
+
+# ---- the live filter box ------------------------------------------------
+#
+# Distinct from Find, which JUMPS to the next match and leaves everything on
+# screen. This hides everything that does not match, and does it as you type.
+
+def test_typing_in_the_filter_hides_everything_else(viewer):
+    viewer.filter_box.setText("broke")
+    assert viewer.model.rowCount() == 1
+    assert viewer.model.data(viewer.model.index(0, 4)) == "It broke"
+
+
+def test_the_filter_is_case_insensitive(viewer):
+    """Typing WARNING must find "Warning". Nobody matches case by hand."""
+    viewer.filter_box.setText("BROKE")
+    assert viewer.model.rowCount() == 1
+
+
+def test_the_filter_applies_as_you_type_without_pressing_anything(viewer):
+    """The old "Show only matches" checkbox needed re-ticking after every
+    edit, which is why it was the wrong shape for this."""
+    viewer.filter_box.setText("Care")
+    assert viewer.model.rowCount() == 1
+    viewer.filter_box.setText("Car")
+    assert viewer.model.rowCount() == 1
+    viewer.filter_box.setText("")
+    assert viewer.model.rowCount() == 3
+
+
+def test_the_filter_matches_the_severity_column_too(viewer):
+    """Typing "warning" should find the warning row of a CMTrace log even
+    though the word appears in the type attribute, not the message."""
+    viewer.filter_box.setText("warning")
+    assert viewer.model.rowCount() == 1
+    assert viewer.model.data(viewer.model.index(0, 1)) == "Warning"
+
+
+def test_the_filter_matches_the_component_too(viewer):
+    viewer.filter_box.setText("Alpha")
+    assert viewer.model.rowCount() == 1
+
+
+def test_the_filter_combines_with_the_severity_boxes(viewer):
+    viewer.filter_box.setText("e")               # matches all three messages
+    viewer._level_boxes["Info"].setChecked(False)
+    assert viewer.model.rowCount() == 2
+
+
+def test_a_filter_matching_nothing_shows_nothing_rather_than_everything(viewer):
+    viewer.filter_box.setText("no such text anywhere")
+    assert viewer.model.rowCount() == 0
+    assert viewer.model.total == 3
+
+
+def test_the_filter_survives_new_lines_arriving(viewer, log):
+    """A line appended while a filter is on must be filtered too, not
+    smuggled in because the append path skips the predicate."""
+    viewer.filter_box.setText("broke")
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write('<![LOG[nothing to see]LOG]!><time="13:45:19.000+000" '
+                     'date="08-20-2026" component="Alpha" context="" '
+                     'type="1" thread="1" file="a.cpp:9">\n')
+    viewer._poll()
+    assert viewer.model.rowCount() == 1
+    assert viewer.model.total == 4
+
+
+def test_find_still_searches_the_whole_log_not_just_the_filtered_rows(viewer):
+    """Find and Filter are different tools; leaving the filter empty must not
+    silently narrow what Find can reach."""
+    viewer.filter_box.setText("")
+    viewer.find_box.setText("Careful")
+    viewer.find_next()
+    assert viewer.table.currentIndex().row() == 1
