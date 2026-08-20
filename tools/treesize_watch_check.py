@@ -7,6 +7,14 @@ change source, and every fake source *ended* -- which is exactly the property
 first minute of running this instead.
 
     .venv\\Scripts\\python.exe tools\\treesize_watch_check.py
+    .venv\\Scripts\\python.exe tools\\treesize_watch_check.py --engine-only
+
+Two phases. The ENGINE phase drives Watcher and apply_change directly. The
+SHELL phase drives the other half -- watcher thread, `_changes_seen` signal,
+`_on_watched_changes`, `refresh_structure()` -- and checks that a created file
+actually becomes a row in the model and a deleted one actually leaves it.
+Both halves had to be checked separately; the engine being right says nothing
+about whether the model was ever told.
 
 Exits 1 if any step fails, so it can be run as a check rather than read.
 
@@ -48,7 +56,7 @@ def check(label, got, want):
         failures.append(label)
 
 
-def main() -> int:
+def engine_phase() -> None:
     root_dir = tempfile.mkdtemp(prefix="tswatch-")
     try:
         os.makedirs(os.path.join(root_dir, "sub"))
@@ -115,6 +123,101 @@ def main() -> int:
         check("watcher recorded no error", watcher.error, None)
     finally:
         shutil.rmtree(root_dir, ignore_errors=True)
+
+
+def _pump(app, seconds: float) -> None:
+    """Run the Qt loop for real time, so queued signals get delivered.
+
+    The watcher fires from its own thread and the shell consumes it through a
+    signal, so nothing at all happens without an event loop turning.
+    """
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        app.processEvents()
+        time.sleep(0.01)
+
+
+def shell_phase() -> None:
+    """The Qt half: does the MODEL end up showing the change?"""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtCore import QModelIndex
+    from PyQt6.QtWidgets import QApplication
+
+    from modules.treesize.ui.shell import TreeSizeShell
+
+    app = QApplication.instance() or QApplication([])
+    target = tempfile.mkdtemp(prefix="tsshell-")
+    try:
+        with open(os.path.join(target, "existing.bin"), "wb") as handle:
+            handle.write(b"x" * 1000)
+
+        store = NodeStore()
+        scanner = WalkScanner(target, bytes_per_cluster=CLUSTER)
+        scanner.scan(store)
+        root = scanner.root
+        store.build_child_lists()
+        rollup(store)
+
+        class VolumeInfo:
+            bytes_per_cluster = CLUSTER
+
+        class Result:
+            pass
+
+        result = Result()
+        result.store, result.root = store, root
+        result.node_count, result.excluded, result.engine = len(store), 0, "walk"
+        result.volume_info, result.complete = VolumeInfo(), True
+        result.errors, result.error_count, result.elapsed = (), 0, 0.1
+
+        shell = TreeSizeShell()
+        shell.resize(1200, 800)
+        shell.show_result(result)
+        shell.path_combo.setEditText(target)
+
+        def rows():
+            model = shell.directory_tree.tree_model
+            root_index = model.index(0, 0, QModelIndex())
+            return [str(model.data(model.index(r, 0, root_index), 0))
+                    for r in range(model.rowCount(root_index))]
+
+        shell.set_watching(True)
+        _pump(app, 0.5)
+        check("watcher running",
+              shell._watcher is not None and shell._watcher.running, True)
+
+        print("\n-- create a file in the watched folder --")
+        with open(os.path.join(target, "brand-new.bin"), "wb") as handle:
+            handle.write(b"z" * 3000)
+        _pump(app, 2.5)
+        print(f"    rows: {rows()}")
+        check("the new file is a row in the model",
+              any("brand-new.bin" in r for r in rows()), True)
+        check("root size after create", store.size[root], 4000)
+        check("root files after create", store.file_count[root], 2)
+
+        print("\n-- delete it again --")
+        os.remove(os.path.join(target, "brand-new.bin"))
+        _pump(app, 2.5)
+        print(f"    rows: {rows()}")
+        check("the deleted file left the model",
+              any("brand-new.bin" in r for r in rows()), False)
+        check("root size after delete", store.size[root], 1000)
+        check("root files after delete", store.file_count[root], 1)
+
+        shell.set_watching(False)
+        _pump(app, 0.3)
+        check("watcher stopped", shell._watcher, None)
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def main() -> int:
+    print("=== ENGINE: Watcher + apply_change ===")
+    engine_phase()
+    if "--engine-only" not in sys.argv:
+        print("\n=== SHELL: signal -> _on_watched_changes -> the model ===")
+        shell_phase()
 
     print()
     if failures:
