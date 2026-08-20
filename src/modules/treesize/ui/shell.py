@@ -164,6 +164,7 @@ class TreeSizeShell(QWidget):
 
         self._wire()
         self.drive_list.refresh()
+        self._seed_path_combo()
 
     # ---- construction ---------------------------------------------------
 
@@ -195,6 +196,7 @@ class TreeSizeShell(QWidget):
     def _wire(self) -> None:
         self.go_button.clicked.connect(self._start_scan_from_combo)
         self.path_combo.lineEdit().returnPressed.connect(self._start_scan_from_combo)
+        self.path_combo.activated.connect(self._on_path_chosen)
         self.up_button.clicked.connect(self._go_up)
         self.drive_list.drive_activated.connect(self.start_scan)
         self.directory_tree.node_selected.connect(self._on_node_selected)
@@ -1040,17 +1042,70 @@ class TreeSizeShell(QWidget):
         self.details._column_menu(QPoint(0, 0))
 
     def _refresh_target_menu(self) -> None:
-        """The scan-target list is whatever drives exist now, not a fixed list."""
+        """The scan-target list: drives now attached, then the places worth
+        looking at, then the two ways of naming something else.
+
+        Explorer offers somewhere to go rather than making you type a path
+        every time; this is that, weighted towards where disk space actually
+        goes. `locations` drops anything absent, so the server entries simply
+        do not appear on a laptop.
+        """
         from .panels import list_drives
+        from . import locations
+
         items = []
         for letter, _total, _free in list_drives():
             root = letter + ":" + chr(92)
             items.append((root, lambda _c=False, r=root: self.start_scan(r)))
+
+        submenus = []
+        for group in locations.known_locations():
+            entries = [(item.label,
+                        lambda _c=False, p=item.path: self.start_scan(p))
+                       for item in group.items]
+            if group.name == locations.PLACES:
+                # The everyday ones sit inline; burying Desktop one level down
+                # would cost a click on the entry people reach for most.
+                items.append((None, None))
+                items.extend(entries)
+            else:
+                submenus.append((group.name, entries))
+        if submenus:
+            # One separator before the block, none between: they are the same
+            # kind of thing, and a rule between two rows of two reads as a
+            # boundary that is not there.
+            items.append((None, None))
+            items.extend(submenus)
+
         items.append((None, None))
         items.append(("Select folder\u2026", self._browse_for_folder))
         items.append((None, None))
         items.append(("Remote target\u2026", self.scan_remote))
         self.ribbon.set_menu_items("scan.select", items)
+
+    def _seed_path_combo(self) -> None:
+        """Give the address box the same places, Explorer-style.
+
+        It stays editable: pick one from the list or type over it. Scanned
+        targets append themselves afterwards, so the two coexist.
+        """
+        from . import locations
+
+        for group in locations.known_locations():
+            for item in group.items:
+                if self.path_combo.findText(item.path) < 0:
+                    self.path_combo.addItem(item.path)
+        # Nothing is preselected -- a path sitting in the box on startup looks
+        # like a scan target that has already been chosen.
+        self.path_combo.setCurrentIndex(-1)
+        self.path_combo.setEditText("")
+
+    def _on_path_chosen(self, index: int) -> None:
+        """Choosing from the dropdown scans, as picking a place in Explorer
+        navigates. Typing still needs Enter or the Go button."""
+        target = self.path_combo.itemText(index).strip()
+        if target:
+            self.start_scan(target)
 
     def _browse_for_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select folder to scan")

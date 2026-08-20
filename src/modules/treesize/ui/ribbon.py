@@ -371,6 +371,19 @@ class Ribbon(QWidget):
             if label is None:
                 menu.addSeparator()
                 continue
+            if isinstance(callback, (list, tuple)):
+                # A LIST rather than a callable means a submenu. The quick
+                # scan locations are long enough that one flat menu is a wall.
+                if not callback:
+                    # An empty submenu is a dead end the user can still open.
+                    continue
+                sub = menu.addMenu(label)
+                for sub_label, sub_callback in callback:
+                    if sub_label is None:
+                        sub.addSeparator()
+                    else:
+                        sub.addAction(sub_label, sub_callback)
+                continue
             menu.addAction(label, callback)
 
     def set_enabled(self, action_id: str, enabled: bool) -> None:

@@ -710,3 +710,93 @@ def test_a_file_reads_as_one_file_not_zero(shell):
                 if shell._store.name(i) == "tiny.txt")
     assert format_value(shell._store, leaf, Mode.FILES) == "1"
     assert model.mode is Mode.FILES
+
+
+# ---- quick scan locations in the Home tab -------------------------------
+
+def test_the_scan_target_menu_offers_the_everyday_places_inline(qapp):
+    """Burying Desktop one level down would cost a click on the entry people
+    reach for most, so Places is inline and the rest are submenus."""
+    from modules.treesize.ui import locations
+
+    shell = TreeSizeShell()
+    menu = shell.ribbon.menus_by_id["scan.select"]
+    inline = [a.text() for a in menu.actions()
+              if not a.isSeparator() and a.menu() is None]
+    expected = {item.label for group in locations.known_locations()
+                if group.name == locations.PLACES for item in group.items}
+    assert expected and expected <= set(inline)
+
+
+def test_the_cache_and_log_groups_are_submenus(qapp):
+    from modules.treesize.ui import locations
+
+    shell = TreeSizeShell()
+    menu = shell.ribbon.menus_by_id["scan.select"]
+    submenus = {a.text(): a.menu() for a in menu.actions() if a.menu()}
+    for group in locations.known_locations():
+        if group.name == locations.PLACES:
+            continue
+        assert group.name in submenus, f"{group.name} is not a submenu"
+        labels = [x.text() for x in submenus[group.name].actions()]
+        assert labels == [item.label for item in group.items]
+
+
+def test_the_original_entries_survive(qapp):
+    """Drives, Select folder and Remote target were there first."""
+    shell = TreeSizeShell()
+    labels = [a.text() for a in shell.ribbon.menus_by_id["scan.select"].actions()
+              if not a.isSeparator()]
+    assert any(t.endswith(":\\") for t in labels), "no drives"
+    assert any("Select folder" in t for t in labels)
+    assert any("Remote target" in t for t in labels)
+
+
+def test_choosing_a_location_starts_a_scan_of_it(qapp, monkeypatch):
+    from modules.treesize.ui import locations
+
+    shell = TreeSizeShell()
+    started = []
+    monkeypatch.setattr(shell, "start_scan", lambda target: started.append(target))
+    shell._refresh_target_menu()            # rebuild against the patched method
+
+    wanted = next(item for group in locations.known_locations()
+                  for item in group.items)
+    menu = shell.ribbon.menus_by_id["scan.select"]
+    for action in menu.actions():
+        if action.menu():
+            for sub in action.menu().actions():
+                if sub.text() == wanted.label:
+                    sub.trigger()
+        elif action.text() == wanted.label:
+            action.trigger()
+    assert started == [wanted.path]
+
+
+def test_the_path_box_is_seeded_and_still_typeable(qapp):
+    """Explorer's address bar: pick from the list, or type over it."""
+    from modules.treesize.ui import locations
+
+    shell = TreeSizeShell()
+    assert shell.path_combo.isEditable()
+    items = [shell.path_combo.itemText(i)
+             for i in range(shell.path_combo.count())]
+    every = [item.path for group in locations.known_locations()
+             for item in group.items]
+    assert every and set(every) <= set(items)
+
+    shell.path_combo.setEditText(r"C:\somewhere\typed")
+    assert shell.path_combo.currentText() == r"C:\somewhere\typed"
+
+
+def test_the_path_box_starts_empty(qapp):
+    """A path sitting in the box on startup reads as a target already chosen."""
+    assert TreeSizeShell().path_combo.currentText() == ""
+
+
+def test_picking_from_the_path_box_scans_that_place(qapp, monkeypatch):
+    shell = TreeSizeShell()
+    started = []
+    monkeypatch.setattr(shell, "start_scan", lambda target: started.append(target))
+    shell._on_path_chosen(0)
+    assert started == [shell.path_combo.itemText(0)]

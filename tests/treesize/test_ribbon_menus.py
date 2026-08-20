@@ -236,3 +236,47 @@ def test_export_with_nothing_selected_does_not_write(shell, tmp_path, monkeypatc
         lambda *a, **k: called.append(a))
     shell.ribbon.action("export.csv").trigger()
     assert called, "should tell the user there is nothing to export"
+
+
+# ---- submenus -----------------------------------------------------------
+
+def test_a_nested_list_becomes_a_submenu(qapp):
+    """The quick-location list is long enough that a flat menu is a wall.
+    A callback that is a LIST rather than a callable means "submenu"."""
+    ribbon = Ribbon()
+    called = []
+    ribbon.set_menu_items("scan.select", [
+        ("C:\\", lambda: called.append("C")),
+        (None, None),
+        ("Temp & caches", [("Windows Temp", lambda: called.append("temp"))]),
+    ])
+    menu = ribbon.menus_by_id["scan.select"]
+    actions = menu.actions()
+    labels = [a.text() for a in actions if not a.isSeparator()]
+    assert labels == ["C:\\", "Temp & caches"]
+
+    nested = actions[-1].menu()
+    assert nested is not None, "the nested list did not become a submenu"
+    assert [a.text() for a in nested.actions()] == ["Windows Temp"]
+    nested.actions()[0].trigger()
+    assert called == ["temp"]
+
+
+def test_an_empty_submenu_is_not_added_at_all(qapp):
+    """An empty submenu is a dead end the user can open."""
+    ribbon = Ribbon()
+    ribbon.set_menu_items("scan.select", [("Logs", []), ("C:\\", lambda: None)])
+    labels = [a.text() for a in ribbon.menus_by_id["scan.select"].actions()
+              if not a.isSeparator()]
+    assert labels == ["C:\\"]
+
+
+def test_flat_items_still_work(qapp):
+    """The drive list has always been flat and must stay that way."""
+    ribbon = Ribbon()
+    fired = []
+    ribbon.set_menu_items("scan.select", [("D:\\", lambda: fired.append("D"))])
+    actions = ribbon.menus_by_id["scan.select"].actions()
+    assert len(actions) == 1 and actions[0].menu() is None
+    actions[0].trigger()
+    assert fired == ["D"]
