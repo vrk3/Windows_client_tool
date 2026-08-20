@@ -12,11 +12,24 @@ def test_parse_cbs_line():
     try:
         parser = CBSParser(path)
         entries = parser.parse()
-        assert len(entries) == 2
+        # Three lines in, three entries out. The unmatched line used to be
+        # DROPPED; on a real CBS.log that silently lost 6,333 of 85,850 lines,
+        # which are the indented detail under a message and usually the part
+        # that says why. It is kept as a continuation of the record above.
+        assert len(entries) == 3
         assert entries[0].level == "Info"
         assert entries[0].source == "CBS"
         assert "TrustedInstaller" in entries[0].message
         assert entries[1].level == "Error"
+
+        assert entries[2].raw.get("continuation") is True
+        assert entries[2].message == "malformed line"
+        # It inherits WHEN and WHERE from the record it continues...
+        assert entries[2].timestamp == entries[1].timestamp
+        assert entries[2].source == entries[1].source
+        # ...but not its severity: a detail line is not an error of its own,
+        # and inheriting one would inflate any count of them.
+        assert entries[2].level != "Error"
     finally:
         os.unlink(path)
 
