@@ -180,7 +180,12 @@ class LogModel(QAbstractTableModel):
             colour = ROW_COLOURS.get(entry.level)
             return colour[1] if colour else None
         elif role == Qt.ItemDataRole.ToolTipRole:
-            return entry.message
+            # The line as written, then what its error codes mean. This is
+            # what people open CMTrace for: a line says 0x80070005 and they
+            # need "access denied".
+            from .error_codes import annotate
+
+            return annotate(entry.message)
         return None
 
     # ---- find -----------------------------------------------------------

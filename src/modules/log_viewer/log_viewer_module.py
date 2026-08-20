@@ -17,9 +17,9 @@ from typing import Optional
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel,
-    QHeaderView, QLineEdit, QPushButton, QTableView, QVBoxLayout,
-    QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
+    QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QTableView,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
@@ -56,8 +56,17 @@ class LogViewerWidget(QWidget):
         layout.setSpacing(6)
 
         top = QHBoxLayout()
-        self.open_button = QPushButton("Open log…", self)
+        # A split button: pressing it browses, the arrow lists the logs this
+        # machine actually has. Same idea as TreeSize's scan target -- offer
+        # somewhere to go rather than making someone type a path.
+        self.open_button = QToolButton(self)
+        self.open_button.setText("Open log…")
+        self.open_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.open_button.clicked.connect(self.choose_file)
+        self.open_menu = QMenu(self.open_button)
+        self.open_button.setMenu(self.open_menu)
+        self._build_open_menu()
         top.addWidget(self.open_button)
 
         self.follow = QCheckBox("Follow", self)
@@ -145,11 +154,36 @@ class LogViewerWidget(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
 
+        self.table.selectionModel().currentRowChanged.connect(
+            self._on_row_selected)
+
         self._timer = QTimer(self)
         self._timer.setInterval(FOLLOW_MS)
         self._timer.timeout.connect(self._poll)
 
     # ---- opening --------------------------------------------------------
+
+    def _build_open_menu(self) -> None:
+        """The logs present on this machine, plus Browse.
+
+        Rebuilt rather than cached: a ConfigMgr client can be installed, and
+        CBS rolls into new archives, between one opening of the menu and the
+        next.
+        """
+        from .known_logs import known_logs, newest_cbs_archive
+
+        self.open_menu.clear()
+        for log in known_logs():
+            self.open_menu.addAction(
+                log.label, lambda _c=False, p=log.path: self.open(p))
+        archive = newest_cbs_archive()
+        if archive:
+            self.open_menu.addSeparator()
+            self.open_menu.addAction(
+                "CBS — newest rolled archive",
+                lambda _c=False, p=archive: self.open(p))
+        self.open_menu.addSeparator()
+        self.open_menu.addAction("Browse…", self.choose_file)
 
     def choose_file(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
@@ -202,6 +236,24 @@ class LogViewerWidget(QWidget):
         if self._reader is not None and self._reader.truncated:
             parts.append("opened at the tail of a large file")
         self.status.setText("  |  ".join(parts))
+
+    def _on_row_selected(self, current, _previous) -> None:
+        """Spell out any error codes on the selected line.
+
+        The tooltip carries the same thing, but a tooltip has to be
+        discovered; the status bar is already where this widget talks.
+        """
+        entry = self.model.entry(current.row()) if current.isValid() else None
+        if entry is None:
+            return
+        from .error_codes import explain
+
+        found = explain(entry.message)
+        if found:
+            self.status.setText("   ".join(f"{code} — {meaning}"
+                                           for code, meaning in found))
+        else:
+            self._update_status()
 
     # ---- filtering and find ---------------------------------------------
 

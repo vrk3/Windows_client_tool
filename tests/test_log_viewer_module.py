@@ -354,3 +354,98 @@ def test_find_still_searches_the_whole_log_not_just_the_filtered_rows(viewer):
     viewer.find_box.setText("Careful")
     viewer.find_next()
     assert viewer.table.currentIndex().row() == 1
+
+
+# ---- error-code lookup (CMTrace's Error Lookup) -------------------------
+
+def test_the_tooltip_explains_an_error_code(qapp, tmp_path):
+    """A line says 0x80070005; the reader needs "access denied"."""
+    from PyQt6.QtCore import Qt
+
+    path = tmp_path / "codes.log"
+    path.write_text('<![LOG[Install failed (0x80070005)]LOG]!>'
+                    '<time="10:00:00.000+000" date="08-20-2026" '
+                    'component="C" context="" type="3" thread="1" '
+                    'file="f.cpp:1">\n', encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(path))
+        tip = widget.model.data(widget.model.index(0, 4),
+                                Qt.ItemDataRole.ToolTipRole)
+        assert "0x80070005" in tip
+        assert "denied" in tip.lower()
+    finally:
+        widget.stop()
+
+
+def test_selecting_a_row_spells_the_code_out_in_the_status_bar(qapp, tmp_path):
+    """A tooltip has to be discovered; the status bar is already where this
+    widget talks."""
+    path = tmp_path / "codes.log"
+    path.write_text('<![LOG[No DP found (0x87D00231)]LOG]!>'
+                    '<time="10:00:00.000+000" date="08-20-2026" '
+                    'component="C" context="" type="3" thread="1" '
+                    'file="f.cpp:1">\n', encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(path))
+        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        assert "0x87D00231" in widget.status.text()
+        assert "distribution point" in widget.status.text().lower()
+    finally:
+        widget.stop()
+
+
+def test_selecting_a_row_without_codes_restores_the_normal_status(viewer):
+    """It must not leave the last explanation stranded on screen."""
+    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    assert "ccmexec.log" in viewer.status.text()
+
+
+# ---- the Open dropdown --------------------------------------------------
+
+def test_the_open_button_lists_the_logs_this_machine_has(qapp):
+    from modules.log_viewer.known_logs import known_logs
+
+    widget = LogViewerWidget()
+    try:
+        labels = [a.text() for a in widget.open_menu.actions()
+                  if not a.isSeparator()]
+        for log in known_logs():
+            assert log.label in labels
+        assert "Browse…" in labels
+    finally:
+        widget.stop()
+
+
+def test_choosing_a_known_log_opens_it(qapp, monkeypatch):
+    from modules.log_viewer.known_logs import known_logs
+
+    available = known_logs()
+    if not available:
+        pytest.skip("no known logs on this machine")
+
+    widget = LogViewerWidget()
+    try:
+        opened = []
+        monkeypatch.setattr(widget, "open", lambda p: opened.append(p))
+        widget._build_open_menu()          # rebuild against the patched open
+        wanted = available[0]
+        for action in widget.open_menu.actions():
+            if action.text() == wanted.label:
+                action.trigger()
+        assert opened == [wanted.path]
+    finally:
+        widget.stop()
+
+
+def test_the_menu_is_rebuilt_rather_than_cached(qapp):
+    """A ConfigMgr client can appear, and CBS rolls into new archives,
+    between one opening of the menu and the next."""
+    widget = LogViewerWidget()
+    try:
+        before = len(widget.open_menu.actions())
+        widget._build_open_menu()
+        assert len(widget.open_menu.actions()) == before
+    finally:
+        widget.stop()
