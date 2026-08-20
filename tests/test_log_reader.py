@@ -171,3 +171,24 @@ def test_a_utf8_character_split_across_reads_survives(tmp_path):
     with open(path, "ab") as handle:
         handle.write(payload[4:])
     assert "café" in reader.read_new()
+
+
+def test_a_utf8_bom_is_stripped(tmp_path):
+    r"""Every log in C:\Windows\Logs on a real machine starts with a UTF-8
+    BOM. Decoding it leaves \ufeff on the front of the first line, which is
+    invisible, is NOT matched by \s, and so costs that line its timestamp --
+    the first line of every CBS, DISM and Setup log."""
+    path = tmp_path / "bom.log"
+    with open(path, "wb") as handle:
+        handle.write(b"\xef\xbb\xbf2026-08-20 10:00:00 first line\n")
+    text = LogReader(str(path)).read_new()
+    assert not text.startswith("\ufeff")
+    assert text.startswith("2026-08-20")
+
+
+def test_the_bom_is_only_stripped_at_the_very_start(tmp_path):
+    """A BOM-looking sequence mid-file is data, not a marker."""
+    path = tmp_path / "bom.log"
+    with open(path, "wb") as handle:
+        handle.write(b"first\n\xef\xbb\xbfsecond\n")
+    assert LogReader(str(path)).read_new().count("\ufeff") == 1

@@ -156,3 +156,10 @@ def test_detection_only_sniffs_the_head_of_a_huge_file():
     """Sniffing 300 MB to answer a yes/no question is not a detector."""
     text = "x" * 5_000_000 + "<![LOG[late]LOG]!>"
     assert parser.looks_like_cmtrace(text) is False
+
+
+def test_a_leading_bom_does_not_cost_the_first_lines_timestamp():
+    r"""\ufeff is not whitespace to the regex, so an unstripped BOM silently
+    drops the timestamp of the first line of every real Windows log."""
+    entry = parser.parse("\ufeff2026-08-20 13:45:12 ERROR boom\n")[0]
+    assert entry.timestamp == datetime(2026, 8, 20, 13, 45, 12)

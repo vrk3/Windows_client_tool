@@ -50,6 +50,7 @@ class LogReader:
         self._identity = None
         self._pending = b""
         self._rolled_done = False
+        self._at_start = True
 
     # ---- identity -------------------------------------------------------
 
@@ -96,7 +97,7 @@ class LogReader:
         try:
             size = os.path.getsize(self.path)
         except OSError:
-            return self._decode(b"".join(chunks))
+            return self._strip_bom(self._decode(b"".join(chunks)))
 
         identity = self._identity_of(self.path)
         if self._identity is not None and identity != self._identity:
@@ -121,7 +122,7 @@ class LogReader:
                 handle.seek(start)
                 data = handle.read()
         except OSError:
-            return self._decode(b"".join(chunks))
+            return self._strip_bom(self._decode(b"".join(chunks)))
         self._offset = size
 
         data = self._pending + data
@@ -146,7 +147,20 @@ class LogReader:
             data = data[:cut + 1]
 
         chunks.append(data)
-        return self._decode(b"".join(chunks))
+        return self._strip_bom(self._decode(b"".join(chunks)))
+
+    def _strip_bom(self, text: str) -> str:
+        r"""Drop a leading BOM, once, at the very start of the stream.
+
+        Every log under C:\Windows\Logs on a real machine is UTF-8 WITH a
+        BOM. Decoded, that is a leading U+FEFF -- invisible, and NOT matched
+        by `\s`, so it costs the first line of every CBS, DISM and Setup log
+        its timestamp. A BOM sequence later in the file is data, not a marker.
+        """
+        if self._at_start and text:
+            self._at_start = False
+            return text.lstrip("\ufeff")
+        return text
 
     @staticmethod
     def _decode(data: bytes) -> str:

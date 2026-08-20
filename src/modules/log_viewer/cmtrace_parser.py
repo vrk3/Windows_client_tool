@@ -124,4 +124,7 @@ def parse(text: str) -> list:
     """Records from `text`, picking the parser by sniffing it."""
     if not text:
         return []
+    # Belt and braces: LogReader strips this, but `parse` is also called
+    # directly, and U+FEFF is not whitespace to the timestamp regex.
+    text = text.lstrip("\ufeff")
     return parse_cmtrace(text) if looks_like_cmtrace(text) else parse_plain(text)
