@@ -259,3 +259,22 @@ def test_the_provider_still_sees_records_added_after_it_was_set(viewer, log):
                      'type="3" thread="2" file="b.cpp:9">\n')
     viewer._poll()
     assert len(viewer.provider.search(SearchQuery(text="broke"))) == before + 1
+
+
+def test_searching_survives_the_log_growing_underneath_it(viewer, log):
+    """The provider holds the model's live deque. A search must not blow up
+    if that deque is appended to -- it snapshots before iterating."""
+    entries = viewer.provider._entries
+    results = []
+
+    class _Growing:
+        def __iter__(self):
+            entries.append(entries[0])      # mutate mid-iteration
+            return iter(list(entries))
+
+        def __len__(self):
+            return len(entries)
+
+    viewer.provider.set_entries(_Growing())
+    results = viewer.provider.search(SearchQuery(text="broke"))
+    assert results is not None

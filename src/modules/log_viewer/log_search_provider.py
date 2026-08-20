@@ -44,8 +44,15 @@ class LogSearchProvider(SearchProvider):
                 matcher = None
         needle = text.lower()
 
+        # Snapshot ONCE per search, not once per follow tick. The global bar
+        # runs on the UI thread today (main_window._on_search calls execute()
+        # straight from the slot), so this is not strictly required -- but
+        # DiagnoseModule already searches on a Worker, and if the global bar
+        # ever follows, iterating a deque the viewer is appending to raises
+        # "deque mutated during iteration". Paying O(n) on a keystroke is
+        # nothing; paying it every second to answer nothing was the problem.
         results = []
-        for entry in self._entries:
+        for entry in list(self._entries):
             haystack = f"{entry.source} {entry.level} {entry.message}"
             if matcher is not None:
                 if not matcher.search(haystack):
