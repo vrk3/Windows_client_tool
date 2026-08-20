@@ -257,3 +257,97 @@ def test_the_users_view_shows_owners_it_was_given(qapp):
     view.show_subtree(store, root, AggregateCache())
     assert [view.topLevelItem(i).text(0)
             for i in range(view.topLevelItemCount())] == [r"HOME\ana"]
+
+
+# ---- one unreadable sample must not cost the whole bucket ---------------
+#
+# Found on the FIRST elevated MFT run of a real C:. Four buckets kept their
+# placeholders -- one of them 23.6 GB -- because the single file sampled for
+# each was inside System Volume Information, which is denied even to
+# Administrators. Other files sharing those ids were perfectly readable and
+# were never tried.
+
+def _bucketed_store(paths_with_ids):
+    """A store where several nodes share one placeholder owner id.
+
+    Folders are tracked in a dict, NOT by asking the store: `children()` walks
+    the sibling chain, and `build_child_lists()` has not run yet during
+    construction, so every lookup would come back empty and quietly give each
+    file a folder of its own -- which is exactly the arrangement these tests
+    exist to distinguish from.
+    """
+    store = NodeStore()
+    root = store.add(-1, "C:", attrs=DIR)
+    owner_id = store.intern_owner("$SECURE:1909")
+    folders: dict[str, int] = {}
+    for folder_name, file_name in paths_with_ids:
+        folder = folders.get(folder_name)
+        if folder is None:
+            folder = store.add(root, folder_name, attrs=DIR)
+            folders[folder_name] = folder
+        store.add(folder, file_name, size=10, owner_id=owner_id)
+    store.build_child_lists()
+    return store, owner_id
+
+
+def test_a_second_file_is_tried_when_the_first_cannot_be_read():
+    """The whole bucket used to die with its first sample."""
+    store, owner_id = _bucketed_store([
+        ("SystemVolumeInformation", "denied.dat"),
+        ("Users", "readable.txt"),
+    ])
+    acl = _FakeAcl({r"C:\Users\readable.txt": "S-1-5-21-9"},
+                   {"S-1-5-21-9": r"VRK\iorda"})
+
+    assert resolve_sampled_owners(store, _resolver(acl)) == 1
+    assert store.owner(owner_id) == r"VRK\iorda"
+
+
+def test_samples_are_taken_from_different_folders_first():
+    """One unreadable FOLDER is the real failure mode, so five samples from
+    inside it are five ways of learning the same thing."""
+    store, _owner_id = _bucketed_store([
+        ("Denied", "a.dat"), ("Denied", "b.dat"), ("Denied", "c.dat"),
+        ("Readable", "d.txt"),
+    ])
+    acl = _FakeAcl({r"C:\Readable\d.txt": "S-1-5-21-9"},
+                   {"S-1-5-21-9": r"VRK\iorda"})
+
+    assert resolve_sampled_owners(store, _resolver(acl)) == 1
+    # The readable folder must have been reached early, not after exhausting
+    # every file in the denied one.
+    assert acl.sid_calls.index(r"C:\Readable\d.txt") <= 1
+
+
+def test_it_gives_up_after_a_bounded_number_of_attempts():
+    """Still a handful of calls, not one per file. A volume has hundreds of
+    thousands of files and a handful of distinct ids; that ratio is the whole
+    reason sampling exists."""
+    store, _owner_id = _bucketed_store(
+        [(f"folder{i}", f"f{i}.dat") for i in range(50)])
+    acl = _FakeAcl({}, {})            # nothing is readable
+
+    assert resolve_sampled_owners(store, _resolver(acl)) == 0
+    assert len(acl.sid_calls) <= 5, (
+        f"tried {len(acl.sid_calls)} files for one owner id")
+
+
+def test_an_entirely_unreadable_bucket_keeps_its_placeholder():
+    """An honest $SECURE:1909 still beats a name borrowed from another file."""
+    store, owner_id = _bucketed_store([("Denied", "a.dat"),
+                                       ("AlsoDenied", "b.dat")])
+    acl = _FakeAcl({}, {})
+    assert resolve_sampled_owners(store, _resolver(acl)) == 0
+    assert store.owner(owner_id) == "$SECURE:1909"
+
+
+def test_progress_is_reported_once_per_bucket_not_once_per_attempt():
+    """The progress bar counts owner ids; counting retries would make it jump
+    around and overshoot."""
+    store, _owner_id = _bucketed_store([("Denied", "a.dat"),
+                                        ("Readable", "b.txt")])
+    acl = _FakeAcl({r"C:\Readable\b.txt": "S"}, {"S": "NAME"})
+    seen = []
+    resolve_sampled_owners(store, _resolver(acl),
+                           on_progress=lambda done, total: seen.append((done, total)))
+    assert seen == [(1, 1)]
