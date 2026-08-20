@@ -157,6 +157,8 @@ class TreeSizeShell(QWidget):
         self._comparison = None
         self._autosize_columns = False
         self._watcher: Watcher | None = None
+        self._permanent_excludes: tuple[str, ...] = ()
+        self._temp_excludes: tuple[str, ...] = ()
         self.config = None
         self._settings = load_settings(None)
 
@@ -353,6 +355,7 @@ class TreeSizeShell(QWidget):
 
         act("exclude.selected").triggered.connect(self._exclude_selected)
         act("exclude.pattern").triggered.connect(self._exclude_pattern)
+        act("exclude.permanent").triggered.connect(self._exclude_permanent)
         act("exclude.clear").triggered.connect(self._clear_exclusions)
 
         for suffix, threshold in (("off", 0), ("1mb", 1 << 20),
@@ -937,6 +940,8 @@ class TreeSizeShell(QWidget):
             # opening; the defaults already loaded are usable.
             pass
         self._filters.exclude_hidden = bool(settings.get("exclude_hidden", False))
+        self._permanent_excludes = tuple(settings.get("exclude_patterns") or ())
+        self._apply_exclusions()
         self.top_files._limit = int(settings.get("top_files_limit", 100))
         self.chart.treemap.max_depth = int(settings.get("treemap_depth", 6))
         self._aggregates.clear()
@@ -1076,25 +1081,78 @@ class TreeSizeShell(QWidget):
         if self._store is not None and node >= 0:
             self.start_scan(self._store.path(node))
 
+    # ---- exclusions (spec 3.6) ------------------------------------------
+    #
+    # Two kinds. Temporary rules last this scan; permanent ones go through
+    # ConfigManager and apply to every future one. They are held apart rather
+    # than in one list so that "clear what I did for this scan" cannot throw
+    # away a standing rule.
+
+    def _apply_exclusions(self) -> None:
+        self._filters.exclude_globs = tuple(self._permanent_excludes) + tuple(
+            self._temp_excludes)
+
+    def add_exclusion(self, pattern: str, permanent: bool = False) -> bool:
+        """Add one rule. Returns whether it was added.
+
+        A blank pattern is refused: fnmatch would match nothing, and a rule
+        that silently does nothing is worse than no rule at all in a tool
+        that deletes things.
+        """
+        pattern = (pattern or "").strip()
+        if not pattern:
+            return False
+        if permanent:
+            if pattern in self._permanent_excludes:
+                return False
+            self._permanent_excludes = self._permanent_excludes + (pattern,)
+            self._persist_exclusions()
+        else:
+            if pattern in self._temp_excludes:
+                return False
+            self._temp_excludes = self._temp_excludes + (pattern,)
+        self._apply_exclusions()
+        return True
+
+    def clear_exclusions(self, permanent: bool = False) -> None:
+        self._temp_excludes = ()
+        if permanent:
+            self._permanent_excludes = ()
+            self._persist_exclusions()
+        self._apply_exclusions()
+
+    def _persist_exclusions(self) -> None:
+        self._settings["exclude_patterns"] = list(self._permanent_excludes)
+        save_settings(self.config, {"exclude_patterns":
+                                    list(self._permanent_excludes)})
+
     def _exclude_selected(self) -> None:
         node = getattr(self, "_selected", -1)
         if self._store is None or node < 0:
             return
-        name = self._store.name(node)
-        self._filters.exclude_globs = tuple(self._filters.exclude_globs) + (name,)
-        self.refresh_scan()
+        if self.add_exclusion(self._store.name(node)):
+            self.refresh_scan()
 
     def _exclude_pattern(self) -> None:
         pattern, ok = QInputDialog.getText(
             self, "Exclude by pattern",
-            "Exclude names matching (for example *.tmp):")
-        if ok and pattern.strip():
-            self._filters.exclude_globs = (
-                tuple(self._filters.exclude_globs) + (pattern.strip(),))
+            "Exclude names matching, for this scan (for example *.tmp):")
+        if ok and self.add_exclusion(pattern):
+            self.refresh_scan()
+
+    def _exclude_permanent(self) -> None:
+        pattern, ok = QInputDialog.getText(
+            self, "Always exclude by pattern",
+            "Exclude names matching, in every scan from now on\n"
+            "(for example node_modules). Edit the list under Options.")
+        if ok and self.add_exclusion(pattern, permanent=True):
+            self.scan_state.setText(f"Always excluding {pattern.strip()}")
             self.refresh_scan()
 
     def _clear_exclusions(self) -> None:
-        self._filters.exclude_globs = ()
+        # Temporary only. The permanent list is edited under Options, so that
+        # one stray click here cannot silently drop a standing rule.
+        self.clear_exclusions(permanent=False)
         self._filters.exclude_path_globs = ()
         self._filters.min_size = 0
         self.ribbon.action("hidesmall.off").setChecked(True)

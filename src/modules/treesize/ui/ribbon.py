@@ -154,6 +154,9 @@ MENUS: dict = {
                       ("export.clipboard", "Copy to clipboard")),
     "scan.exclude": (("exclude.selected", "Exclude selected folder"),
                      ("exclude.pattern", "Exclude by pattern…"),
+                     # Spec 3.6: exclusions are temporary or permanent. The
+                     # two above last one scan; this one is kept in config.
+                     ("exclude.permanent", "Always exclude by pattern…"),
                      None,
                      ("exclude.clear", "Clear all exclusions")),
     "view.select": (("view.go.chart", "Chart"),

@@ -11,7 +11,7 @@ in a private file.
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
-    QLabel, QSpinBox, QVBoxLayout,
+    QLabel, QLineEdit, QSpinBox, QVBoxLayout,
 )
 
 from .formatting import Mode, Unit
@@ -24,6 +24,9 @@ DEFAULTS = {
     "mode": Mode.SIZE.value,
     "charge_all_hardlinks": False,
     "exclude_hidden": False,
+    # Spec 3.6's PERMANENT exclusions, as against the temporary ones the
+    # Exclude menu adds for a single scan.
+    "exclude_patterns": [],
     "collect_owners": False,
     "confirm_permanent_delete": True,
     "treemap_depth": 6,
@@ -84,6 +87,15 @@ class OptionsDialog(QDialog):
         self.exclude_hidden = QCheckBox("Exclude hidden files", scanning)
         self.exclude_hidden.setChecked(bool(self._settings["exclude_hidden"]))
         scan_form.addRow(self.exclude_hidden)
+
+        self.exclude_patterns = QLineEdit(scanning)
+        self.exclude_patterns.setText(
+            ", ".join(self._settings.get("exclude_patterns") or ()))
+        self.exclude_patterns.setPlaceholderText("node_modules, *.iso, *.tmp")
+        self.exclude_patterns.setToolTip(
+            "Applied to every scan and kept between sessions, unlike the "
+            "Exclude menu on the Scan tab, which lasts one scan.")
+        scan_form.addRow("Always exclude:", self.exclude_patterns)
         layout.addWidget(scanning)
 
         views = QGroupBox("Views", self)
@@ -134,6 +146,7 @@ class OptionsDialog(QDialog):
         self.mode.setCurrentIndex(max(0, self.mode.findData(DEFAULTS["mode"])))
         self.charge_hardlinks.setChecked(DEFAULTS["charge_all_hardlinks"])
         self.exclude_hidden.setChecked(DEFAULTS["exclude_hidden"])
+        self.exclude_patterns.setText("")
         self.collect_owners.setChecked(DEFAULTS["collect_owners"])
         self.treemap_depth.setValue(DEFAULTS["treemap_depth"])
         self.top_files_limit.setValue(DEFAULTS["top_files_limit"])
@@ -146,6 +159,10 @@ class OptionsDialog(QDialog):
             "mode": self.mode.currentData(),
             "charge_all_hardlinks": self.charge_hardlinks.isChecked(),
             "exclude_hidden": self.exclude_hidden.isChecked(),
+            # A trailing comma is a typo, not a rule matching everything.
+            "exclude_patterns": [p.strip() for p
+                                 in self.exclude_patterns.text().split(",")
+                                 if p.strip()],
             "collect_owners": self.collect_owners.isChecked(),
             "confirm_permanent_delete": self.confirm_permanent.isChecked(),
             "treemap_depth": self.treemap_depth.value(),
