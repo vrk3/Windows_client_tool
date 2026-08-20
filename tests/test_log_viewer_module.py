@@ -223,3 +223,39 @@ def test_status_info_before_anything_is_open(qapp):
     module = LogViewerModule()
     module.create_widget()
     assert "No log" in module.get_status_info()
+
+
+# ---- the follow path must stay cheap and non-destructive ---------------
+
+def test_a_follow_tick_keeps_the_users_selection(viewer, log):
+    """A model reset clears it. While following that is every second: click a
+    row to read it and it deselects under you."""
+    viewer.table.setCurrentIndex(viewer.model.index(1, 4))
+    assert viewer.table.currentIndex().row() == 1
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write('<![LOG[later]LOG]!><time="13:45:20.000+000" '
+                     'date="08-20-2026" component="Alpha" context="" '
+                     'type="1" thread="1" file="a.cpp:9">\n')
+    viewer._poll()
+    assert viewer.table.currentIndex().row() == 1
+
+
+def test_the_search_provider_is_not_handed_a_fresh_copy_each_tick(viewer, log):
+    """Copying the whole deque once a second, to answer a search nobody has
+    typed, is work for nothing."""
+    first = viewer.provider._entries
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write("another line\n")
+    viewer._poll()
+    assert viewer.provider._entries is first
+
+
+def test_the_provider_still_sees_records_added_after_it_was_set(viewer, log):
+    """The flip side of not copying: it must observe later appends."""
+    before = len(viewer.provider.search(SearchQuery(text="broke")))
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write('<![LOG[it broke again]LOG]!><time="13:45:21.000+000" '
+                     'date="08-20-2026" component="Beta" context="" '
+                     'type="3" thread="2" file="b.cpp:9">\n')
+    viewer._poll()
+    assert len(viewer.provider.search(SearchQuery(text="broke"))) == before + 1

@@ -18,7 +18,14 @@ class LogSearchProvider(SearchProvider):
         self._source = ""
 
     def set_entries(self, entries, source: str = "") -> None:
-        self._entries = list(entries)
+        """Point at the caller's sequence; do NOT copy it.
+
+        The viewer calls this on every follow tick, and copying a
+        200,000-record deque once a second to answer a search nobody has
+        typed yet is pure waste. Everything here runs on the UI thread, so a
+        search can never observe the sequence mid-append.
+        """
+        self._entries = entries if entries is not None else []
         self._source = source
 
     def search(self, query: SearchQuery) -> List[SearchResult]:

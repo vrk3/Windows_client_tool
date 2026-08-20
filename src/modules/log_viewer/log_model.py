@@ -44,17 +44,45 @@ class LogModel(QAbstractTableModel):
     # ---- content --------------------------------------------------------
 
     def append(self, entries) -> None:
-        """Add parsed records, keeping the newest when the cap is reached."""
+        """Add parsed records, keeping the newest when the cap is reached.
+
+        INSERTS rather than resets. A reset clears the view's selection, and
+        while following this runs every second -- click a row to read it and
+        it deselects under you a tick later.
+
+        A reset is still right in one case: once the cap starts dropping from
+        the front, every surviving record's index shifts, and an insert would
+        leave the view pointing at the wrong rows.
+        """
         if not entries:
             return
-        before = len(self._entries)
-        self.beginResetModel()
-        self._entries.extend(entries)
-        overflow = before + len(entries) - len(self._entries)
-        if overflow > 0:
+        entries = list(entries)
+        capacity = self._entries.maxlen
+        overflow = 0
+        if capacity is not None:
+            overflow = max(0, len(self._entries) + len(entries) - capacity)
+
+        if overflow:
             self.dropped += overflow
-        self._reindex()
-        self.endResetModel()
+            self.beginResetModel()
+            self._entries.extend(entries)
+            self._reindex()
+            self.endResetModel()
+            return
+
+        first = len(self._entries)
+        fresh = [first + offset for offset, entry in enumerate(entries)
+                 if self._matches(entry)]
+        if not fresh:
+            # Everything new is hidden by the current filter: the records go
+            # in, but no row appears and the view need not be told.
+            self._entries.extend(entries)
+            return
+        start = len(self._visible)
+        self.beginInsertRows(QModelIndex(), start, start + len(fresh) - 1)
+        self._entries.extend(entries)
+        self._visible.extend(fresh)
+        self.endInsertRows()
 
     def clear(self) -> None:
         self.beginResetModel()

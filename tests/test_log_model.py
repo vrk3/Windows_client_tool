@@ -203,3 +203,57 @@ def test_clearing_empties_everything(qapp):
     model = _model([_entry("a"), _entry("b")])
     model.clear()
     assert model.rowCount() == 0 and model.total == 0 and model.dropped == 0
+
+
+# ---- appending must not reset the world ---------------------------------
+
+def test_appending_inserts_rather_than_resetting(qapp):
+    """A model reset clears the view's selection. While following, that
+    happens every second -- click a row to read it and it deselects under
+    you. Only an append that actually SHIFTS indices justifies a reset."""
+    model = _model([_entry("one")])
+    events = []
+    model.modelAboutToBeReset.connect(lambda: events.append("reset"))
+    model.rowsInserted.connect(lambda *_a: events.append("insert"))
+
+    model.append([_entry("two")])
+
+    assert "insert" in events
+    assert "reset" not in events
+
+
+def test_an_append_that_overflows_the_cap_does_reset(qapp):
+    """Dropping from the front renumbers every row, so a reset is the honest
+    signal -- an insert would leave the view pointing at the wrong records."""
+    model = LogModel(cap=2)
+    model.append([_entry("a"), _entry("b")])
+    events = []
+    model.modelAboutToBeReset.connect(lambda: events.append("reset"))
+    model.append([_entry("c")])
+    assert "reset" in events
+
+
+def test_an_append_hidden_by_the_filter_inserts_no_rows(qapp):
+    model = _model([_entry("visible", level="Error")])
+    model.set_filter(levels={"Error"})
+    events = []
+    model.rowsInserted.connect(lambda *_a: events.append("insert"))
+    model.append([_entry("hidden", level="Info")])
+    assert events == []
+    assert model.rowCount() == 1
+    assert model.total == 2
+
+
+def test_a_filtered_append_still_shows_what_matches(qapp):
+    model = _model([_entry("first", level="Error")])
+    model.set_filter(levels={"Error"})
+    model.append([_entry("second", level="Error"), _entry("no", level="Info")])
+    assert model.rowCount() == 2
+    assert model.data(model.index(1, MESSAGE)) == "second"
+
+
+def test_appending_keeps_the_rows_in_order(qapp):
+    model = _model([_entry("one")])
+    model.append([_entry("two"), _entry("three")])
+    assert [model.data(model.index(r, MESSAGE)) for r in range(3)] == [
+        "one", "two", "three"]
