@@ -1,0 +1,56 @@
+{
+  "name": "Privacy",
+  "version": 1,
+  "builtin": true,
+  "description": "Maximize privacy: disable telemetry, advertising ID, location, Cortana, clipboard sync, and all data collection features.",
+  "tweaks": {
+    "privacy": [
+      "disable_activity_history",
+      "disable_location",
+      "disable_advertising_id",
+      "disable_app_diagnostics",
+      "disable_cortana_web_search",
+      "disable_bing_start",
+      "disable_app_launch_tracking",
+      "disable_suggested_content",
+      "disable_background_apps",
+      "disable_autoplay",
+      "disable_wifi_sense",
+      "disable_lockscreen_spotlight",
+      "disable_clipboard_cloud_sync",
+      "disable_typing_personalization",
+      "disable_find_my_device",
+      "disable_online_speech_recognition",
+      "disable_account_notification_ads"
+    ],
+    "telemetry": [
+      "disable_diagtrack",
+      "disable_utcsvc",
+      "telemetry_zero",
+      "disable_device_name_telemetry",
+      "disable_wersvc",
+      "disable_ceip",
+      "disable_inventory_collector",
+      "disable_feedback_requests",
+      "disable_consumer_features",
+      "disable_spynet",
+      "disable_maps_autoupdate",
+      "disable_mdm_enrollment"
+    ],
+    "services": [
+      "disable_remote_registry",
+      "disable_delivery_optimization",
+      "disable_downloaded_maps_manager"
+    ],
+    "ui_tweaks": [
+      "disable_taskbar_news",
+      "disable_search_highlights",
+      "disable_copilot_button",
+      "disable_taskbar_widgets",
+      "disable_start_recommendations",
+      "disable_notification_center",
+      "disable_taskbar_chat"
+    ]
+  },
+  "apps": {}
+}

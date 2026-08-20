@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_module_groups.py -v)",
+      "Bash(python -m pytest tests/test_windows_utils.py -v)",
+      "Bash(python -m pytest tests/test_backup_service.py -v)",
+      "Bash(python -c \"from core.worker import COMWorker, Worker; print\\(''COMWorker OK''\\); assert issubclass\\(COMWorker, Worker\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python -m pytest tests/test_module_groups.py tests/test_base_module.py -v)",
+      "Bash(python -m pytest tests/test_sidebar_nav.py -v)",
+      "Bash(grep -l \"main_window\\\\|MainWindow\\\\|add_module_tab\\\\|register_module\" \"c:\\\\Users\\\\iorda\\\\OneDrive\\\\Documents\\\\Visual Studio 2022\\\\TEMP\\\\Windows_client_tool/tests/\"*.py)",
+      "Bash(python -c \"from ui.main_window import MainWindow; print\\(''MainWindow OK''\\)\")",
+      "Bash(python -m pytest tests/ -v --ignore=tests/test_integration.py -x -q)",
+      "Bash(python -m pytest tests/ -v --ignore=tests/test_integration.py --ignore=tests/test_process_explorer_integration.py -q)",
+      "Bash(python -m pytest tests/test_process_explorer_integration.py tests/test_module_groups.py -v -q)",
+      "Bash(start pythonw:*)",
+      "Read(//c/Windows/SoftwareDistribution/**)",
+      "Bash(.venv/Scripts/python -c \"import wmi; print\\(''wmi OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import wincertstore; print\\(''wincertstore OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import cryptography; print\\(''cryptography OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import PyInstaller; print\\(''pyinstaller OK''\\)\")",
+      "Bash(where pyinstaller:*)",
+      "Bash(pip show:*)"
+    ]
+  }
+}

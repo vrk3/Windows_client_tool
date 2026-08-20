@@ -27,21 +27,30 @@ class ThreadView(QWidget):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table)
-        self._pid: Optional[int] = None
+        self._pid: int = -1
+        self._thread: Optional[threading.Thread] = None
+
+    def cancel(self) -> None:
+        self._pid = -1
 
     def load_pid(self, pid: int):
+        self.cancel()
         self._pid = pid
         self._table.setRowCount(0)
-        threading.Thread(target=self._load, args=(pid,), daemon=True).start()
+        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._thread.start()
 
     def _refresh(self):
-        if self._pid is not None:
+        if self._pid != -1:
             self.load_pid(self._pid)
 
     def _load(self, pid: int):
         try:
             threads = psutil.Process(pid).threads()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.NoSuchProcess:
+            threads = []
+        except psutil.AccessDenied:
+            logger.debug("Thread list denied for pid %d", pid)
             threads = []
         self._data_ready.emit(pid, threads)
 

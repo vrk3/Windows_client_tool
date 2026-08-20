@@ -1,3 +1,36 @@
 PyQt6>=6.6
 psutil>=5.9
+pyqtgraph>=0.13
+pywin32>=306
+WMI>=1.5.1
+requests>=2.31
+
+# Optional — enables packet capture in Network Diagnostics; the app degrades
+# gracefully without it (see network_diagnostics/network_tools.py).
+scapy>=2.5
+
+# Optional — TreeSize export formats. Excel and PDF are offered only when
+# these are present; every other format needs nothing beyond the standard
+# library (see modules/treesize/actions/exporters.py).
+openpyxl>=3.1
+reportlab>=4.0
+
+# Optional — TreeSize remote scan targets (spec section 6). Each backend is
+# offered only when its package is present, and says which one it wants when
+# it is not; local drives and folders need none of them. Outlook needs only
+# pywin32, which is already a hard dependency above.
+#   paramiko    -> SSH / SFTP
+#   httpx       -> WebDAV, and SharePoint through Microsoft Graph
+#   boto3       -> AWS S3
+#   azure-*     -> Azure Blob Storage
+#   google-*    -> Google Drive
+paramiko>=3.4
+httpx>=0.27
+boto3>=1.34
+azure-storage-blob>=12.19
+google-api-python-client>=2.120
+google-auth-oauthlib>=1.2
+
+# Dev / test only
 pytest>=7.0
+pytest-timeout>=2.2

@@ -1,0 +1,45 @@
+{
+  "name": "Performance",
+  "version": 1,
+  "builtin": true,
+  "description": "Maximize system performance: power plan, visual effects, NTFS tweaks, CPU/memory optimizations, and background service reduction.",
+  "tweaks": {
+    "performance": [
+      "disable_superfetch",
+      "high_perf_power_plan",
+      "disable_search_indexing",
+      "visual_effects_best_performance",
+      "disable_transparency",
+      "disable_ntfs_8dot3",
+      "disable_ntfs_last_access",
+      "enable_hags",
+      "boost_multimedia_scheduling",
+      "instant_menu_response",
+      "disable_startup_delay",
+      "disable_edge_preload",
+      "keep_kernel_in_ram",
+      "boost_foreground_cpu_priority"
+    ],
+    "services": [
+      "disable_delivery_optimization",
+      "disable_xbox_services",
+      "disable_fax",
+      "disable_tablet_input",
+      "disable_superfetch_service",
+      "disable_connected_devices_platform",
+      "disable_alljoyn_router",
+      "disable_downloaded_maps_manager",
+      "disable_diagnostics_hub"
+    ],
+    "network": [
+      "disable_qos_reserved_bandwidth",
+      "optimise_dns_cache"
+    ],
+    "ui_tweaks": [
+      "disable_taskbar_news",
+      "disable_taskbar_widgets",
+      "disable_snap_suggestions"
+    ]
+  },
+  "apps": {}
+}

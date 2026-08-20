@@ -1,0 +1,377 @@
+[
+  {
+    "id": "disable_superfetch",
+    "name": "Disable SysMain (Superfetch)",
+    "description": "Stops the SysMain service that preloads app data into RAM. Beneficial on SSDs where it adds unnecessary I/O.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"SysMain","start_type":"disabled"}]
+  },
+  {
+    "id": "high_perf_power_plan",
+    "name": "Set High Performance Power Plan",
+    "description": "Switches to the High Performance power plan — CPU never throttles.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [{"type":"command","cmd":"powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"}]
+  },
+  {
+    "id": "ultimate_performance_plan",
+    "name": "Enable Ultimate Performance Power Plan",
+    "description": "Unlocks and activates the hidden Ultimate Performance plan. Maximum CPU/memory throughput. Not recommended on laptops (battery drain).",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61"},
+      {"type":"command","cmd":"powercfg /setactive e9a42b02-d5df-448d-aa00-03f14749eb61"}
+    ]
+  },
+  {
+    "id": "disable_search_indexing",
+    "name": "Disable Windows Search Indexing",
+    "description": "Stops the Windows Search indexing service. Reduces background I/O. Search still works, just slower for the first query.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"service","name":"WSearch","start_type":"disabled"}]
+  },
+  {
+    "id": "visual_effects_best_performance",
+    "name": "Adjust Visual Effects for Best Performance",
+    "description": "Disables animations and shadows for maximum UI responsiveness.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects","value":"VisualFXSetting","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_transparency",
+    "name": "Disable Transparency Effects",
+    "description": "Disables Acrylic/blur transparency in the shell — frees GPU resources.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"EnableTransparency","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_hibernate",
+    "name": "Disable Hibernation",
+    "description": "Removes hiberfil.sys (frees 4–16 GB on C:). Safe if you never use Hibernate or Fast Startup. Reboot required.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [{"type":"command","cmd":"powercfg /h off"}]
+  },
+  {
+    "id": "disable_ntfs_8dot3",
+    "name": "Disable NTFS 8.3 Short Filenames",
+    "description": "Stops NTFS generating legacy 8.3 names. Reduces file create overhead on SSDs with many files.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisable8dot3NameCreation","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_ntfs_last_access",
+    "name": "Disable NTFS Last Access Timestamp",
+    "description": "Stops NTFS updating the last-access time on every file read — reduces write I/O on busy directories.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableLastAccessUpdate","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "enable_hags",
+    "name": "Enable Hardware-Accelerated GPU Scheduling (HAGS)",
+    "description": "GPU manages its own VRAM scheduling — reduces CPU-GPU latency. Requires NVIDIA 10xx+, AMD RX 5000+, or Intel 12th gen+. Reboot required.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers","value":"HwSchMode","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_page_combining",
+    "name": "Disable Memory Page Combining",
+    "description": "Stops Windows combining identical memory pages in background. Reduces latency spikes caused by page re-splitting on write.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePageCombining","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_multimedia_scheduling",
+    "name": "Boost Multimedia Scheduling Responsiveness",
+    "description": "Tells the Multimedia Class Scheduler to dedicate more CPU time to foreground tasks — reduces stutters in audio/video apps.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile","value":"SystemResponsiveness","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "instant_menu_response",
+    "name": "Remove Menu Animation Delay",
+    "description": "Sets the context menu pop-up delay to 0 ms — menus appear instantly instead of fading in after a short pause.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MenuShowDelay","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "disable_startup_delay",
+    "name": "Remove Startup App Launch Delay",
+    "description": "Eliminates the artificial delay Windows adds before launching startup programs. Apps registered in the startup folder open immediately after login.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize","value":"StartupDelayInMSec","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_edge_preload",
+    "name": "Disable Microsoft Edge Startup Boost & Preloading",
+    "description": "Stops Edge from loading in the background at boot and on every new tab. Frees 100–300 MB RAM if you don't use Edge as your primary browser.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\MicrosoftEdge\\Main","value":"AllowPrelaunch","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"StartupBoostEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"BackgroundModeEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "keep_kernel_in_ram",
+    "name": "Keep OS Kernel in RAM (No Paging)",
+    "description": "Prevents the Windows kernel from being swapped to the pagefile. Improves kernel response time on systems with 8 GB+ RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePagingExecutive","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_foreground_cpu_priority",
+    "name": "Boost Foreground App CPU Priority",
+    "description": "Sets Win32PrioritySeparation to favour foreground applications with shorter, variable quanta and maximum boost. Makes the active window feel more responsive.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_defragement_schedule",
+    "name": "Disable Scheduled Defragmentation",
+    "description": "Disables the Windows scheduled disk defragmentation task. Not needed on SSDs — defragmenting an SSD causes unnecessary wear with no performance benefit.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"Microsoft\\Windows\\Defrag\\ScheduledDefrag\" /disable"}
+    ]
+  },
+  {
+    "id": "enable_trim_ssd",
+    "name": "Ensure TRIM is Enabled for SSD",
+    "description": "Confirms NTFS TRIM is enabled so the SSD knows which data blocks are unused and can erase them during idle. Required for proper SSD performance over time.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"fsutil behavior set DisableDeleteNotify 0"}
+    ]
+  },
+  {
+    "id": "disable_storage_sense",
+    "name": "Disable Storage Sense",
+    "description": "Disables Storage Sense which automatically frees disk space by deleting temp files and older downloads. You control cleanup manually.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StorageProxy","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "increase_mft_zone",
+    "name": "Increase MFT Reserved Zone",
+    "description": "Increases the NTFS Master File Table reserved zone to reduce fragmentation of frequently accessed files on NTFS volumes.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"fsutil behavior set MftZone 4"}
+    ]
+  },
+  {
+    "id": "disable_large_system_cache",
+    "name": "Disable Large System Cache",
+    "description": "Keeps the file system cache memory-limited. Default Windows behaviour. Only change this if you have specifically benchmarked the large system cache as beneficial for your workload.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"LargeSystemCache","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "optimize_file_system_cache",
+    "name": "Optimize File System Cache Size",
+    "description": "Sets the file system cache to a balanced 512 MB working set. Prevents excessive RAM consumption by the cache on systems with limited memory.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"SystemCache","data":102400,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_deferred_flush",
+    "name": "Disable Deferred Write Caching",
+    "description": "Disables the Windows deferred write flusher that batches disk writes. Can improve responsiveness on battery but may risk data loss on power failure.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"DisablePagingExecutive","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_iocost_priority_high",
+    "name": "Set Storage I/O Priority to High",
+    "description": "Gives foreground apps higher priority over background processes for storage I/O. Reduces stutters when background tasks are accessing the disk.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"IoPriority","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_prefetch",
+    "name": "Disable Prefetch",
+    "description": "Disables the Prefetch mechanism that preloads frequently used applications into memory. Reduces disk activity but may slow application launch times on HDDs.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters","value":"EnablePrefetcher","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters","value":"EnableSuperfetch","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_read_ahead",
+    "name": "Disable Read-Ahead",
+    "description": "Disables the NTFS read-ahead optimisation that pre-reads sequential file data. Recommended for random-access workloads.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"EnableReadahead","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "set_power_throttling_off",
+    "name": "Disable All CPU Power Throttling",
+    "description": "Disables Windows CPPC2 (Collaborative Processor Performance Control) power throttling for all processes. CPU always runs at full rated speed regardless of workload classification.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_boot_log",
+    "name": "Disable Boot Log Generation",
+    "description": "Prevents Windows from writing a boot log (ntbtlog.txt) on startup. Slightly speeds up boot time on SSDs.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"bcdedit /set {current} bootlog no"}
+    ]
+  },
+  {
+    "id": "disable_kernel_debug",
+    "name": "Disable Kernel Debugging",
+    "description": "Turns off the kernel debug port and disables KD interface. Reduces boot overhead on production machines.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"bcdedit /debug off"}
+    ]
+  },
+  {
+    "id": "disable_readyboot",
+    "name": "Disable ReadyBoot Cache",
+    "description": "Disables the ReadyBoot system file cache that preloads frequently used DLLs. May reduce memory usage on systems with limited RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"EnableReadyBoot","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "increase_desktop_heap",
+    "name": "Increase Desktop Heap Size",
+    "description": "Increases the desktop heap from 3072 KB to 8192 KB. Fixes 'out of memory' errors in Explorer when many windows are open.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"GlobalSystemHeapSizeInMB","data":96,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "optimize_firmware_updates",
+    "name": "Disable Firmware Update Checks",
+    "description": "Prevents Windows from automatically checking for firmware updates via the UEFI Update session.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"schtasks /change /tn \"\\Microsoft\\Windows\\WindowsUpdate\\SuraUta\" /disable 2>nul"}
+    ]
+  },
+  {
+    "id": "disable_time_synchronization",
+    "name": "Disable Automatic Time Synchronization",
+    "description": "Stops the Windows Time service from automatically syncing with internet time servers. Use when you manage time manually.",
+    "category": "Performance", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"W32Time","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_pagefile",
+    "name": "Set Pagefile to Managed Size",
+    "description": "Lets Windows automatically manage the pagefile size based on available RAM. Recommended for systems with 16 GB+ RAM.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management' -Name 'PagingFiles' -Value ''\""}
+    ]
+  },
+  {
+    "id": "reduce_font_cache",
+    "name": "Reduce Font Cache Size",
+    "description": "Caps the Windows font cache at 512 KB instead of the default 25 MB. Reduces RAM usage with minimal visual impact.",
+    "category": "Performance", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\FontDpi' -Name 'FontCacheSizeInKB' -Value 512\""}
+    ]
+  },
+  {
+    "id": "disable_srum_update",
+    "name": "Disable System Resource Usage Monitor",
+    "description": "Stops the SRUM (System Resource Usage Monitor) from continuously profiling resource usage.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"SrumSvc","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_wmi_cache",
+    "name": "Reduce WMI Repository Bloat",
+    "description": "Clears the WMI repository cache to reduce memory overhead. A WMI rebuild is triggered automatically if needed.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powershell -Command \"winmgmt /salvasrule autorestart\""}
+    ]
+  },
+  {
+    "id": "disable_superfetch_on_apps",
+    "name": "Disable Superfetch for Applications",
+    "description": "Configures Superfetch to only preload system components, not third-party applications.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management","value":"NonSuperfetchAppLaunch","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "boost_app_launch",
+    "name": "Boost Application Launch Priority",
+    "description": "Gives newly launched applications a CPU priority boost over background processes for snappier response.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl","value":"Win32PrioritySeparation","data":38,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "disable_event_log_consumer",
+    "name": "Disable Event Log Consumer Service",
+    "description": "Stops the Windows Event Log Consumer service that processes events from forwarded logs.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"service","name":"eventlog","start_type":"disabled"}
+    ]
+  },
+  {
+    "id": "optimize_dns_client",
+    "name": "Optimize DNS Client Response Time",
+    "description": "Sets DNS cache negative TTL to 0 and positive TTL to maximum (1 day) for faster repeated lookups.",
+    "category": "Performance", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxCacheTtl","data":86400,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxNegativeCacheTtl","data":0,"kind":"DWORD"}
+    ]
+  }
+]

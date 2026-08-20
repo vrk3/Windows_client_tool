@@ -62,6 +62,7 @@ def _is_webclient_running() -> bool:
         status = win32serviceutil.QueryServiceStatus(_WEBCLIENT_SERVICE)
         return status[1] == 4  # SERVICE_RUNNING
     except Exception:
+        logger.warning("Ignored Exception checking WebClient service", exc_info=True)
         return False
 
 

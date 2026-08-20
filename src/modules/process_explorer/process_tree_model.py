@@ -5,7 +5,7 @@ from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from modules.process_explorer.process_node import ProcessNode
-from modules.process_explorer.color_scheme import get_row_color
+from modules.process_explorer.color_scheme import get_row_color, get_row_text_color
 
 # Column indices
 COL_NAME  = 0
@@ -98,7 +98,9 @@ class ProcessTreeModel(QAbstractItemModel):
 
     # ── QAbstractItemModel required overrides ─────────────────────────
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         if self._flat_mode:
             if not parent.isValid():
                 return len(self._snapshot)
@@ -108,10 +110,14 @@ class ProcessTreeModel(QAbstractItemModel):
         node: ProcessNode = parent.internalPointer()
         return len(node.children)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = None) -> int:
+        if parent is None:
+            parent = QModelIndex()
         return len(COLUMNS)
 
-    def index(self, row: int, col: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, col: int, parent: QModelIndex = None) -> QModelIndex:
+        if parent is None:
+            parent = QModelIndex()
         if self._flat_mode:
             nodes = list(self._snapshot.values())
             if 0 <= row < len(nodes):
@@ -163,10 +169,58 @@ class ProcessTreeModel(QAbstractItemModel):
                 return color
             return None
 
+        if role == Qt.ItemDataRole.ForegroundRole:
+            tcolor = get_row_text_color(node)
+            if tcolor.alpha() > 0:
+                return tcolor
+            return None
+
+        if role == Qt.ItemDataRole.UserRole:
+            return [
+                node.name.lower(),
+                node.pid,
+                node.cpu_percent,
+                node.memory_rss,
+                int(node.disk_read_bps),
+                int(node.disk_write_bps),
+                int(node.net_recv_bps),
+                int(node.net_send_bps),
+                node.gpu_percent,
+                (node.user or "").lower(),
+                (node.exe or "").lower(),
+            ][col]
+
         if role == Qt.ItemDataRole.ToolTipRole and col == COL_NAME:
             return node.exe
 
         return None
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        self.layoutAboutToBeChanged.emit()
+        reverse = order == Qt.SortOrder.DescendingOrder
+        key_fns = {
+            COL_NAME:    lambda n: n.name.lower(),
+            COL_PID:     lambda n: n.pid,
+            COL_CPU:     lambda n: n.cpu_percent,
+            COL_RAM:     lambda n: n.memory_rss,
+            COL_DISK_R:  lambda n: n.disk_read_bps,
+            COL_DISK_W:  lambda n: n.disk_write_bps,
+            COL_NET_IN:  lambda n: n.net_recv_bps,
+            COL_NET_OUT: lambda n: n.net_send_bps,
+            COL_GPU:     lambda n: n.gpu_percent,
+            COL_USER:    lambda n: (n.user or "").lower(),
+            COL_PATH:    lambda n: (n.exe or "").lower(),
+        }
+        key_fn = key_fns.get(column, lambda n: n.name.lower())
+
+        def _sort_recursive(nodes: list) -> None:
+            nodes.sort(key=key_fn, reverse=reverse)
+            for node in nodes:
+                if node.children:
+                    _sort_recursive(node.children)
+
+        _sort_recursive(self._roots)
+        self.layoutChanged.emit()
 
     def headerData(self, section: int, orientation: Qt.Orientation,
                    role: int = Qt.ItemDataRole.DisplayRole):

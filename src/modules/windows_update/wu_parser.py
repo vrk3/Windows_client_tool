@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -18,15 +19,24 @@ _TIMESTAMP_FORMATS = (
     "%Y-%m-%dT%H:%M:%S",
 )
 
+# Matches timezone suffix like +0200 or -0500 at end of string
+_TZ_RE = re.compile(r"[+-]\d{4}$")
+# Matches colon-separated milliseconds after HH:MM:SS, e.g. "19:52:03:825" -> "19:52:03"
+_MS_COLON_RE = re.compile(r"(\d{2}:\d{2}:\d{2}):\d{1,4}$")
+
 
 def _parse_timestamp(value: str) -> Optional[datetime]:
     value = value.strip()
+    # Strip timezone offset (+0200, -0500, etc.)
+    value = _TZ_RE.sub("", value).strip()
+    # Strip colon-separated milliseconds (WU log format: "HH:MM:SS:mmm")
+    value = _MS_COLON_RE.sub(r"\1", value).strip()
     for fmt in _TIMESTAMP_FORMATS:
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
             continue
-    # Try stripping fractional seconds or timezone suffix
+    # Fallback: strip dot-fractional seconds
     if "." in value:
         base = value.split(".")[0]
         for fmt in _TIMESTAMP_FORMATS:

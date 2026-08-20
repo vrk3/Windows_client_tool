@@ -4,7 +4,7 @@ import ctypes
 import ctypes.wintypes
 import logging
 import threading
-from typing import List
+from typing import List, Optional
 
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
@@ -40,6 +40,9 @@ class _SYSTEM_HANDLE_INFORMATION(ctypes.Structure):
     ]
 
 
+_MAX_HANDLE_BUFFER = 64 * 1024 * 1024  # 64 MB cap to prevent runaway growth
+
+
 def _query_handles(pid: int) -> List[dict]:
     """Query all handles for pid via NtQuerySystemInformation."""
     size = 0x10000
@@ -51,6 +54,8 @@ def _query_handles(pid: int) -> List[dict]:
         )
         if status == STATUS_INFO_LENGTH_MISMATCH:
             size *= 2
+            if size > _MAX_HANDLE_BUFFER:
+                return []
             continue
         if status != 0:
             return []
@@ -92,13 +97,19 @@ class HandleView(QWidget):
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.hide()
         layout.addWidget(self._table)
+        self._thread: Optional[threading.Thread] = None
+
+    def cancel(self) -> None:
+        self._label.setText("Select a process to view handles")
+        self._table.hide()
+        self._thread = None
 
     def load_pid(self, pid: int):
+        self.cancel()
         self._label.setText(f"Loading handles for PID {pid}…")
         self._table.hide()
-        # Run on background thread to avoid UI freeze
-        t = threading.Thread(target=self._load, args=(pid,), daemon=True)
-        t.start()
+        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._thread.start()
 
     def _load(self, pid: int):
         try:

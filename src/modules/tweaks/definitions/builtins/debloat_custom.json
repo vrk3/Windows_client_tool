@@ -1,0 +1,10 @@
+{
+  "name": "Custom Debloat",
+  "version": 1,
+  "builtin": true,
+  "description": "User-configurable — select individual apps and tweaks manually. No items are pre-selected.",
+  "tweaks": {},
+  "apps": {
+    "remove": []
+  }
+}

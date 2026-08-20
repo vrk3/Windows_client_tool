@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    # pywin32 / wmi / win32com are Windows-only, so this must run on a
+    # Windows runner — the app and its dependencies don't work on Linux/macOS.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile check (catches syntax errors across the whole tree)
+        run: python -m compileall -q src
+
+      - name: Import check (matches the documented dev-command in CLAUDE.md)
+        run: python -c "import sys; sys.path.insert(0, 'src'); import main"
+
+      - name: Run tests
+        env:
+          # No interactive desktop on the runner — Qt must use its offscreen platform.
+          QT_QPA_PLATFORM: offscreen
+        # --timeout is a safety net against genuine hangs eating the whole CI
+        # job silently. Note it uses pytest-timeout's "thread" method, which
+        # can only interrupt regular Python execution — a test blocked in a
+        # native/blocking Qt call (e.g. a stray dialog .exec()) won't be
+        # preempted by it. Still worth having for the more common case
+        # (an accidental infinite loop, a background op that never returns).
+        run: python -m pytest -q --timeout=120
+
+  package:
+    # Catches packaging regressions the test job's import/compile checks
+    # can't see — specifically the documented WinClientTool-portable.spec
+    # pitfall (CLAUDE.md): if a.binaries/a.datas are ever dropped from the
+    # EXE constructor, PyInstaller still "succeeds" but silently produces a
+    # ~3MB bootloader stub instead of a working ~50MB onefile exe. Gated on
+    # `test` passing first — no point spending several minutes building a
+    # commit we already know is broken.
+    needs: test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build portable onefile package
+        run: pyinstaller WinClientTool-portable.spec -y --distpath dist
+
+      - name: Verify output is a real build, not a bootloader stub
+        shell: pwsh
+        run: |
+          $exe = Get-Item "dist/WinClientTool-Portable.exe"
+          Write-Host "WinClientTool-Portable.exe size: $($exe.Length) bytes"
+          if ($exe.Length -lt 30MB) {
+            Write-Error "EXE is suspiciously small (<30MB) — likely the bootloader-stub regression documented in CLAUDE.md (a.binaries/a.datas missing from the EXE constructor)."
+            exit 1
+          }

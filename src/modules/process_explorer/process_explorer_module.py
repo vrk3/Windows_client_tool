@@ -28,13 +28,14 @@ from modules.process_explorer.lower_pane.thread_view import ThreadView
 from modules.process_explorer.lower_pane.network_view import NetworkView
 from modules.process_explorer.lower_pane.strings_view import StringsView
 from modules.process_explorer.lower_pane.memory_map_view import MemoryMapView
+from modules.process_explorer.lower_pane.activity_view import ActivityView
 
 logger = logging.getLogger(__name__)
 
 
 class ProcessExplorerModule(BaseModule):
     name = "Process Explorer"
-    icon = "process_explorer"
+    icon = "🔬"
     description = "Real-time process tree with Sysinternals-level detail"
     requires_admin = False
     group = ModuleGroup.PROCESS
@@ -52,6 +53,7 @@ class ProcessExplorerModule(BaseModule):
         self._network_view: Optional[NetworkView] = None
         self._strings_view: Optional[StringsView] = None
         self._memory_map_view: Optional[MemoryMapView] = None
+        self._activity_view: Optional[ActivityView] = None
         self._selected_node: Optional[ProcessNode] = None
 
     def on_start(self, app) -> None:
@@ -60,7 +62,10 @@ class ProcessExplorerModule(BaseModule):
         self._collector.set_thread_pool(app.thread_pool)
         # Fetch service names once in background
         w = Worker(self._fetch_service_names)
-        w.signals.result.connect(lambda names: self._collector.set_service_names(names))
+        w.signals.result.connect(
+            lambda names: self._collector.set_service_names(names) if self._collector else None
+        )
+        self._workers.append(w)
         app.thread_pool.start(w)
 
     @staticmethod
@@ -72,7 +77,8 @@ class ProcessExplorerModule(BaseModule):
                                                        win32service.SERVICE_STATE_ALL)
             win32service.CloseServiceHandle(sc)
             return {s[0].lower() for s in services}
-        except Exception:
+        except Exception as e:
+            logger.warning("_fetch_service_names failed: %s", e)
             return set()
 
     def create_widget(self) -> QWidget:
@@ -116,6 +122,7 @@ class ProcessExplorerModule(BaseModule):
         self._network_view = NetworkView()
         self._strings_view = StringsView()
         self._memory_map_view = MemoryMapView()
+        self._activity_view = ActivityView()
         if self.app:
             self._strings_view.set_thread_pool(self.app.thread_pool)
         self._lower_tabs.addTab(self._dll_view,        "DLLs")
@@ -124,6 +131,7 @@ class ProcessExplorerModule(BaseModule):
         self._lower_tabs.addTab(self._network_view,    "Network")
         self._lower_tabs.addTab(self._strings_view,    "Strings")
         self._lower_tabs.addTab(self._memory_map_view, "Memory Map")
+        self._lower_tabs.addTab(self._activity_view,   "Activity")
         self._lower_tabs.currentChanged.connect(self._on_lower_tab_changed)
         splitter.addWidget(self._lower_tabs)
         splitter.setSizes([600, 250])
@@ -194,19 +202,37 @@ class ProcessExplorerModule(BaseModule):
         if self._collector and not self._collector._timer.isActive():
             self._collector.start()
 
+    def _cancel_lower_pane(self) -> None:
+        for view in (self._dll_view, self._handle_view, self._thread_view,
+                      self._network_view, self._strings_view, self._memory_map_view,
+                      self._activity_view):
+            if view is not None:
+                view.cancel()
+
     def on_deactivate(self) -> None:
         if self._collector:
             self._collector.stop()
+        self._cancel_lower_pane()
+        self.cancel_all_workers()
 
     def on_stop(self) -> None:
         if self._collector:
             self._collector.stop()
+        self._cancel_lower_pane()
         self.cancel_all_workers()
 
     def get_status_info(self) -> str:
         if self._model:
             return f"Process Explorer — {len(self._model._snapshot)} processes"
         return "Process Explorer"
+
+    def get_refresh_interval(self) -> Optional[int]:
+        # Collector already auto-refreshes every 1s; expose for external pause
+        return 1_000
+
+    def refresh_data(self) -> None:
+        # Collector handles its own refresh loop; no-op here to avoid double-tick
+        pass
 
     # ── Signal handlers ──────────────────────────────────────────────
 
@@ -256,6 +282,8 @@ class ProcessExplorerModule(BaseModule):
             self._strings_view.load_exe(self._selected_node.exe)
         elif idx == 5:
             self._memory_map_view.load_pid(pid)
+        elif idx == 6:
+            self._activity_view.load_pid(pid)
 
     def _on_double_click(self, index):
         if not index.isValid():
@@ -331,7 +359,13 @@ class ProcessExplorerModule(BaseModule):
     def _action_open_location(self):
         if self._selected_node and self._selected_node.exe:
             import subprocess
-            subprocess.Popen(["explorer", "/select,", self._selected_node.exe])
+            try:
+                subprocess.Popen(
+                    ["explorer", "/select,", self._selected_node.exe],
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            except Exception as e:
+                QMessageBox.warning(self._widget, "Error", f"Could not open file location: {e}")
 
     def _action_check_vt(self):
         if not self._selected_node:
@@ -360,6 +394,7 @@ class ProcessExplorerModule(BaseModule):
 
         w = Worker(do_check)
         w.signals.result.connect(self._on_vt_result)
+        self._workers.append(w)
         if self.app:
             self.app.thread_pool.start(w)
 
