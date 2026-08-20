@@ -127,12 +127,14 @@ def register_all_modules(app) -> None:
     from modules.about.about_module import AboutModule
     from modules.boot_analyzer.boot_analyzer_module import BootAnalyzerModule
     from modules.diagnose.diagnose_module import DiagnoseModule
+    from modules.log_viewer.log_viewer_module import LogViewerModule
     from modules.duplicate_finder.duplicate_finder_module import DuplicateFinderModule
     from modules.hosts_editor.hosts_editor_module import HostsEditorModule
     from modules.store_apps.store_apps_module import StoreAppsModule
 
     app.module_registry.register(DashboardModule())
     app.module_registry.register(DiagnoseModule())
+    app.module_registry.register(LogViewerModule())
     # EventViewer, CBS, DISM, WU, Reliability, CrashDumps — embedded in DiagnoseModule
     app.module_registry.register(PerfMonModule())
     app.module_registry.register(ProcessExplorerModule())
