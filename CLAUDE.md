@@ -222,6 +222,59 @@ Gotchas that cost real debugging time, all recorded in
 `tools/treesize_scan.py` is a console harness for the engine — it prints engine, totals,
 rate, bytes/node and a flag census, and **exits 2 when the scan was incomplete**.
 
+### Log Viewer (`src/modules/log_viewer/`)
+
+A CMTrace-style viewer for ConfigMgr and plain-text logs. Its own sidebar
+module rather than a Diagnose tab: CBS and DISM point at FIXED system paths,
+this opens whatever it is handed.
+
+- **`cmtrace_parser.py`** — `<![LOG[msg]LOG]!><time= date= component= type= …>`
+  records into the app's `LogEntry`. `type` 1/2/3 → Info/Warning/Error, which
+  is what the colouring hangs off. Auto-detects by sniffing the head of the
+  file and falls back to a best-effort plain-text parse.
+- **`log_reader.py`** — byte-offset incremental reads.
+- **`log_model.py`** — `QAbstractTableModel` over a capped `deque`.
+- **`log_search_provider.py`** — joins the global search bar.
+
+**No Qt in the parser or the reader**, the same split `scan/` and `store/`
+keep in TreeSize, so both are testable without a display.
+
+Gotchas, every one of which cost real debugging:
+
+- **Every log under `C:\Windows\Logs` is UTF-8 WITH a BOM.** Decoded that is
+  a leading `\ufeff`, which is invisible and is NOT matched by `\s`, so the
+  leading-timestamp regex missed and the first line of every real Windows log
+  came through undated. Generated test data never has a BOM; only real files
+  do. `LogReader` strips it once, at the very start of the stream only.
+- **A rollover is detected by the file's IDENTITY, not its size.** SCCM rolls
+  the log and starts a new one under the same name; a rollover to the same
+  length is invisible to a size check, and keeping the old offset means
+  reading past the end forever — the view goes silent and looks like a quiet
+  machine.
+- **A half-written final line is held back** until its newline lands. A
+  CMTrace record cut down the middle parses as nothing.
+- **Undecodable trailing bytes are carried forward.** A multi-byte character
+  split across two reads decodes to a replacement character that never
+  repairs itself.
+- **`LogModel.append` INSERTS, it does not reset.** A reset clears the view's
+  selection, and while following that runs once a second — click a row to
+  read it and it deselects under you. A reset is right only when the cap
+  starts dropping from the front and every index shifts.
+- **The 32 MB read cap is measured, not guessed.** Parsing runs ~26 MB/s, so
+  that is ~1.2s for an Open where 64 MB is 2.7s; it also yields ~170k records
+  against the model's 200k cap, so the two limits are matched. An 8 MB cap
+  silently loaded 47,831 of a 21 MB log's 120,000 records.
+- **Truncation is always stated in the status bar.** Silently showing the last
+  N lines of a longer log is how someone concludes the log is clean.
+- The search provider holds the model's live deque rather than copying it per
+  tick, and snapshots inside `search()` instead — the global bar runs on the
+  UI thread today, but `DiagnoseModule` already searches on a Worker.
+
+`tools/logviewer_check.py` drives it against the REAL CBS/DISM/Panther logs
+plus a generated ConfigMgr one, including a rollover. **The CMTrace path has
+never read a genuine SCCM or Intune log** — no ConfigMgr client on the dev
+machine — so that check is still owed.
+
 ### Cleanup Module (`src/modules/cleanup/`)
 
 **Scanner** (`cleanup_scanner.py`): functions take `min_age_days: int = 0` and return `ScanResult`. `ScanItem` fields: `path`, `size`, `is_dir`, `selected`, `safety` ("safe"/"caution"/"danger") — **no `name` field** (passing `name=` raises `TypeError`).
