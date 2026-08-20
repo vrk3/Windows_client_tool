@@ -83,11 +83,17 @@ class PerfMonStore:
         return cursor.fetchall()
 
     def cleanup_old(self, days: int = 7) -> None:
-        """Delete records older than N days."""
+        """Delete records at or older than N days.
+
+        `<=`, not `<`. With `days=0` the cutoff is this instant, and a sample
+        stored in the same clock tick carried exactly that timestamp and
+        survived a call whose whole point was to delete everything. At the
+        default of 7 days the difference is one microsecond and nothing else.
+        """
         if not self._conn:
             return
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-        self._conn.execute("DELETE FROM perfmon WHERE timestamp < ?", (cutoff,))
+        self._conn.execute("DELETE FROM perfmon WHERE timestamp <= ?", (cutoff,))
         self._conn.commit()
 
     def close(self) -> None:

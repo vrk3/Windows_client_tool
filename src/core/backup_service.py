@@ -339,7 +339,13 @@ class BackupService:
             FROM restore_points rp
             LEFT JOIN tweak_steps ts ON ts.restore_point_id = rp.id
             GROUP BY rp.id
-            ORDER BY rp.created_at DESC
+            -- rowid breaks the tie, and the tie is common: `created_at` is a
+            -- datetime.now() string, and a batch apply creates several points
+            -- inside one clock tick. Without it SQLite falls back to scanning
+            -- the PRIMARY KEY index -- which is a random uuid4 -- so "newest
+            -- first" came out in random order and someone reverting the most
+            -- recent point could revert a different one.
+            ORDER BY rp.created_at DESC, rp.rowid DESC
         """).fetchall()
         return [
             RestorePointInfo(id=r["id"], label=r["label"],
