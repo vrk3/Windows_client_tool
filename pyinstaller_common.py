@@ -29,6 +29,19 @@ HIDDEN_IMPORTS = [
     "pywin32", "pywin32_bootstrap",
     "win32api", "win32con", "win32gui", "win32process", "win32service", "win32evtlog",
     "win32com", "win32com.client",
+    # TreeSize. All of these are imported lazily, inside functions, and
+    # win32com.shell is loaded dynamically by pywin32 -- PyInstaller finds
+    # none of them by static analysis. Without them the frozen build still
+    # RUNS, which is the trap: IFileOperation silently drops to the ctypes
+    # fallback (no per-item errors), the remote targets report themselves
+    # unavailable, owners come back blank, and the Excel and PDF exports
+    # vanish from the menu. Nothing looks broken; things are just quietly
+    # missing.
+    "win32com.server", "win32com.server.util", "win32com.server.policy",
+    "win32com.shell", "win32com.shell.shell", "win32com.shell.shellcon",
+    "pythoncom", "pywintypes", "win32security",
+    "httpx", "paramiko",
+    "openpyxl", "reportlab",
     "PIL", "PIL._imaging",
     "requests", "urllib3", "charset_normalizer", "idna",
     "numpy", "numpy.core", "numpy._core", "numpy._core.multiarray",
