@@ -184,8 +184,12 @@ class RowActions:
                 return
             wants_dry_run = dialog.dry_run.isChecked()
 
+        # show_progress hands the job to the shell's own progress dialog --
+        # the one Explorer shows, with a working Cancel. Not for a dry run,
+        # which touches nothing and would flash an empty window.
         ok, message = file_ops.execute(preflight, recycle=recycle,
-                                       dry_run=wants_dry_run)
+                                       dry_run=wants_dry_run,
+                                       show_progress=not wants_dry_run)
         if not ok:
             self._warn(preflight.operation, message)
             return
@@ -224,7 +228,8 @@ class RowActions:
         if confirm.exec() != QMessageBox.StandardButton.Ok:
             return
         ok, message = file_ops.move(preflight, destination,
-                                    dry_run=dry_run.isChecked())
+                                    dry_run=dry_run.isChecked(),
+                                    show_progress=not dry_run.isChecked())
         self._report(ok, "Move", message, refresh=not dry_run.isChecked())
 
     def _secure_erase(self, node: int) -> None:

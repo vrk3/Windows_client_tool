@@ -18,7 +18,7 @@ import stat
 from ctypes import wintypes
 from dataclasses import dataclass, field
 
-from . import guardrails
+from . import guardrails, ifileop
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,8 @@ def _double_null(paths) -> str:
 
 
 def execute(preflight: Preflight, *, recycle: bool = True,
-            dry_run: bool = False) -> tuple[bool, str]:
+            dry_run: bool = False, prefer_com: bool = True,
+            on_progress=None, show_progress: bool = False) -> tuple[bool, str]:
     """Carry out a planned operation. Returns (ok, message).
 
     The manifest is logged BEFORE execution, so a mistake is reconstructible
@@ -152,6 +153,19 @@ def execute(preflight: Preflight, *, recycle: bool = True,
         return False, (f"{len(missing)} item(s) no longer exist. "
                        f"Rescan and try again.")
 
+    # Spec 7.1: IFileOperation is the PRIMARY implementation and this is the
+    # fallback. It is tried first and only its unavailability -- never a
+    # refusal of the operation itself -- falls through to the ctypes path.
+    if prefer_com and ifileop.available():
+        outcome = ifileop.run(preflight.paths, recycle=recycle,
+                              on_progress=on_progress,
+                              silent=not show_progress)
+        if outcome.items or outcome.ok:
+            return _report(outcome, preflight,
+                           "Recycled" if recycle else "Permanently deleted")
+        logger.info("IFileOperation reported %s; using the ctypes fallback.",
+                    outcome.error or "nothing")
+
     flags = FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT
     if recycle:
         flags |= FOF_ALLOWUNDO
@@ -174,7 +188,8 @@ def execute(preflight: Preflight, *, recycle: bool = True,
 
 
 def move(preflight: Preflight, destination: str, *,
-         dry_run: bool = False) -> tuple[bool, str]:
+         dry_run: bool = False, prefer_com: bool = True,
+         on_progress=None, show_progress: bool = False) -> tuple[bool, str]:
     """Move planned items into `destination` (spec 7.1).
 
     The destination is guarded too. The guardrails exist because a
@@ -210,6 +225,15 @@ def move(preflight: Preflight, destination: str, *,
         return False, (f"{len(missing)} item(s) no longer exist. "
                        f"Rescan and try again.")
 
+    if prefer_com and ifileop.available():
+        outcome = ifileop.run(preflight.paths, operation="move",
+                              destination=destination, on_progress=on_progress,
+                              silent=not show_progress)
+        if outcome.items or outcome.ok:
+            return _report(outcome, preflight, "Moved")
+        logger.info("IFileOperation reported %s; using the ctypes fallback.",
+                    outcome.error or "nothing")
+
     op = SHFILEOPSTRUCTW()
     op.hwnd = None
     op.wFunc = FO_MOVE
@@ -224,6 +248,38 @@ def move(preflight: Preflight, destination: str, *,
     if op.fAnyOperationsAborted:
         return False, "The move was cancelled part-way through."
     return True, f"Moved {preflight.count:,} item(s) to {destination}."
+
+
+def _report(outcome, preflight, verb: str) -> tuple[bool, str]:
+    """Turn an IFileOperation outcome into (ok, message).
+
+    Per-item reporting is the entire reason spec 7.1 prefers this interface.
+    SHFileOperationW hands back ONE code for the whole batch, so a partial
+    failure could only ever be reported as total failure -- which, for an
+    operation that already deleted three thousand of four thousand files, is
+    both wrong and unhelpful.
+    """
+    # Failures are reported BEFORE the aborted flag, not after it. The shell
+    # sets GetAnyOperationsAborted whenever it stops early, and a locked file
+    # is the commonest way that happens -- so checking aborted first replaced
+    # "these 3 worked, this 1 is in use by another process" with a bare
+    # "cancelled", which is the precise failure mode per-item reporting exists
+    # to remove. Found by locking a file and running it, not by a unit test:
+    # the faked outcomes could not produce this combination.
+    failures = outcome.failures
+    if not failures and outcome.aborted:
+        return False, "The operation was cancelled part-way through."
+    if failures:
+        shown = "\n".join(f"  {f.path or '(unknown)'} (0x{int(f.hr) & 0xFFFFFFFF:08X})"
+                           for f in failures[:PREVIEW_LIMIT])
+        more = ("\n  ... and %d more" % (len(failures) - PREVIEW_LIMIT)
+                if len(failures) > PREVIEW_LIMIT else "")
+        done = len(outcome.items) - len(failures)
+        logger.error("TreeSize %s: %d of %d item(s) failed",
+                     preflight.operation, len(failures), len(outcome.items))
+        return False, (f"{verb} {done:,} item(s); {len(failures):,} failed:\n"
+                       f"{shown}{more}")
+    return True, f"{verb} {preflight.count:,} item(s)."
 
 
 def _first_containing(paths, destination: str):

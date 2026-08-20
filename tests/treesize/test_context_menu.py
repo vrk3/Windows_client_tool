@@ -101,15 +101,18 @@ def test_confirming_runs_through_preflight_and_execute(shell, tmp_path, monkeypa
                         lambda self: QMessageBox.StandardButton.Ok)
     seen = {}
 
-    def fake_execute(preflight, recycle=True, dry_run=False):
+    def fake_execute(preflight, recycle=True, dry_run=False, **kwargs):
         seen["paths"] = list(preflight.paths)
         seen["recycle"] = recycle
+        seen["show_progress"] = kwargs.get("show_progress")
         return True, "ok"
 
     monkeypatch.setattr("modules.treesize.ui.context_menu.file_ops.execute",
                         fake_execute)
     monkeypatch.setattr(TreeSizeShell, "refresh_scan", lambda self: None)
     shell.row_actions._delete(node, recycle=True)
+    assert seen["show_progress"] is True, (
+        "a real delete should get the shell's own progress dialog")
     assert seen["recycle"] is True
     assert seen["paths"] and seen["paths"][0].endswith("keep.bin")
 

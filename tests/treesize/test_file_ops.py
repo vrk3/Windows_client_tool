@@ -106,7 +106,7 @@ def test_recycle_sets_the_undo_flag(tmp_path, monkeypatch):
 
     monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(fake_op))
     pf = plan("Recycle", [(str(target), 1)])
-    ok, _ = execute(pf, recycle=True)
+    ok, _ = execute(pf, recycle=True, prefer_com=False)
     assert ok
     assert seen["flags"] & file_ops.FOF_ALLOWUNDO, "recycle must be undoable"
 
@@ -121,7 +121,7 @@ def test_permanent_delete_clears_the_undo_flag(tmp_path, monkeypatch):
         return 0
 
     monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(fake_op))
-    execute(plan("Delete", [(str(target), 1)]), recycle=False)
+    execute(plan("Delete", [(str(target), 1)]), recycle=False, prefer_com=False)
     assert not (seen["flags"] & file_ops.FOF_ALLOWUNDO)
 
 
@@ -129,7 +129,7 @@ def test_a_failing_shell_call_is_reported_not_swallowed(tmp_path, monkeypatch):
     target = tmp_path / "a.bin"
     target.write_bytes(b"x")
     monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(lambda *a: 0x75))
-    ok, message = execute(plan("Recycle", [(str(target), 1)]))
+    ok, message = execute(plan("Recycle", [(str(target), 1)]), prefer_com=False)
     assert not ok
     assert "0x75" in message
 
@@ -157,6 +157,10 @@ class _FakeShell32:
         self.SHFileOperationW = fn
 
 
+#: These fakes stand in for the ctypes FALLBACK. Tests that use them pass
+#: prefer_com=False, because spec 7.1 makes IFileOperation primary and
+#: without that flag they would route through real COM and really delete --
+#: the recycle one putting a temp file in the developer's Recycle Bin.
 class _FakeWindll:
     def __init__(self, fn):
         self.shell32 = _FakeShell32(fn)
@@ -186,7 +190,7 @@ def test_move_hands_the_shell_a_destination(tmp_path, monkeypatch):
 
     monkeypatch.setattr(file_ops.ctypes, "windll", _FakeWindll(fake_op))
     pf = plan("Move", [(str(source), 10)])
-    ok, message = file_ops.move(pf, str(destination))
+    ok, message = file_ops.move(pf, str(destination), prefer_com=False)
     assert ok, message
     assert seen["func"] == file_ops.FO_MOVE
     assert seen["to"].startswith(str(destination))
