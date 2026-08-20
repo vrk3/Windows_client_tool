@@ -10,8 +10,8 @@ from ctypes import wintypes
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QFontMetrics
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QMenu, QTreeWidget,
-    QTreeWidgetItem, QWidget,
+    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QMenu, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QWidget,
 )
 
 from .directory_tree import ProportionBarDelegate
@@ -271,3 +271,59 @@ class TreeSizeStatusBar(QWidget):
         if result.engine == "walk":
             return "Fast MFT scan unavailable — run elevated on an NTFS drive for exact allocated sizes"
         return ""
+
+
+class ElevationBanner(QWidget):
+    """Inline offer of the fast path when the session is not elevated (spec 9).
+
+    The ribbon's "Start as administrator" button is on the Tools tab, which is
+    not where anyone is looking while a slow walk scan grinds through a whole
+    volume. The banner puts the same offer where the consequence is visible.
+
+    An OFFER, not a warning: the module works perfectly well unelevated, it is
+    only slower, so this carries the button that fixes it rather than telling
+    the user what they could go and do themselves. Dismissal lasts the session.
+    """
+
+    elevation_requested = pyqtSignal()
+
+    MESSAGE = ("Whole-drive scans are much faster when elevated — this session "
+               "is using the folder-walk engine.")
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("elevationBanner")
+        self._dismissed = False
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 3, 6, 3)
+        layout.setSpacing(8)
+
+        self._label = QLabel(self.MESSAGE, self)
+        self._label.setObjectName("elevationBannerText")
+        layout.addWidget(self._label)
+        layout.addStretch(1)
+
+        self.button = QPushButton("Start as administrator", self)
+        self.button.setObjectName("elevationBannerButton")
+        self.button.clicked.connect(self.elevation_requested)
+        layout.addWidget(self.button)
+
+        close = QPushButton("\u00d7", self)
+        close.setObjectName("elevationBannerClose")
+        close.setFixedWidth(22)
+        close.setToolTip("Dismiss for this session")
+        close.clicked.connect(self.dismiss)
+        layout.addWidget(close)
+
+        self.hide()
+
+    def text(self) -> str:
+        return self._label.text()
+
+    def dismiss(self) -> None:
+        self._dismissed = True
+        self.hide()
+
+    def set_elevated(self, elevated: bool) -> None:
+        """Show the offer only when taking it up would change anything."""
+        self.setVisible(not elevated and not self._dismissed)

@@ -26,6 +26,9 @@ DARK = {
     "selection": "#094771",
     "bar_track": "#2A2D2E",
     "warning": "#E0A030",
+    # A wash of the warning hue, not a slab of it: the banner is an offer
+    # sitting above the pane, and it must not outshout the scan itself.
+    "banner_bg": "#33291A",
 }
 
 LIGHT = {
@@ -40,6 +43,7 @@ LIGHT = {
     "selection": "#CCE4F7",
     "bar_track": "#E6E6E6",
     "warning": "#A66300",
+    "banner_bg": "#FFF4E0",
 }
 
 _TEMPLATE = """
@@ -163,6 +167,21 @@ QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
     background: transparent; color: {accent}; border: none; padding: 1px 4px;
 }}
 #breadcrumb:hover {{ text-decoration: underline; }}
+/* The elevation offer. Warning-tinted rather than error-red: nothing is
+   broken, the module works unelevated -- it is only slower. */
+#elevationBanner {{
+    background: {banner_bg}; border-bottom: 1px solid {warning};
+}}
+#elevationBannerText {{ color: {warning}; padding-left: 2px; }}
+#elevationBannerButton {{
+    background: {panel}; color: {text}; border: 1px solid {warning};
+    padding: 2px 10px; border-radius: 2px;
+}}
+#elevationBannerButton:hover {{ background: {selection}; }}
+#elevationBannerClose {{
+    background: transparent; color: {muted}; border: none; font-size: 14px;
+}}
+#elevationBannerClose:hover {{ color: {text}; }}
 """
 
 

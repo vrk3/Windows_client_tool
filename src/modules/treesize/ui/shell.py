@@ -31,11 +31,13 @@ from .backstage import Backstage, FindResults, TitleRow
 from .context_menu import RowActions
 from .directory_tree import DirectoryTree
 from .formatting import Mode, Unit
-from .panels import DriveList, ScanOverview, TreeSizeStatusBar, drive_space
+from .panels import ElevationBanner, DriveList, ScanOverview, TreeSizeStatusBar, drive_space
 from .options_dialog import OptionsDialog, load_settings, save_settings
 from .ribbon import Ribbon
 from .search_dialog import DuplicatesDialog, SearchDialog
 from ..actions import exporters, scheduler
+from core.admin_utils import is_admin, restart_as_admin
+
 from ..scan.watcher import Watcher, apply_change
 from .scan_worker import ScanWorker
 from .tree_model import NodeIndexRole
@@ -97,6 +99,11 @@ class TreeSizeShell(QWidget):
         self.backstage = Backstage(self)
         self.backstage.hide()
         layout.addWidget(self.backstage, 1)
+
+        self.elevation_banner = ElevationBanner(self)
+        self.elevation_banner.elevation_requested.connect(self.request_elevation)
+        self.elevation_banner.set_elevated(is_admin())
+        layout.addWidget(self.elevation_banner)
 
         self.nav_bar = self._build_nav_bar()
         layout.addWidget(self.nav_bar)
@@ -326,7 +333,7 @@ class TreeSizeShell(QWidget):
         act("tools.recyclebin").triggered.connect(self.empty_recycle_bin)
         act("tools.mapdrive").triggered.connect(self.map_network_drive)
         act("help.about").triggered.connect(self.show_about)
-        act("tools.admin").triggered.connect(self.explain_elevation)
+        act("tools.admin").triggered.connect(self.request_elevation)
 
         act("scan.refresh.all").triggered.connect(self.refresh_scan)
         act("scan.refresh.selected").triggered.connect(self._refresh_selected)
@@ -956,23 +963,40 @@ class TreeSizeShell(QWidget):
             "with a directory-walk fallback when the fast path is unavailable.\n\n"
             "Part of the Windows client tool.")
 
-    def explain_elevation(self) -> None:
-        import ctypes
-        try:
-            elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except Exception:                       # noqa: BLE001
-            elevated = False
-        if elevated:
-            QMessageBox.information(
-                self, "Already elevated",
-                "This session is already running as administrator, so whole-drive "
-                "scans use the fast MFT path.")
-            return
-        QMessageBox.information(
+    def _is_elevated(self) -> bool:
+        return is_admin()
+
+    def _confirm_restart(self) -> bool:
+        """Same question main_window asks before the same restart."""
+        answer = QMessageBox.question(
             self, "Start as administrator",
             "Whole-drive scans use a much faster path when elevated, and can "
-            "read locations a normal user cannot.\n\nRestart the application as "
-            "administrator to enable it. Folder scans work either way.")
+            "read locations a normal user cannot.\n\nThe application will "
+            "restart with elevated privileges. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        return answer == QMessageBox.StandardButton.Yes
+
+    def request_elevation(self) -> bool:
+        """Restart elevated, reusing the app's own flow (spec 9).
+
+        This used to be a message box explaining that the user could restart
+        the application as administrator themselves -- a description of the
+        feature standing in for the feature. `restart_as_admin` is the same
+        `core.admin_utils` call main_window's own button makes.
+
+        Returns whether the restart was actually launched.
+        """
+        if self._is_elevated():
+            QMessageBox.information(
+                self, "Already elevated",
+                "This session is already running as administrator, so "
+                "whole-drive scans use the fast MFT path.")
+            return False
+        if not self._confirm_restart():
+            return False
+        restart_as_admin()
+        return True
 
     def _update_contextual_tabs(self, *_args) -> None:
         self.ribbon.set_contextual_visible(
