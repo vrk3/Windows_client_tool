@@ -28,7 +28,16 @@ class LogParserBase(ABC):
             return 0
 
     def _detect_encoding(self) -> str:
-        """Return 'utf-16' if the file starts with a UTF-16 BOM, else 'utf-8'."""
+        """The file's encoding, honouring either BOM.
+
+        "utf-8-sig", not "utf-8". Every log under C:\\Windows\\Logs is UTF-8
+        WITH a BOM, and plain "utf-8" leaves it in the text as a leading
+        U+FEFF -- invisible, not matched by ``\\s``, and enough to make the
+        first line fail every timestamp regex in this codebase. The first
+        line of every CBS, DISM and Windows Update log was being dropped for
+        that reason alone. "utf-8-sig" also reads a file without a BOM
+        correctly, so it is safe as the default.
+        """
         try:
             with open(self._file_path, "rb") as f:
                 bom = f.read(2)
@@ -36,7 +45,7 @@ class LogParserBase(ABC):
                 return "utf-16"
         except OSError:
             logger.debug("Ignored OSError", exc_info=True)
-        return "utf-8"
+        return "utf-8-sig"
 
     def parse(self, progress_callback: Optional[Callable[[int], None]] = None) -> List[LogEntry]:
         """Parse the log file and return entries. Runs on worker thread."""
