@@ -240,3 +240,49 @@ def test_ragged_rows_do_not_break_the_width_pass(tmp_path):
     path = tmp_path / "ragged.xlsx"
     exporters.export(str(path), [("A", "B", "C"), ("only-one",), ("x", "y")])
     assert path.exists()
+
+
+# ---- ragged rows --------------------------------------------------------
+#
+# No current producer emits them -- every view builds uniform tuples -- so
+# this was left alone once, on the grounds that crashing on malformed input
+# beats silently padding it. What changed the call is that _write_xlsx now
+# TOLERATES them, and three writers disagreeing about the same input is worse
+# than either rule applied consistently.
+
+@pytest.mark.parametrize("extension", ["csv", "txt", "html", "xml", "json",
+                                       "db", "xlsx"])
+def test_a_short_row_does_not_crash_the_export(tmp_path, extension):
+    if extension == "xlsx":
+        pytest.importorskip("openpyxl")
+    path = tmp_path / f"ragged.{extension}"
+    exporters.export(str(path), [("A", "B", "C"), ("only-one",), ("x", "y")])
+    assert path.exists() and path.stat().st_size > 0
+
+
+def test_a_short_row_is_padded_not_truncated(tmp_path):
+    """The cells that ARE there must survive; the missing ones read empty."""
+    path = tmp_path / "ragged.csv"
+    exporters.export(str(path), [("A", "B", "C"), ("kept",)])
+    text = path.read_text(encoding="utf-8-sig")
+    assert "kept" in text
+
+
+def test_a_long_row_keeps_every_cell(tmp_path):
+    """Padding must not become truncating: an extra cell is still data."""
+    path = tmp_path / "long.csv"
+    exporters.export(str(path), [("A", "B"), ("one", "two", "three")])
+    assert "three" in path.read_text(encoding="utf-8-sig")
+
+
+def test_sqlite_binds_a_short_row(tmp_path):
+    """executemany raises ProgrammingError on a row with too few bindings,
+    which takes the whole export down rather than one row."""
+    path = tmp_path / "ragged.db"
+    exporters.export(str(path), [("A", "B", "C"), ("only-one",)])
+    import sqlite3
+    conn = sqlite3.connect(str(path))
+    try:
+        assert conn.execute("SELECT a FROM scan").fetchone()[0] == "only-one"
+    finally:
+        conn.close()

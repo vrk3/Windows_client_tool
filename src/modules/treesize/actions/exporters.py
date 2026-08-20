@@ -75,6 +75,21 @@ def export(path: str, rows, title: str = "TreeSize scan") -> str:
     return path
 
 
+def _fit(row, width: int) -> list:
+    """A row padded or left long to `width` columns.
+
+    No current producer emits ragged rows -- every view builds uniform
+    tuples -- but three writers disagreeing about the same input is worse
+    than any single rule. Short rows are PADDED, because the cells that are
+    there are still data; long rows are left alone, because an extra cell is
+    data too and truncating it loses more than a stray column costs.
+    """
+    cells = list(row)
+    if len(cells) < width:
+        cells.extend([""] * (width - len(cells)))
+    return cells
+
+
 # ---- writers ------------------------------------------------------------
 
 def _write_csv(path, rows, _title):
@@ -85,8 +100,10 @@ def _write_csv(path, rows, _title):
 
 
 def _write_text(path, rows, title):
+    columns = len(rows[0])
+    rows = [_fit(row, columns) for row in rows]
     widths = [max(len(str(row[i])) for row in rows)
-              for i in range(len(rows[0]))]
+              for i in range(columns)]
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(title + "\n" + "=" * len(title) + "\n\n")
         for index, row in enumerate(rows):
@@ -164,9 +181,13 @@ def _write_sqlite(path, rows, title):
         columns_sql = ", ".join(f'"{c}" TEXT' for c in columns)
         connection.execute(f"CREATE TABLE scan ({columns_sql})")
         placeholders = ", ".join("?" for _ in columns)
+        # The one place a long row IS truncated: the table has a fixed
+        # column count, so an extra cell has nowhere to go and executemany
+        # would fail the whole export over one row.
         connection.executemany(
             f"INSERT INTO scan VALUES ({placeholders})",
-            [tuple(str(cell) for cell in row) for row in body])
+            [tuple(str(cell) for cell in _fit(row, len(columns))[:len(columns)])
+             for row in body])
         connection.execute("CREATE TABLE meta (key TEXT, value TEXT)")
         connection.execute("INSERT INTO meta VALUES (?, ?)", ("title", title))
         connection.commit()
