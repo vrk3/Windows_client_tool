@@ -319,3 +319,70 @@ def test_an_unknown_name_resolves_to_nothing():
     from ui.navigation import resolve_target
 
     assert resolve_target("Nope", {"Debloat"}, {}) == (None, None)
+
+
+class _Refreshing(_Recorder):
+    """A child that wants auto-refresh at its own rate."""
+
+    def __init__(self, name, interval):
+        super().__init__(name)
+        self._interval = interval
+        self.refreshes = 0
+
+    def get_refresh_interval(self):
+        return self._interval
+
+    def refresh_data(self):
+        self.refreshes += 1
+
+
+def test_the_host_asks_for_the_fastest_rate_any_child_wants(qapp):
+    """A merged child's auto-refresh must survive the merge.
+
+    MainWindow reads get_refresh_interval() off the SELECTED module, so a
+    composite that does not answer leaves every child it hosts with no timer
+    at all — six modules silently lost auto-refresh this way.
+    """
+    host = _host(_Refreshing("Fast", 15_000), _Refreshing("Slow", 120_000))
+    assert host.get_refresh_interval() == 15_000
+
+
+def test_a_host_whose_children_all_decline_wants_no_timer(qapp):
+    assert _host(_Recorder("A"), _Recorder("B")).get_refresh_interval() is None
+
+
+def test_a_tick_refreshes_the_visible_child(qapp):
+    fast = _Refreshing("Fast", 15_000)
+    host = _host(fast, _Refreshing("Slow", 120_000))
+    host.on_start(_FakeApp())
+    host.create_widget()
+
+    host.refresh_data()
+
+    assert fast.refreshes == 1
+
+
+def test_a_slow_child_is_not_polled_at_the_fast_childs_rate(qapp):
+    """The host ticks at 15s; a child that asked for 120s must not get 8x that."""
+    fast, slow = _Refreshing("Fast", 15_000), _Refreshing("Slow", 120_000)
+    host = _host(fast, slow)
+    host.on_start(_FakeApp())
+    widget = host.create_widget()
+    widget.setCurrentIndex(1)          # Slow is now visible
+    slow.refreshes = 0
+
+    for _ in range(4):                 # four 15s ticks = 60s, still under 120s
+        host.refresh_data()
+
+    assert slow.refreshes == 0
+
+
+def test_a_child_that_declines_auto_refresh_is_never_ticked(qapp):
+    plain = _Recorder("Plain")
+    host = _host(plain, _Refreshing("Fast", 15_000))
+    host.on_start(_FakeApp())
+    host.create_widget()
+
+    host.refresh_data()
+
+    assert "activate" not in plain.calls   # refresh_data must not fall back to it

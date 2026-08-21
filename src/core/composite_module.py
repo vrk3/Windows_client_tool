@@ -18,6 +18,7 @@ in Task Manager.
 from __future__ import annotations
 
 import logging
+from time import monotonic
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import Qt
@@ -54,6 +55,8 @@ class CompositeModule(BaseModule):
         self._pages: Dict[int, QWidget] = {}
         #: indices whose real widget has been built
         self._built: set = set()
+        #: index -> when that child was last auto-refreshed (ms)
+        self._last_refresh: Dict[int, float] = {}
         self._current: int = -1
 
     # -- seam so tests can pretend to be elevated ------------------------
@@ -101,16 +104,61 @@ class CompositeModule(BaseModule):
         child = self._live.get(self._current)
         if child is not None:
             child.on_activate()
+            self._mark_refreshed(self._current)
+
+    def _mark_refreshed(self, index: int) -> None:
+        """Start this child's auto-refresh clock now.
+
+        Activating a child loads it, so the next auto-refresh is due a full
+        interval later — not on the host's very next tick.
+        """
+        self._last_refresh[index] = monotonic() * 1000.0
 
     def on_deactivate(self) -> None:
         child = self._live.get(self._current)
         if child is not None:
             child.on_deactivate()
 
+    def get_refresh_interval(self) -> Optional[int]:
+        """The fastest rate any child wants, or None if none want one.
+
+        `MainWindow._start_module_refresh_timer` reads this off the *selected*
+        module, so a composite that did not answer would leave every child it
+        hosts with no auto-refresh at all — which is exactly what happened to
+        six modules when they were first merged.
+
+        One timer at the fastest rate drives them all; `refresh_data` below
+        keeps a slower child from being polled at a faster child's rate.
+        """
+        intervals = [
+            interval for child in self.children
+            if (interval := child.get_refresh_interval()) is not None
+        ]
+        return min(intervals) if intervals else None
+
     def refresh_data(self) -> None:
+        """Tick the visible child, but only as often as that child asked for.
+
+        The host's timer runs at the fastest rate any child wants, so a child
+        that asked for 120s would otherwise be refreshed every 15s. Store Apps
+        shelling out to `Get-AppxPackage` eight times over is the cost of
+        getting this wrong.
+        """
         child = self._live.get(self._current)
-        if child is not None:
-            child.refresh_data()
+        if child is None:
+            return
+        wanted = child.get_refresh_interval()
+        if wanted is None:
+            return  # this child does not want auto-refresh at all
+
+        host_tick = self.get_refresh_interval() or wanted
+        now = monotonic() * 1000.0
+        last = self._last_refresh.get(self._current)
+        # Half a host tick of slack, so jitter never costs a whole period.
+        if last is not None and (now - last) < (wanted - host_tick / 2):
+            return
+        self._last_refresh[self._current] = now
+        child.refresh_data()
 
     # -- widget ----------------------------------------------------------
     def create_widget(self) -> QWidget:
@@ -210,6 +258,7 @@ class CompositeModule(BaseModule):
         if incoming is not None:
             try:
                 incoming.on_activate()
+                self._mark_refreshed(index)
             except Exception:
                 logger.exception("%s: on_activate failed", self.name)
 

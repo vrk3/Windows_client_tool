@@ -223,6 +223,7 @@ class WifiAnalyzerModule(BaseModule):
         tabs.addTab(self._channel_widget, "Channel Map")
 
         self._scan_btn.clicked.connect(self._do_scan)
+        self._widget = outer
         return outer
 
     # ── lifecycle ───────────────────────────────────────────────────────────
@@ -259,6 +260,11 @@ class WifiAnalyzerModule(BaseModule):
 
     def _do_scan(self):
         self._stop_scan()
+        # refresh_data() reaches here from the auto-refresh timer, which can
+        # tick before this module's tab has ever been opened — there is then
+        # nothing to scan into.
+        if self._widget is None:
+            return
         self._scan_btn.setEnabled(False)
         self._status_lbl.setText("Scanning…")
         self._progress.show()

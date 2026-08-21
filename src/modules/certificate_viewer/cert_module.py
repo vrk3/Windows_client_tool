@@ -297,6 +297,20 @@ class CertModule(BaseModule):
     requires_admin = False
     group = ModuleGroup.MANAGE
 
+    def __init__(self):
+        super().__init__()
+        # Declared here, not only in create_widget: the auto-refresh timer and
+        # on_stop() both walk these tabs, and either can run before the widget
+        # has ever been built.
+        self._tabs: Optional[QTabWidget] = None
+
+    def _each_tab(self):
+        """Yield each built tab page, or nothing if there is no widget yet."""
+        if self._tabs is None:
+            return
+        for i in range(self._tabs.count()):
+            yield self._tabs.widget(i)
+
     def create_widget(self) -> QWidget:
         outer = QWidget()
         outer_layout = QVBoxLayout(outer)
@@ -314,8 +328,7 @@ class CertModule(BaseModule):
         return 60_000
 
     def refresh_data(self) -> None:
-        for i in range(self._tabs.count()):
-            tab = self._tabs.widget(i)
+        for tab in self._each_tab():
             if hasattr(tab, "_load"):
                 tab._load()
 
@@ -323,8 +336,7 @@ class CertModule(BaseModule):
         pass
 
     def on_deactivate(self) -> None:
-        for i in range(self._tabs.count()):
-            tab = self._tabs.widget(i)
+        for tab in self._each_tab():
             if hasattr(tab, "_stop"):
                 tab._stop()
 

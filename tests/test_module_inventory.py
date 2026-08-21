@@ -81,19 +81,35 @@ def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
     assert labels == ["DNS Switcher", "Proxy Settings", "Quick Actions"]
 
 
-def test_a_module_survives_being_stopped_without_ever_being_built(qapp):
-    """A composite child's widget is built lazily, but on_stop still runs.
-
-    wifi_module._stop_scan reached self._progress, which only exists after
-    create_widget(). Nothing hit it while every module's widget was built
-    eagerly at startup; a never-opened tab makes it reachable.
-    """
+def _module_classes_that_teardown_ui():
+    """Modules whose teardown path touches widgets create_widget() builds."""
+    from modules.certificate_viewer.cert_module import CertModule
     from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
 
-    module = WifiAnalyzerModule()
+    return [WifiAnalyzerModule, CertModule]
+
+
+@pytest.mark.parametrize(
+    "module_class",
+    _module_classes_that_teardown_ui(),
+    ids=lambda c: c.__name__,
+)
+def test_a_module_survives_being_stopped_without_ever_being_built(qapp, module_class):
+    """`on_stop` runs for modules whose widget was never built.
+
+    Nothing hit this while every module's widget was built eagerly at startup
+    by register_module. A composite builds a child's widget only when its tab
+    is first shown, and still stops every started child — so a tab nobody
+    opened takes this path.
+
+    wifi_module._stop_scan reached self._progress and CertModule.on_deactivate
+    reached self._tabs; both are created in create_widget().
+    """
+    module = module_class()
     module.on_start(_FakeApp())
 
     module.on_deactivate()   # must not raise
+    module.refresh_data()    # the auto-refresh timer takes this path too
     module.on_stop()         # must not raise
 
 
