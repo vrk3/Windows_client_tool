@@ -340,8 +340,29 @@ class MainWindow(QMainWindow):
         palette.exec()
 
     def _navigate_to_module(self, name: str) -> None:
-        self._sidebar.select(name)
-        self._on_module_selected(name)
+        """Select the module called `name` — or whatever now contains it.
+
+        A module that became a tab of a composite has no sidebar entry of its
+        own any more, so a plain sidebar lookup would silently do nothing for
+        every caller that still asks for it by name.
+        """
+        from ui.navigation import resolve_target
+
+        target, tab = resolve_target(
+            name,
+            set(self._module_map),
+            self._app.module_registry.route_map(),
+        )
+        if target is None:
+            logger.warning("Navigation: nothing named %r", name)
+            return
+        self._sidebar.select(target)
+        self._on_module_selected(target)
+        if tab is not None:
+            module = self._module_map.get(target)
+            select_child = getattr(module, "select_child", None)
+            if callable(select_child):
+                select_child(name)
 
     def _schedule_update_check(self) -> None:
         """Run the update check once in the background 3 seconds after startup."""

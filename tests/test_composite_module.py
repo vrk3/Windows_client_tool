@@ -294,3 +294,28 @@ def test_registry_route_map_includes_aliases(qapp):
     registry.ALIASES = {"Old Name": ("New Home", None)}
 
     assert registry.route_map()["Old Name"] == ("New Home", None)
+
+
+def test_resolving_a_child_name_yields_its_host_and_tab():
+    from ui.navigation import resolve_target
+
+    routes = {"Wi-Fi Analyzer": ("Network Diagnostics", 1)}
+
+    assert resolve_target("Network Diagnostics", {"Network Diagnostics"}, routes) == (
+        "Network Diagnostics", None)
+    assert resolve_target("Wi-Fi Analyzer", {"Network Diagnostics"}, routes) == (
+        "Network Diagnostics", 1)
+
+
+def test_a_sidebar_entry_wins_over_a_route_of_the_same_name():
+    from ui.navigation import resolve_target
+
+    routes = {"Debloat": ("Somewhere Else", 3)}
+
+    assert resolve_target("Debloat", {"Debloat"}, routes) == ("Debloat", None)
+
+
+def test_an_unknown_name_resolves_to_nothing():
+    from ui.navigation import resolve_target
+
+    assert resolve_target("Nope", {"Debloat"}, {}) == (None, None)
