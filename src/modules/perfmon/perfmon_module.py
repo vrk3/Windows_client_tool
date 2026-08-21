@@ -184,9 +184,19 @@ class PerfMonModule(BaseModule):
                     ))
 
     def on_activate(self) -> None:
-        # Start live monitor timer (every 2 seconds)
-        if hasattr(self, '_live_timer'):
-            self._live_timer.start(2000)
+        # Start live monitor timer (every 2 seconds).
+        #
+        # on_deactivate deleteLater()s this timer and sets it to None, so
+        # coming BACK to PerfMon found the attribute present and its value
+        # None: hasattr() is true for a None attribute. Leaving the module and
+        # returning raised AttributeError and left the live monitor dead.
+        # Rebuild it rather than just guarding, or nothing ever ticks again.
+        if getattr(self, '_live_timer', None) is None:
+            if self._widget is None:
+                return  # no UI to drive yet
+            self._live_timer = QTimer()
+            self._live_timer.timeout.connect(self._update_live_monitor)
+        self._live_timer.start(2000)
 
         if self._timer is None:
             # Seed cpu_percent so first real reading isn't 0

@@ -23,6 +23,7 @@ class _FakeApp:
     def __init__(self):
         self.module_registry = _FakeRegistry()
         self.backup = None          # DebloatToolsModule builds a TweakEngine on it
+        self.config = None          # PerfMon reads alert config off it
         self.search = _FakeSearch()
         self.thread_pool = None
 
@@ -200,3 +201,27 @@ def test_every_composite_child_survives_a_tick_it_was_not_built_for(
     child.refresh_data()     # must not raise
     child.on_deactivate()    # must not raise
     child.on_stop()          # must not raise
+
+
+def test_leaving_a_module_and_coming_back_restarts_its_live_timer(qapp):
+    """PerfMon crashed on re-entry and left its live monitor dead.
+
+    on_deactivate deleteLater()s _live_timer and sets it to None, but
+    on_activate guarded with hasattr() — true for an attribute whose value is
+    None. Opening PerfMon, leaving, and returning raised AttributeError.
+    """
+    from modules.perfmon.perfmon_module import PerfMonModule
+
+    module = PerfMonModule()
+    module.on_start(_FakeApp())
+    module.create_widget()
+
+    module.on_activate()
+    assert module._live_timer.isActive()
+
+    module.on_deactivate()
+    assert module._live_timer is None
+
+    module.on_activate()               # used to raise AttributeError
+    assert module._live_timer is not None
+    assert module._live_timer.isActive()
