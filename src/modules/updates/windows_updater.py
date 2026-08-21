@@ -58,9 +58,12 @@ def fetch_pending_updates(
             # Classification
             cats = [u.Categories.Item(j).Name for j in range(u.Categories.Count)]
             classification = cats[0] if cats else "Unknown"
-            # Size
+            # Size. MaxDownloadSize is a DECIMAL in wuapi.idl, so pywin32
+            # hands back a decimal.Decimal — and Decimal/int stays Decimal,
+            # which then dies on the first `/ 1024.0` downstream. Coerce here,
+            # at the boundary, so nothing past this point ever sees one.
             try:
-                size_mb = u.MaxDownloadSize / (1024 * 1024)
+                size_mb = float(u.MaxDownloadSize) / (1024 * 1024)
             except Exception:
                 size_mb = 0.0
             # Date
@@ -82,8 +85,23 @@ def fetch_pending_updates(
                 is_hidden=hidden,
             ))
     except Exception as e:
-        raise RuntimeError(f"Failed to query Windows Updates: {e}") from e
+        raise RuntimeError(f"Failed to query Windows Updates: {_explain(e)}") from e
     return updates
+
+
+def _explain(exc: Exception) -> str:
+    """Turn a COM failure into something a person can act on.
+
+    A com_error's str() is a tuple of two HRESULTs in signed decimal, the
+    first of which (DISPATCH_E_EXCEPTION) says nothing at all. Anything that
+    is not a COM error keeps its own message.
+    """
+    from core.wu_error_codes import decode_wu_error, hresult_from_com_error
+
+    hr = hresult_from_com_error(exc)
+    if hr is None:
+        return str(exc)
+    return decode_wu_error(hr)
 
 
 def hide_update(update: WindowsUpdate) -> None:
@@ -111,7 +129,7 @@ def install_updates_iter(
     is not interrupted mid-way (matches Worker.cancel() semantics elsewhere).
     """
     import win32com.client
-    from core.wu_error_codes import decode_wu_error
+    from core.wu_error_codes import decode_wu_error, hresult_from_com_error
 
     def _log(line: str) -> None:
         if output_cb:
@@ -166,8 +184,10 @@ def install_updates_iter(
             _log(f"  install: {msg}")
             results.append(InstallResult(u.kb, u.title, success, install_result.HResult, msg))
         except Exception as e:
-            _log(f"  error: {e}")
-            results.append(InstallResult(u.kb, u.title, False, None, str(e)))
+            detail = _explain(e)
+            _log(f"  error: {detail}")
+            results.append(InstallResult(u.kb, u.title, False,
+                                         hresult_from_com_error(e), detail))
 
     if progress_cb:
         progress_cb(total, total, "")

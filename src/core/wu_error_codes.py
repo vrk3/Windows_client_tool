@@ -64,6 +64,38 @@ def decode_wu_error(hresult) -> str:
     return hex_str
 
 
+#: DISPATCH_E_EXCEPTION. Means only "the callee raised" — the code worth
+#: reading is the scode inside the EXCEPINFO the callee filled in.
+DISPATCH_E_EXCEPTION = -2147352567
+
+
+def hresult_from_com_error(exc) -> Optional[int]:
+    """Dig the HRESULT that actually says something out of a com_error.
+
+    A failed WU search arrives as
+
+        (-2147352567, 'Exception occurred.',
+         (0, None, None, None, 0, -2145124322), None)
+
+    where the leading number is DISPATCH_E_EXCEPTION and the one that names
+    the problem is the scode at the end of the EXCEPINFO tuple (here
+    0x8024001E, "service is shutting down"). Reporting the first one tells
+    nobody anything.
+
+    Returns None for anything that is not a COM error, so callers can fall
+    back to the exception's own text.
+    """
+    excepinfo = getattr(exc, "excepinfo", None)
+    hr = getattr(exc, "hresult", None)
+    if excepinfo is None and hr is None:
+        return None
+    if isinstance(excepinfo, (tuple, list)) and len(excepinfo) >= 6:
+        scode = excepinfo[5]
+        if isinstance(scode, int) and scode:
+            return scode
+    return hr if isinstance(hr, int) else None
+
+
 def _win32_message(code: int) -> Optional[str]:
     try:
         import ctypes

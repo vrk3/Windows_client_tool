@@ -2500,6 +2500,15 @@ def scan_windows_compatibility_cache(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
+#: How long to wait for a service to actually reach STOPPED. A busy wuauserv
+#: mid-scan takes a few seconds; past this it is not going to stop, and
+#: waiting longer just makes the clean look hung.
+_SERVICE_STOP_WAIT_SECS = 20
+
+#: Win32 ERROR_SERVICE_ALREADY_RUNNING. Not a failure — the desired end state.
+ERROR_SERVICE_ALREADY_RUNNING = 1056
+
+
 def delete_items(items: List[ScanItem],
                  on_progress: Optional[Callable[[int, int], None]] = None,
                  stop_wuauserv: bool = False) -> Tuple[int, int]:
@@ -2513,9 +2522,26 @@ def delete_items(items: List[ScanItem],
 
         def __enter__(self):
             try:
+                import win32service
                 import win32serviceutil
                 win32serviceutil.StopService(self.name)
                 self._stopped = True
+                # StopService only ASKS: it fires
+                # ControlService(SERVICE_CONTROL_STOP) and returns the status
+                # it saw, which is normally STOP_PENDING. Deleting the
+                # download cache while the service is still letting go of
+                # those files is the exact race this guard exists to prevent,
+                # so wait for it to actually be STOPPED.
+                try:
+                    win32serviceutil.WaitForServiceStatus(
+                        self.name, win32service.SERVICE_STOPPED, _SERVICE_STOP_WAIT_SECS)
+                except Exception as e:
+                    # Say so and clean anyway -- most of what is queued has
+                    # nothing to do with this service.
+                    logger.warning(
+                        "Service %s did not reach STOPPED within %ss (%s) — "
+                        "cleaning anyway; files it still holds open will be skipped",
+                        self.name, _SERVICE_STOP_WAIT_SECS, e)
             except Exception as e:
                 logger.warning("Failed to stop service %s: %s", self.name, e)
 
@@ -2525,7 +2551,14 @@ def delete_items(items: List[ScanItem],
                     import win32serviceutil
                     win32serviceutil.StartService(self.name)
                 except Exception as e:
-                    logger.warning("Failed to start service %s: %s", self.name, e)
+                    # wuauserv is trigger-started, so anything that touches
+                    # Windows Update brings it back on its own and
+                    # StartService answers 1056. That is the state we wanted;
+                    # it is not a failure worth a warning.
+                    if getattr(e, "winerror", None) == ERROR_SERVICE_ALREADY_RUNNING:
+                        logger.debug("Service %s was already running again", self.name)
+                    else:
+                        logger.warning("Failed to start service %s: %s", self.name, e)
             return False  # do not suppress exceptions
 
     def _do_delete():

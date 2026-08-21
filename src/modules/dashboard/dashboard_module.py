@@ -315,7 +315,7 @@ class _DashboardWidget(QWidget):
             logger.warning("Ignored Exception in disk_partitions", exc_info=True)
             return
         seen: set[str] = set()
-        for p in parts:
+        for p in _mounted_partitions(parts):
             try:
                 usage = psutil.disk_usage(p.mountpoint)
             except Exception:
@@ -331,6 +331,15 @@ class _DashboardWidget(QWidget):
                 usage.percent,
                 f"{usage.percent:.0f}%  ({_fmt(usage.used)}/{_fmt(usage.total)})",
             )
+
+        # A volume that has gone away (USB pulled, card ejected) must lose its
+        # bar. `seen` was collected and never read, so the card kept showing
+        # the drive — frozen at whatever it read last — for the whole session.
+        for label in [k for k in self._disk_bars if k not in seen]:
+            bar = self._disk_bars.pop(label)
+            self._disk_card.body().removeWidget(bar)
+            bar.setParent(None)
+            bar.deleteLater()
 
         self._refresh_space_warning()
 
@@ -361,6 +370,19 @@ class _DashboardWidget(QWidget):
 
     def stop_timer(self) -> None:
         self._timer.stop()
+
+
+def _mounted_partitions(parts):
+    """Drop the partitions there is nothing to measure on.
+
+    An empty card-reader slot is a real volume with no media in it: psutil
+    lists it with an EMPTY fstype, and `disk_usage` on it raises
+    PermissionError [WinError 21] "The device is not ready". Probing one every
+    refresh put two tracebacks in the log every 3 seconds on this machine.
+    Empty fstype is psutil's own signal for that, and it is the same guard
+    `system_report` has always used.
+    """
+    return [p for p in parts if p.fstype and "cdrom" not in p.opts]
 
 
 def _fmt(b: int) -> str:

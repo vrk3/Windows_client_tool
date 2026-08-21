@@ -49,6 +49,10 @@ def check_wu_preflight(total_size_mb: float, target_dir: Optional[str] = None) -
     free = get_free_bytes(drive)
     if free is None:
         return None
+    # Callers sum sizes that came out of COM, where a byte count arrives as a
+    # decimal.Decimal. Mixing that with the float literals below is a
+    # TypeError, not a rounding difference, so normalise before any arithmetic.
+    total_size_mb = float(total_size_mb)
     free_gb = free / (1024 ** 3)
     needed_gb = max(WU_MIN_FREE_GB, (total_size_mb / 1024.0) * WU_SIZE_MULTIPLIER)
     if free_gb < needed_gb:
