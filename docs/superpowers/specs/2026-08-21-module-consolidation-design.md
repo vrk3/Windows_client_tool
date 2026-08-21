@@ -3,7 +3,9 @@
 **Project:** Windows 11 Tweaker/Optimizer
 **Sub-project:** #10 — Sidebar consolidation and the composite module
 **Date:** 2026-08-21
-**Status:** Awaiting review
+**Status:** Implemented and merged to `master`, 2026-08-21. See
+`docs/superpowers/plans/2026-08-21-module-consolidation.md` for the plan and
+its execution record, including three deviations from this design.
 
 ---
 

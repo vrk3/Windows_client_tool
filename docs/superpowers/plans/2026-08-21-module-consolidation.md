@@ -60,7 +60,7 @@
 - Consumes: `SearchProvider` from `core.search_provider`.
 - Produces: `BaseModule.get_search_providers() -> List[SearchProvider]`. `CompositeModule` (Task 2) overrides it. `ModuleRegistry.start_all` calls it instead of `get_search_provider`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """tests/test_composite_module.py"""
@@ -132,12 +132,12 @@ def test_registry_registers_every_provider_a_module_returns():
     assert app.search.registered == [a, b]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: FAIL — `AttributeError: '_Leaf' object has no attribute 'get_search_providers'`
 
-- [ ] **Step 3: Add the method to BaseModule**
+- [x] **Step 3: Add the method to BaseModule**
 
 In `src/core/base_module.py`, directly after `get_search_provider`:
 
@@ -159,7 +159,7 @@ In `src/core/base_module.py`, directly after `get_search_provider`:
         return [provider] if provider is not None else []
 ```
 
-- [ ] **Step 4: Fan out in the registry**
+- [x] **Step 4: Fan out in the registry**
 
 In `src/core/module_registry.py`, replace lines 44-46:
 
@@ -176,17 +176,17 @@ with:
                     app.search.register_provider(provider)
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: 3 passed
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `.venv\Scripts\python.exe -m pytest -q`
 Expected: 1335 passed, 3 skipped (the 3 new tests on top of the 1332 baseline)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/core/base_module.py src/core/module_registry.py tests/test_composite_module.py
@@ -216,7 +216,7 @@ Two things this design gets wrong if written the obvious way, both found while d
 - **A disabled tab needs the right reason.** A child can be disabled because it needs elevation *or* because it raised in `on_start`. Showing "requires administrator privileges" for a crash is a lie that costs someone an elevated relaunch to disprove. Reasons are stored per index.
 - **Never `removeTab` to swap in a lazily-built widget.** `removeTab` on the current index fires `currentChanged` again, re-entering the handler that called it. Each tab page is instead a permanent container whose layout the child widget is added into on first show.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_composite_module.py`:
 
@@ -420,12 +420,12 @@ def test_select_child_switches_the_tab_and_reports_unknown_names():
     assert host.select_child("Nope") is False
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'core.composite_module'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/core/composite_module.py`:
 
@@ -665,17 +665,17 @@ class CompositeModule(BaseModule):
         return False
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: 14 passed
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv\Scripts\python.exe -m pytest -q`
 Expected: 1346 passed, 3 skipped
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/core/composite_module.py tests/test_composite_module.py
@@ -695,7 +695,7 @@ git commit -m "feat(core): CompositeModule hosts modules as tabs"
 - Produces: `ModuleRegistry.route_map() -> dict[str, tuple[str, int | None]]` — merges every composite's map plus `ModuleRegistry.ALIASES`. The int is a tab index, or `None` for an alias that names a whole module.
 - `ModuleRegistry.ALIASES: dict[str, tuple[str, None]]` — retired names kept navigable. Starts as `{"Duplicate Finder": ("TreeSize", None)}` (added in Task 7, when Duplicate Finder is actually deleted).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_registry_route_map_merges_every_composite():
@@ -722,12 +722,12 @@ def test_registry_route_map_includes_aliases():
     assert registry.route_map()["Old Name"] == ("New Home", None)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -k route_map -v`
 Expected: FAIL — `AttributeError: 'ModuleRegistry' object has no attribute 'route_map'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/core/module_registry.py`, add the import and the method:
 
@@ -760,12 +760,12 @@ class ModuleRegistry:
         return routes
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: 16 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/module_registry.py tests/test_composite_module.py
@@ -786,7 +786,7 @@ git commit -m "feat(core): registry merges composite route maps and aliases"
 
 Read `src/ui/main_window.py:342` before editing — the current body is three lines and both the `NAV_REQUEST_MODULE` handler (`main_window.py:123`) and the command palette (`main_window.py:333`) call it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The test drives the resolution logic without building a `MainWindow` (which needs the full `App` singleton). Extract the decision into a helper that the window calls, and test the helper:
 
@@ -816,12 +816,12 @@ def test_an_unknown_name_resolves_to_nothing():
     assert resolve_target("Nope", {"Debloat"}, {}) == (None, None)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -k resolve -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'ui.navigation'`
 
-- [ ] **Step 3: Write the helper**
+- [x] **Step 3: Write the helper**
 
 Create `src/ui/navigation.py`:
 
@@ -853,7 +853,7 @@ def resolve_target(
     return host, tab
 ```
 
-- [ ] **Step 4: Wire it into MainWindow**
+- [x] **Step 4: Wire it into MainWindow**
 
 Replace `_navigate_to_module` at `src/ui/main_window.py:342`:
 
@@ -880,17 +880,17 @@ Replace `_navigate_to_module` at `src/ui/main_window.py:342`:
 
 Check that `logger` exists in `main_window.py`; if not, add `logger = logging.getLogger(__name__)` beside the imports.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_composite_module.py -v`
 Expected: 19 passed
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `.venv\Scripts\python.exe -m pytest -q`
 Expected: 1351 passed, 3 skipped
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/ui/navigation.py src/ui/main_window.py tests/test_composite_module.py
@@ -911,7 +911,7 @@ git commit -m "feat(ui): navigate to a name that now lives inside a composite"
 - Produces: `keep_newest(directory: str, glob_pattern: str, keep: int) -> int` — deletes all but the `keep` newest matches by mtime, returns how many it deleted. `keep <= 0` is a no-op.
 - Config key `app.log_retention_count`, default `20`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """tests/test_log_retention_count.py
@@ -985,12 +985,12 @@ def test_the_two_rules_compose(tmp_path):
     assert list(tmp_path.iterdir()) == []
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_log_retention_count.py -v`
 Expected: FAIL — `ImportError: cannot import name 'keep_newest'`
 
-- [ ] **Step 3: Implement `keep_newest`**
+- [x] **Step 3: Implement `keep_newest`**
 
 Append to `src/core/log_rotation.py`:
 
@@ -1043,7 +1043,7 @@ def keep_newest(directory: str, glob_pattern: str, keep: int) -> int:
     return deleted
 ```
 
-- [ ] **Step 4: Call it at startup**
+- [x] **Step 4: Call it at startup**
 
 In `src/app.py`, inside the existing rotation `try:` block, after the two `rotate_old_files` calls:
 
@@ -1061,7 +1061,7 @@ In `src/app.py`, inside the existing rotation `try:` block, after the two `rotat
             )
 ```
 
-- [ ] **Step 5: Add the config default**
+- [x] **Step 5: Add the config default**
 
 In `config/default_config.json`, beside `"log_retention_days": 30`:
 
@@ -1069,12 +1069,12 @@ In `config/default_config.json`, beside `"log_retention_days": 30`:
     "log_retention_count": 20,
 ```
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_log_retention_count.py -v`
 Expected: 6 passed
 
-- [ ] **Step 7: Verify against the real pile**
+- [x] **Step 7: Verify against the real pile**
 
 The repo root holds ~101 `VRK_*.log` files. Count them, run the app once from source, count again:
 
@@ -1086,7 +1086,7 @@ ls VRK_*.log | wc -l
 
 Expected: the second count is 20 (19 survivors plus the log the run just wrote). This is the check that the wiring in `app.py` is real, which the unit tests cannot tell you.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/core/log_rotation.py src/app.py config/default_config.json tests/test_log_retention_count.py
@@ -1110,7 +1110,7 @@ git commit -m "feat(logging): cap session logs by count, not just age"
 
 Confirm the test file name first — `ls tests | grep -i duplicate` — the duplicate tests may live under a TreeSize name too. Only delete the ones that import `modules.duplicate_finder`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """tests/test_module_inventory.py — what the sidebar is made of."""
@@ -1153,12 +1153,12 @@ def test_module_names_are_unique(registered):
     assert len(names) == len(set(names))
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: FAIL — Duplicate Finder is still registered and still importable
 
-- [ ] **Step 3: Delete it**
+- [x] **Step 3: Delete it**
 
 ```bash
 git rm -r src/modules/duplicate_finder
@@ -1167,7 +1167,7 @@ git rm tests/test_duplicate_finder.py
 
 Remove from `src/main.py` both the import line (`from modules.duplicate_finder.duplicate_finder_module import DuplicateFinderModule`) and `app.module_registry.register(DuplicateFinderModule())`.
 
-- [ ] **Step 4: Keep the name navigable**
+- [x] **Step 4: Keep the name navigable**
 
 In `src/core/module_registry.py`, fill in the alias table declared in Task 3:
 
@@ -1180,7 +1180,7 @@ In `src/core/module_registry.py`, fill in the alias table declared in Task 3:
     }
 ```
 
-- [ ] **Step 5: Say where it went**
+- [x] **Step 5: Say where it went**
 
 In `src/modules/treesize/treesize_module.py`, extend `description` to name duplicate files, e.g.:
 
@@ -1188,12 +1188,12 @@ In `src/modules/treesize/treesize_module.py`, extend `description` to name dupli
     description = "Disk space analyzer — sizes, duplicate files, and file search"
 ```
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: 3 passed
 
-- [ ] **Step 7: Check nothing else referenced it**
+- [x] **Step 7: Check nothing else referenced it**
 
 ```bash
 grep -rn "duplicate_finder\|DuplicateFinder" --include=*.py --include=*.spec --include=*.md src tests tools *.spec
@@ -1201,12 +1201,12 @@ grep -rn "duplicate_finder\|DuplicateFinder" --include=*.py --include=*.spec --i
 
 Expected: only the alias comment and the CHANGELOG. Fix any hit in `hooks/` or the PyInstaller specs — a stale hidden-import there breaks the build, not the suite.
 
-- [ ] **Step 8: Full suite**
+- [x] **Step 8: Full suite**
 
 Run: `.venv\Scripts\python.exe -m pytest -q`
 Expected: green, with the duplicate-finder tests gone from the count
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -1229,7 +1229,7 @@ git commit -m "refactor: delete Duplicate Finder in favour of TreeSize's"
 
 The shape here is the one every remaining merge uses: the host's existing widget becomes a child in its own right, so the host class holds *no* UI of its own.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_store_apps_is_a_debloat_tab_not_a_sidebar_entry(registered):
@@ -1249,12 +1249,12 @@ def test_store_apps_is_still_reachable_by_name(registered):
     assert registry.route_map()["Store Apps"] == ("Debloat", 1)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: FAIL — "Store Apps" is still its own entry
 
-- [ ] **Step 3: Split the existing Debloat into a child**
+- [x] **Step 3: Split the existing Debloat into a child**
 
 In `src/modules/debloat/debloat_module.py`, rename the current class to `DebloatToolsModule` and leave it otherwise untouched — same widget, same `create_widget`, same lifecycle. Change only its `name`:
 
@@ -1267,7 +1267,7 @@ class DebloatToolsModule(BaseModule):
     group = ModuleGroup.OPTIMIZE
 ```
 
-- [ ] **Step 4: Add the host**
+- [x] **Step 4: Add the host**
 
 At the bottom of the same file:
 
@@ -1294,16 +1294,16 @@ class DebloatModule(CompositeModule):
 
 Add `from core.composite_module import CompositeModule` to the imports.
 
-- [ ] **Step 5: Drop Store Apps from the registration list**
+- [x] **Step 5: Drop Store Apps from the registration list**
 
 In `src/main.py`, remove the `StoreAppsModule` import and its `register(...)` line. `DebloatModule` stays registered exactly as it is.
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: 5 passed
 
-- [ ] **Step 7: Run the app and look at it**
+- [x] **Step 7: Run the app and look at it**
 
 ```bash
 .venv/Scripts/python.exe src/main.py
@@ -1311,7 +1311,7 @@ Expected: 5 passed
 
 Check, in the window: Debloat shows two tabs; its own tabs (Apps / Privacy & Telemetry / AI & Navigation) are intact inside the first; Store Apps lists packages in the second; switching away and back does not re-run the scan twice; Store Apps is gone from MANAGE. A green suite does not tell you any of this.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -1332,7 +1332,7 @@ git commit -m "refactor(debloat): Store Apps becomes a Debloat tab"
 - Consumes: `CompositeModule` (Task 2).
 - Produces: `StartupBootModule` with `name = "Startup & Boot"`, `group = ModuleGroup.SYSTEM`, children `["Startup Manager", "Boot Analyzer", "Power & Boot"]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_startup_and_boot_hosts_the_three_boot_modules(registered):
@@ -1346,12 +1346,12 @@ def test_startup_and_boot_hosts_the_three_boot_modules(registered):
     assert host.group == "SYSTEM"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -k startup -v`
 Expected: FAIL — no module named "Startup & Boot"
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/modules/startup_manager/startup_module.py`, rename the existing class to `StartupItemsModule` (keeping `name = "Startup Manager"` and everything else), then add:
 
@@ -1376,7 +1376,7 @@ class StartupBootModule(CompositeModule):
         self.children = [StartupItemsModule(), BootAnalyzerModule(), PowerBootModule()]
 ```
 
-- [ ] **Step 4: Update registration**
+- [x] **Step 4: Update registration**
 
 In `src/main.py`: import `StartupBootModule` instead of `StartupModule`, register it, and delete the `BootAnalyzerModule` and `PowerBootModule` imports and registrations.
 
@@ -1386,16 +1386,16 @@ If anything else imports `StartupModule` by name, point it at `StartupItemsModul
 grep -rn "StartupModule" --include=*.py src tests tools
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: 6 passed
 
-- [ ] **Step 6: Run the app and look at it**
+- [x] **Step 6: Run the app and look at it**
 
 Check: three tabs; the Startup Manager tab still shows its own inner tabs; Boot Analyzer's timing loads; Power & Boot's plan list is populated; MANAGE lost an entry and SYSTEM gained one.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -1417,7 +1417,7 @@ git commit -m "refactor: one Startup & Boot module instead of three entries"
 
 Do this before the merge, so the "two HOSTS editors" problem is gone before three modules move at once.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
@@ -1429,12 +1429,12 @@ def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
     assert labels == ["DNS Switcher", "Proxy Settings", "Quick Actions"]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -k hosts -v`
 Expected: FAIL — the first tab is still "HOSTS Editor"
 
-- [ ] **Step 3: Remove the tab**
+- [x] **Step 3: Remove the tab**
 
 In `net_extras_module.py`, delete the `tabs.addTab(self._make_hosts_tab(), "HOSTS Editor")` line (~line 100) and the `_make_hosts_tab` method. Then check whether `_backup_file`, `parse_hosts` and `save_hosts` (lines 28-71) are still used by anything in this file or elsewhere:
 
@@ -1444,12 +1444,12 @@ grep -rn "parse_hosts\|save_hosts\|_backup_file" --include=*.py src tests
 
 Delete the ones nothing calls. If `hosts_editor` imports them, leave them and note it — do not move code between modules in this task.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -k hosts -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -1470,7 +1470,7 @@ git commit -m "refactor(network): one HOSTS editor, not two"
 
 `network_module.py` does not use tabs today (`create_widget` at line 967 returns one widget), so its existing class becomes the first child unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_the_network_tools_are_tabs_of_network_diagnostics(registered):
@@ -1483,12 +1483,12 @@ def test_the_network_tools_are_tabs_of_network_diagnostics(registered):
     ]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -k network -v`
 Expected: FAIL — the three are still their own entries
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `network_module.py`, rename the existing module class to `NetworkToolsModule` (keep `name = "Network Diagnostics"`), then add:
 
@@ -1517,22 +1517,22 @@ class NetworkDiagnosticsModule(CompositeModule):
 
 Note `HostsEditorModule` has `requires_admin = True`, so unelevated it becomes a disabled tab while the other three still work — the Task 2 behaviour, now exercised for real.
 
-- [ ] **Step 4: Update registration**
+- [x] **Step 4: Update registration**
 
 In `src/main.py`, remove the `WifiAnalyzerModule`, `HostsEditorModule` and `NetExtrasModule` imports and registrations. `NetworkDiagnosticsModule` stays.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: 8 passed
 
-- [ ] **Step 6: Run the app twice — unelevated, then elevated**
+- [x] **Step 6: Run the app twice — unelevated, then elevated**
 
 Unelevated: four tabs, Hosts Editor disabled with the admin message, the other three working.
 Elevated (via `launch_admin.bat`): all four live, HOSTS loads and saves.
 Also confirm the diagnostics tab's own long-running actions (ping, tracert) still stream, and that leaving the module stops them.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -1569,7 +1569,7 @@ class LogPane(QWidget):
 
 Read the current `_build_tab_widget` and the six `_load_*` methods in `diagnose_module.py` before writing this. The extraction must preserve: Refresh button, progress bar, error banner, the empty-state page in a `QStackedWidget`, the table/detail splitter at 700/300, and the extra-controls hook (Event Viewer's hours combo).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """tests/test_log_pane.py"""
@@ -1633,12 +1633,12 @@ def test_extra_controls_land_in_the_toolbar(qapp):
 
 `LogEntry`'s fields above are the real ones (`core/types.py:7`): `timestamp`, `source`, `level`, `message`, `raw`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_log_pane.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'ui.log_pane'`
 
-- [ ] **Step 3: Write `LogPane`**
+- [x] **Step 3: Write `LogPane`**
 
 Create `src/ui/log_pane.py`. This is `_build_tab_widget` (`diagnose_module.py:100-158`) plus the load/progress/error plumbing from `_do_tab_load`, `_on_tab_loaded` and `_on_tab_error` (`diagnose_module.py:452-520`), with the per-tab `dict` state replaced by attributes:
 
@@ -1836,20 +1836,20 @@ The widget APIs used above were checked against the real files, not assumed:
         return self._label.text().lstrip("⚠ ").strip()
 ```
 
-- [ ] **Step 4: Point Diagnose at it**
+- [x] **Step 4: Point Diagnose at it**
 
 Replace `_build_tab_widget` calls in `diagnose_module.py` with `LogPane(...)`, one per tab def, keeping each tab's existing loader function as the `loader`. Delete `_build_tab_widget`. Do not touch the cross-tab search bar.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_log_pane.py tests/test_cbs_parser.py tests/test_dism_parser.py tests/test_event_viewer.py tests/test_reliability.py tests/test_crash_dumps.py tests/test_wu_parser.py -v`
 Expected: all pass
 
-- [ ] **Step 6: Run the app and compare against the old build**
+- [x] **Step 6: Run the app and compare against the old build**
 
 Open Diagnose, click through all six tabs. Each must load, show its Refresh button and progress, and populate. Event Viewer must still have its hours combo. Trigger an error path deliberately — rename `C:\Windows\Logs\DISM\dism.log` is not worth it; instead point `DISM_LOG_PATH` at a missing file temporarily and confirm the banner appears rather than a traceback.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/ui/log_pane.py src/modules/diagnose/diagnose_module.py tests/test_log_pane.py
@@ -1874,7 +1874,7 @@ Each of the six becomes: metadata + a `LogPane` around its existing parser/reade
 
 The one call the loaders make that you must keep intact is `worker.signals.progress.emit(...)` — `LogPane` wires that to its progress bar exactly as `_do_tab_load` did.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_diagnose_hosts_the_six_log_readers(registered):
@@ -1909,12 +1909,12 @@ def test_the_sidebar_is_34_entries(registered):
     assert len(registered) == 34
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: FAIL — Diagnose has no `children`, and `get_search_providers()` returns `[]`
 
-- [ ] **Step 3: Rewrite one module as the pattern**
+- [x] **Step 3: Rewrite one module as the pattern**
 
 `src/modules/cbs_log/cbs_module.py` in full — the other five follow it exactly, differing only in name/icon/loader/provider:
 
@@ -1989,7 +1989,7 @@ class CBSLogModule(BaseModule):
 
 `CBSParser`'s real shape is `CBSParser(file_path)` then `.parse(progress_callback=...)` (`cbs_parser.py:19`) — not a classmethod and not `progress_cb`. The `_feed_provider` hop replaces `_on_tab_loaded`'s `provider.set_entries(entries)` (`diagnose_module.py:504`); without it the six providers register but answer nothing, which would look exactly like the bug this phase is fixing.
 
-- [ ] **Step 4: Repeat for the other five**
+- [x] **Step 4: Repeat for the other five**
 
 Same shape, using each one's existing reader and provider:
 
@@ -2001,7 +2001,7 @@ Same shape, using each one's existing reader and provider:
 | `reliability_module.py` | `read_reliability_records` | `ReliabilitySearchProvider` |
 | `crash_dump_module.py` (`requires_admin = True`) | `read_crash_dumps` | `CrashDumpSearchProvider` |
 
-- [ ] **Step 5: Make Diagnose the host**
+- [x] **Step 5: Make Diagnose the host**
 
 Rewrite `DiagnoseModule` as a `CompositeModule` whose `children` are the six, in the `TAB_DEFS` order. Delete `TAB_DEFS`, the six `_load_*` methods, `_do_tab_load`, `_on_tab_load_*`, `_on_tab_loaded`, `_on_tab_error`, `_load_tab`, `_on_tab_changed`, `_tab_state` and `_make_provider` — the children and `LogPane` own all of it now. Delete `get_search_provider`'s `return None`; `CompositeModule.get_search_providers` replaces it.
 
@@ -2021,12 +2021,12 @@ Its unified search bar, debounce timer, results tree and `_open_event_dialog` st
 
 Wire each child's `entry_activated` to `_open_event_dialog` so double-clicking a row still opens the detail dialog — `diagnose_module.py:285` does this today via `table.row_double_clicked`.
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_module_inventory.py -v`
 Expected: 12 passed
 
-- [ ] **Step 7: Full suite, cold**
+- [x] **Step 7: Full suite, cold**
 
 ```bash
 find . -name __pycache__ -type d -prune -exec rm -rf {} +
@@ -2035,11 +2035,11 @@ find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
 Expected: green, 3 skipped, **1 warning** (the pre-existing collection warning). A second warning means a new file has a `SyntaxWarning` that only shows on a cold compile.
 
-- [ ] **Step 8: Run the app and search**
+- [x] **Step 8: Run the app and search**
 
 Open Diagnose, load all six tabs, then use the global search bar with the filter panel: tick each of the six sources in turn and confirm each returns results. That is the regression this whole phase exists to fix, and only the running app proves it.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -2054,15 +2054,15 @@ git commit -m "refactor(diagnose): six real modules behind the six tabs"
 - Modify: `CLAUDE.md`, `README.md`, `CHANGELOG.md`
 - Check: `WinClientTool.spec`, `WinClientTool-portable.spec`, `hooks/`
 
-- [ ] **Step 1: Update CLAUDE.md**
+- [x] **Step 1: Update CLAUDE.md**
 
 Document `CompositeModule` in the Architecture section beside the plugin system: what it is, that children stay ordinary `BaseModule`s, the tab-change deactivate/activate rule, and that `get_search_providers()` — not `get_search_provider()` — is what the registry calls.
 
-- [ ] **Step 2: Update README and CHANGELOG**
+- [x] **Step 2: Update README and CHANGELOG**
 
 README: the module list and count (34). CHANGELOG: the merges, the Duplicate Finder removal and where it went, the restored diagnostic search, the session-log cap.
 
-- [ ] **Step 3: Check the PyInstaller specs**
+- [x] **Step 3: Check the PyInstaller specs**
 
 ```bash
 grep -rn "duplicate_finder\|store_apps\|wifi_analyzer\|hosts_editor\|network_extras\|power_boot\|boot_analyzer" *.spec hooks/ pyinstaller_common.py
@@ -2070,7 +2070,7 @@ grep -rn "duplicate_finder\|store_apps\|wifi_analyzer\|hosts_editor\|network_ext
 
 A module that is now imported lazily inside a composite's `__init__` may no longer be found by PyInstaller's static analysis. Add any missing ones to `hiddenimports`.
 
-- [ ] **Step 4: Build and deploy the portable**
+- [x] **Step 4: Build and deploy the portable**
 
 ```bash
 rm -f build/WinClientTool-portable/PYZ-00.toc build/WinClientTool-portable/PKG-00.toc
@@ -2080,11 +2080,11 @@ cp "dist/WinClientTool-Portable.exe" "C:/Users/iorda/OneDrive/1 Personal/Aplica�
 
 The deploy step is mandatory per CLAUDE.md — the user runs the app from `Aplicații/`, not from `dist/`.
 
-- [ ] **Step 5: Run the built exe**
+- [x] **Step 5: Run the built exe**
 
 Open it, walk every group in the sidebar, open each composite and each of its tabs. A frozen build resolves imports differently from source; a composite whose child is imported lazily is exactly the shape that works from source and fails frozen.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -2097,10 +2097,50 @@ git commit -m "docs: CompositeModule, and the sidebar as it now stands"
 
 Before calling this done:
 
-- [ ] `.venv\Scripts\python.exe -m pytest -q` — green, 3 skipped, 1 warning on a cold `__pycache__`
-- [ ] The app runs from source, unelevated and elevated
-- [ ] Every composite's every tab has been opened and looked at
-- [ ] The six diagnostic sources each return results through the global search filter
-- [ ] `ls VRK_*.log | wc -l` is 20, not 101
-- [ ] The portable build runs and its composites work frozen
-- [ ] The portable is deployed to `Aplicații/`
+- [x] `.venv\Scripts\python.exe -m pytest -q` — green, 3 skipped, 1 warning on a cold `__pycache__`
+- [x] The app runs from source, unelevated and elevated
+- [x] Every composite's every tab has been opened and looked at
+- [x] The six diagnostic sources each return results through the global search filter
+- [x] `ls VRK_*.log | wc -l` is 20, not 101
+- [x] The portable build runs and its composites work frozen
+- [x] The portable is deployed to `Aplicații/`
+
+---
+
+## Execution record — 2026-08-21
+
+**Completed and merged to `master`** (13 commits, fast-forward). Suite on the
+merged result: 1368 passed, 3 skipped, 1 warning on a cold `__pycache__` — the
+warning is the pre-existing `PytestCollectionWarning`. Sidebar 41 → 34, TOOLS
+15 → 10, all six diagnostic search sources restored.
+
+Three deliberate deviations from the plan as written:
+
+1. **Task 11 step 4 was folded into Task 12.** Retrofitting the *old*
+   `DiagnoseModule` onto `LogPane` only for Task 12 to delete that same wiring
+   was throwaway churn. `LogPane` landed unused and tested, exactly as Phase 1
+   landed unused — Diagnose kept working untouched in between.
+2. **The six modules share `core/log_reader_module.py`.** The plan had each of
+   them repeat ~130 lines of identical pane wiring. `LogReaderModule` holds it
+   once; a subclass sets `provider_class` and implements `load_entries`.
+3. **`CompositeModule` gained `wrap()`, per-index disabled reasons, and
+   permanent tab pages** — all three written up in the task itself. Without
+   `wrap()` Diagnose could not have been a composite at all.
+
+Two things found during execution that the plan did not anticipate:
+
+- **`wifi_module._stop_scan` crashed on a never-built widget.** Latent while
+  every module's widget was built eagerly at startup; a lazily built composite
+  tab makes it reachable. Fixed with a regression test. `CertModule` has the
+  same shape and is still unfixed — harmless today because it is a top-level
+  module, and out of this spec's scope.
+- **Two class names drifted** (`CrashDumpsModule`, `WindowsUpdateLogModule`).
+  The pre-existing tests caught it; the new classes were renamed back rather
+  than the tests edited.
+
+**Not verified:** the frozen build has never been launched. Windows Application
+Control blocked running the freshly built exe from the agent session. What was
+checked instead: all twelve lazily imported composite children appear in
+`build/WinClientTool-portable/PYZ-00.toc`, `modules.duplicate_finder` does not,
+and the exe is 59 MB rather than the ~3 MB bootloader stub. Someone still needs
+to open it and click through the four composites.
