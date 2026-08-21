@@ -102,14 +102,13 @@ def register_all_modules(app) -> None:
     from modules.security_dashboard.security_module import SecurityDashboardModule
     from modules.driver_manager.driver_module import DriverModule
     # Batch B — Manage group
-    from modules.startup_manager.startup_module import StartupModule
+    from modules.startup_manager.startup_module import StartupBootModule
     from modules.scheduled_tasks.tasks_module import TasksModule
     from modules.windows_features.features_module import WindowsFeaturesModule
     from modules.certificate_viewer.cert_module import CertModule
     from modules.gpresult.gpresult_module import GPResultModule
     # Batch C — Tools group
     from modules.performance_tuner.perf_tuner_module import PerfTunerModule
-    from modules.power_boot.power_module import PowerBootModule
     from modules.network_extras.net_extras_module import NetExtrasModule
     from modules.shared_resources.shares_module import SharesModule
     from modules.env_vars.env_vars_module import EnvVarsModule
@@ -125,7 +124,6 @@ def register_all_modules(app) -> None:
     from modules.local_users.users_module import LocalUsersModule
     from modules.system_report.report_module import SystemReportModule
     from modules.about.about_module import AboutModule
-    from modules.boot_analyzer.boot_analyzer_module import BootAnalyzerModule
     from modules.diagnose.diagnose_module import DiagnoseModule
     from modules.log_viewer.log_viewer_module import LogViewerModule
     from modules.hosts_editor.hosts_editor_module import HostsEditorModule
@@ -147,14 +145,13 @@ def register_all_modules(app) -> None:
     app.module_registry.register(NetworkDiagnosticsModule())
     app.module_registry.register(SecurityDashboardModule())
     app.module_registry.register(DriverModule())
-    app.module_registry.register(StartupModule())
+    app.module_registry.register(StartupBootModule())
     app.module_registry.register(TasksModule())
     app.module_registry.register(WindowsFeaturesModule())
     app.module_registry.register(CertModule())
     app.module_registry.register(GPResultModule())
     # Batch C
     app.module_registry.register(PerfTunerModule())
-    app.module_registry.register(PowerBootModule())
     app.module_registry.register(NetExtrasModule())
     app.module_registry.register(SharesModule())
     app.module_registry.register(EnvVarsModule())
@@ -170,7 +167,6 @@ def register_all_modules(app) -> None:
     app.module_registry.register(LocalUsersModule())
     app.module_registry.register(SystemReportModule())
     app.module_registry.register(AboutModule())
-    app.module_registry.register(BootAnalyzerModule())
     app.module_registry.register(HostsEditorModule())
 
 

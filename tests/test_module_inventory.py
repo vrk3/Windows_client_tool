@@ -58,3 +58,14 @@ def test_store_apps_is_still_reachable_by_name(registered):
         registry.register(module)
 
     assert registry.route_map()["Store Apps"] == ("Debloat", 1)
+
+
+def test_startup_and_boot_hosts_the_three_boot_modules(registered):
+    names = {m.name for m in registered}
+    assert "Boot Analyzer" not in names
+    assert "Power & Boot" not in names
+    host = next(m for m in registered if m.name == "Startup & Boot")
+    assert [c.name for c in host.children] == [
+        "Startup Manager", "Boot Analyzer", "Power & Boot",
+    ]
+    assert host.group == "SYSTEM"

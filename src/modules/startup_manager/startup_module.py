@@ -13,6 +13,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 from core.base_module import BaseModule
+from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker, COMWorker
 from modules.startup_manager.startup_reader import (
@@ -349,7 +350,9 @@ class _StartupTab(QWidget):
             self._worker = None
 
 
-class StartupModule(BaseModule):
+class StartupItemsModule(BaseModule):
+    """The startup-items view. A child of `StartupBootModule` below."""
+
     name = "Startup Manager"
     icon = "🚀"
     description = "Manage startup programs and services"
@@ -463,3 +466,23 @@ class StartupModule(BaseModule):
     def on_stop(self) -> None:
         self.cancel_all_workers()
         self._cancel_all_tab_workers()
+
+
+class StartupBootModule(CompositeModule):
+    """Everything that decides what happens between power-on and a desktop.
+
+    These were three sidebar entries in two different groups: what starts, how
+    fast it started, and the power and boot settings that govern both.
+    """
+
+    name = "Startup & Boot"
+    icon = "🚀"
+    description = "Startup items, boot timing, and power and boot configuration"
+    group = ModuleGroup.SYSTEM
+
+    def __init__(self):
+        super().__init__()
+        from modules.boot_analyzer.boot_analyzer_module import BootAnalyzerModule
+        from modules.power_boot.power_module import PowerBootModule
+
+        self.children = [StartupItemsModule(), BootAnalyzerModule(), PowerBootModule()]
