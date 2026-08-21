@@ -46,8 +46,7 @@ class ModuleRegistry:
             try:
                 module.on_start(app)
                 _log.debug("[STARTUP] on_start(%s) done", module.name)
-                provider = module.get_search_provider()
-                if provider is not None:
+                for provider in module.get_search_providers():
                     app.search.register_provider(provider)
                 logger.info("Started module: %s", module.name)
             except Exception:

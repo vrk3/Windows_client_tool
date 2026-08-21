@@ -173,6 +173,22 @@ class BaseModule(ABC):
         """
         return None
 
+    def get_search_providers(self) -> List[SearchProvider]:
+        """Return every search provider this module contributes.
+
+        A plain module contributes at most one, so the default wraps
+        `get_search_provider()`. A module that hosts others (see
+        `core.composite_module.CompositeModule`) overrides this to return its
+        children's providers.
+
+        This is a list rather than a single provider because
+        `SearchEngine.execute` filters per provider on `provider.module_name`
+        — one provider standing in for several would have to re-implement that
+        filtering and could drift from it.
+        """
+        provider = self.get_search_provider()
+        return [provider] if provider is not None else []
+
     def cancel_all_workers(self) -> None:
         """Cancel and clean up all running background workers.
 
