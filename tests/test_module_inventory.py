@@ -69,3 +69,13 @@ def test_startup_and_boot_hosts_the_three_boot_modules(registered):
         "Startup Manager", "Boot Analyzer", "Power & Boot",
     ]
     assert host.group == "SYSTEM"
+
+
+def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
+    """There were two HOSTS editors: this tab, and the Hosts Editor module."""
+    from modules.network_extras.net_extras_module import NetExtrasModule
+
+    widget = NetExtrasModule().create_widget()
+    labels = [widget.tabText(i) for i in range(widget.count())]
+
+    assert labels == ["DNS Switcher", "Proxy Settings", "Quick Actions"]
