@@ -10,6 +10,7 @@
     "shortcuts": {},
     "free_space_warn_gb": 10,
     "log_retention_days": 30,
+    "log_retention_count": 20,
     "toast_on_long_ops": true,
     "update_repo": ""
   },

@@ -71,12 +71,19 @@ class App:
         # Rotate old dated log/report files — runs once per launch, cheap no-op
         # once nothing is past the retention window. retention_days=0 keeps forever.
         try:
-            from core.log_rotation import rotate_old_files
+            from core.log_rotation import keep_newest, rotate_old_files
 
             retention_days = self.config.get("app.log_retention_days", 30)
             rotate_old_files(self.logger.session_log_dir, "*.log", retention_days)
             rotate_old_files(
                 os.path.join(self._app_data_dir, "updates"), "report-*.html", retention_days
+            )
+            # The session log gets one file per launch, so the age rule alone
+            # never catches a busy day — 101 files piled up here in two.
+            keep_newest(
+                self.logger.session_log_dir,
+                "*.log",
+                self.config.get("app.log_retention_count", 20),
             )
         except Exception:
             import logging as _logging
