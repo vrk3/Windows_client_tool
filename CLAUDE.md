@@ -111,6 +111,14 @@ Four things about it that are easy to get wrong:
   widget is added into.
 - **Override `wrap(tabs)` to put chrome around the tabs.** `DiagnoseModule`
   does, to keep its unified search bar and results tree above them.
+- **Auto-refresh is the host's, throttled per child.** `MainWindow` reads
+  `get_refresh_interval()` off the *selected* module, so the composite answers
+  with the fastest rate any child wants, and `refresh_data()` ticks the visible
+  child only when that child's own interval has elapsed. A composite that does
+  not answer leaves every child it hosts with no timer at all — that is how six
+  modules lost auto-refresh in the first pass. It also means `refresh_data()`
+  can fire for a child whose widget has never been built: guard teardown and
+  refresh paths that touch UI.
 
 A child that fails `on_start`, or needs elevation it does not have, becomes a
 disabled tab carrying the reason — and those are different reasons; do not
