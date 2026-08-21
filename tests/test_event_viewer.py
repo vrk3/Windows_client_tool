@@ -52,9 +52,15 @@ def test_filterable_fields():
     assert "DCOM" in source_field.values
 
 
-def test_event_viewer_module_creates_widget():
+def test_event_viewer_module_creates_widget(qapp):
     from modules.event_viewer.event_viewer_module import EventViewerModule
+    from ui.log_pane import LogPane
+
     mod = EventViewerModule()
     widget = mod.create_widget()
-    assert widget is not None
-    assert mod._table is not None
+
+    # The table used to be the module's own `_table`; it now lives inside the
+    # shared LogPane, along with the time-range combo this module adds.
+    assert isinstance(widget, LogPane)
+    assert widget.row_count() == 0
+    assert widget.extra["hours_combo"].currentText() == "24 hours"

@@ -1,18 +1,15 @@
+"""CBS Log as a Diagnose tab.
+
+Everything specific to CBS Log is its parser and its search provider; the UI is
+`LogPane` by way of `LogReaderModule`.
+
+Windows 11 usually ships no plain CBS.log, so the CbsPersist cab fallback
+in load_entries is the path that actually runs.
+"""
 import logging
-from typing import Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QHBoxLayout, QSplitter, QStackedWidget, QVBoxLayout, QWidget, QProgressBar, QLabel
+from core.log_reader_module import LogReaderModule
 
-from ui.error_banner import ErrorBanner
-
-from core.base_module import BaseModule
-from core.module_groups import ModuleGroup
-from core.search_provider import SearchProvider
-from core.worker import Worker
-from ui.log_table_widget import LogTableWidget
-from ui.detail_panel import DetailPanel
 from modules.cbs_log.cbs_parser import CBSParser
 from modules.cbs_log.cbs_search_provider import CBSSearchProvider
 
@@ -21,141 +18,72 @@ logger = logging.getLogger(__name__)
 CBS_LOG_PATH = r"C:\Windows\Logs\CBS\CBS.log"
 
 
-class CBSLogModule(BaseModule):
+class CBSLogModule(LogReaderModule):
     name = "CBS Log"
     icon = "📝"
     description = "Component-Based Servicing log parser"
     requires_admin = False
-    group = ModuleGroup.DIAGNOSE
+    provider_class = CBSSearchProvider
 
-    def __init__(self):
-        super().__init__()
-        self._widget: Optional[QWidget] = None
-        self._table: Optional[LogTableWidget] = None
-        self._detail: Optional[DetailPanel] = None
-        self._progress: Optional[QProgressBar] = None
-        self._search_provider = CBSSearchProvider()
-        self._error_banner: Optional[ErrorBanner] = None
-        self._table_stack: Optional[QStackedWidget] = None
+    def load_entries(self, worker):
+        import os, subprocess, tempfile
 
-    def create_widget(self) -> QWidget:
-        self._widget = QWidget()
-        layout = QVBoxLayout(self._widget)
-        layout.setContentsMargins(4, 4, 4, 4)
+        # Windows 11 stores CBS in .cab files under C:\Windows\Logs\CBS\
+        if not os.path.exists(CBS_LOG_PATH):
+            logger.info("CBS.log not found — trying to extract from cab archive")
+            # Find the most recent CBS cab file
+            cab_dir = os.path.dirname(CBS_LOG_PATH)
+            cab_files = []
+            try:
+                for f in os.listdir(cab_dir):
+                    if f.startswith("CbsPersist_") and f.endswith(".cab"):
+                        cab_files.append(os.path.join(cab_dir, f))
+            except OSError:
+                logger.debug("Ignored OSError", exc_info=True)
 
-        # Controls row with progress bar
-        controls = QHBoxLayout()
-        controls.addStretch()
-        self._progress = QProgressBar()
-        self._progress.setMaximumWidth(200)
-        self._progress.setVisible(False)
-        controls.addWidget(self._progress)
-        layout.addLayout(controls)
+            if not cab_files:
+                logger.warning("No CBS cab files found in %s", cab_dir)
+                return []
 
-        # Error banner
-        self._error_banner = ErrorBanner(parent=self._widget)
-        layout.addWidget(self._error_banner)
+            cab_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+            latest_cab = cab_files[0]
 
-        # Splitter: table + detail panel
-        splitter = QSplitter()
-        self._table = LogTableWidget()
-        self._table.row_double_clicked.connect(self._on_row_double_clicked)
-        self._table.row_selected.connect(self._on_row_selected)
-        splitter.addWidget(self._table)
+            # Try 7z if available
+            seven_zip = r"C:\Program Files\7-Zip\7z.exe"
+            if not os.path.exists(seven_zip):
+                seven_zip = r"C:\Program Files (x86)\7-Zip\7z.exe"
 
-        self._detail = DetailPanel()
-        splitter.addWidget(self._detail)
-        splitter.setSizes([700, 300])
+            tmp_dir = tempfile.mkdtemp(prefix="cbs_")
+            log_path = os.path.join(tmp_dir, "CBS_extracted.log")
 
-        # Empty state overlay
-        self._table_stack = QStackedWidget()
-        self._table_stack.addWidget(splitter)
-        empty_page = QLabel("No data \u2014 click Refresh")
-        empty_page.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_page.setStyleSheet("color: #888; font-size: 14px;")
-        self._table_stack.addWidget(empty_page)
-        layout.addWidget(self._table_stack)
+            if os.path.exists(seven_zip):
+                try:
+                    subprocess.run(
+                        [seven_zip, "e", latest_cab, f"-o{tmp_dir}", "-y"],
+                        capture_output=True, timeout=30,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                except Exception as ex:
+                    logger.warning("7z extraction failed: %s", ex)
 
-        return self._widget
+            if os.path.exists(log_path):
+                parser = CBSParser(log_path)
+                worker.signals.progress.emit(50)
+                entries = parser.parse(
+                    progress_callback=lambda p: worker.signals.progress.emit(50 + p // 2)
+                )
+                # Clean up temp file
+                try:
+                    os.unlink(log_path)
+                    os.rmdir(tmp_dir)
+                except Exception as e:
+                    logger.debug("Could not clean up temp files: %s", e)
+                return entries
+            else:
+                logger.warning("Could not extract CBS log from cab: %s", latest_cab)
+                return []
 
-    def on_start(self, app) -> None:
-        self.app = app
-
-    def on_activate(self) -> None:
-        if self._table and len(self._table.get_entries()) == 0:
-            self._load_log()
-
-    def on_deactivate(self) -> None:
-        self.cancel_all_workers()
-
-    def on_stop(self) -> None:
-        self.cancel_all_workers()
-
-    def get_toolbar_actions(self) -> list:
-        actions = []
-        refresh = QAction("Refresh", None)
-        refresh.triggered.connect(self._load_log)
-        actions.append(refresh)
-
-        export = QAction("Export CSV", None)
-        export.triggered.connect(lambda: self._table.export_csv() if self._table else None)
-        actions.append(export)
-
-        return actions
-
-    def get_status_info(self) -> str:
-        count = len(self._table.get_entries()) if self._table else 0
-        return f"CBS Log — {count} entries"
-
-    def get_search_provider(self) -> Optional[SearchProvider]:
-        return self._search_provider
-
-    def _load_log(self) -> None:
-        if self._progress:
-            self._progress.setVisible(True)
-            self._progress.setValue(0)
-
-        def do_work(worker):
-            parser = CBSParser(CBS_LOG_PATH)
-            return parser.parse(progress_callback=lambda p: worker.signals.progress.emit(p))
-
-        worker = Worker(do_work)
-        worker.signals.progress.connect(self._on_progress)
-        worker.signals.result.connect(self._on_log_loaded)
-        worker.signals.error.connect(self._on_load_error)
-        self._workers.append(worker)
-
-        if self.app:
-            self.app.thread_pool.start(worker)
-        else:
-            # Run synchronously when no app context (e.g. tests)
-            worker.run()
-
-    def _on_progress(self, value: int) -> None:
-        if self._progress:
-            self._progress.setValue(value)
-
-    def _on_log_loaded(self, entries) -> None:
-        if self._progress:
-            self._progress.setVisible(False)
-        if self._table:
-            self._table.set_entries(entries)
-            self._search_provider.set_entries(entries)
-            logger.info("Loaded %d CBS log entries", len(entries))
-        if self._table_stack:
-            self._table_stack.setCurrentIndex(0 if entries else 1)
-
-    def _on_load_error(self, error_info) -> None:
-        if self._progress:
-            self._progress.setVisible(False)
-        if self._error_banner:
-            self._error_banner.set_error(str(error_info))
-        logger.error("Failed to load CBS log: %s", error_info)
-
-    def _on_row_double_clicked(self, entry) -> None:
-        if self._detail:
-            self._detail.show_entry(entry)
-
-    def _on_row_selected(self, entry) -> None:
-        if self._detail:
-            self._detail.show_entry(entry)
+        parser = CBSParser(CBS_LOG_PATH)
+        return parser.parse(
+            progress_callback=lambda p: worker.signals.progress.emit(p)
+        )

@@ -105,3 +105,35 @@ def test_the_network_tools_are_tabs_of_network_diagnostics(registered):
     assert [c.name for c in host.children] == [
         "Network Diagnostics", "Wi-Fi Analyzer", "Hosts Editor", "Network Extras",
     ]
+
+
+def test_diagnose_hosts_the_six_log_readers(registered):
+    diagnose = next(m for m in registered if m.name == "Diagnose")
+    assert [c.name for c in diagnose.children] == [
+        "Event Viewer", "CBS Log", "DISM Log",
+        "Windows Update", "Reliability", "Crash Dumps",
+    ]
+
+
+def test_every_diagnostic_source_is_back_in_global_search(registered):
+    """The regression: Diagnose returned None, so these six reached nothing."""
+    diagnose = next(m for m in registered if m.name == "Diagnose")
+    names = {p.module_name for p in diagnose.get_search_providers()}
+    assert names == {
+        "EventViewer", "CBS", "DISM", "WindowsUpdate", "Reliability", "CrashDumps",
+    }
+
+
+def test_the_filter_panel_offers_no_source_that_cannot_answer(registered):
+    """filter_panel listed six sources whose providers were wired to nothing."""
+    from ui.filter_panel import _ALL_SOURCES
+
+    reachable = set()
+    for module in registered:
+        reachable.update(p.module_name for p in module.get_search_providers())
+
+    assert set(_ALL_SOURCES) <= reachable
+
+
+def test_the_sidebar_is_34_entries(registered):
+    assert len(registered) == 34

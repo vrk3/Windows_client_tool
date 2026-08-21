@@ -1,18 +1,14 @@
+"""DISM Log as a Diagnose tab.
+
+Everything specific to DISM Log is its parser and its search provider; the UI is
+`LogPane` by way of `LogReaderModule`.
+
+Falls back to Get-HotFix when there is no DISM.log to read.
+"""
 import logging
-from typing import Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QHBoxLayout, QSplitter, QStackedWidget, QVBoxLayout, QWidget, QProgressBar, QLabel
+from core.log_reader_module import LogReaderModule
 
-from ui.error_banner import ErrorBanner
-
-from core.base_module import BaseModule
-from core.module_groups import ModuleGroup
-from core.search_provider import SearchProvider
-from core.worker import Worker
-from ui.log_table_widget import LogTableWidget
-from ui.detail_panel import DetailPanel
 from modules.dism_log.dism_parser import DISMParser
 from modules.dism_log.dism_search_provider import DISMSearchProvider
 
@@ -21,141 +17,70 @@ logger = logging.getLogger(__name__)
 DISM_LOG_PATH = r"C:\Windows\Logs\DISM\dism.log"
 
 
-class DISMLogModule(BaseModule):
+class DISMLogModule(LogReaderModule):
     name = "DISM Log"
     icon = "🔧"
-    description = "Deployment Image Servicing and Management log"
+    description = "DISM servicing log parser"
     requires_admin = False
-    group = ModuleGroup.DIAGNOSE
+    provider_class = DISMSearchProvider
 
-    def __init__(self):
-        super().__init__()
-        self._widget: Optional[QWidget] = None
-        self._table: Optional[LogTableWidget] = None
-        self._detail: Optional[DetailPanel] = None
-        self._progress: Optional[QProgressBar] = None
-        self._search_provider = DISMSearchProvider()
-        self._error_banner: Optional[ErrorBanner] = None
-        self._table_stack: Optional[QStackedWidget] = None
+    def load_entries(self, worker):
+        import os, subprocess
 
-    def create_widget(self) -> QWidget:
-        self._widget = QWidget()
-        layout = QVBoxLayout(self._widget)
-        layout.setContentsMargins(4, 4, 4, 4)
+        if not os.path.exists(DISM_LOG_PATH):
+            # DISM text log not found — try DISM API via PowerShell (non-admin: get hotfixes)
+            logger.info("DISM.log not found — using Get-HotFix as fallback")
+            ps_script = (
+                "Get-HotFix | Sort-Object InstalledOn -Descending | "
+                "Select-Object HotFixID,Description,InstalledOn,Caption | "
+                "ConvertTo-Json -Compress -Depth 2"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True, text=True, timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            raw = result.stdout.strip()
+            if not raw:
+                return []
+            import json
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict):
+                    data = [data]
+                # Convert to LogEntry format
+                entries = []
+                from core.types import LogEntry
+                from datetime import datetime
+                for entry in data:
+                    installed_on = entry.get("InstalledOn", {})
+                    ts_str = ""
+                    if isinstance(installed_on, dict):
+                        ts_str = installed_on.get("DateTime", "")
+                    elif isinstance(installed_on, str):
+                        ts_str = installed_on
+                    ts = datetime.now()
+                    for fmt in ("%A, %B %d, %Y %H:%M:%S", "%m/%d/%Y", "%Y-%m-%d"):
+                        try:
+                            ts = datetime.strptime(ts_str.split()[0], fmt)
+                            break
+                        except Exception as e:
+                            logger.debug("Could not parse timestamp '%s': %s", ts_str, e)
+                    desc = str(entry.get("Description", ""))
+                    kb = str(entry.get("HotFixID", ""))
+                    entries.append(LogEntry(
+                        timestamp=ts,
+                        source="DISM/HotFix",
+                        level="Info",
+                        message=f"{kb} — {desc}",
+                        raw=entry,
+                    ))
+                return entries
+            except Exception as ex:
+                logger.warning("Failed to parse Get-HotFix output: %s", ex)
+                return []
 
-        # Controls row with progress bar
-        controls = QHBoxLayout()
-        controls.addStretch()
-        self._progress = QProgressBar()
-        self._progress.setMaximumWidth(200)
-        self._progress.setVisible(False)
-        controls.addWidget(self._progress)
-        layout.addLayout(controls)
-
-        # Error banner
-        self._error_banner = ErrorBanner(parent=self._widget)
-        layout.addWidget(self._error_banner)
-
-        # Splitter: table + detail panel
-        splitter = QSplitter()
-        self._table = LogTableWidget()
-        self._table.row_double_clicked.connect(self._on_row_double_clicked)
-        self._table.row_selected.connect(self._on_row_selected)
-        splitter.addWidget(self._table)
-
-        self._detail = DetailPanel()
-        splitter.addWidget(self._detail)
-        splitter.setSizes([700, 300])
-
-        # Empty state overlay
-        self._table_stack = QStackedWidget()
-        self._table_stack.addWidget(splitter)
-        empty_page = QLabel("No data \u2014 click Refresh")
-        empty_page.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_page.setStyleSheet("color: #888; font-size: 14px;")
-        self._table_stack.addWidget(empty_page)
-        layout.addWidget(self._table_stack)
-
-        return self._widget
-
-    def on_start(self, app) -> None:
-        self.app = app
-
-    def on_activate(self) -> None:
-        if self._table and len(self._table.get_entries()) == 0:
-            self._load_log()
-
-    def on_deactivate(self) -> None:
-        self.cancel_all_workers()
-
-    def on_stop(self) -> None:
-        self.cancel_all_workers()
-
-    def get_toolbar_actions(self) -> list:
-        actions = []
-        refresh = QAction("Refresh", None)
-        refresh.triggered.connect(self._load_log)
-        actions.append(refresh)
-
-        export = QAction("Export CSV", None)
-        export.triggered.connect(lambda: self._table.export_csv() if self._table else None)
-        actions.append(export)
-
-        return actions
-
-    def get_status_info(self) -> str:
-        count = len(self._table.get_entries()) if self._table else 0
-        return f"DISM Log — {count} entries"
-
-    def get_search_provider(self) -> Optional[SearchProvider]:
-        return self._search_provider
-
-    def _load_log(self) -> None:
-        if self._progress:
-            self._progress.setVisible(True)
-            self._progress.setValue(0)
-
-        def do_work(worker):
-            parser = DISMParser(DISM_LOG_PATH)
-            return parser.parse(progress_callback=lambda p: worker.signals.progress.emit(p))
-
-        worker = Worker(do_work)
-        worker.signals.progress.connect(self._on_progress)
-        worker.signals.result.connect(self._on_log_loaded)
-        worker.signals.error.connect(self._on_load_error)
-        self._workers.append(worker)
-
-        if self.app:
-            self.app.thread_pool.start(worker)
-        else:
-            # Run synchronously when no app context (e.g. tests)
-            worker.run()
-
-    def _on_progress(self, value: int) -> None:
-        if self._progress:
-            self._progress.setValue(value)
-
-    def _on_log_loaded(self, entries) -> None:
-        if self._progress:
-            self._progress.setVisible(False)
-        if self._table:
-            self._table.set_entries(entries)
-            self._search_provider.set_entries(entries)
-            logger.info("Loaded %d DISM log entries", len(entries))
-        if self._table_stack:
-            self._table_stack.setCurrentIndex(0 if entries else 1)
-
-    def _on_load_error(self, error_info) -> None:
-        if self._progress:
-            self._progress.setVisible(False)
-        if self._error_banner:
-            self._error_banner.set_error(str(error_info))
-        logger.error("Failed to load DISM log: %s", error_info)
-
-    def _on_row_double_clicked(self, entry) -> None:
-        if self._detail:
-            self._detail.show_entry(entry)
-
-    def _on_row_selected(self, entry) -> None:
-        if self._detail:
-            self._detail.show_entry(entry)
+        parser = DISMParser(DISM_LOG_PATH)
+        return parser.parse(
+            progress_callback=lambda p: worker.signals.progress.emit(p)
+        )
