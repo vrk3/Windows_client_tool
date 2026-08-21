@@ -154,16 +154,21 @@ class CleanupModule(BaseModule):
 
     def on_activate(self) -> None:
         """Auto-scan the overview when the module is first opened."""
+        if getattr(self, "_overview", None) is None:
+            return
         self._overview.auto_scan()
 
     def on_deactivate(self) -> None:
         self._cancel_all_tabs()
 
     def _cancel_all_tabs(self) -> None:
-        for tab in (
-            self._overview, self._sys_tab, self._browser, self._app_tab,
-            self._wu_tab, self._logs_tab, self._large, self._dev_tab,
+        # Every one of these is created in create_widget(), and on_stop() runs
+        # even for a module whose widget was never built.
+        for name in (
+            "_overview", "_sys_tab", "_browser", "_app_tab",
+            "_wu_tab", "_logs_tab", "_large", "_dev_tab",
         ):
+            tab = getattr(self, name, None)
             if hasattr(tab, "_cancel_all"):
                 tab._cancel_all()
 

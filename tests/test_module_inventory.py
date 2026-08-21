@@ -97,9 +97,10 @@ def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
 def _module_classes_that_teardown_ui():
     """Modules whose teardown path touches widgets create_widget() builds."""
     from modules.certificate_viewer.cert_module import CertModule
+    from modules.cleanup.cleanup_module import CleanupModule
     from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
 
-    return [WifiAnalyzerModule, CertModule]
+    return [WifiAnalyzerModule, CertModule, CleanupModule]
 
 
 @pytest.mark.parametrize(
