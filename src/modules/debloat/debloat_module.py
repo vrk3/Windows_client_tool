@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
+from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 from core.worker import Worker
@@ -27,7 +28,9 @@ from modules.tweaks.tweak_engine import TweakEngine
 logger = logging.getLogger(__name__)
 
 
-class DebloatModule(BaseModule):
+class DebloatToolsModule(BaseModule):
+    """Debloat's own three tabs. A child of `DebloatModule` below."""
+
     name = "Debloat"
     icon = "\u26a1"
     description = "Remove bloatware, disable telemetry, and harden privacy"
@@ -519,3 +522,23 @@ class DebloatModule(BaseModule):
         # Refresh tables
         self._populate_tweaks_table("tweak")
         self._populate_tweaks_table("ai")
+
+
+class DebloatModule(CompositeModule):
+    """Debloat's own tools plus the full AppX package list beside them.
+
+    Store Apps used to be its own sidebar entry two groups away, which is a
+    strange place to keep the list you want open while deciding what a curated
+    blocklist should contain.
+    """
+
+    name = "Debloat"
+    icon = "⚡"
+    description = "Remove bloatware and manage installed Store apps"
+    group = ModuleGroup.OPTIMIZE
+
+    def __init__(self):
+        super().__init__()
+        from modules.store_apps.store_apps_module import StoreAppsModule
+
+        self.children = [DebloatToolsModule(), StoreAppsModule()]

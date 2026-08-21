@@ -129,7 +129,6 @@ def register_all_modules(app) -> None:
     from modules.diagnose.diagnose_module import DiagnoseModule
     from modules.log_viewer.log_viewer_module import LogViewerModule
     from modules.hosts_editor.hosts_editor_module import HostsEditorModule
-    from modules.store_apps.store_apps_module import StoreAppsModule
 
     app.module_registry.register(DashboardModule())
     app.module_registry.register(DiagnoseModule())
@@ -173,7 +172,6 @@ def register_all_modules(app) -> None:
     app.module_registry.register(AboutModule())
     app.module_registry.register(BootAnalyzerModule())
     app.module_registry.register(HostsEditorModule())
-    app.module_registry.register(StoreAppsModule())
 
 
 def main():

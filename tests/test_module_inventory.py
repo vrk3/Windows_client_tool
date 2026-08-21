@@ -41,3 +41,20 @@ def test_nothing_imports_the_duplicate_finder_package():
 def test_module_names_are_unique(registered):
     names = [m.name for m in registered]
     assert len(names) == len(set(names))
+
+
+def test_store_apps_is_a_debloat_tab_not_a_sidebar_entry(registered):
+    names = {m.name for m in registered}
+    assert "Store Apps" not in names
+    debloat = next(m for m in registered if m.name == "Debloat")
+    assert [c.name for c in debloat.children] == ["Debloat", "Store Apps"]
+
+
+def test_store_apps_is_still_reachable_by_name(registered):
+    from core.module_registry import ModuleRegistry
+
+    registry = ModuleRegistry()
+    for module in registered:
+        registry.register(module)
+
+    assert registry.route_map()["Store Apps"] == ("Debloat", 1)
