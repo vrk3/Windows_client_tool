@@ -40,3 +40,7 @@ class ErrorBanner(QWidget):
     def clear(self) -> None:
         """Hide the banner without emitting dismissed."""
         self.hide()
+
+    def text(self) -> str:
+        """The message currently shown, without the warning glyph."""
+        return self._label.text().lstrip("⚠ ").strip()
