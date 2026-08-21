@@ -270,3 +270,27 @@ def test_select_child_switches_the_tab_and_reports_unknown_names(qapp):
     assert host.select_child("B") is True
     assert widget.currentIndex() == 1
     assert host.select_child("Nope") is False
+
+
+def test_registry_route_map_merges_every_composite(qapp):
+    host_a = _host(_Recorder("A1"), _Recorder("A2"))
+    host_b = _host(_Recorder("B1"))
+    host_b.name = "Host B"
+
+    registry = ModuleRegistry()
+    registry.register(host_a)
+    registry.register(host_b)
+    registry.register(_Leaf(None))
+
+    routes = registry.route_map()
+
+    assert routes["A2"] == ("Host", 1)
+    assert routes["B1"] == ("Host B", 0)
+    assert "Leaf" not in routes  # a plain module is found by the sidebar itself
+
+
+def test_registry_route_map_includes_aliases(qapp):
+    registry = ModuleRegistry()
+    registry.ALIASES = {"Old Name": ("New Home", None)}
+
+    assert registry.route_map()["Old Name"] == ("New Home", None)

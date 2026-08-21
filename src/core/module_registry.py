@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import Dict, List, Optional, Tuple
 
 from core.admin_utils import is_admin
 from core.base_module import BaseModule
@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 
 class ModuleRegistry:
     """Manages module lifecycle: registration, startup, shutdown."""
+
+    #: Names that outlived their module. A retired sidebar entry stays
+    #: navigable — from the command palette, from a NAV_REQUEST_MODULE — by
+    #: pointing at whatever absorbed it. `None` means "the whole module",
+    #: as opposed to a composite child's tab index.
+    ALIASES: Dict[str, Tuple[str, Optional[int]]] = {}
 
     def __init__(self):
         self._modules: List[BaseModule] = []
@@ -53,6 +59,20 @@ class ModuleRegistry:
                 logger.exception("Module '%s' failed to start", module.name)
                 self._failed_modules.append(module)
                 self._disabled.append(module)
+
+    def route_map(self) -> Dict[str, Tuple[str, Optional[int]]]:
+        """Names that are not sidebar entries, mapped to where they now live.
+
+        `MainWindow` consults this only when a name misses the sidebar, so a
+        real module always wins over a route of the same name.
+        """
+        routes: Dict[str, Tuple[str, Optional[int]]] = {}
+        for module in self._modules:
+            get_routes = getattr(module, "route_map", None)
+            if callable(get_routes):
+                routes.update(get_routes())
+        routes.update(self.ALIASES)
+        return routes
 
     def stop_all(self) -> None:
         for module in self._modules:
