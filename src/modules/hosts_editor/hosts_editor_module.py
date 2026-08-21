@@ -100,6 +100,11 @@ class HostsEditorModule(BaseModule):
         self.app = app
 
     def on_activate(self) -> None:
+        # BaseModule.refresh_data falls back to on_activate, so the host's
+        # auto-refresh timer reaches here — possibly before this tab has ever
+        # been opened and its widget built.
+        if self._widget is None:
+            return
         if not self._loaded:
             self._loaded = True
             self._load()

@@ -18,8 +18,21 @@ class _FakeRegistry:
 
 
 class _FakeApp:
+    """Enough App for on_start. Modules store the reference and little else."""
+
     def __init__(self):
         self.module_registry = _FakeRegistry()
+        self.backup = None          # DebloatToolsModule builds a TweakEngine on it
+        self.search = _FakeSearch()
+        self.thread_pool = None
+
+
+class _FakeSearch:
+    def __init__(self):
+        self.registered = []
+
+    def register_provider(self, provider):
+        self.registered.append(provider)
 
 
 @pytest.fixture
@@ -153,3 +166,36 @@ def test_the_filter_panel_offers_no_source_that_cannot_answer(registered):
 
 def test_the_sidebar_is_34_entries(registered):
     assert len(registered) == 34
+
+
+def _all_composite_children():
+    """Every child of every registered composite, as (host, child) pairs."""
+    app = _FakeApp()
+    app_main.register_all_modules(app)
+    pairs = []
+    for module in app.module_registry.modules:
+        for child in getattr(module, "children", []):
+            pairs.append((module.name, child))
+    return pairs
+
+
+@pytest.mark.parametrize(
+    "host_name,child",
+    _all_composite_children(),
+    ids=lambda v: v if isinstance(v, str) else type(v).__name__,
+)
+def test_every_composite_child_survives_a_tick_it_was_not_built_for(
+    qapp, host_name, child
+):
+    """The host's auto-refresh timer can tick before a tab was ever opened.
+
+    CompositeModule.refresh_data forwards to the visible child, and the very
+    first tab is built at create_widget() — but any other child can be current
+    without ever having been shown, and on_stop reaches all of them. Every one
+    of these paths must survive a missing widget.
+    """
+    child.on_start(_FakeApp())
+
+    child.refresh_data()     # must not raise
+    child.on_deactivate()    # must not raise
+    child.on_stop()          # must not raise

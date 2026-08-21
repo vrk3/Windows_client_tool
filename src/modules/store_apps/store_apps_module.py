@@ -110,6 +110,11 @@ class StoreAppsModule(BaseModule):
     # ── implementation ──────────────────────────────────────────────────────
 
     def _load_apps(self):
+        # The auto-refresh timer can tick before this tab has ever been
+        # opened, and a composite builds a child's widget only on first
+        # show — there is then nothing to load into.
+        if self._widget is None:
+            return
         self._progress.setVisible(True)
         self._table.setRowCount(0)
 

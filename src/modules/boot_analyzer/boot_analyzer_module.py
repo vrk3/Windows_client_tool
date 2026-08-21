@@ -106,6 +106,11 @@ class BootAnalyzerModule(BaseModule):
         self._load_info()
 
     def _load_info(self) -> None:
+        # The auto-refresh timer can tick before this tab has ever been
+        # opened, and a composite builds a child's widget only on first
+        # show — there is then nothing to load into.
+        if self._widget is None:
+            return
         if self._scanning:
             return
         self._scanning = True
