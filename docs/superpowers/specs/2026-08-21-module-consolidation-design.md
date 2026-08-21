@@ -95,11 +95,18 @@ already uses. A composite whose children are all gated shows one such page and n
 
 ### 2.4 Search
 
-`get_search_provider()` returns an `AggregateSearchProvider` wrapping every child's
-provider (skipping children that return `None`). It fans a `SearchQuery` out to each and
-concatenates results, preserving each result's own `module_name` so the filter panel
-keeps working unchanged. This is what restores the six diagnostic sources to global
-search.
+`BaseModule` gains `get_search_providers() -> list[SearchProvider]`, defaulting to
+`[self.get_search_provider()]` minus the `None`. `ModuleRegistry.start_all` registers
+every provider a module returns instead of just one. `CompositeModule` overrides it to
+return its children's providers.
+
+This replaces the wrapper-provider idea the design first carried. A wrapper would hold
+six providers behind one `module_name`, and `search_engine.py:38` filters *per provider*
+on that single string — so the wrapper would have to re-implement the engine's own
+source-skipping internally and could drift from it. Returning a list keeps each
+provider's `module_name` visible to the engine, so `filter_panel.py:19`'s six sources
+filter correctly with no new logic anywhere. It is also what restores the six diagnostic
+sources to global search.
 
 ### 2.5 Navigation by name
 
@@ -225,8 +232,8 @@ Every item below is a test that fails before its change and passes after.
 3. `on_stop` reaches every started child, including ones whose tab was never shown.
 4. A child raising in `on_start` disables only its own tab; siblings still start.
 5. An admin-gated child unelevated yields a disabled tab, and the host still registers.
-6. `get_search_provider()` returns results from all children, each keeping its own
-   `module_name`.
+6. `get_search_providers()` returns every child's provider, each keeping its own
+   `module_name`, and `ModuleRegistry.start_all` registers all of them.
 7. The route map resolves every child name to its host and tab index.
 
 **Consolidations**
@@ -262,7 +269,7 @@ Ordered so that each phase leaves the app runnable and the suite green.
 
 | Phase | Work | Risk |
 |---|---|---|
-| 1 | `CompositeModule` + `AggregateSearchProvider` + route map, with tests. No module changes. | Low — nothing uses it yet |
+| 1 | `CompositeModule` + `get_search_providers` + route map, with tests. No module changes. | Low — nothing uses it yet |
 | 2 | Session log retention (§4). Independent of everything else. | Low |
 | 3 | Delete Duplicate Finder (§3.5). | Low |
 | 4 | Debloat ← Store Apps (§3.4) — the smallest real merge, proves the mechanism | Medium |
