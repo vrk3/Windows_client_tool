@@ -31,7 +31,7 @@ def _is_admin() -> bool:
 class TreeSizeModule(BaseModule):
     name = "TreeSize"
     icon = "📊"
-    description = "Disk space analysis: what is using the drive, and where"
+    description = "Disk space analysis: what is using the drive, duplicate files, and where"
     requires_admin = False
     group = ModuleGroup.TOOLS
 

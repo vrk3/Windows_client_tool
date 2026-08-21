@@ -14,7 +14,12 @@ class ModuleRegistry:
     #: navigable — from the command palette, from a NAV_REQUEST_MODULE — by
     #: pointing at whatever absorbed it. `None` means "the whole module",
     #: as opposed to a composite child's tab index.
-    ALIASES: Dict[str, Tuple[str, Optional[int]]] = {}
+    ALIASES: Dict[str, Tuple[str, Optional[int]]] = {
+        # Duplicate Finder was deleted: it full-MD5-hashed every file, where
+        # TreeSize groups by size first and hashes almost nothing. The name
+        # stays navigable so anyone who reaches for it lands somewhere useful.
+        "Duplicate Finder": ("TreeSize", None),
+    }
 
     def __init__(self):
         self._modules: List[BaseModule] = []
