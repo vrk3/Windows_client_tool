@@ -109,7 +109,6 @@ def register_all_modules(app) -> None:
     from modules.gpresult.gpresult_module import GPResultModule
     # Batch C — Tools group
     from modules.performance_tuner.perf_tuner_module import PerfTunerModule
-    from modules.network_extras.net_extras_module import NetExtrasModule
     from modules.shared_resources.shares_module import SharesModule
     from modules.env_vars.env_vars_module import EnvVarsModule
     from modules.registry_explorer.registry_module import RegistryExplorerModule
@@ -119,14 +118,12 @@ def register_all_modules(app) -> None:
     from modules.restore_manager.restore_module import RestoreManagerModule
     # Track 2 — New Tool Modules
     from modules.services_manager.services_module import ServicesModule
-    from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
     from modules.firewall_rules.firewall_manager_module import FirewallManagerModule
     from modules.local_users.users_module import LocalUsersModule
     from modules.system_report.report_module import SystemReportModule
     from modules.about.about_module import AboutModule
     from modules.diagnose.diagnose_module import DiagnoseModule
     from modules.log_viewer.log_viewer_module import LogViewerModule
-    from modules.hosts_editor.hosts_editor_module import HostsEditorModule
 
     app.module_registry.register(DashboardModule())
     app.module_registry.register(DiagnoseModule())
@@ -152,7 +149,6 @@ def register_all_modules(app) -> None:
     app.module_registry.register(GPResultModule())
     # Batch C
     app.module_registry.register(PerfTunerModule())
-    app.module_registry.register(NetExtrasModule())
     app.module_registry.register(SharesModule())
     app.module_registry.register(EnvVarsModule())
     app.module_registry.register(RegistryExplorerModule())
@@ -162,12 +158,10 @@ def register_all_modules(app) -> None:
     app.module_registry.register(RestoreManagerModule())
     # Track 2
     app.module_registry.register(ServicesModule())
-    app.module_registry.register(WifiAnalyzerModule())
     app.module_registry.register(FirewallManagerModule())
     app.module_registry.register(LocalUsersModule())
     app.module_registry.register(SystemReportModule())
     app.module_registry.register(AboutModule())
-    app.module_registry.register(HostsEditorModule())
 
 
 def main():

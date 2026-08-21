@@ -161,6 +161,11 @@ class WifiAnalyzerModule(BaseModule):
         self._widget: Optional[QWidget] = None
         self._scan_worker: Optional[Worker] = None
         self._auto_refresh_timer: Optional[QTimer] = None
+        # Declared here, not only in create_widget: on_stop() runs even for a
+        # module whose widget was never built, which is the normal case for a
+        # composite tab nobody opened.
+        self._progress = None
+        self._scan_btn = None
 
     def create_widget(self) -> QWidget:
         outer = QWidget()
@@ -268,8 +273,14 @@ class WifiAnalyzerModule(BaseModule):
         if self._scan_worker is not None:
             self._scan_worker.cancel()
             self._scan_worker = None
-        self._progress.hide()
-        self._scan_btn.setEnabled(True)
+        # on_stop() reaches here on shutdown, and as a tab of Network
+        # Diagnostics this module's widget is built lazily — so there may be
+        # no UI to put back. Cancelling the worker above is the part that
+        # always has to happen.
+        if self._progress is not None:
+            self._progress.hide()
+        if self._scan_btn is not None:
+            self._scan_btn.setEnabled(True)
 
     def _on_finished(self):
         self._scan_btn.setEnabled(True)

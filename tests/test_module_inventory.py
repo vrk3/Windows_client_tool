@@ -79,3 +79,29 @@ def test_network_extras_no_longer_carries_its_own_hosts_editor(qapp):
     labels = [widget.tabText(i) for i in range(widget.count())]
 
     assert labels == ["DNS Switcher", "Proxy Settings", "Quick Actions"]
+
+
+def test_a_module_survives_being_stopped_without_ever_being_built(qapp):
+    """A composite child's widget is built lazily, but on_stop still runs.
+
+    wifi_module._stop_scan reached self._progress, which only exists after
+    create_widget(). Nothing hit it while every module's widget was built
+    eagerly at startup; a never-opened tab makes it reachable.
+    """
+    from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
+
+    module = WifiAnalyzerModule()
+    module.on_start(_FakeApp())
+
+    module.on_deactivate()   # must not raise
+    module.on_stop()         # must not raise
+
+
+def test_the_network_tools_are_tabs_of_network_diagnostics(registered):
+    names = {m.name for m in registered}
+    for gone in ("Wi-Fi Analyzer", "Hosts Editor", "Network Extras"):
+        assert gone not in names
+    host = next(m for m in registered if m.name == "Network Diagnostics")
+    assert [c.name for c in host.children] == [
+        "Network Diagnostics", "Wi-Fi Analyzer", "Hosts Editor", "Network Extras",
+    ]

@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.base_module import BaseModule
+from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
@@ -907,7 +908,9 @@ def _build_packet_capture_card() -> _ToolCard:
 # ---------------------------------------------------------------------------
 # NetworkDiagnosticsModule
 # ---------------------------------------------------------------------------
-class NetworkDiagnosticsModule(BaseModule):
+class NetworkToolsModule(BaseModule):
+    """The diagnostics cards. First child of `NetworkDiagnosticsModule`."""
+
     name = "Network Diagnostics"
     icon = "🌐"
     description = "Network diagnostic tools"
@@ -1009,3 +1012,29 @@ class NetworkDiagnosticsModule(BaseModule):
         self._cards = cards
         self._widget = outer
         return outer
+
+
+class NetworkDiagnosticsModule(CompositeModule):
+    """The network tools in one place: diagnostics, Wi-Fi, HOSTS, DNS/proxy.
+
+    Wi-Fi Analyzer, Hosts Editor and Network Extras were three separate TOOLS
+    entries, none of them near the diagnostics they belong beside.
+    """
+
+    name = "Network Diagnostics"
+    icon = "🌐"
+    description = "Connectivity diagnostics, Wi-Fi, HOSTS, DNS and proxy"
+    group = ModuleGroup.SYSTEM
+
+    def __init__(self):
+        super().__init__()
+        from modules.hosts_editor.hosts_editor_module import HostsEditorModule
+        from modules.network_extras.net_extras_module import NetExtrasModule
+        from modules.wifi_analyzer.wifi_module import WifiAnalyzerModule
+
+        self.children = [
+            NetworkToolsModule(),
+            WifiAnalyzerModule(),
+            HostsEditorModule(),
+            NetExtrasModule(),
+        ]
