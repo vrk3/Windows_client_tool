@@ -37,15 +37,18 @@ A comprehensive Windows 11 optimization and system diagnostics utility with a mo
 - **Network Diagnostics**: Analyze network adapter status and issues
 - **Security Dashboard**: Review security settings and vulnerabilities
 - **Certificates**: View and manage system certificates
-- **Power Settings**: Adjust power and boot optimization options
+- **Startup & Boot**: Startup programs and services, boot timing, and power
+  and boot options — one module with a tab each
+
+### Network
+- **Network Diagnostics**: Connectivity checks, Wi-Fi analysis, the HOSTS
+  file, and DNS/proxy settings — one module with a tab each
 
 ### Tools
 - **Registry Explorer**: Browse and edit registry keys (backup-first)
 - **Environment Variables**: View and edit system variables
-- **Startup Manager**: Control startup programs and services
 - **Scheduled Tasks**: Manage task scheduler jobs
 - **Shared Folders**: Manage network shares
-- **WiFi Analyzer**: Diagnose wireless network issues
 - **Remote Tools**: Remote desktop and command line utilities
 
 ### Utilities

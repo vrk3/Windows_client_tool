@@ -40,6 +40,24 @@ HIDDEN_IMPORTS = [
     "win32com.server", "win32com.server.util", "win32com.server.policy",
     "win32com.shell", "win32com.shell.shell", "win32com.shell.shellcon",
     "pythoncom", "pywintypes", "win32security",
+    # Composite children. A CompositeModule imports its children inside
+    # __init__ so a host module's import does not drag four panes' worth of
+    # Qt in at startup. main.py therefore names only the hosts, and these are
+    # reachable only through those function-level imports. Listed explicitly
+    # for the same reason as the TreeSize block above: if PyInstaller misses
+    # one, the frozen build still runs and the tab is simply not there.
+    "modules.store_apps.store_apps_module",
+    "modules.boot_analyzer.boot_analyzer_module",
+    "modules.power_boot.power_module",
+    "modules.wifi_analyzer.wifi_module",
+    "modules.hosts_editor.hosts_editor_module",
+    "modules.network_extras.net_extras_module",
+    "modules.event_viewer.event_viewer_module",
+    "modules.cbs_log.cbs_module",
+    "modules.dism_log.dism_module",
+    "modules.windows_update.wu_module",
+    "modules.reliability.reliability_module",
+    "modules.crash_dumps.crash_dump_module",
     "httpx", "paramiko",
     "openpyxl", "reportlab",
     "PIL", "PIL._imaging",

@@ -80,6 +80,51 @@ Each module declares:
 - `get_search_provider()` — returns a `SearchProvider` for cross-module search
 - `get_refresh_interval()` — return `Optional[int]` milliseconds (e.g. `60_000`) or `None` to disable auto-refresh
 
+**The registry calls `get_search_providers()` (plural), not `get_search_provider()`.**
+The default returns the single provider; a module speaking for several sources
+overrides it. `SearchEngine.execute` filters *per provider* on
+`provider.module_name`, so one provider standing in for several would have to
+re-implement that filtering — hence the list.
+
+### Composite Modules (`src/core/composite_module.py`)
+
+A `CompositeModule` hosts other `BaseModule`s as tabs. `Diagnose`, `Debloat`,
+`Startup & Boot` and `Network Diagnostics` are the four; a child stays an
+ordinary module that knows nothing about being hosted, so it can be tested
+alone and moved between hosts unchanged. A subclass only sets `self.children`
+in `__init__` (import the children *inside* `__init__`, and add them to
+`HIDDEN_IMPORTS` in `pyinstaller_common.py` — the frozen build otherwise runs
+fine with the tab silently absent).
+
+Four things about it that are easy to get wrong:
+
+- **`on_activate`/`on_deactivate` go to the visible child only**, and a tab
+  change deactivates the outgoing child before activating the incoming one.
+  Children stop their refresh timers in `on_deactivate`; without this a host
+  with three children polls WMI three times over for the life of the app.
+- **`on_stop` reaches every started child, including ones whose tab was never
+  opened** — so their widgets do not exist. A teardown path that touches UI
+  must guard for that. `wifi_module._stop_scan` did not, and crashed.
+- **Never `removeTab`/`insertTab` to swap in a lazily built widget.** Doing it
+  on the current index fires `currentChanged` and re-enters the handler that
+  asked for the build. Each tab owns a permanent page whose layout the child
+  widget is added into.
+- **Override `wrap(tabs)` to put chrome around the tabs.** `DiagnoseModule`
+  does, to keep its unified search bar and results tree above them.
+
+A child that fails `on_start`, or needs elevation it does not have, becomes a
+disabled tab carrying the reason — and those are different reasons; do not
+show the admin message for a crash.
+
+### Log Reader Modules (`src/core/log_reader_module.py`)
+
+The six diagnostic readers (Event Viewer, CBS, DISM, Windows Update,
+Reliability, Crash Dumps) are `LogReaderModule` subclasses: they set
+`provider_class` and implement `load_entries(worker)`, and optionally
+`build_controls(toolbar, extra)`. The UI is `ui/log_pane.py`'s `LogPane` —
+table, detail panel, error banner, progress, Refresh — and there is exactly
+one of it. Do not hand-roll another log pane.
+
 ### Background Workers (`src/core/worker.py`)
 
 Use the `Worker` class for all background tasks. The worker function receives a `worker` parameter and emits results via signals:
@@ -162,12 +207,19 @@ def set_entries(self, entries):
 
 ### DiagnoseModule — Hub Pattern (`src/modules/diagnose/diagnose_module.py`)
 
-The `DiagnoseModule` embeds 6 diagnostic viewers as sub-tabs (Event Viewer, CBS Log, DISM Log, Windows Update, Reliability, Crash Dumps) with a unified search bar. These 6 modules are NOT registered as standalone sidebar entries — they exist only within the hub. Their standalone files exist but are not imported in `main.py`.
+`DiagnoseModule` is a `CompositeModule` over the six diagnostic readers (Event
+Viewer, CBS Log, DISM Log, Windows Update, Reliability, Crash Dumps). Those six
+are real `LogReaderModule`s again — they are not registered as sidebar entries,
+but they are imported, started, and their search providers are registered.
 
-- Tabs are lazy-loaded on first switch via `_load_tab()`; the `loaded` flag in `_tab_state` prevents re-parsing
-- `_build_tab_widget()` is a module-level factory that constructs each tab's UI — new diagnostic tabs should follow this pattern
-- Unified search runs as a separate `_active_search: Worker` tracked independently from `self._workers`; `on_stop()` must cancel it explicitly
-- Crash Dumps tab requires admin — `_load_tab()` checks `is_admin()` before loading and shows an error banner if not elevated
+- Tabs are built lazily by `CompositeModule`; `LogPane.loaded` prevents re-parsing
+- Diagnose adds no pane of its own. To add a diagnostic source, write a
+  `LogReaderModule` and put it in `self.children` — do not build another pane
+- The unified search bar lives in `wrap()`. It runs as a separate
+  `_active_search: Worker`, tracked apart from `self._workers`, and `on_stop()`
+  cancels it explicitly before delegating to the composite
+- Crash Dumps requires admin, so unelevated it is a disabled tab (the composite
+  gates it) rather than a tab that loads and shows an error banner
 
 ### TreeSize Module (`src/modules/treesize/`)
 
@@ -300,7 +352,10 @@ Single-page dashboard with pie chart and auto-refresh. Uses `QuickCleanupTab` fr
 
 ### DebloatModule (`src/modules/debloat/debloat_module.py`)
 
-3-tab module in `ModuleGroup.OPTIMIZE`, `requires_admin = True`:
+`DebloatModule` is a `CompositeModule` with two children: `DebloatToolsModule`
+(the three tabs below, `requires_admin = True`) and Store Apps.
+
+`DebloatToolsModule` is a 3-tab module in `ModuleGroup.OPTIMIZE`:
 - **Apps tab** — scans installed UWP apps via `Get-AppxPackage` (using `debloat_scanner.py`), shows table with checkboxes, Apply Selected / Apply All Safe. Protected apps (Store, Terminal, Get Help, Calculator, Notepad, Alarms) highlighted orange and require confirmation before removal.
 - **Privacy & Telemetry tab** — loads tweak definitions from `privacy.json`, `telemetry.json`, `services.json`, `network.json`; shows status (Applied/Not Applied) per tweak; preset filters (Light, Full, Privacy-Focused, Custom)
 - **AI & Navigation tab** — loads `ai_features.json` and `navigation.json`; same UI pattern
@@ -374,7 +429,7 @@ Key definition files:
 
 ## Search System (`src/core/search_engine.py`, `src/core/search_provider.py`)
 
-Modules return a `SearchProvider` subclass from `get_search_provider()`. The engine aggregates results from all providers and sorts by relevance. `SearchProvider` is an ABC — subclasses must implement `search(query: SearchQuery) -> List[SearchResult]` and `get_filterable_fields() -> List[FilterField]`. DiagnoseModule has its own unified search that iterates per-tab providers — it does NOT use `app.search`.
+Modules return a `SearchProvider` subclass from `get_search_provider()`. The engine aggregates results from all providers and sorts by relevance. `SearchProvider` is an ABC — subclasses must implement `search(query: SearchQuery) -> List[SearchResult]` and `get_filterable_fields() -> List[FilterField]`. DiagnoseModule additionally has its own unified search bar that iterates its children's providers directly — that one does NOT use `app.search`. Its children's providers ARE registered with `app.search` as well, via `get_search_providers()`; they answer only after a tab has been opened once, because a provider is fed by `LogPane`'s `entries_loaded`.
 
 ## Event Bus (`src/core/event_bus.py`)
 
