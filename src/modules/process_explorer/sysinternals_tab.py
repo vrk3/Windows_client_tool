@@ -98,6 +98,27 @@ def _cache_tool(exe: str) -> bool:
         return False
 
 
+#: The warning banner paints its own fixed background, so it must paint its
+#: own foreground too — otherwise the text comes from the active theme, and
+#: `dark.qss` sets `QLabel { color: #d4d4d4 }`, which on this pale yellow is
+#: about 1.3:1 and cannot be read. The link needs the same treatment: Qt's
+#: default link blue is barely better here. Both colours below clear WCAG AA
+#: (4.5:1) against the background, and `tests/test_sysinternals_banner.py`
+#: computes the ratios rather than trusting this comment.
+BANNER_STYLE = (
+    "background:#fff3cd;"
+    "color:#664d03;"
+    "padding:6px;"
+    "border:1px solid #e0c877;"
+    "border-radius:4px;"
+)
+
+#: A Qt stylesheet cannot reach the `<a>` inside a QLabel's rich text — there
+#: is no descendant selector for it — so the link is coloured inline in the
+#: markup instead. Qt's default link blue on this background is 3.1:1.
+BANNER_LINK_COLOR = "#0a4275"
+
+
 class SysinternalsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -106,7 +127,7 @@ class SysinternalsTab(QWidget):
 
         # Warning banner (hidden by default)
         self._banner = QLabel()
-        self._banner.setStyleSheet("background:#fff3cd;padding:6px;border-radius:4px;")
+        self._banner.setStyleSheet(BANNER_STYLE)
         self._banner.setOpenExternalLinks(False)
         self._banner.linkActivated.connect(self._on_start_webclient)
         self._banner.hide()
@@ -145,7 +166,8 @@ class SysinternalsTab(QWidget):
         if not _is_webclient_running():
             self._banner.setText(
                 "⚠ Sysinternals Live requires the WebClient service to be running. "
-                "<a href='start_webclient'>Start WebClient Service</a>"
+                f"<a href='start_webclient' style='color:{BANNER_LINK_COLOR}'>"
+                "Start WebClient Service</a>"
             )
             self._banner.show()
         else:
