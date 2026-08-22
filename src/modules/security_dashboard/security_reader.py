@@ -30,6 +30,56 @@ def _ps(cmd: str, timeout: int = 30) -> Tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
+NEEDS_ADMIN = "Requires administrator"
+
+#: WBEM_E_ACCESS_DENIED, as a signed HRESULT — what every privileged WMI
+#: namespace answers to an ordinary user.
+_WBEM_E_ACCESS_DENIED = -2147217405
+
+
+def _wmi_failure_reason(exc: Exception) -> str:
+    """Say what a failed WMI query means, not what its COM tuple looks like.
+
+    `str(x_wmi)` is `<x_wmi: Unexpected COM Error (-2147217405, 'OLE error
+    0x80041003', None, None)>`, which tells a user nothing and reads as a
+    crash. The wmi package has already classified it — access denied gets its
+    own subclass — so the answer is there to be used rather than stringified.
+    """
+    try:
+        import wmi
+
+        if isinstance(exc, wmi.x_access_denied):
+            return NEEDS_ADMIN
+    except ImportError:
+        pass
+    com_error = getattr(exc, "com_error", None)
+    if getattr(com_error, "hresult", None) == _WBEM_E_ACCESS_DENIED:
+        return NEEDS_ADMIN
+    return str(exc)
+
+
+def _secure_boot_from_registry() -> Optional[bool]:
+    """Read Secure Boot state without elevation.
+
+    `Confirm-SecureBootUEFI` needs administrator rights, but the value it
+    reports is mirrored under `SecureBoot\\State`, which any user can read.
+    The key exists only on UEFI firmware, so its absence — and only its
+    absence — is what legitimately means "BIOS/Legacy".
+
+    Returns True/False for enabled/disabled, or None when there is no key.
+    """
+    import winreg
+
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\SecureBoot\State",
+        ) as key:
+            return bool(winreg.QueryValueEx(key, "UEFISecureBootEnabled")[0])
+    except OSError:
+        return None
+
+
 def _reg_read(key: str, value: str, kind: str = "REG_DWORD") -> Optional[Any]:
     """Read a registry value via reg query. Returns None if not found."""
     try:
@@ -150,7 +200,7 @@ def check_bitlocker() -> Dict[str, Any]:
             return {"status": "C: Unprotected", "color": "red", "details": details}
         return {"status": "Unknown", "color": "amber", "details": details}
     except Exception as e:
-        return {"status": f"Error: {e}", "color": "amber", "details": []}
+        return {"status": _wmi_failure_reason(e), "color": "amber", "details": []}
 
 
 def check_secure_boot_tpm() -> Dict[str, Any]:
@@ -159,8 +209,23 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
     sb_ok = None
     try:
         rc, out, err = _ps("Confirm-SecureBootUEFI", timeout=15)
-        if rc != 0 or "not supported" in (err or "").lower():
+        if "not supported" in (err or "").lower():
             details.append(("Secure Boot", "N/A (BIOS/Legacy)"))
+        elif rc != 0:
+            # The cmdlet needs administrator rights ("Unable to set proper
+            # privileges. Access was denied."). A refusal to answer is not
+            # evidence of legacy firmware — the registry knows, unelevated.
+            # Only the cmdlet's own "not supported" (above) is evidence of
+            # legacy firmware. Denied here plus no key leaves us genuinely
+            # unable to tell, which is what we then say.
+            from_registry = _secure_boot_from_registry()
+            if from_registry is None:
+                details.append(("Secure Boot", f"Unknown — {NEEDS_ADMIN}"))
+            else:
+                details.append(
+                    ("Secure Boot", "Enabled" if from_registry else "Disabled")
+                )
+                sb_ok = from_registry
         elif out.lower() == "true":
             details.append(("Secure Boot", "Enabled"))
             sb_ok = True
@@ -171,7 +236,7 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
         details.append(("Secure Boot", f"Error: {e}"))
 
     # TPM
-    tpm_ok = False
+    tpm_ok: Optional[bool] = None
     try:
         import wmi
         c = wmi.WMI(namespace=r"root\cimv2\Security\MicrosoftTpm")
@@ -190,16 +255,27 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
                 logger.warning("Ignored Exception reading TPM spec version", exc_info=True)
         else:
             details.append(("TPM", "Not Found"))
+            tpm_ok = False
     except Exception as e:
-        details.append(("TPM", f"Error: {e}"))
+        details.append(("TPM", _wmi_failure_reason(e)))
 
-    all_ok = (sb_ok is True) and tpm_ok
-    any_ok = (sb_ok is True) or tpm_ok
-    return {
-        "status": "Secure" if all_ok else ("Partial" if any_ok else "Insecure"),
-        "color": "green" if all_ok else ("amber" if any_ok else "red"),
-        "details": details,
-    }
+    # A check that could not run is unknown, not failed. Scoring an
+    # access-denied TPM query as "absent" put a red "Insecure" verdict on a
+    # machine nobody had actually asked about.
+    answered = [ok for ok in (sb_ok, tpm_ok) if ok is not None]
+    all_ok = len(answered) == 2 and all(answered)
+    any_ok = any(answered)
+    unknown = len(answered) < 2
+
+    if all_ok:
+        status, color = "Secure", "green"
+    elif any_ok:
+        status, color = "Partial", "amber"
+    elif unknown:
+        status, color = "Unknown", "amber"
+    else:
+        status, color = "Insecure", "red"
+    return {"status": status, "color": color, "details": details}
 
 
 def check_uac() -> Dict[str, Any]:
