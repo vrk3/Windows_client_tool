@@ -5,7 +5,7 @@
 # that noise is what let a genuinely missing WMI go unnoticed.
 PyQt6>=6.6
 psutil>=5.9
-pywin32>=306
+pywin32>=312
 WMI>=1.5.1
 requests>=2.31
 
