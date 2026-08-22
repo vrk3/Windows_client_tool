@@ -58,9 +58,15 @@ HIDDEN_IMPORTS = [
     "modules.windows_update.wu_module",
     "modules.reliability.reliability_module",
     "modules.crash_dumps.crash_dump_module",
+    # Imported inside a function in all five of its consumers — Hardware
+    # Info, Reliability, Security Dashboard, Services and System Report —
+    # every one of them behind a `try:` that degrades silently. Same trap as
+    # the TreeSize block above: miss it and the build still runs, with five
+    # panes quietly empty and the Security Dashboard scoring a TPM it could
+    # not read as absent.
+    "wmi",
     "httpx", "paramiko",
     "openpyxl", "reportlab",
     "PIL", "PIL._imaging",
     "requests", "urllib3", "charset_normalizer", "idna",
-    "numpy", "numpy.core", "numpy._core", "numpy._core.multiarray",
 ]

@@ -1,6 +1,10 @@
+# Hard requirements. tests/test_runtime_dependencies.py asserts every line
+# above the first "# Optional" below is importable, so nothing may be listed
+# here that the code does not actually use — pyqtgraph was, for months, while
+# perfmon_charts.py said `HAS_PYQTGRAPH = False  # intentionally False`, and
+# that noise is what let a genuinely missing WMI go unnoticed.
 PyQt6>=6.6
 psutil>=5.9
-pyqtgraph>=0.13
 pywin32>=306
 WMI>=1.5.1
 requests>=2.31
