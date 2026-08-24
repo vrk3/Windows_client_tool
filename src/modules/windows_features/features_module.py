@@ -47,11 +47,27 @@ def _get_feature_info(name: str) -> str:
 
 
 def _fetch_all_features() -> List[Tuple[str, str]]:
+    """List the optional features, or say why the list could not be read.
+
+    DISM needs elevation, and unelevated it exits **740** with "Elevated
+    permissions are required to run DISM." on STDOUT. This ignored
+    `returncode` entirely and handed that text to `_parse_features`, which
+    keeps only lines containing "|", found none, and returned an empty list --
+    rendered by the pane as the flat assertion "0 features - 0 enabled".
+
+    An empty answer from a command that was refused is not an empty machine.
+    """
     result = subprocess.run(
         ["dism", "/online", "/get-features", "/format:table"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         creationflags=CREATE_NO_WINDOW, timeout=120,
     )
+    if result.returncode != 0:
+        combined = (result.stdout or "") + (result.stderr or "")
+        if "740" in combined or "elevated permissions" in combined.lower():
+            raise PermissionError("Requires administrator")
+        raise RuntimeError(
+            f"DISM failed (exit {result.returncode})")
     return _parse_features(result.stdout)
 
 
@@ -222,7 +238,10 @@ class WindowsFeaturesModule(BaseModule):
             def on_error(err: str) -> None:
                 refresh_btn.setEnabled(True)
                 progress.hide()
-                status_lbl.setText(f"Error: {err}")
+                # "Requires administrator" is the whole answer; prefixing it
+                # with "Error:" reads as a malfunction rather than a refusal.
+                status_lbl.setText(
+                    err if "administrator" in err.lower() else f"Error: {err}")
 
             worker.signals.result.connect(on_result)
             worker.signals.error.connect(on_error)

@@ -46,6 +46,37 @@ ONLY = [n.strip() for n in sys.argv[2].split("|")] if len(sys.argv) > 2 else Non
 #: stops changing; only a pane that never stops costs the whole budget.
 SETTLE_MS = int(sys.argv[3]) if len(sys.argv) > 3 else 20000
 
+#: Some panes load nothing until asked. Windows Features says "Click Refresh
+#: to load features." and means it; System Restore shows two labels until its
+#: Refresh is pressed. Pressing THOSE is still a read.
+#:
+#: An allowlist, never a denylist — the pane next door has twenty buttons that
+#: all say "Run" and every one of them executes a fix. `_DESTRUCTIVE` is a
+#: second guard, not the decision: a button must match SAFE_BUTTON *and* miss
+#: every word here before it is touched.
+SAFE_BUTTON = re.compile(r"\b(refresh|reload)\b", re.I)
+_DESTRUCTIVE = ("create", "delete", "remove", "run", "apply", "fix", "enable",
+                "disable", "start", "stop", "restart", "install", "repair",
+                "clean", "scan", "restore", "properties", "reset", "kill",
+                "export", "import", "save", "edit", "add", "set")
+
+
+def safe_refresh_buttons(widget):
+    """Enabled buttons that only ask the machine to say what it already knows."""
+    from PyQt6.QtWidgets import QAbstractButton
+    found = []
+    for button in widget.findChildren(QAbstractButton):
+        text = (button.text() or "").strip()
+        if not text or not button.isEnabled():
+            continue
+        if not SAFE_BUTTON.search(text):
+            continue
+        if any(word in text.lower() for word in _DESTRUCTIVE):
+            continue
+        found.append((text, button))
+    return found
+
+
 #: A pane still showing one of these has not answered the question yet, and
 #: any verdict drawn from comparing it against another run is meaningless.
 LOADING = ("loading", "click refresh", "please wait", "scanning...",
@@ -293,6 +324,20 @@ def main():
                 row["refresh_error"] = repr(exc)[:200]
             text, stable = settle_until_stable(
                 widget, row["baseline_text"], SETTLE_MS)
+
+            #: Only provoke a pane that produced nothing on its own, and only
+            #: through a button that reads. Recorded either way, so a run that
+            #: needed prodding is never mistaken for one that did not.
+            row["clicked"] = []
+            if text == row["baseline_text"]:
+                candidates = safe_refresh_buttons(widget)
+                row["refresh_control"] = [label for label, _ in candidates]
+                for label, button in candidates:
+                    button.click()
+                    row["clicked"].append(label)
+                if candidates:
+                    text, stable = settle_until_stable(
+                        widget, row["baseline_text"], SETTLE_MS)
             row["text"] = text
             row["stable"] = stable
             row["loading"] = loading_markers(text)
@@ -319,7 +364,14 @@ def main():
         if row.get("loading"):
             flags.append("STILL-LOADING")
         if not row.get("changed_from_baseline", True):
-            flags.append("NEVER-POPULATED")
+            if row.get("clicked"):
+                flags.append("NEVER-POPULATED(refreshed anyway)")
+            elif row.get("refresh_control") == [] or "refresh_control" in row:
+                flags.append("NEVER-POPULATED(no refresh control)")
+            else:
+                flags.append("NEVER-POPULATED")
+        if row.get("clicked"):
+            flags.append("clicked=" + ",".join(row["clicked"]))
         print(f"  {name:<26} ink={row['ink']:<7} strings={len(row.get('text', [])):<4} "
               f"denied={','.join(row['denied_signals']) or '-':<20} "
               f"{' '.join(flags)}")

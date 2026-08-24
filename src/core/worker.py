@@ -106,6 +106,13 @@ class Worker(QRunnable):
                 _emit(self.signals, "result", result)
             else:
                 _emit(self.signals, "cancelled")
+        except PermissionError as e:
+            # The OS said no. The caller handles it and shows it; a full
+            # ERROR traceback in the session log makes a routine refusal
+            # read as a crash, and that log is the first thing read when
+            # picking this project back up.
+            logger.warning("Worker refused: %s", e)
+            _emit(self.signals, "error", str(e))
         except Exception as e:
             logger.exception("Worker error: %s", e)
             _emit(self.signals, "error", str(e))

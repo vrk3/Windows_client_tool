@@ -74,3 +74,43 @@ def test_a_real_exception_in_the_work_still_reaches_the_error_signal(qapp):
     worker.run()
 
     assert seen and "division by zero" in seen[0]
+
+
+def test_a_refusal_is_logged_as_a_warning_not_an_error_traceback(qapp, caplog):
+    """"The OS said no" is not a crash, and must not read like one.
+
+    The Windows Features pane raises PermissionError when DISM answers 740.
+    Logged through `logger.exception` that produced a full ERROR traceback in
+    the session log for an outcome the app handles and displays correctly --
+    and the newest VRK_*.log is the first thing read when resuming, so a
+    routine refusal sitting there as an ERROR costs real time.
+    """
+    import logging
+
+    worker = Worker(lambda _w: (_ for _ in ()).throw(
+        PermissionError("Requires administrator")))
+    seen = []
+    worker.signals.error.connect(lambda m: seen.append(m))
+
+    with caplog.at_level(logging.DEBUG, logger="core.worker"):
+        worker.run()
+
+    assert seen == ["Requires administrator"], "the error signal must still fire"
+    levels = {r.levelname for r in caplog.records}
+    assert "ERROR" not in levels, f"a refusal was logged as {levels}"
+    assert any(r.exc_info is None for r in caplog.records), (
+        "a refusal must not carry a traceback"
+    )
+
+
+def test_a_real_crash_is_still_an_error_with_its_traceback(qapp, caplog):
+    import logging
+
+    worker = Worker(lambda _w: 1 / 0)
+
+    with caplog.at_level(logging.DEBUG, logger="core.worker"):
+        worker.run()
+
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert errors, "a genuine exception must still be an ERROR"
+    assert any(r.exc_info for r in errors), "and must keep its traceback"
