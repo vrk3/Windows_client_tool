@@ -1,3 +1,21 @@
+/* ============================================================
+   Light theme
+   Background: #f5f5f5   Surface: #ffffff   Elevated: #ececec
+   Border:     #d4d4d4   Text:    #1e1e1e   Muted:    #6a6a6a
+   ============================================================ */
+
+/* The base rule dark.qss has always had, and this sheet did not.
+   Without it an unstyled widget falls back to the Qt PALETTE, and Qt6 takes
+   that from the OS colour scheme -- so on a machine in Windows dark mode the
+   light theme rendered whole panes at #1e1e1e. It also carries the font, which
+   otherwise differed between the two themes. */
+QWidget {
+    background-color: #f5f5f5;
+    color: #1e1e1e;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+}
+
 QMainWindow {
     background-color: #f5f5f5;
     color: #1e1e1e;
@@ -62,6 +80,8 @@ QTreeView, QTableView, QListView {
     color: #1e1e1e;
     border: 1px solid #d4d4d4;
     alternate-background-color: #f5f5f5;
+    selection-background-color: #cce4f7;
+    selection-color: #1e1e1e;
 }
 
 QHeaderView::section {
@@ -92,4 +112,62 @@ QCheckBox {
 
 QLabel {
     color: #1e1e1e;
+}
+
+/* ---- Named roles panes ask for by objectName ----
+   These exist so a pane can say WHAT a widget is instead of hardcoding a
+   colour inline. An inline setStyleSheet() beats the application sheet and is
+   never revisited on a theme change, which is how whole panes stayed dark
+   under the light theme. Anything colour-bearing belongs here, in both sheets.
+*/
+QPushButton#accentButton {
+    background-color: #0a5a8f;
+    color: #ffffff;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+
+QPushButton#accentButton:hover {
+    background-color: #094771;
+}
+
+QLabel#infoNote {
+    background-color: #ececec;
+    color: #5a5a5a;
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+QFrame#card {
+    background-color: #ececec;
+    border: 1px solid #d4d4d4;
+    border-radius: 8px;
+}
+
+/* ---- Progress bar: light.qss had no rule at all, so panes wrote their own
+   dark one inline and it survived the theme switch. ---- */
+QProgressBar {
+    background-color: #dcdcdc;
+    border: none;
+    border-radius: 3px;
+    text-align: center;
+    color: #1e1e1e;
+}
+
+QProgressBar::chunk {
+    background-color: #007acc;
+    border-radius: 3px;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: #dcdcdc;
+}
+
+/* Secondary text. A literal grey here is a dark-theme grey: #aaaaaa is 1.9:1
+   on a light pane. Panes ask for the role and let the sheet pick. */
+QLabel#muted {
+    color: #5a5a5a;
 }

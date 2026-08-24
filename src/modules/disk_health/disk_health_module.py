@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+from ui.empty_state import EmptyState
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +375,21 @@ class _DiskHealthWidget(QWidget):
         self._cards_layout.setSpacing(10)
         self._cards_layout.addStretch()
         scroll.setWidget(self._cards_widget)
+        self._scroll = scroll
         vbox.addWidget(scroll, stretch=1)
+
+        # The pane needs an explicit scan before it can show anything, so it
+        # says so in the space it is explaining. It takes the scroll area's
+        # place rather than sitting inside it: the cards layout ends in a
+        # stretch, which would pin the message to the top of 800px of nothing.
+        self._empty = EmptyState(
+            "💽", "No drives scanned yet",
+            "S.M.A.R.T. data is read on demand. Administrator rights give "
+            "readings for drives that will not answer otherwise.",
+            action_text="🔍  Scan Drives")
+        self._empty.action_triggered.connect(self._do_scan)
+        vbox.addWidget(self._empty, stretch=1)
+        self._update_empty_state()
 
     def refresh(self) -> None:
         """Trigger a background rescan. Idempotent — skips if already scanning."""
@@ -410,6 +425,7 @@ class _DiskHealthWidget(QWidget):
             for d in disks:
                 card = _DiskCard(d)
                 self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
+            self._update_empty_state()
 
         def on_error(err: str):
             self._scanning = False
@@ -424,10 +440,26 @@ class _DiskHealthWidget(QWidget):
         self._thread_pool.start(w)
 
     def _clear_cards(self) -> None:
-        while self._cards_layout.count() > 1:
-            item = self._cards_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
+        # Everything except the empty state, which is a fixture of the pane
+        # rather than a result -- the old loop deleted whatever sat at index 0.
+        for index in reversed(range(self._cards_layout.count())):
+            item = self._cards_layout.itemAt(index)
+            widget = item.widget() if item else None
+            if widget is not None and widget is not self._empty:
+                self._cards_layout.takeAt(index)
+                widget.deleteLater()
+        self._update_empty_state()
+
+    def _update_empty_state(self) -> None:
+        """Show the placeholder exactly when there is no result to show."""
+        cards = 0
+        for index in range(self._cards_layout.count()):
+            item = self._cards_layout.itemAt(index)
+            widget = item.widget() if item else None
+            if widget is not None and widget is not self._empty:
+                cards += 1
+        self._empty.setVisible(cards == 0)
+        self._scroll.setVisible(cards > 0)
 
     def cancel_all_workers(self) -> None:
         for w in self._workers:

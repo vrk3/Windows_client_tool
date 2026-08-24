@@ -375,3 +375,42 @@ QSlider::sub-page:horizontal {
     background: #007acc;
     border-radius: 2px;
 }
+
+/* ---- Named roles panes ask for by objectName ----
+   These exist so a pane can say WHAT a widget is instead of hardcoding a
+   colour inline. An inline setStyleSheet() beats the application sheet and is
+   never revisited on a theme change, which is how whole panes stayed dark
+   under the light theme. Anything colour-bearing belongs here, in both sheets.
+*/
+QPushButton#accentButton {
+    background-color: #094771;
+    color: #ffffff;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+
+QPushButton#accentButton:hover {
+    background-color: #0a5a8f;
+}
+
+QLabel#infoNote {
+    background-color: #252526;
+    color: #858585;
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+QFrame#card {
+    background-color: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+}
+
+/* Secondary text. A literal grey here is a dark-theme grey: #aaaaaa is 1.9:1
+   on a light pane. Panes ask for the role and let the sheet pick. */
+QLabel#muted {
+    color: #858585;
+}

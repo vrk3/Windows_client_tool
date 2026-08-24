@@ -20,6 +20,31 @@ CHART_COLORS = {
 }
 
 
+#: Everything `_QtLineChart.paintEvent` puts on screen, per theme. A custom
+#: painter never sees the application stylesheet, so these cannot live in the
+#: .qss files -- but they must still change with it, which is what
+#: `ThemeManager.theme_changed` is for.
+#:
+#: The dark axis colour is #b0b0b0 and not the #888888 it was: #888888 on
+#: #252525 measures 4.27:1, under the 4.5:1 the rest of the app is held to.
+CHART_PALETTES = {
+    "dark": {
+        "background": "#252525",
+        "title": "#e0e0e0",
+        "axis": "#b0b0b0",
+        "grid": "#3a3a3a",
+        "value": "#ffffff",
+    },
+    "light": {
+        "background": "#ffffff",
+        "title": "#1e1e1e",
+        "axis": "#5a5a5a",
+        "grid": "#dcdcdc",
+        "value": "#1e1e1e",
+    },
+}
+
+
 class _QtLineChart(QWidget):
     """A real-time rolling line chart drawn with QPainter — no external deps."""
 
@@ -36,9 +61,24 @@ class _QtLineChart(QWidget):
         self._times: deque = deque(maxlen=self.MAX_POINTS)
         self._curve: QPainterPath = QPainterPath()
         self.setMinimumHeight(140)
+        #: Dark until told otherwise -- never an empty dict, so paintEvent has
+        #: no uncoloured state to guard against.
+        self.colours = CHART_PALETTES["dark"]
+        self._apply_background()
+
+    def set_theme(self, theme: str) -> None:
+        """Follow `theme`, repainting immediately. Unknown names stay put."""
+        palette = CHART_PALETTES.get(theme)
+        if palette is None or palette is self.colours:
+            return
+        self.colours = palette
+        self._apply_background()
+        self.update()
+
+    def _apply_background(self) -> None:
         self.setAutoFillBackground(True)
         p = self.palette()
-        p.setColor(self.backgroundRole(), QColor("#252525"))
+        p.setColor(self.backgroundRole(), QColor(self.colours["background"]))
         self.setPalette(p)
 
     def add_point(self, value: float) -> None:
@@ -93,10 +133,10 @@ class _QtLineChart(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Background
-        painter.fillRect(0, 0, int(w), int(h), QColor("#252525"))
+        painter.fillRect(0, 0, int(w), int(h), QColor(self.colours["background"]))
 
         # Title
-        painter.setPen(QPen(QColor("#e0e0e0"), 1))
+        painter.setPen(QPen(QColor(self.colours["title"]), 1))
         title_font = QFont("Segoe UI", 9)
         title_font.setBold(True)
         painter.setFont(title_font)
@@ -105,11 +145,11 @@ class _QtLineChart(QWidget):
         # Y-axis label
         lbl_font = QFont("Segoe UI", 7)
         painter.setFont(lbl_font)
-        painter.setPen(QPen(QColor("#888888"), 1))
+        painter.setPen(QPen(QColor(self.colours["axis"]), 1))
         painter.drawText(2, int(chart_bottom - chart_h // 2), self._y_label)
 
         # Grid lines
-        grid_pen = QPen(QColor("#3a3a3a"), 1)
+        grid_pen = QPen(QColor(self.colours["grid"]), 1)
         painter.setPen(grid_pen)
         for i in range(5):
             y = chart_top + (chart_h / 4) * i
@@ -124,7 +164,7 @@ class _QtLineChart(QWidget):
 
         # Y-axis tick labels
         painter.setFont(QFont("Segoe UI", 7))
-        painter.setPen(QPen(QColor("#888888"), 1))
+        painter.setPen(QPen(QColor(self.colours["axis"]), 1))
         for i in range(5):
             frac = i / 4
             y_px = chart_bottom - frac * chart_h
@@ -168,7 +208,7 @@ class _QtLineChart(QWidget):
 
         # Value text
         val_text = f"{self._data[-1]:.1f}"
-        painter.setPen(QPen(QColor("#ffffff"), 1))
+        painter.setPen(QPen(QColor(self.colours["value"]), 1))
         painter.drawText(int(last.x() + 6), int(last.y() - 4), val_text)
 
 

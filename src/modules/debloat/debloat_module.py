@@ -24,6 +24,7 @@ from modules.debloat.debloat_scanner import (
 )
 from modules.debloat.debloat_search_provider import DebloatSearchProvider
 from modules.tweaks.tweak_engine import TweakEngine
+from core.semantic_colors import semantic
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,7 @@ class DebloatToolsModule(BaseModule):
             status_item = QTableWidgetItem("\u25cf Present")
             status_item.setData(Qt.ItemDataRole.UserRole, entry["id"])
             if pkg in PROTECTED_APPS:
-                status_item.setForeground(QColor("#ff8800"))
+                status_item.setForeground(QColor(semantic("warning")))
             self._apps_table.setItem(row, 3, status_item)
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
@@ -418,7 +419,7 @@ class DebloatToolsModule(BaseModule):
 
             status = engine.detect_status(tweak)
             status_map = {
-                "applied": ("\u25cf Applied", QColor("#00cc44")),
+                "applied": ("\u25cf Applied", QColor(semantic("success"))),
                 "not_applied": ("\u25cb Not Applied", QColor("#e0e0e0")),
                 "unknown": ("\u25cb Unknown", QColor("#888888")),
             }

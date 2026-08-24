@@ -17,6 +17,7 @@ from core.worker import Worker
 from modules.tweaks.tweak_engine import TweakEngine
 from modules.tweaks.app_catalog import AppCatalog, PROTECTED_APPS_DEFAULT
 from modules.tweaks.preset_manager import PresetManager
+from core.semantic_colors import semantic
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,8 @@ class _DetailsPanel(QFrame):
         self._title.setText(tweak["name"])
 
         risk = tweak.get("risk", "low")
-        risk_color = "#f44747" if risk == "high" else "#e89000" if risk == "medium" else "#4ec9b0"
+        risk_color = semantic("error" if risk == "high"
+                              else "warning" if risk == "medium" else "success")
         self._risk.setText(f"<span style='color:{risk_color}'>RISK: {risk.upper()}</span>")
 
         self._desc.setText(tweak.get("description", "No description."))
@@ -165,11 +167,9 @@ class TweakRow(QWidget):
 
         risk = tweak.get("risk", "low")
         risk_label = QLabel(risk.upper())
-        risk_label.setStyleSheet(
-            "color: #f44747;" if risk == "high" else
-            "color: #e89000;" if risk == "medium" else
-            "color: #4ec9b0;"
-        )
+        risk_label.setStyleSheet("color: %s;" % semantic(
+            "error" if risk == "high"
+            else "warning" if risk == "medium" else "success"))
         risk_label.setFixedWidth(70)
         risk_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         risk_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
@@ -238,23 +238,30 @@ class TweakTab(QWidget):
         bar.setSpacing(4)
 
         self._select_all_btn = QPushButton("Select All")
-        self._select_all_btn.setFixedWidth(80)
+        # A fixed width crops the label when the label is wider: these were
+        # picked by eye and "Select Applied" (111px) had been given 100.
+        # A minimum keeps the tidy alignment without ever cutting the text.
+        self._select_all_btn.setMinimumWidth(
+            max(80, self._select_all_btn.sizeHint().width()))
         self._select_all_btn.clicked.connect(self.select_all)
         bar.addWidget(self._select_all_btn)
 
         self._deselect_all_btn = QPushButton("Deselect All")
-        self._deselect_all_btn.setFixedWidth(90)
+        self._deselect_all_btn.setMinimumWidth(
+            max(90, self._deselect_all_btn.sizeHint().width()))
         self._deselect_all_btn.clicked.connect(self.deselect_all)
         bar.addWidget(self._deselect_all_btn)
 
         self._select_applied_btn = QPushButton("Select Applied")
-        self._select_applied_btn.setFixedWidth(100)
+        self._select_applied_btn.setMinimumWidth(
+            max(100, self._select_applied_btn.sizeHint().width()))
         self._select_applied_btn.clicked.connect(
             lambda: self._select_by_status_filtered("applied"))
         bar.addWidget(self._select_applied_btn)
 
         self._select_not_btn = QPushButton("Select Not Applied")
-        self._select_not_btn.setFixedWidth(110)
+        self._select_not_btn.setMinimumWidth(
+            max(110, self._select_not_btn.sizeHint().width()))
         self._select_not_btn.clicked.connect(
             lambda: self._select_by_status_filtered("not_applied"))
         bar.addWidget(self._select_not_btn)

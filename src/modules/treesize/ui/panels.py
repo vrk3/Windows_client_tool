@@ -69,7 +69,19 @@ class DriveList(QTreeWidget):
         self.setRootIsDecorated(False)
         self.setUniformRowHeights(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        # Name absorbs the slack; the three value columns take exactly what
+        # their contents need. They used to be a fixed 100px each, which
+        # overflowed any panel narrower than ~500px -- and the splitter gives
+        # this one about 375-460px -- so the last column was cut and "93.6%"
+        # rendered as "93.6'".
+        # ...and the last section must NOT also stretch: that flag outranks
+        # ResizeToContents and pinned `% Free` back to 100px, pushing the row
+        # past the viewport again.
+        self.header().setStretchLastSection(False)
         self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in (1, 2, 3):
+            self.header().setSectionResizeMode(
+                column, QHeaderView.ResizeMode.ResizeToContents)
         # The same delegate the tree uses, so a drive's free space reads the
         # way every other proportional value in the pane reads (spec 5.6).
         self.setItemDelegateForColumn(3, ProportionBarDelegate(self))

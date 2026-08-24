@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from core.long_op_pool import get_long_op_pool
 from core.worker import Worker
 from modules.ui.components.category_group import CategoryGroup
+from core.semantic_colors import semantic
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -210,27 +211,36 @@ class _SliceCard(QFrame):
     def __init__(self, label: str, size_bytes: int, color: str, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
+        # QLabel derives from QFrame, so an unscoped `QFrame { ... }` rule set
+        # on this card also styled every label inside it -- each one drew its
+        # own copy of the accent stripe. The rule has to name the card.
+        self.setObjectName("sliceCard")
         self._color = color
         self._update_style(size_bytes)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(6, 4, 6, 4)
         self._dot = QLabel(f"<span style='color:{color};font-size:14px'>●</span>")
-        self._lbl = QLabel(f"<span style='color:#e0e0e0'>{label}</span>")
+        # No colour in the markup -- a stylesheet cannot reach inside rich
+        # text, so this grey outlived every theme change.
+        self._lbl = QLabel(label)
         self._lbl.setStyleSheet("font-size:12px")
         self._sz = QLabel()
         self._sz.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         from modules.cleanup.cleanup_scanner import format_size
-        self._sz.setText(f"<span style='color:#aaaaaa;font-size:11px'>{format_size(size_bytes)}</span>")
+        # No colour in the markup: a QSS rule cannot reach inside rich text, so a
+        # colour written here would survive the theme switch like the rest did.
+        self._sz.setText(f"<span style='font-size:11px'>{format_size(size_bytes)}</span>")
         lay.addWidget(self._dot)
         lay.addWidget(self._lbl, 1)
         lay.addWidget(self._sz)
 
     def _update_style(self, size_bytes: int):
-        alpha = "33" if size_bytes == 0 else "ff"
-        color_with_alpha = self._color + alpha
+        # Only the category's own accent stripe is declared here. An inline
+        # sheet overrides just the properties it names, so leaving `background`
+        # out lets the active theme keep painting it -- naming it was what
+        # pinned this row to #3c3c3c in both themes.
         self.setStyleSheet(f"""
-            QFrame {{
-                background: #3c3c3c;
+            QFrame#sliceCard {{
                 border-left: 3px solid {self._color};
                 border-radius: 4px;
                 padding: 4px 8px;
@@ -240,7 +250,9 @@ class _SliceCard(QFrame):
     def set_size(self, size_bytes: int) -> None:
         """Update the displayed size and opacity."""
         from modules.cleanup.cleanup_scanner import format_size
-        self._sz.setText(f"<span style='color:#aaaaaa;font-size:11px'>{format_size(size_bytes)}</span>")
+        # No colour in the markup: a QSS rule cannot reach inside rich text, so a
+        # colour written here would survive the theme switch like the rest did.
+        self._sz.setText(f"<span style='font-size:11px'>{format_size(size_bytes)}</span>")
         self._update_style(size_bytes)
         self.setVisible(size_bytes > 0)
 
@@ -469,7 +481,7 @@ class QuickCleanupTab(QWidget):
         self._clean_all_btn.setEnabled(False)
         self._clean_all_btn.clicked.connect(self._do_clean_all_safe)
         self._status_lbl = QLabel("Click Scan All to analyze your system")
-        self._status_lbl.setStyleSheet("color: #aaaaaa;")
+        self._status_lbl.setObjectName("muted")
         self._show_adv_btn = QPushButton("Show Advanced ▼")
         self._show_adv_btn.setStyleSheet("font-size: 12px; padding: 4px 10px;")
         self._show_adv_btn.clicked.connect(self._toggle_advanced)
@@ -483,16 +495,14 @@ class QuickCleanupTab(QWidget):
 
         # Progress bar
         self._progress = QLabel()
-        self._progress.setStyleSheet("color: #ffb74d; font-size: 11px;")
+        self._progress.setStyleSheet(f"color: {semantic('warning')}; font-size: 11px;")
         self._progress.hide()
         layout.addWidget(self._progress)
 
         # ── Dashboard row: pie chart + legend ──
         dash_frame = QFrame()
         dash_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        dash_frame.setStyleSheet("""
-            QFrame { background: #2d2d2d; border-radius: 8px; padding: 4px; }
-        """)
+        dash_frame.setObjectName("card")
         dash_lay = QHBoxLayout(dash_frame)
         dash_lay.setContentsMargins(12, 12, 12, 12)
 
@@ -515,13 +525,15 @@ class QuickCleanupTab(QWidget):
         stats_lay = QVBoxLayout()
         stats_lay.setSpacing(6)
         self._total_lbl = QLabel("Total: —")
-        self._total_lbl.setStyleSheet("color: #ffffff; font-size: 16px; font-weight: bold;")
+        self._total_lbl.setStyleSheet("font-size: 16px; font-weight: bold;")
         self._safe_lbl = QLabel("Safe to clean: —")
-        self._safe_lbl.setStyleSheet("color: #81c784; font-size: 13px;")
+        self._safe_lbl.setStyleSheet(f"color: {semantic('success')}; font-size: 13px;")
         self._item_lbl = QLabel("Items found: —")
-        self._item_lbl.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        self._item_lbl.setObjectName("muted")
+        self._item_lbl.setStyleSheet("font-size: 12px;")
         self._cat_lbl = QLabel(f"Categories: {len(self._categories)}")
-        self._cat_lbl.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        self._cat_lbl.setObjectName("muted")
+        self._cat_lbl.setStyleSheet("font-size: 12px;")
         stats_lay.addWidget(self._total_lbl)
         stats_lay.addWidget(self._safe_lbl)
         stats_lay.addWidget(self._item_lbl)
@@ -565,7 +577,7 @@ class QuickCleanupTab(QWidget):
         adv_lay.setSpacing(8)
 
         adv_header = QLabel("Advanced Cleanup")
-        adv_header.setStyleSheet("color: #e0e0e0; font-size: 14px; font-weight: bold; padding: 4px 0;")
+        adv_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 4px 0;")
         adv_lay.addWidget(adv_header)
 
         # Advanced legend cards
@@ -774,7 +786,8 @@ class QuickCleanupTab(QWidget):
     def _build_one_click_panel(self, parent_lay: QVBoxLayout):
         """Build the one-click maintenance actions button strip."""
         sep = QLabel("One-Click Maintenance")
-        sep.setStyleSheet("color: #b0b0b0; font-size: 13px; font-weight: bold; padding-top: 8px;")
+        sep.setObjectName("muted")
+        sep.setStyleSheet("font-size: 13px; font-weight: bold; padding-top: 8px;")
         parent_lay.addWidget(sep)
 
         btn_bar = QHBoxLayout()
@@ -806,7 +819,8 @@ class QuickCleanupTab(QWidget):
         parent_lay.addLayout(btn_bar)
 
         self._action_status_lbl = QLabel("")
-        self._action_status_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        self._action_status_lbl.setObjectName("muted")
+        self._action_status_lbl.setStyleSheet("font-size: 11px;")
         parent_lay.addWidget(self._action_status_lbl)
 
     def _run_action_command(self, cmd: str, status_prefix: str,
@@ -826,7 +840,7 @@ class QuickCleanupTab(QWidget):
                 return
 
         self._action_status_lbl.setText(f"{status_prefix}...")
-        self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+        self._action_status_lbl.setStyleSheet(f"color: {semantic('warning')}; font-size: 11px;")
 
         def _run(_worker):
             try:
@@ -868,17 +882,17 @@ class QuickCleanupTab(QWidget):
             status, msg = result
             if status == "ok":
                 self._action_status_lbl.setText(f"✅ {status_prefix}: {msg}")
-                self._action_status_lbl.setStyleSheet("color: #81c784; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('success')}; font-size: 11px;")
             elif status == "timeout":
                 self._action_status_lbl.setText(f"⏱ {status_prefix}: {msg}")
-                self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('warning')}; font-size: 11px;")
             else:
                 self._action_status_lbl.setText(f"❌ {status_prefix}: {msg}")
-                self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('error')}; font-size: 11px;")
 
         def _err(e: str):
             self._action_status_lbl.setText(f"❌ {status_prefix}: {e}")
-            self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+            self._action_status_lbl.setStyleSheet(f"color: {semantic('error')}; font-size: 11px;")
 
         w = Worker(_run)
         w.signals.result.connect(_done)
@@ -916,7 +930,7 @@ class QuickCleanupTab(QWidget):
             return
 
         self._action_status_lbl.setText("⏳ WinSxS cleanup running (may take 10–30 min)...")
-        self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+        self._action_status_lbl.setStyleSheet(f"color: {semantic('warning')}; font-size: 11px;")
 
         def _run(_worker):
             try:
@@ -941,17 +955,17 @@ class QuickCleanupTab(QWidget):
             status, msg = result
             if status == "ok":
                 self._action_status_lbl.setText(f"✅ WinSxS cleanup complete")
-                self._action_status_lbl.setStyleSheet("color: #81c784; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('success')}; font-size: 11px;")
             elif status == "timeout":
                 self._action_status_lbl.setText(f"⏱ WinSxS cleanup: {msg}")
-                self._action_status_lbl.setStyleSheet("color: #ffb74d; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('warning')}; font-size: 11px;")
             else:
                 self._action_status_lbl.setText(f"❌ WinSxS cleanup: {msg[:100]}")
-                self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+                self._action_status_lbl.setStyleSheet(f"color: {semantic('error')}; font-size: 11px;")
 
         def _err(e: str):
             self._action_status_lbl.setText(f"❌ WinSxS cleanup: {e}")
-            self._action_status_lbl.setStyleSheet("color: #ef9a9a; font-size: 11px;")
+            self._action_status_lbl.setStyleSheet(f"color: {semantic('error')}; font-size: 11px;")
 
         w = Worker(_run)
         w.signals.result.connect(_done)

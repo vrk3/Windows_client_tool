@@ -15,9 +15,10 @@ from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 from core.types import LogEntry
 from modules.perfmon.perfmon_collector import PerfMonStore, collect_snapshot
-from modules.perfmon.perfmon_charts import PerfMonDashboard
+from modules.perfmon.perfmon_charts import PerfMonDashboard, _QtLineChart
 from modules.perfmon.perfmon_alerts import AlertRule
 from modules.perfmon.perfmon_search_provider import PerfMonSearchProvider
+from core.semantic_colors import semantic
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,6 @@ class PerfMonModule(BaseModule):
 
         # Tab widget
         self._tabs = QTabWidget()
-        self._tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #3c3c3c; border-radius: 4px; background: #252525; }
-            QTabBar::tab { background: #2d2d2d; color: #b0b0b0; padding: 6px 12px; margin-right: 2px; border: 1px solid #3c3c3c; border-bottom: none; border-radius: 4px 4px 0 0; }
-            QTabBar::tab:selected { background: #252525; color: #e0e0e0; font-weight: bold; }
-            QTabBar::tab:hover { background: #3c3c3c; }
-        """)
 
         # --- Dashboard tab (existing charts view) ---
         dash_widget = QWidget()
@@ -81,10 +76,6 @@ class PerfMonModule(BaseModule):
         live_layout.setSpacing(10)
         live_layout.setContentsMargins(10, 10, 10, 10)
 
-        bar_style = """
-            QProgressBar { border: 1px solid #555; border-radius: 4px; text-align: center; background: #2d2d2d; color: #e0e0e0; }
-            QProgressBar::chunk { border-radius: 3px; }
-        """
 
         # CPU bar
         cpu_label = QLabel("CPU Usage")
@@ -92,7 +83,6 @@ class PerfMonModule(BaseModule):
         self._cpu_bar = QProgressBar()
         self._cpu_bar.setRange(0, 100)
         self._cpu_bar.setFormat("%p%")
-        self._cpu_bar.setStyleSheet(bar_style)
 
         # Memory bar
         mem_label = QLabel("Memory Usage")
@@ -100,7 +90,6 @@ class PerfMonModule(BaseModule):
         self._mem_bar = QProgressBar()
         self._mem_bar.setRange(0, 100)
         self._mem_bar.setFormat("%p%")
-        self._mem_bar.setStyleSheet(bar_style)
 
         # Disk I/O bar
         disk_label = QLabel("Disk I/O")
@@ -108,7 +97,6 @@ class PerfMonModule(BaseModule):
         self._disk_bar = QProgressBar()
         self._disk_bar.setRange(0, 100)
         self._disk_bar.setFormat("0 MB/s")
-        self._disk_bar.setStyleSheet(bar_style)
 
         # Network I/O bar
         net_label = QLabel("Network I/O")
@@ -116,7 +104,6 @@ class PerfMonModule(BaseModule):
         self._net_bar = QProgressBar()
         self._net_bar.setRange(0, 100)
         self._net_bar.setFormat("0 KB/s")
-        self._net_bar.setStyleSheet(bar_style)
 
         # Place bars in 2x2 grid
         live_layout.addWidget(cpu_label, 0, 0)
@@ -139,12 +126,6 @@ class PerfMonModule(BaseModule):
         self._proc_table.setRowCount(10)
         self._proc_table.setColumnWidth(0, 200)
         self._proc_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._proc_table.setStyleSheet("""
-            QTableWidget { background: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; }
-            QTableWidget::item { padding: 2px; }
-            QTableWidget::item:selected { background: #094771; }
-            QHeaderView::section { background: #3c3c3c; color: #b0b0b0; padding: 4px; border: none; }
-        """)
         live_layout.addWidget(self._proc_table, 5, 0, 1, 2)
 
         self._tabs.addTab(live_widget, "Live Monitor")
@@ -156,10 +137,26 @@ class PerfMonModule(BaseModule):
         self._live_prev_net = None
 
         layout.addWidget(self._tabs)
+        # The charts paint themselves, so the theme has to be handed to them --
+        # at build time for whatever is already in force, and again whenever it
+        # changes. findChildren reaches every chart without this method having
+        # to know how the tabs nest them, the same way TreeSize reaches its
+        # proportion-bar delegates.
+        theme = getattr(getattr(self, "app", None), "theme", None)
+        if theme is not None:
+            self._sync_chart_theme(theme.current_theme)
         return self._widget
+
+    def _sync_chart_theme(self, theme: str) -> None:
+        if self._widget is None:
+            return
+        for chart in self._widget.findChildren(_QtLineChart):
+            chart.set_theme(theme)
 
     def on_start(self, app) -> None:
         self.app = app
+        if getattr(app, "theme", None) is not None:
+            app.theme.theme_changed.connect(self._sync_chart_theme)
         # Initialize SQLite store
         app_data = getattr(app, "_app_data_dir", ".")
         db_path = os.path.join(app_data, "perfmon.db")
@@ -342,21 +339,25 @@ class PerfMonModule(BaseModule):
             # CPU
             cpu = int(psutil.cpu_percent())
             self._cpu_bar.setValue(cpu)
-            color = "#00cc44" if cpu < 60 else "#ff8800" if cpu < 85 else "#cc2222"
-            self._cpu_bar.setStyleSheet(f"""
-                QProgressBar {{ border: 1px solid #555; border-radius: 4px; text-align: center; background: #2d2d2d; color: #e0e0e0; }}
-                QProgressBar::chunk {{ background: {color}; border-radius: 3px; }}
-            """)
+            color = semantic("success" if cpu < 60
+                             else "warning" if cpu < 85 else "error")
+            # Only the chunk: green/amber/red is a fact about the reading,
+            # not a theme colour. The track comes from the active theme.
+            self._cpu_bar.setStyleSheet(
+                f"QProgressBar::chunk {{ background: {color}; border-radius: 3px; }}"
+            )
 
             # Memory
             mem = psutil.virtual_memory()
             mem_pct = int(mem.percent)
             self._mem_bar.setValue(mem_pct)
-            color = "#00cc44" if mem_pct < 60 else "#ff8800" if mem_pct < 85 else "#cc2222"
-            self._mem_bar.setStyleSheet(f"""
-                QProgressBar {{ border: 1px solid #555; border-radius: 4px; text-align: center; background: #2d2d2d; color: #e0e0e0; }}
-                QProgressBar::chunk {{ background: {color}; border-radius: 3px; }}
-            """)
+            color = semantic("success" if mem_pct < 60
+                             else "warning" if mem_pct < 85 else "error")
+            # Only the chunk: green/amber/red is a fact about the reading,
+            # not a theme colour. The track comes from the active theme.
+            self._mem_bar.setStyleSheet(
+                f"QProgressBar::chunk {{ background: {color}; border-radius: 3px; }}"
+            )
             self._mem_bar.setFormat(f"{mem.used / 1024**3:.1f} / {mem.total / 1024**3:.1f} GB")
 
             # Disk I/O delta

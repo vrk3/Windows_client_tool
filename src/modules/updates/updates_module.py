@@ -36,6 +36,7 @@ from modules.updates.windows_updater import (
 from modules.updates.store_updates_tab import _StoreUpdatesTab
 from modules.updates.run_all_tab import _RunAllTab
 import logging
+from core.semantic_colors import semantic
 logger = logging.getLogger(__name__)
 
 UNATTENDED_TASK_NAME = "WinClientTool_UnattendedMaintenance"
@@ -204,7 +205,7 @@ class _AppUpdatesTab(QWidget):
             result_text = (results or {}).get(u.winget_id, "")
             result_item = QTableWidgetItem(result_text)
             if result_text == "CONFIRMED":
-                result_item.setForeground(QColor("#4ec9b0"))
+                result_item.setForeground(QColor(semantic("success")))
             elif result_text == "UNCHANGED":
                 result_item.setForeground(QColor("#e5c07b"))
             self._table.setItem(row, 5, result_item)
@@ -500,7 +501,7 @@ class _WinUpdatesTab(QWidget):
             result_text = (results or {}).get(key, "")
             result_item = QTableWidgetItem(result_text)
             if result_text.startswith("OK"):
-                result_item.setForeground(QColor("#4ec9b0"))
+                result_item.setForeground(QColor(semantic("success")))
             elif result_text:
                 result_item.setForeground(QColor("#e06c75"))
             self._table.setItem(row, 5, result_item)

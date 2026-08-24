@@ -45,10 +45,7 @@ class RestoreManagerModule(BaseModule):
         # Toolbar
         toolbar = QHBoxLayout()
         create_btn = QPushButton("➕ Create Restore Point")
-        create_btn.setStyleSheet(
-            "font-weight: bold; background: #094771; color: white; "
-            "border-radius: 4px; padding: 6px 16px;"
-        )
+        create_btn.setObjectName("accentButton")
         create_btn.clicked.connect(self._create_restore_point)
         toolbar.addWidget(create_btn)
 
@@ -84,12 +81,6 @@ class RestoreManagerModule(BaseModule):
         self._table.setAlternatingRowColors(True)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._table.setStyleSheet("""
-            QTableWidget { background: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; }
-            QTableWidget::item { padding: 4px; }
-            QTableWidget::item:selected { background: #094771; }
-            QHeaderView::section { background: #3c3c3c; color: #b0b0b0; padding: 4px; border: none; }
-        """)
         layout.addWidget(self._table)
 
         # Info
@@ -98,10 +89,7 @@ class RestoreManagerModule(BaseModule):
             "Restore points let you revert Windows to a working state if problems occur."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(
-            "color: #888; font-size: 11px; background: #252526; "
-            "border-radius: 4px; padding: 8px;"
-        )
+        info.setObjectName("infoNote")
         layout.addWidget(info)
 
         return self._widget
