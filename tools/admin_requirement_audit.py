@@ -19,6 +19,7 @@ import io
 import json
 import logging
 import os
+import re
 import sys
 import time
 import traceback
@@ -31,13 +32,24 @@ os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
+#: Compare two runs instead of performing one:
+#:     admin_requirement_audit.py --compare unelevated.json elevated.json
+COMPARE = sys.argv[1:2] == ["--compare"]
+
 OUT = sys.argv[1] if len(sys.argv) > 1 else "admin_audit.json"
 #: Optional: only these modules, and wait much longer for each. Some panes load
 #: on workers that take far longer than a default sample -- Security Dashboard
 #: was still showing "Loading..." in BOTH runs, which makes "identical" a
 #: meaningless verdict rather than a reassuring one.
 ONLY = [n.strip() for n in sys.argv[2].split("|")] if len(sys.argv) > 2 else None
-SETTLE_MS = int(sys.argv[3]) if len(sys.argv) > 3 else 6000
+#: Upper bound, not a sleep. `settle_until_stable` returns as soon as the pane
+#: stops changing; only a pane that never stops costs the whole budget.
+SETTLE_MS = int(sys.argv[3]) if len(sys.argv) > 3 else 20000
+
+#: A pane still showing one of these has not answered the question yet, and
+#: any verdict drawn from comparing it against another run is meaningless.
+LOADING = ("loading", "click refresh", "please wait", "scanning...",
+           "refreshing", "working...")
 
 # A modal would block the run forever; record that it wanted one.
 _modals = []
@@ -69,6 +81,56 @@ def settle(ms):
     while time.time() < deadline:
         app.processEvents()
         time.sleep(0.01)
+
+
+def settle_until_stable(widget, baseline, cap_ms, quiet_ms=1200):
+    """Wait for the pane to stop changing, not for the clock to run out.
+
+    A fixed sleep cannot tell a pane that finished in 200ms from one that has
+    not finished in thirty seconds. The Security Dashboard was photographed
+    mid-load at 6000ms AND at 30000ms, and both runs were then called
+    "identical" -- identical, and empty.
+
+    "Held still for a moment" is not enough on its own, and getting that wrong
+    reproduced the very bug this replaced: a pane whose worker has not
+    delivered yet is PERFECTLY still, so the first version of this returned at
+    1.5s with the same 82 unpopulated strings as before. Stillness only counts
+    once something has actually landed -- hence `baseline`, the text the pane
+    showed before anything was asked of it.
+    """
+    deadline = time.time() + cap_ms / 1000.0
+    previous, unchanged_since = None, time.time()
+    while time.time() < deadline:
+        settle(150)
+        current = harvest_text(widget)
+        if current != previous:
+            previous, unchanged_since = current, time.time()
+            continue
+        if (time.time() - unchanged_since) * 1000 < quiet_ms:
+            continue
+        if current == baseline:
+            continue   # still as the grave, and still showing nothing
+        if loading_markers(current):
+            continue   # a pane can hold still BETWEEN stages: Services
+                       # settled at 17 strings on its way to 297
+        return current, True
+    return harvest_text(widget), False
+
+
+def loading_markers(texts):
+    """Strings that say the pane is still working."""
+    return sorted({t[:80] for t in texts
+                   if any(m in t.lower() for m in LOADING)})
+
+
+def normalize(texts):
+    """Collapse digits, so a drifting byte count is not read as a finding.
+
+    `317.2 MB` against `294.6 MB` and `306` against `310` are temp folders
+    changing between two runs minutes apart. Diffed raw they looked like
+    fourteen strings that elevation had bought.
+    """
+    return {re.sub(r"\d+", "#", t) for t in texts}
 
 
 def harvest_text(widget):
@@ -118,6 +180,68 @@ def ink(widget):
     return round(1 - counts.most_common(1)[0][1] / total, 4) if total else 0.0
 
 
+def compare(unelevated_path, elevated_path):
+    """Say what elevation bought, and refuse to guess when it cannot be known.
+
+    Two traps this exists to avoid, both of which the first pass fell into:
+
+    - "identical unelevated" is only meaningful if BOTH runs actually
+      rendered. A pane photographed twice on "Loading..." is identical and
+      tells you nothing.
+    - a raw text diff counts drifting byte counts as findings. Cleanup looked
+      like it gained fourteen strings from elevation; it had gained
+      `317.2 MB` where the other run said `294.6 MB`.
+    """
+    unelev = json.load(io.open(unelevated_path, encoding="utf-8"))
+    elev = json.load(io.open(elevated_path, encoding="utf-8"))
+    if unelev["elevated"] or not elev["elevated"]:
+        sys.exit("expected an unelevated run first, then an elevated one")
+
+    print(f"{'module':<24}{'unelev':>7}{'elev':>6}{'gained':>8}  verdict")
+    print("-" * 96)
+    detail = []
+    for name, urow in unelev["modules"].items():
+        erow = elev["modules"].get(name, {})
+        utext, etext = set(urow.get("text", [])), set(erow.get("text", []))
+        gained = sorted(normalize(etext) - normalize(utext))
+
+        blocked, caveats = [], []
+        for label, row in (("unelevated", urow), ("elevated", erow)):
+            if not row.get("changed_from_baseline", True):
+                blocked.append(f"{label} never populated")
+            elif not row.get("stable", True):
+                caveats.append(f"{label} never fully settled")
+            elif row.get("loading"):
+                caveats.append(f"{label} partly still loading")
+
+        says_so = [t for t in utext
+                   if any(w in t.lower() for w in DENIED)]
+
+        if blocked:
+            verdict = "INCONCLUSIVE — " + "; ".join(blocked)
+        elif says_so:
+            verdict = "NEEDS ADMIN — the pane says so itself"
+        elif not gained:
+            verdict = "IDENTICAL UNELEVATED — flag looks too strict"
+        else:
+            verdict = f"GAINS DATA (+{len(gained)})"
+        if caveats and not blocked:
+            verdict += "  [" + "; ".join(caveats) + "]"
+
+        print(f"{name[:23]:<24}{len(utext):>7}{len(etext):>6}"
+              f"{len(gained):>8}  {verdict}")
+        if gained and not blocked:
+            detail.append((name, gained, says_so))
+
+    for name, gained, says_so in detail:
+        print()
+        print(f"{name} — what elevation actually adds:")
+        for t in gained[:8]:
+            print(f"    + {t[:92]}")
+        if len(gained) > 8:
+            print(f"    ... {len(gained) - 8} more")
+
+
 def main():
     from app import App
     from core.admin_utils import is_admin
@@ -151,6 +275,14 @@ def main():
             # out what the module could have done if it had been allowed to try.
             module.on_start(app)
             widget = module.create_widget()
+            widget.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            widget.resize(1100, 780)
+            widget.show()
+            settle(300)
+            #: What the pane says before anything has been asked of it. If the
+            #: final text still equals this, no refresh ever landed and the run
+            #: says nothing about what elevation would have bought.
+            row["baseline_text"] = harvest_text(widget)
             try:
                 module.on_activate()
             except Exception as exc:
@@ -159,10 +291,13 @@ def main():
                 module.refresh_data()
             except Exception as exc:
                 row["refresh_error"] = repr(exc)[:200]
-            settle(SETTLE_MS)   # workers, not paint, are the slow part
+            text, stable = settle_until_stable(
+                widget, row["baseline_text"], SETTLE_MS)
+            row["text"] = text
+            row["stable"] = stable
+            row["loading"] = loading_markers(text)
+            row["changed_from_baseline"] = text != row["baseline_text"]
             row["ink"] = ink(widget)
-            settle(1500)
-            row["text"] = harvest_text(widget)
             widget.hide()
         except Exception as exc:
             row["fatal"] = traceback.format_exception_only(
@@ -178,8 +313,16 @@ def main():
             if token in line.lower()})
         row["modals_wanted"] = list(_modals)
         results[name] = row
+        flags = []
+        if not row.get("stable", True):
+            flags.append("NEVER-SETTLED")
+        if row.get("loading"):
+            flags.append("STILL-LOADING")
+        if not row.get("changed_from_baseline", True):
+            flags.append("NEVER-POPULATED")
         print(f"  {name:<26} ink={row['ink']:<7} strings={len(row.get('text', [])):<4} "
-              f"denied={','.join(row['denied_signals']) or '-'}")
+              f"denied={','.join(row['denied_signals']) or '-':<20} "
+              f"{' '.join(flags)}")
         try:
             module.on_stop()
         except Exception:
@@ -191,4 +334,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if COMPARE:
+        compare(sys.argv[2], sys.argv[3])
+    else:
+        main()

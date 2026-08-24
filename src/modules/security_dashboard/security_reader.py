@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import subprocess
+from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,47 @@ NEEDS_ADMIN = "Requires administrator"
 #: WBEM_E_ACCESS_DENIED, as a signed HRESULT — what every privileged WMI
 #: namespace answers to an ordinary user.
 _WBEM_E_ACCESS_DENIED = -2147217405
+
+
+#: Namespaces that have already answered access-denied in this process, and
+#: the exception they answered with. Elevation cannot change while a process
+#: runs, so one refusal settles it for the session.
+_denied_namespaces: Dict[str, Exception] = {}
+_denied_lock = Lock()
+
+
+def _wmi_namespace(namespace: str):
+    """Connect to a WMI namespace, remembering a refusal rather than repaying it.
+
+    Being told "no" by these security namespaces costs a FIXED ~5 seconds --
+    measured six times unelevated on 2026-08-24, 5.00-5.02s every attempt, all
+    of them failures. It is the denial that is expensive, not the connect. The
+    Overview dialled two of them on every refresh, so ten of its 12.4 seconds
+    went on being refused twice, and the 30-second auto-refresh did it again
+    for as long as the tab stayed open.
+
+    Only an access-denied answer is remembered. A transient failure -- an
+    unavailable RPC server, a service still starting -- must be retried, so it
+    is re-raised without being latched.
+    """
+    with _denied_lock:
+        remembered = _denied_namespaces.get(namespace)
+    if remembered is not None:
+        raise remembered
+
+    import wmi
+
+    try:
+        return wmi.WMI(namespace=namespace)
+    except Exception as exc:
+        denied = isinstance(exc, wmi.x_access_denied) or getattr(
+            getattr(exc, "com_error", None), "hresult", None
+        ) == _WBEM_E_ACCESS_DENIED
+        if denied:
+            with _denied_lock:
+                _denied_namespaces[namespace] = exc
+            logger.debug("%s refused; not asking again this session", namespace)
+        raise
 
 
 def _wmi_failure_reason(exc: Exception) -> str:
@@ -136,7 +178,7 @@ def _cmd_run(cmd: List[str], timeout: int = 120) -> Tuple[int, str, str]:
 def check_defender() -> Dict[str, Any]:
     try:
         import wmi
-        c = wmi.WMI(namespace=r"root\Microsoft\Windows\Defender")
+        c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         av_enabled = bool(status_obj.AntivirusEnabled)
         rt_enabled = bool(status_obj.RealTimeProtectionEnabled)
@@ -183,7 +225,7 @@ def check_firewall() -> Dict[str, Any]:
 def check_bitlocker() -> Dict[str, Any]:
     try:
         import wmi
-        c = wmi.WMI(namespace=r"root\cimv2\Security\MicrosoftVolumeEncryption")
+        c = _wmi_namespace(r"root\cimv2\Security\MicrosoftVolumeEncryption")
         volumes = c.Win32_EncryptableVolume()
         details = []
         c_protected = None
@@ -239,7 +281,7 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
     tpm_ok: Optional[bool] = None
     try:
         import wmi
-        c = wmi.WMI(namespace=r"root\cimv2\Security\MicrosoftTpm")
+        c = _wmi_namespace(r"root\cimv2\Security\MicrosoftTpm")
         tpms = c.Win32_Tpm()
         if tpms:
             tpm = tpms[0]
@@ -416,7 +458,7 @@ def check_lsass_protection() -> Dict[str, Any]:
 def check_tamper_protection() -> Dict[str, Any]:
     try:
         import wmi
-        c = wmi.WMI(namespace=r"root\Microsoft\Windows\Defender")
+        c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         try:
             tamper = bool(status_obj.IsTamperProtected)
@@ -1833,12 +1875,25 @@ def check_audit_policy() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_tpm_details() -> Dict[str, Any]:
+    """TPM state, or an honest refusal — never a claim about absent hardware.
+
+    `Get-Tpm` needs administrator rights and, unelevated, **exits 0** while
+    answering `{"TpmPresent":null,"TpmReady":null,"TpmEnabled":null}`. The
+    `rc != 0` guard therefore never fired, and `bool(None)` is `False`, so a
+    refusal came out as a red "No TPM — Not present" on a machine whose TPM 2.0
+    was confirmed elevated on 2026-08-22. A check that could not run is
+    Unknown, not False; `rc` is not a success signal for this cmdlet.
+    """
     try:
         rc, out, _ = _ps("Get-Tpm | Select TpmPresent, TpmReady, TpmEnabled | ConvertTo-Json -Compress", timeout=15)
         if rc != 0 or not out:
-            return {"status": "Not Available", "color": "red", "details": [("TPM", "Not present")]}
+            return {"status": f"Unknown — {NEEDS_ADMIN}", "color": "amber",
+                    "details": [("TPM", NEEDS_ADMIN)]}
         data = json.loads(out)
-        present = bool(data.get("TpmPresent", False))
+        present = data.get("TpmPresent")
+        if present is None:
+            return {"status": f"Unknown — {NEEDS_ADMIN}", "color": "amber",
+                    "details": [("TPM", NEEDS_ADMIN)]}
         ready = bool(data.get("TpmReady", False))
         enabled = bool(data.get("TpmEnabled", False))
         if not present:
@@ -1927,7 +1982,13 @@ def check_dump_encryption() -> Dict[str, Any]:
 
 def check_bitlocker_encryption() -> Dict[str, Any]:
     try:
-        rc, out, _ = _ps("Get-BitLockerVolume | Select MountPoint,EncryptionMethod,VolumeStatus,ProtectionStatus | ConvertTo-Json -Compress", timeout=30)
+        rc, out, err = _ps("Get-BitLockerVolume | Select MountPoint,EncryptionMethod,VolumeStatus,ProtectionStatus | ConvertTo-Json -Compress", timeout=30)
+        # Refused, this cmdlet ALSO exits 0: empty stdout and
+        # "Get-CimInstance : Access denied" on stderr. An empty answer from a
+        # query that was not allowed to run is not an absence of volumes.
+        if "access denied" in (err or "").lower():
+            return {"status": NEEDS_ADMIN, "color": "amber",
+                    "details": [("BitLocker", NEEDS_ADMIN)]}
         if rc != 0 or not out:
             return {"status": "N/A", "color": "amber", "details": [("BitLocker", "No volumes or not available")]}
         data = json.loads(out) if out.strip().startswith("[") else [json.loads(out)]
