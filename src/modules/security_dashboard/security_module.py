@@ -36,7 +36,7 @@ from core.worker import Worker, COMWorker
 from ui.error_banner import ErrorBanner
 from modules.security_dashboard.security_reader import (
     get_all_security_status,
-    get_extended_status,
+    get_overview_status,
     get_security_events,
     run_quick_scan,
     run_update_definitions,
@@ -429,6 +429,7 @@ class SecurityDashboardModule(BaseModule):
     def __init__(self):
         super().__init__()
         self._workers: list = []
+        self._overview_worker = None
         self._loaded_overview = False
         self._loaded_controls = False
         self._loaded_advanced = False
@@ -558,11 +559,32 @@ class SecurityDashboardModule(BaseModule):
         return scroll
 
     def _refresh_overview(self):
-        """Load overview data in background."""
+        """Load overview data in background.
+
+        One sweep at a time. The auto-refresh timer fires every 30s and the
+        sweep is not guaranteed to be quicker than that on every machine;
+        without this guard each tick stacked another COMWorker on the global
+        QThreadPool and another entry on `self._workers`, neither of which was
+        ever removed.
+        """
+        if self._overview_worker is not None:
+            logger.debug("overview sweep already in flight — skipping refresh")
+            return
+
         self._progress.show()
 
-        worker = COMWorker(lambda _w: get_extended_status())
+        worker = COMWorker(lambda _w: get_overview_status())
+        self._overview_worker = worker
         self._workers.append(worker)
+
+        def on_finished():
+            self._overview_worker = None
+            try:
+                self._workers.remove(worker)
+            except ValueError:
+                pass   # cancel_all_workers() cleared the list first
+
+        worker.signals.finished.connect(on_finished)
 
         def on_result(data: dict):
             if not _widget_valid(self._banner):

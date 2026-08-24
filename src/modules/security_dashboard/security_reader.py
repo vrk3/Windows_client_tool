@@ -980,8 +980,15 @@ def check_windows_hello() -> Dict[str, Any]:
                 "details": [("Windows Hello", "Check failed")]}
 
 
-def get_extended_status() -> dict:
-    """Full security posture: all checks in one call."""
+def get_overview_status() -> dict:
+    """Just the fourteen cards the Overview tab draws.
+
+    The pane used to call `get_extended_status()` and read fourteen of its
+    seventy-eight keys. Measured unelevated on 2026-08-24: 37.3s for the full
+    sweep against 12.4s for these fourteen -- and the module's own auto-refresh
+    interval is 30 SECONDS, so the timer kept relaunching a sweep that had not
+    finished. What the user saw was a pane stuck on "Loading...".
+    """
     return {
         "defender": check_defender(),
         "firewall": check_firewall(),
@@ -993,14 +1000,25 @@ def get_extended_status() -> dict:
         "credential_guard": check_credential_guard(),
         "lsass_protection": check_lsass_protection(),
         "tamper_protection": check_tamper_protection(),
-        "pua_protection": check_pua_protection(),
-        "controlled_folder_access": check_controlled_folder_access(),
-        "cloud_protection": check_cloud_protection(),
-        "network_protection": check_network_protection_defender(),
         "rdp": check_rdp(),
         "smbv1": check_smbv1(),
         "applocker": check_applocker(),
         "windows_hello": check_windows_hello(),
+    }
+
+
+def get_extended_status() -> dict:
+    """Full security posture: all checks in one call.
+
+    Nothing in the app calls this on a paint path any more -- see
+    `get_overview_status`. It stays whole as the full-report entry point.
+    """
+    return {
+        **get_overview_status(),
+        "pua_protection": check_pua_protection(),
+        "controlled_folder_access": check_controlled_folder_access(),
+        "cloud_protection": check_cloud_protection(),
+        "network_protection": check_network_protection_defender(),
         # --- Defender Detail ---
         "def_behavior": check_defender_behavior_monitoring(),
         "def_nis": check_defender_nis(),

@@ -13,6 +13,27 @@ from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 logger = logging.getLogger(__name__)
 
 
+def _emit(signals: Any, name: str, *args: Any) -> None:
+    """Emit `name` on `signals`, unless Qt has already destroyed it.
+
+    QApplication teardown destroys every QObject, including a running
+    worker's `WorkerSignals`. PyQt then answers any access to it with
+    `RuntimeError: wrapped C/C++ object ... has been deleted`. Nobody is
+    listening at that point -- the receivers went down with it -- so there is
+    nothing to deliver and nothing to report; the only wrong move is to let
+    the exception out of `run()`, which is a QRunnable on a Qt thread.
+
+    Deliberately narrow: only the "has been deleted" RuntimeError is
+    swallowed. A slot that raises must still surface.
+    """
+    try:
+        getattr(signals, name).emit(*args)
+    except RuntimeError as exc:
+        if "has been deleted" not in str(exc):
+            raise
+        logger.debug("signals gone before %s could be emitted", name)
+
+
 class WorkerSignals(QObject):
     """Signal definitions for Worker class."""
 
@@ -75,21 +96,21 @@ class Worker(QRunnable):
         """
         with self._cancel_lock:
             if self._cancelled:
-                self.signals.cancelled.emit()
-                self.signals.finished.emit()
+                _emit(self.signals, "cancelled")
+                _emit(self.signals, "finished")
                 return
 
         try:
             result = self.fn(self, *self.args, **self.kwargs)
             if not self._cancelled:
-                self.signals.result.emit(result)
+                _emit(self.signals, "result", result)
             else:
-                self.signals.cancelled.emit()
+                _emit(self.signals, "cancelled")
         except Exception as e:
             logger.exception("Worker error: %s", e)
-            self.signals.error.emit(str(e))
+            _emit(self.signals, "error", str(e))
         finally:
-            self.signals.finished.emit()
+            _emit(self.signals, "finished")
 
     def cancel(self) -> bool:
         """Cancel worker and prevent future result emission.
