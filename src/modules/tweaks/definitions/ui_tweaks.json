@@ -3,505 +3,1053 @@
     "id": "show_file_extensions",
     "name": "Show File Extensions",
     "description": "Makes Explorer show file extensions for all file types (e.g. .docx, .exe).",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"HideFileExt","data":0,"kind":"DWORD"}]
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "HideFileExt",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
   },
   {
     "id": "show_hidden_files",
     "name": "Show Hidden Files and Folders",
     "description": "Makes Explorer show hidden files and folders.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Hidden","data":1,"kind":"DWORD"}]
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "Hidden",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
   },
   {
     "id": "classic_right_click",
     "name": "Restore Classic Context Menu (Win11)",
     "description": "Restores the full right-click context menu in Windows 11 — no more 'Show more options'.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\CLASSES\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32","value":"","data":"","kind":"SZ"}]
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\CLASSES\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+        "value": "",
+        "data": "",
+        "kind": "SZ"
+      }
+    ]
   },
   {
     "id": "disable_taskbar_news",
     "name": "Disable Taskbar News and Weather Widget",
     "description": "Removes the News and Weather (Widgets) button from the taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Feeds","value":"ShellFeedsTaskbarViewMode","data":2,"kind":"DWORD"}]
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Feeds",
+        "value": "ShellFeedsTaskbarViewMode",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
   },
   {
     "id": "disable_snap_suggestions",
     "name": "Disable Snap Layout Suggestions",
     "description": "Turns off the snap layout hover pop-up when hovering the maximize button.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"EnableSnapAssistFlyout","data":0,"kind":"DWORD"}]
-  },
-  {
-    "id": "disable_search_highlights",
-    "name": "Disable Search Highlights / Trending",
-    "description": "Removes featured/trending highlights from Windows Search.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
-    "steps": [{"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings","value":"IsDynamicSearchBoxEnabled","data":0,"kind":"DWORD"}]
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "EnableSnapAssistFlyout",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
   },
   {
     "id": "dark_mode",
     "name": "Enable Dark Mode",
     "description": "Switches Windows and all apps to dark mode.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"AppsUseLightTheme","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"SystemUsesLightTheme","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "value": "AppsUseLightTheme",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "value": "SystemUsesLightTheme",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_taskbar_chat",
     "name": "Disable Chat (Teams) Button in Taskbar",
     "description": "Removes the Microsoft Teams Chat shortcut from the taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarMn","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarMn",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_copilot_button",
     "name": "Disable Windows Copilot Button",
     "description": "Removes the Copilot button from the taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowCopilotButton","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowCopilotButton",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_taskbar_widgets",
     "name": "Disable Taskbar Widgets Button",
     "description": "Removes the Widgets (news feed) button from the taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarDa","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarDa",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "taskbar_left_align",
     "name": "Align Taskbar Icons to the Left",
     "description": "Moves taskbar icons to the left side — classic style in Windows 11.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAl","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarAl",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_full_path_titlebar",
     "name": "Show Full Path in Explorer Title Bar",
     "description": "Displays the full folder path in the title bar instead of just the folder name.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CabinetState","value":"FullPath","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CabinetState",
+        "value": "FullPath",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_taskbar_search_box",
     "name": "Hide Taskbar Search Box",
     "description": "Hides the search box/icon from the taskbar to save space.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search","value":"SearchboxTaskbarMode","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
+        "value": "SearchboxTaskbarMode",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "always_show_tray_icons",
     "name": "Always Show All System Tray Icons",
     "description": "Prevents system tray icons from being hidden in the overflow menu.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"EnableAutoTray","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "EnableAutoTray",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_start_recommendations",
     "name": "Disable Start Menu Recommended Section",
     "description": "Removes app and file recommendations from the Windows 11 Start menu.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": true,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer","value":"HideRecommendedSection","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+        "value": "HideRecommendedSection",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_protected_os_files",
     "name": "Show Protected OS Files",
     "description": "Makes Explorer show system-protected files like desktop.ini, thumbs.db, etc.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowSuperHidden","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowSuperHidden",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_aero_shake",
     "name": "Disable Aero Shake",
     "description": "Prevents the 'shake window to minimize all others' gesture. Stops accidental minimisation when moving windows quickly.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"DisallowShaking","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "DisallowShaking",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_clock_seconds",
     "name": "Show Seconds in System Clock",
     "description": "Displays HH:MM:SS in the taskbar clock instead of just HH:MM.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowSecondsInSystemClock","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowSecondsInSystemClock",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_lock_screen",
     "name": "Bypass Lock Screen (Go Straight to Login)",
     "description": "Skips the decorative lock screen and goes directly to the password prompt. Saves one keypress or click on every login.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": true,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization","value":"NoLockScreen","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
+        "value": "NoLockScreen",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "enable_numlock_on_boot",
     "name": "Enable NumLock at Startup",
     "description": "Turns on NumLock automatically at the login screen and after login so you don't have to press it after every boot.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": true,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKEY_USERS\\.DEFAULT\\Control Panel\\Keyboard","value":"InitialKeyboardIndicators","data":"2","kind":"SZ"},
-      {"type":"registry","key":"HKCU\\Control Panel\\Keyboard","value":"InitialKeyboardIndicators","data":"2","kind":"SZ"}
+      {
+        "type": "registry",
+        "key": "HKU\\.DEFAULT\\Control Panel\\Keyboard",
+        "value": "InitialKeyboardIndicators",
+        "data": "2",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Control Panel\\Keyboard",
+        "value": "InitialKeyboardIndicators",
+        "data": "2",
+        "kind": "SZ"
+      }
     ]
   },
   {
     "id": "disable_notification_center",
     "name": "Disable Action Center / Notification Panel",
     "description": "Hides the notification bell and the entire Action Center panel. All pop-up notifications from apps are suppressed. Use only if you prefer a silent desktop.",
-    "category": "UI Tweaks", "risk": "medium", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "medium",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer","value":"DisableNotificationCenter","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PushNotifications","value":"ToastEnabled","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+        "value": "DisableNotificationCenter",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PushNotifications",
+        "value": "ToastEnabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "light_mode",
     "name": "Enable Light Mode",
     "description": "Switches Windows and all apps back to light mode. Reverses the Dark Mode tweak.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"AppsUseLightTheme","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize","value":"SystemUsesLightTheme","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "value": "AppsUseLightTheme",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "value": "SystemUsesLightTheme",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_desktop_icon_this_pc",
     "name": "Show This PC on Desktop",
     "description": "Adds the This PC (My Computer) icon to the Desktop alongside Recycle Bin.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"$sh='{20D04FE0-3AEA-1069-A2D8-08002B30309D}'; $desktop='::{20D04FE0-3AEA-1069-A2D8-08002B30309D}'; $exist=Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}' -ErrorAction SilentlyContinue; if(-not$exist){New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}' -Force | Out-Null}\""}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -Command \"$sh='{20D04FE0-3AEA-1069-A2D8-08002B30309D}'; $desktop='::{20D04FE0-3AEA-1069-A2D8-08002B30309D}'; $exist=Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}' -ErrorAction SilentlyContinue; if(-not$exist){New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}' -Force | Out-Null}\""
+      }
+    ],
+    "detect": {
+      "type": "registry",
+      "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel",
+      "value": "{20D04FE0-3AEA-1069-A2D8-08002B30309D}",
+      "data": 0,
+      "kind": "DWORD"
+    }
   },
   {
     "id": "hide_recycle_bin_from_desktop",
     "name": "Hide Recycle Bin from Desktop",
     "description": "Removes the Recycle Bin icon from the Desktop. Files can still be deleted normally.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{645FF040-5081-101B-9F08-00AA002F954E}' -Recurse -Force -ErrorAction SilentlyContinue\""}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{645FF040-5081-101B-9F08-00AA002F954E}' -Recurse -Force -ErrorAction SilentlyContinue\""
+      }
+    ],
+    "detect": {
+      "type": "registry_key_absent",
+      "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\{645FF040-5081-101B-9F08-00AA002F954E}"
+    }
   },
   {
     "id": "show_file_extensions_always",
     "name": "Show File Extensions and Hidden Items",
     "description": "Combines show file extensions and show hidden files in one tweak for maximum visibility.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"HideFileExt","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Hidden","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowSuperHidden","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "HideFileExt",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "Hidden",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowSuperHidden",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "open_explorer_this_pc",
     "name": "Open File Explorer to This PC",
     "description": "Changes File Explorer to open to This PC instead of Quick Access. Gives direct access to all drives.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"LaunchTo","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "LaunchTo",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_nav_pane_expanded",
     "name": "Expand Navigation Pane by Default",
     "description": "Keeps the File Explorer navigation pane permanently expanded to show all locations.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"NavPaneExpandToCurrentFolder","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"NavPaneShowAllFolders","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "NavPaneExpandToCurrentFolder",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "NavPaneShowAllFolders",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "remove_onedrive_from_nav",
     "name": "Remove OneDrive from Navigation Pane",
     "description": "Hides the OneDrive entry from the File Explorer navigation pane and prevents it from appearing as a Quick Access item.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{018D5C66-4533-4307-9B53-224DE2F1F000}' -Recurse -Force -ErrorAction SilentlyContinue\""}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -Command \"Remove-Item -Path 'HKCU:\\Software\\Classes\\CLSID\\{018D5C66-4533-4307-9B53-224DE2F1F000}' -Recurse -Force -ErrorAction SilentlyContinue\""
+      }
+    ],
+    "detect": {
+      "type": "registry_key_absent",
+      "key": "HKCU\\Software\\Classes\\CLSID\\{018D5C66-4533-4307-9B53-224DE2F1F000}"
+    }
   },
   {
     "id": "disable_quick_access",
     "name": "Disable Quick Access in File Explorer",
     "description": "Hides the Quick Access section from File Explorer. The home view will be blank until you navigate to a folder.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"ShowRecent","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"ShowFrequent","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "ShowRecent",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "ShowFrequent",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "taskbar_auto_hide_delay",
     "name": "Instant Auto-Hide Taskbar",
     "description": "Sets the taskbar auto-hide show/hide delay to 0 ms so the taskbar appears and disappears instantly without animation.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAutoHideHideDelay","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAutoHideShowDelay","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarAutoHideHideDelay",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarAutoHideShowDelay",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_taskbar_on_multiple_displays",
     "name": "Show Taskbar on All Displays",
     "description": "Shows the taskbar on every monitor instead of just the primary display. Each taskbar shows only windows from that monitor.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarEnabled","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarMode","data":2,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "MMTaskbarEnabled",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "MMTaskbarMode",
+        "data": 2,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "compact_explorer_view",
     "name": "Use Compact View in File Explorer",
-    "description": "Switches File Explorer to compact view with smaller icons and tighter spacing, showing more content per screen.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "description": "Turns on File Explorer's compact view, tightening the vertical spacing between list items back to the Windows 10 density.",
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'UseCompactView' -Value 1\""}
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "UseCompactMode",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_badge_notifications",
     "name": "Disable Taskbar Badge Notifications",
     "description": "Removes the red notification count badges from taskbar icons. Does not remove notification pop-ups.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarBadgesEnabled","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "TaskbarBadgesEnabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_peek_desktop",
     "name": "Disable Peek Desktop (Aero Peek)",
     "description": "Disables the hover-over-windows-preview feature. Moving the mouse to the bottom-right corner no longer shows a preview of the desktop.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"DisablePreviewDesktop","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "DisablePreviewDesktop",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_seconds_in_taskbar_clock",
     "name": "Show Milliseconds in System Clock",
     "description": "Displays HH:MM:SS.mmm in the taskbar clock — useful for benchmarking and latency measurement.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowMillisecondsInSystemClock","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowMillisecondsInSystemClock",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "use_24hour_clock",
     "name": "Use 24-Hour Time Format",
-    "description": "Switches the taskbar clock and all Windows date/time dialogs to 24-hour format (e.g. 14:30 instead of 2:30 PM).",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "description": "Switches the taskbar clock and app time displays to 24-hour (HH:mm) by writing the short-time and long-time formats directly. Your display language and region are left alone.",
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"Set-Culture -CultureInfo en-GB; Set-WinUserLanguageList -LanguageList en-GB -Force\""}
+      {
+        "type": "registry",
+        "key": "HKCU\\Control Panel\\International",
+        "value": "sShortTime",
+        "data": "HH:mm",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Control Panel\\International",
+        "value": "sTimeFormat",
+        "data": "HH:mm:ss",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Control Panel\\International",
+        "value": "iTime",
+        "data": "1",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Control Panel\\International",
+        "value": "iTLZero",
+        "data": "1",
+        "kind": "SZ"
+      }
     ]
   },
   {
     "id": "show_all_trays_expanded",
     "name": "Show All System Tray Icons",
     "description": "Unhides all system tray icons — Windows will not auto-hide any tray icons into the overflow area.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"EnableAutoTray","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"TurnOffAutoTray","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "EnableAutoTray",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "TurnOffAutoTray",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_classic_control_panel",
     "name": "Show Classic All Control Panel Items",
     "description": "Shows the classic 'All Control Panel Items' view instead of the categorized Settings app.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ControlPanel","value":"AllItemsIconView","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ControlPanel","value":"StartupPage","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ControlPanel",
+        "value": "AllItemsIconView",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ControlPanel",
+        "value": "StartupPage",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "hide_taskbar_pinned_apps",
     "name": "Hide Pinned Apps from Taskbar",
     "description": "Removes the pinned app icons from the Windows 11 taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"HidePinnedAppsFromTaskbar","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "HidePinnedAppsFromTaskbar",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_people_bar",
     "name": "Disable People Bar in Taskbar",
     "description": "Removes the People bar from the taskbar that shows your frequent contacts.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"People","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "People",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_thumbnails_in_icons",
     "name": "Disable Thumbnails in File Icons",
     "description": "Prevents Windows from generating thumbnail previews inside file icons in Explorer.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"IconsOnly","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "IconsOnly",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_thumbnail_cache",
     "name": "Disable Thumbnail Cache",
     "description": "Prevents Windows from caching thumbnail images. Thumbnails will regenerate each time you view a folder.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"DisableThumbnailCache","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "DisableThumbnailCache",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_action_center_icon",
     "name": "Show Action Center Icon in Taskbar",
     "description": "Ensures the Action Center (notification center) icon is always visible in the system tray.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"ShowActionCenter","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "ShowActionCenter",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "hide_recent_from_quick_access",
     "name": "Hide Recent Files from Quick Access",
     "description": "Prevents File Explorer from showing recently accessed files in Quick Access.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"ShowRecent","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "ShowRecent",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "hide_frequent_from_quick_access",
     "name": "Hide Frequent Folders from Quick Access",
     "description": "Prevents File Explorer from showing frequently used folders in Quick Access.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"ShowFrequent","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "ShowFrequent",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_control_panel_on_start",
     "name": "Open Control Panel Instead of Settings on Start",
     "description": "Makes the Start Menu and taskbar search open the classic Control Panel instead of the modern Settings app.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"command","cmd":"powershell -Command \"Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel' -Name '{26EE0668-A00A-44D7-9371-BEB064C98683}' -Value 0\""}
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel",
+        "value": "{26EE0668-A00A-44D7-9371-BEB064C98683}",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_auto_pin_charm_bar",
     "name": "Disable Auto-Pin Charms Bar App Icons",
     "description": "Prevents Windows from automatically pinning app icons to the Start screen and taskbar.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"AutoPinOnlyInstalledAppsToStart","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "value": "AutoPinOnlyInstalledAppsToStart",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_seconds_in_clock",
     "name": "Show Seconds in Taskbar Clock",
     "description": "Displays seconds in the taskbar system clock (HH:MM:SS).",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowSecondsInSystemClock","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowSecondsInSystemClock",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "restore_win7_style_menu",
     "name": "Restore Windows 7 Style Start Menu",
     "description": "Gives the Start Menu a more compact appearance with smaller tiles.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_Layout","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "Start_Layout",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "hide_search_from_taskbar",
     "name": "Hide Search Icon from Taskbar",
     "description": "Removes the search icon from the taskbar completely.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search","value":"SearchboxTaskbarMode","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
+        "value": "SearchboxTaskbarMode",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_battery_icon_taskbar",
     "name": "Show Battery Icon in Taskbar",
     "description": "Always shows the battery percentage icon in the system tray (for laptops).",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowBatteryLevel","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowBatteryLevel",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_ink_workspace_icon",
     "name": "Disable Ink Workspace Icon",
     "description": "Hides the pen workspace icon that appears when a stylus is detached.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowPenWorkspaceIcon","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "ShowPenWorkspaceIcon",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_file_operations_dialog",
     "name": "Show File Operation Progress Dialog",
     "description": "Shows a detailed progress dialog when copying/moving files instead of just the summary.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\OperationStatusManager","value":"EnthusiastMode","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\OperationStatusManager",
+        "value": "EnthusiastMode",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_jumplists",
     "name": "Disable Jump Lists in Taskbar",
     "description": "Removes the right-click jump list that shows recent files and tasks for pinned apps.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"JumpListItems","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "JumpListItems",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_taskbar_glance",
     "name": "Disable Taskbar Glance",
     "description": "Disables the Windows 11 taskbar glance feature that shows mini previews.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"EnableTaskbarGlance","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "EnableTaskbarGlance",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "show_nav_pane_classes",
     "name": "Show This PC in Navigation Pane",
     "description": "Adds This PC (drives) to the File Explorer navigation pane as a top-level item.",
-    "category": "UI Tweaks", "risk": "low", "requires_admin": false,
+    "category": "UI Tweaks",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"NavPaneShowAllFolders","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"NavPaneExpandToCurrentFolder","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "NavPaneShowAllFolders",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "value": "NavPaneExpandToCurrentFolder",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   }
 ]

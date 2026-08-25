@@ -1,0 +1,427 @@
+[
+  {
+    "id": "taskbar_align_left",
+    "name": "Align the Taskbar to the Left",
+    "description": "Moves the Windows 11 Start button and pinned icons back to the left edge instead of centring them.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAl","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_align_center",
+    "name": "Centre the Taskbar Icons",
+    "description": "Puts the Windows 11 Start button and pinned icons back in the middle of the taskbar.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAl","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_widgets",
+    "name": "Hide the Widgets Button",
+    "description": "Removes the Widgets (weather and news) button from the taskbar. The feed is the main reason the Widgets process wakes up and pulls content in the background.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarDa","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_widgets_policy",
+    "name": "Disable Widgets Machine-Wide",
+    "description": "Turns the Widgets feature off for every user through policy, rather than just hiding its button. Stops the underlying feed process from running at all.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Dsh","value":"AllowNewsAndInterests","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_task_view",
+    "name": "Hide the Task View Button",
+    "description": "Removes the Task View button from the taskbar. Win+Tab still works.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowTaskViewButton","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_search_box",
+    "name": "Hide the Taskbar Search Box",
+    "description": "Removes the search box and search icon from the taskbar, reclaiming the space. Pressing the Windows key and typing still searches.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Search","value":"SearchboxTaskbarMode","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_search_icon_only",
+    "name": "Show Search as an Icon Only",
+    "description": "Shrinks the taskbar search box down to a single magnifying-glass icon.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Search","value":"SearchboxTaskbarMode","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_never_combine",
+    "name": "Never Combine Taskbar Buttons",
+    "description": "Gives every open window its own labelled taskbar button instead of stacking windows of the same app. Restored as a supported option in Windows 11 23H2.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarGlomLevel","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarGlomLevel","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_combine_when_full",
+    "name": "Combine Taskbar Buttons Only When Full",
+    "description": "Keeps window labels visible until the taskbar runs out of room, then stacks them.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarGlomLevel","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarGlomLevel","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_small_size",
+    "name": "Use a Small Taskbar",
+    "description": "Shrinks the Windows 11 taskbar and its icons, giving back a row of vertical screen space. Some tray icons may crowd together at this size.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarSi","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_medium_size",
+    "name": "Use the Default Taskbar Size",
+    "description": "Puts the Windows 11 taskbar and its icons back to their standard height.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarSi","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_copilot_button",
+    "name": "Hide the Copilot Taskbar Button",
+    "description": "Removes the Copilot button from the taskbar without touching the underlying app.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11_23H2"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ShowCopilotButton","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_meet_now",
+    "name": "Hide the Meet Now Tray Icon",
+    "description": "Removes the Meet Now (Skype call) icon from the notification area.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"HideSCAMeetNow","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_show_all_tray_icons",
+    "name": "Always Show All Tray Icons",
+    "description": "Stops Windows hiding notification-area icons behind the overflow chevron, so every running background app is visible at a glance.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer","value":"EnableAutoTray","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_recent_apps_in_start",
+    "name": "Hide Recently Added Apps in Start",
+    "description": "Stops the Start menu listing apps you installed recently.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_TrackProgs","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_start_recommendations",
+    "name": "Turn Off Start Menu Recommendations",
+    "description": "Stops the Windows 11 Start menu recommending apps, files and content you have not asked for.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer","value":"HideRecommendedSection","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_IrisRecommendations","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_start_more_pins",
+    "name": "Start Menu: More Pins, Fewer Recommendations",
+    "description": "Switches the Windows 11 Start layout to the pin-heavy variant, which shows an extra row of pinned apps at the expense of the recommended list.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11_22H2"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_Layout","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_start_web_search",
+    "name": "Disable Web Results in Start Menu Search",
+    "description": "Stops Start menu search sending your typing to Bing and mixing web results in with local files and apps. Searching your own PC gets noticeably faster and quieter.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Search","value":"BingSearchEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Policies\\Microsoft\\Windows\\Explorer","value":"DisableSearchBoxSuggestions","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"DisableWebSearch","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"ConnectedSearchUseWeb","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_search_location",
+    "name": "Stop Search Using Your Location",
+    "description": "Prevents Windows Search from attaching your location to queries it sends off the machine.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowSearchToUseLocation","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_cloud_search",
+    "name": "Disable Cloud Content Search",
+    "description": "Stops Windows Search reaching into your OneDrive, Outlook and SharePoint content from the Start menu.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowCloudSearch","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_notification_center",
+    "name": "Disable the Notification Centre",
+    "description": "Turns off the notification centre flyout entirely. Toast notifications stop appearing, which also means you stop seeing alerts from apps you actually care about.",
+    "category": "Taskbar & Start", "risk": "medium", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Policies\\Microsoft\\Windows\\Explorer","value":"DisableNotificationCenter","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_toast_notifications",
+    "name": "Disable Toast Notification Pop-ups",
+    "description": "Stops notification banners sliding in over your work. They are still collected in the notification centre for you to read later.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications","value":"ToastEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_suggested_notifications",
+    "name": "Disable Windows Suggestions in Notifications",
+    "description": "Turns off the 'Get even more out of Windows' and 'Finish setting up your PC' prompts that arrive as notifications after an update.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338389Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-353698Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\UserProfileEngagement","value":"ScoobeSystemSettingEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_focus_assist_summary",
+    "name": "Disable the Focus Assist Summary",
+    "description": "Stops Windows showing a 'here is what you missed' summary after a focus session or presentation.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Windows.SystemToast.QuietHours","value":"Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_taskbar_animations",
+    "name": "Disable Taskbar Animations",
+    "description": "Removes the slide and fade animations on taskbar buttons and previews, which makes the taskbar feel more immediate on slower graphics hardware.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarAnimations","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_faster_thumbnail_preview",
+    "name": "Speed Up Taskbar Thumbnail Previews",
+    "description": "Cuts the hover delay before a taskbar thumbnail appears from about half a second to 100 ms.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"ExtendedUIHoverTime","data":100,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_show_on_all_displays",
+    "name": "Show the Taskbar on All Displays",
+    "description": "Extends the taskbar to every connected monitor rather than just the primary one.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarEnabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_primary_display_only",
+    "name": "Show the Taskbar on the Primary Display Only",
+    "description": "Keeps the taskbar on one monitor and leaves the others clear.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MMTaskbarEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_jump_list_recent",
+    "name": "Disable Recent Items in Jump Lists",
+    "description": "Stops taskbar and Start jump lists remembering the documents you opened with each app.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"Start_TrackDocs","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoRecentDocsHistory","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_alt_tab_edge_tabs",
+    "name": "Keep Edge Tabs Out of Alt+Tab",
+    "description": "Stops individual Microsoft Edge tabs appearing as separate windows in Alt+Tab, so Alt+Tab lists applications again rather than browser tabs.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"MultiTaskingAltTabFilter","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_snap_assist",
+    "name": "Disable Snap Assist",
+    "description": "Stops Windows offering to fill the other half of the screen after you snap a window.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"SnapAssist","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_snap_layouts",
+    "name": "Disable Snap Layouts Flyout",
+    "description": "Removes the layout grid that pops up when you hover a window's maximise button. Win+arrow snapping still works.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"EnableSnapAssistFlyout","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_shake_to_minimize",
+    "name": "Disable Aero Shake",
+    "description": "Stops all other windows minimising when you shake a title bar with the mouse, which is easy to trigger by accident on a trackpad.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"DisallowShaking","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_show_desktop_button",
+    "name": "Show the Show-Desktop Button",
+    "description": "Keeps the thin show-desktop strip at the far right end of the taskbar.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11_22H2"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarSd","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_badges",
+    "name": "Disable Taskbar Badges",
+    "description": "Removes the small unread-count badges that apps draw on their taskbar icons.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarBadges","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_flashing_windows",
+    "name": "Stop Taskbar Buttons Flashing for Attention",
+    "description": "Stops a background app flashing its taskbar button to demand attention. It still highlights once so you can see something happened.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"ForegroundFlashCount","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_lock_screen_tips",
+    "name": "Disable Lock Screen Tips and Ads",
+    "description": "Stops Windows Spotlight putting tips, app promotions and 'fun facts' on the lock screen. The rotating background pictures stay.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"RotatingLockScreenOverlayEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338387Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_start_ads",
+    "name": "Disable Suggested Apps in Start",
+    "description": "Stops the Start menu showing 'suggested' apps that are really Microsoft Store promotions.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338388Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SystemPaneSuggestionsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_auto_install_apps",
+    "name": "Stop Windows Silently Installing Promoted Apps",
+    "description": "Turns off the mechanism that quietly installs suggested apps such as Candy Crush and Spotify onto a new profile.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SilentInstalledAppsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"PreInstalledAppsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"OemPreInstalledAppsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_windows_welcome",
+    "name": "Disable the Welcome Experience After Updates",
+    "description": "Stops the full-screen 'Let's finish setting up your device' page appearing after a feature update.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-310093Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-314559Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_tips_and_tricks",
+    "name": "Disable Windows Tips and Tricks",
+    "description": "Turns off the 'Get tips and suggestions as you use Windows' notifications.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SoftLandingEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent","value":"DisableSoftLanding","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_hide_chat_button",
+    "name": "Hide the Chat (Teams) Button",
+    "description": "Removes the Chat button from the Windows 11 taskbar.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced","value":"TaskbarMn","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_disable_end_task_menu",
+    "name": "Hide 'End Task' in the Taskbar Right-Click Menu",
+    "description": "Removes the End Task entry Windows 11 adds to taskbar right-click menus, so an app cannot be force-killed with a stray click.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11_23H2"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings","value":"TaskbarEndTask","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "taskbar_enable_end_task_menu",
+    "name": "Show 'End Task' in the Taskbar Right-Click Menu",
+    "description": "Adds End Task to taskbar right-click menus, so a frozen app can be killed without opening Task Manager.",
+    "category": "Taskbar & Start", "risk": "low", "requires_admin": false,
+    "applies_to": {"min_build": "WIN11_23H2"},
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings","value":"TaskbarEndTask","data":1,"kind":"DWORD"}
+    ]
+  }
+]

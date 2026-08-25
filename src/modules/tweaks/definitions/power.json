@@ -1,0 +1,314 @@
+[
+  {
+    "id": "power_disable_fast_startup",
+    "name": "Disable Fast Startup (Hybrid Shutdown)",
+    "description": "Makes Shut Down mean a genuine full shutdown instead of hibernating the kernel session. Boot takes a few seconds longer, but dual-boot filesystems stop being left dirty and driver changes actually take effect after a shutdown.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power","value":"HiberbootEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_enable_fast_startup",
+    "name": "Enable Fast Startup (Hybrid Shutdown)",
+    "description": "Restores hybrid shutdown, which saves the kernel session to hiberfil.sys so the next cold boot is faster. Requires hibernation to be enabled.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power","value":"HiberbootEnabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_power_throttling",
+    "name": "Disable Power Throttling",
+    "description": "Stops Windows parking background threads on efficiency cores and clocking them down. Helps long-running background work finish on time; costs battery life on a laptop.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_enable_power_throttling",
+    "name": "Enable Power Throttling",
+    "description": "Lets Windows throttle background threads again to save power. This is the default and the right setting on battery-powered hardware.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling","value":"PowerThrottlingOff","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_show_hibernate_in_menu",
+    "name": "Show Hibernate in the Power Menu",
+    "description": "Adds Hibernate alongside Sleep and Shut Down in the Start power menu. Requires hibernation to be enabled first.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FlyoutMenuSettings","value":"ShowHibernateOption","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_hide_sleep_in_menu",
+    "name": "Hide Sleep in the Power Menu",
+    "description": "Removes Sleep from the Start power menu, useful on a machine whose hardware does not resume from sleep reliably.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FlyoutMenuSettings","value":"ShowSleepOption","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_modern_standby",
+    "name": "Disable Modern Standby (S0 Low Power Idle)",
+    "description": "Turns off connected standby so the machine uses the classic S3 sleep state, if the firmware still offers it. This is the usual fix for a laptop that runs hot and drains its battery inside a closed bag.",
+    "category": "Power", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power","value":"PlatformAoAcOverride","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_wake_timers",
+    "name": "Disable Wake Timers",
+    "description": "Stops scheduled tasks and background maintenance waking the machine from sleep. Windows Update installs then wait until you are actually using the PC.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP RTCWAKE 0"},
+      {"type":"command","cmd":"powercfg /setdcvalueindex SCHEME_CURRENT SUB_SLEEP RTCWAKE 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT SUB_SLEEP RTCWAKE | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"wake timers are disabled on the active power plan",
+      "not_applied_reason":"wake timers are still allowed on the active power plan"
+    }
+  },
+  {
+    "id": "power_disable_usb_selective_suspend",
+    "name": "Disable USB Selective Suspend",
+    "description": "Stops Windows powering down idle USB ports. Fixes audio interfaces, DACs and wireless dongles that drop out after a few minutes idle, at a small cost in battery life.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0"},
+      {"type":"command","cmd":"powercfg /setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"USB selective suspend is off on the active power plan",
+      "not_applied_reason":"USB selective suspend is still enabled on the active power plan"
+    }
+  },
+  {
+    "id": "power_disable_pcie_link_state_management",
+    "name": "Disable PCI Express Link State Power Management",
+    "description": "Stops PCIe devices dropping into low-power link states. A common fix for stuttering NVMe drives, network adapters and capture cards, and a measurable battery cost on a laptop.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"PCIe link state power management is off on AC",
+      "not_applied_reason":"PCIe link state power management is still active on AC"
+    }
+  },
+  {
+    "id": "power_never_turn_off_hard_disk",
+    "name": "Never Turn Off the Hard Disk",
+    "description": "Stops Windows spinning drives down after an idle period, which removes the pause when you next touch a mechanical disk. Has no effect on SSDs beyond a small idle power cost.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /change disk-timeout-ac 0"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT SUB_DISK DISKIDLE | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"the AC disk idle timeout is 0 (never)",
+      "not_applied_reason":"the AC disk idle timeout is still set"
+    }
+  },
+  {
+    "id": "power_unhide_processor_performance",
+    "name": "Unhide Advanced Processor Power Settings",
+    "description": "Makes the hidden minimum/maximum processor state, core parking and performance boost options visible in the advanced power plan dialog, so they can be tuned by hand.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\0cc5b647-c1df-4637-891a-dec35c318583","value":"Attributes","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\be337238-0d82-4146-a960-4f3749d470c7","value":"Attributes","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\45bcc044-d885-43e2-8605-ee0ec6e96b59","value":"Attributes","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_unhide_core_parking",
+    "name": "Unhide Core Parking Settings",
+    "description": "Exposes the processor core parking minimum and maximum sliders in the advanced power plan dialog.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\0cc5b647-c1df-4637-891a-dec35c318583","value":"Attributes","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\ea062031-0e34-4ff1-9b6d-eb1059334028","value":"Attributes","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_unhide_sleep_states",
+    "name": "Unhide Hibernate and Hybrid Sleep Settings",
+    "description": "Exposes the hibernate-after and hybrid-sleep options in the advanced power plan dialog, which Windows hides on machines using modern standby.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\238C9FA8-0AAD-41ED-83F4-97BE242C8F20\\9D7815A6-7EE4-497E-8888-515A05F02364","value":"Attributes","data":2,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\238C9FA8-0AAD-41ED-83F4-97BE242C8F20\\94AC6D29-73CE-41A6-809F-6363BA21B47E","value":"Attributes","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_balanced_plan",
+    "name": "Use the Balanced Power Plan",
+    "description": "Switches to the Balanced scheme, which scales clocks with demand. This is the right default for a laptop and for most desktops.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"$g=(powercfg /getactivescheme) -replace '.*GUID: ([0-9a-f-]+).*','$1'; if ($g.Trim() -eq '381b4222-f694-41f0-9685-ff5bb260df2e') {'True'} else {'False'}",
+      "applied_when":"True",
+      "applied_reason":"the active power plan is Balanced",
+      "not_applied_reason":"the active power plan is not Balanced"
+    }
+  },
+  {
+    "id": "power_disable_lid_sleep",
+    "name": "Do Nothing When the Laptop Lid Closes",
+    "description": "Stops the machine sleeping when you shut the lid, for laptops used as a desktop with an external monitor. Make sure the machine has airflow when closed.",
+    "category": "Power", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"closing the lid does nothing while on AC power",
+      "not_applied_reason":"closing the lid still triggers a power action on AC"
+    }
+  },
+  {
+    "id": "power_require_password_on_wake",
+    "name": "Require a Password on Wake",
+    "description": "Makes Windows ask for your password when it comes back from sleep. Without this, anyone who opens the lid is already signed in as you.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\0e796bdb-100d-47d6-a2d5-f7d2daa51f51","value":"ACSettingIndex","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\0e796bdb-100d-47d6-a2d5-f7d2daa51f51","value":"DCSettingIndex","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_energy_estimation",
+    "name": "Disable Per-App Energy Estimation",
+    "description": "Stops Windows continuously accounting for each app's power draw to fill in the battery-usage report. Removes a small always-on background cost.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power","value":"EnergyEstimationEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power","value":"EventProcessorEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_sleep_study",
+    "name": "Disable the Sleep Study Trace",
+    "description": "Turns off the ETW trace Windows keeps running to build the modern-standby sleep study report.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\SleepStudyTraceSession","value":"Start","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_hibernate_file",
+    "name": "Turn Off Hibernation and Reclaim hiberfil.sys",
+    "description": "Disables hibernation and deletes hiberfil.sys, which is normally sized at about 40 percent of installed RAM. Fast Startup depends on hibernation, so it is switched off too.",
+    "category": "Power", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /hibernate off"}
+    ],
+    "detect": {
+      "type":"registry",
+      "key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power",
+      "value":"HibernateEnabled","data":0,"kind":"DWORD"
+    }
+  },
+  {
+    "id": "power_enable_hibernate_file",
+    "name": "Turn Hibernation Back On",
+    "description": "Re-enables hibernation and recreates hiberfil.sys, which is also what Fast Startup needs in order to work.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /hibernate on"}
+    ],
+    "detect": {
+      "type":"registry",
+      "key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power",
+      "value":"HibernateEnabled","data":1,"kind":"DWORD"
+    }
+  },
+  {
+    "id": "power_reduced_hibernate_file",
+    "name": "Use a Reduced-Size Hibernation File",
+    "description": "Shrinks hiberfil.sys to the size Fast Startup needs, roughly 20 percent of RAM. Full hibernation stops working; hybrid shutdown keeps working.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /hibernate /type reduced"}
+    ],
+    "detect": {
+      "type":"registry",
+      "key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power",
+      "value":"HibernateEnabled","data":1,"kind":"DWORD"
+    }
+  },
+  {
+    "id": "power_disable_adaptive_brightness",
+    "name": "Disable Adaptive Brightness",
+    "description": "Stops Windows changing screen brightness in response to the ambient light sensor or on-screen content.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 0"},
+      {"type":"command","cmd":"powercfg /setdcvalueindex SCHEME_CURRENT 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 | Out-String; if ($o -match 'Current AC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"adaptive brightness is off on AC power",
+      "not_applied_reason":"adaptive brightness is still enabled on AC power"
+    }
+  },
+  {
+    "id": "power_disable_battery_saver_dimming",
+    "name": "Stop Battery Saver Dimming the Screen",
+    "description": "Keeps the display at full brightness when battery saver kicks in, instead of dropping it to 70 percent.",
+    "category": "Power", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\EnergySaverPolicy","value":"EsBrightness","data":100,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "power_disable_connected_standby_network",
+    "name": "Disconnect the Network During Modern Standby",
+    "description": "Stops Wi-Fi staying connected while the machine is in modern standby, which is what lets background apps keep the radio and CPU busy in your bag.",
+    "category": "Power", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"command","cmd":"powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 f15576e8-98b7-4186-b944-eafa664402d9 0"},
+      {"type":"command","cmd":"powercfg /setdcvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 f15576e8-98b7-4186-b944-eafa664402d9 0"},
+      {"type":"command","cmd":"powercfg /setactive SCHEME_CURRENT"}
+    ],
+    "detect": {
+      "type":"powershell",
+      "script":"try { $o = powercfg /query SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 f15576e8-98b7-4186-b944-eafa664402d9 | Out-String; if ($o -match 'Current DC Power Setting Index:\\s*0x00000000') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when":"True",
+      "applied_reason":"networking is disconnected during standby on battery",
+      "not_applied_reason":"networking stays connected during standby on battery"
+    }
+  }
+]

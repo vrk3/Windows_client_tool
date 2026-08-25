@@ -1,0 +1,434 @@
+[
+  {
+    "id": "rdp_disable_remote_desktop",
+    "name": "Disable Remote Desktop",
+    "description": "Refuses all incoming Remote Desktop connections. If you never use RDP this closes a service that is a standing target for credential-stuffing attacks.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server",
+        "value": "fDenyTSConnections",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_enable_remote_desktop",
+    "name": "Enable Remote Desktop",
+    "description": "Allows incoming Remote Desktop connections. Pair this with Network Level Authentication and a strong password, and do not expose port 3389 to the internet directly.",
+    "category": "Remote Access",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server",
+        "value": "fDenyTSConnections",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_require_network_level_auth",
+    "name": "Require Network Level Authentication for RDP",
+    "description": "Makes clients authenticate before a session and a full desktop are set up. Without NLA an unauthenticated attacker can reach far more of the RDP stack.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "UserAuthentication",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "SecurityLayer",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_high_encryption",
+    "name": "Require High Encryption for RDP",
+    "description": "Sets the RDP minimum encryption level to High, so sessions must use 128-bit encryption in both directions.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "MinEncryptionLevel",
+        "data": 3,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_disable_clipboard_redirection",
+    "name": "Disable RDP Clipboard Sharing",
+    "description": "Stops the clipboard being shared between the remote session and the client machine, which is a common accidental data-exfiltration path.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "fDisableClip",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_disable_drive_redirection",
+    "name": "Disable RDP Drive Redirection",
+    "description": "Stops a connecting client mapping its local drives into the remote session.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "fDisableCdm",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_disable_printer_redirection",
+    "name": "Disable RDP Printer Redirection",
+    "description": "Stops client printers being mapped into remote sessions, which also stops the print driver being installed on the host.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "value": "fDisableCpm",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_set_idle_session_timeout",
+    "name": "Disconnect Idle RDP Sessions After 15 Minutes",
+    "description": "Ends idle remote sessions rather than leaving an authenticated desktop sitting open indefinitely.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services",
+        "value": "MaxIdleTime",
+        "data": 900000,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services",
+        "value": "MaxDisconnectionTime",
+        "data": 900000,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_limit_to_single_session",
+    "name": "Limit RDP to One Session Per User",
+    "description": "Stops one account holding several simultaneous remote sessions, so a reconnect resumes the existing desktop instead of opening another.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services",
+        "value": "fSingleSessionPerUser",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "rdp_disable_remote_assistance",
+    "name": "Disable Remote Assistance",
+    "description": "Turns off the legacy Remote Assistance invitation mechanism, which is separate from Remote Desktop and rarely used deliberately.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
+        "value": "fAllowToGetHelp",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
+        "value": "fAllowFullControl",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "winrm_disable_basic_auth",
+    "name": "Disable Basic Authentication for WinRM",
+    "description": "Stops Windows Remote Management accepting Basic auth, which sends the password with only base64 encoding around it.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WinRM\\Service",
+        "value": "AllowBasic",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WinRM\\Client",
+        "value": "AllowBasic",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "winrm_disable_unencrypted_traffic",
+    "name": "Require Encrypted WinRM Traffic",
+    "description": "Refuses unencrypted WinRM sessions in both the client and service roles.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WinRM\\Service",
+        "value": "AllowUnencryptedTraffic",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WinRM\\Client",
+        "value": "AllowUnencryptedTraffic",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "winrm_disable_service",
+    "name": "Disable the WinRM Service",
+    "description": "Stops the Windows Remote Management listener starting. Do not apply this on a machine you administer remotely with PowerShell Remoting.",
+    "category": "Remote Access",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "service",
+        "name": "WinRM",
+        "start_type": "disabled"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_remote_registry",
+    "name": "Disable the Remote Registry Service",
+    "description": "Stops other machines reading or writing this PC's registry over the network. Off by default on client Windows; this makes sure it stays off.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "service",
+        "name": "RemoteRegistry",
+        "start_type": "disabled"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_admin_shares",
+    "name": "Disable Administrative Shares (C$, ADMIN$)",
+    "description": "Removes the hidden C$ and ADMIN$ shares Windows creates automatically. Closes a well-worn lateral-movement path; also breaks remote management tools that rely on them.",
+    "category": "Remote Access",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "value": "AutoShareWks",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "value": "AutoShareServer",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "remote_restrict_null_session_shares",
+    "name": "Block Anonymous Access to Shares and Pipes",
+    "description": "Stops unauthenticated 'null sessions' enumerating shares and named pipes, a classic reconnaissance step on a Windows network.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "value": "RestrictNullSessAccess",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "value": "NullSessionShares",
+        "data": [],
+        "kind": "MULTI_SZ"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_local_account_token_filter",
+    "name": "Block Remote Admin Rights for Local Accounts",
+    "description": "Keeps LocalAccountTokenFilterPolicy off, so a local administrator account connecting over the network gets a filtered token rather than full admin rights. This is the setting that makes pass-the-hash against local accounts much harder.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+        "value": "LocalAccountTokenFilterPolicy",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_wifi_direct_services",
+    "name": "Disable Wi-Fi Direct Services",
+    "description": "Disables the Wi-Fi Direct Services Connection Manager, which handles peer-to-peer connections to wireless displays and printers. Turn it off if you never cast to a Miracast display.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "service",
+        "name": "WFDSConMgrSvc",
+        "start_type": "disabled"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_p2p_networking",
+    "name": "Disable Peer-to-Peer Networking Services",
+    "description": "Disables the Peer Networking Identity Manager and Grouping services used by Windows Meeting Space and HomeGroup-era features that nothing modern needs.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "service",
+        "name": "p2pimsvc",
+        "start_type": "disabled"
+      },
+      {
+        "type": "service",
+        "name": "p2psvc",
+        "start_type": "disabled"
+      },
+      {
+        "type": "service",
+        "name": "PNRPsvc",
+        "start_type": "disabled"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_quick_assist",
+    "name": "Block Quick Assist",
+    "description": "Prevents the Quick Assist remote help tool being used on this machine. Quick Assist is a favourite of tech-support scammers precisely because it is built in and needs no install.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\RemoteAssistance",
+        "value": "fAllowFullControl",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\RemoteAssistance",
+        "value": "fAllowToGetHelp",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_rdp_udp_transport",
+    "name": "Disable the RDP UDP Transport",
+    "description": "Forces Remote Desktop onto TCP only. Fixes flickering and disconnects on links where the UDP path is unreliable, at some cost in responsiveness on a good connection.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\\Client",
+        "value": "fClientDisableUDP",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "remote_disable_rdp_saved_credentials",
+    "name": "Do Not Save Remote Desktop Credentials",
+    "description": "Stops the Remote Desktop client offering to remember passwords, so they are not stored in Credential Manager for anyone with your session to reuse.",
+    "category": "Remote Access",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services",
+        "value": "DisablePasswordSaving",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  }
+]

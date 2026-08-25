@@ -1,0 +1,717 @@
+[
+  {
+    "id": "def_enable_pua_protection",
+    "name": "Block Potentially Unwanted Applications",
+    "description": "Turns on Defender's PUA blocking, which catches adware, bundleware and the 'free download manager' class of software that is not quite malware but is never wanted. One of the highest-value Defender settings that is off by default on some builds.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender",
+        "value": "PUAProtection",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MpEngine",
+        "value": "MpEnablePus",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_network_protection",
+    "name": "Enable Network Protection",
+    "description": "Blocks outbound connections to domains Microsoft knows to be malicious, across every browser and application rather than just Edge.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Network Protection",
+        "value": "EnableNetworkProtection",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_controlled_folder_access",
+    "name": "Enable Controlled Folder Access (Anti-Ransomware)",
+    "description": "Stops untrusted programs writing to Documents, Pictures and other protected folders. This is Defender's ransomware defence. Expect to have to allow-list legitimate apps such as backup tools and games that save into Documents.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access",
+        "value": "EnableControlledFolderAccess",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_audit_controlled_folder_access",
+    "name": "Audit Controlled Folder Access Without Blocking",
+    "description": "Logs what Controlled Folder Access would have blocked without actually blocking it, so you can find out which of your apps would break before turning it on for real.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access",
+        "value": "EnableControlledFolderAccess",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_cloud_protection_high",
+    "name": "Set Cloud Protection to High",
+    "description": "Raises Defender's cloud-delivered protection to an aggressive blocking level, so unknown files are judged more harshly. Slightly more false positives, considerably better zero-day coverage.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MpEngine",
+        "value": "MpCloudBlockLevel",
+        "data": 2,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet",
+        "value": "SpynetReporting",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_extend_cloud_check_timeout",
+    "name": "Extend the Cloud Check Timeout to 50 Seconds",
+    "description": "Gives Defender longer to get a verdict from the cloud before letting a suspicious file run. Recommended alongside high cloud protection.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MpEngine",
+        "value": "MpBafsExtendedTimeout",
+        "data": 50,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_disable_sample_submission",
+    "name": "Never Send File Samples to Microsoft",
+    "description": "Stops Defender uploading suspicious files for analysis. Keeps documents that trip a heuristic on your machine, at the cost of slower cloud verdicts on genuinely new malware.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet",
+        "value": "SubmitSamplesConsent",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_script_scanning",
+    "name": "Enable Script Scanning",
+    "description": "Makes Defender inspect PowerShell, JScript and VBScript before execution rather than only scanning files on disk. Script-based attacks are the common case now.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection",
+        "value": "DisableScriptScanning",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_archive_scanning",
+    "name": "Scan Inside Archives",
+    "description": "Makes Defender look inside ZIP, RAR and similar containers during a scan instead of only checking files once extracted.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "DisableArchiveScanning",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_removable_drive_scanning",
+    "name": "Scan Removable Drives During Full Scans",
+    "description": "Includes USB sticks and external drives in a full scan, which Defender skips by default.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "DisableRemovableDriveScanning",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_email_scanning",
+    "name": "Enable Email Scanning",
+    "description": "Makes Defender parse local mail stores and attachments during a scan.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "DisableEmailScanning",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_office_child_process",
+    "name": "ASR: Block Office Apps Creating Child Processes",
+    "description": "Attack-surface-reduction rule that stops Word, Excel and PowerPoint launching other programs — the mechanism behind almost every malicious macro document.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "D4F940AB-401B-4EFC-AADC-AD5F3C50688A",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_office_executable",
+    "name": "ASR: Block Office Apps Creating Executable Content",
+    "description": "Stops Office applications writing new executable files to disk, which is how a macro drops its payload.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "3B576869-A4EC-4529-8536-B80A7769E899",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_script_executable",
+    "name": "ASR: Block Scripts Launching Downloaded Content",
+    "description": "Stops JavaScript and VBScript files executing content they have just downloaded, a very common first stage in a drive-by infection.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "D3E037E1-3EB8-44C8-A917-57927947596D",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_email_executable",
+    "name": "ASR: Block Executables From Email and Webmail",
+    "description": "Blocks executable files and scripts run straight out of an email client or webmail attachment.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_lsass_credential_theft",
+    "name": "ASR: Block Credential Theft From LSASS",
+    "description": "Stops processes reading the memory of lsass.exe, which is exactly what Mimikatz and its descendants do to lift password hashes.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_usb_untrusted",
+    "name": "ASR: Block Untrusted Processes From USB",
+    "description": "Blocks unsigned and untrusted executables running directly off a removable drive.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_ransomware_protection",
+    "name": "ASR: Use Advanced Ransomware Protection",
+    "description": "Enables the ASR rule that uses cloud reputation and behaviour to block ransomware-like file encryption patterns.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "C1DB55AB-C21A-4637-BB3F-A12568109D35",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_asr_wmi_persistence",
+    "name": "ASR: Block WMI Event Subscription Persistence",
+    "description": "Blocks the WMI event-subscription technique used to survive reboots without dropping a file or a scheduled task.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR",
+        "value": "ExploitGuard_ASR_Rules",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR\\Rules",
+        "value": "E6DB77E5-3DF2-4CF1-B95A-636979351E5B",
+        "data": "1",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_smartscreen_block",
+    "name": "Set SmartScreen to Block, Not Warn",
+    "description": "Makes the SmartScreen app-reputation check refuse unrecognised programs outright instead of showing a dismissable warning.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "EnableSmartScreen",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "ShellSmartScreenLevel",
+        "data": "Block",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_smartscreen_warn",
+    "name": "Set SmartScreen to Warn",
+    "description": "Keeps the SmartScreen reputation check on but lets you override its warning for a program you trust.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "EnableSmartScreen",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "ShellSmartScreenLevel",
+        "data": "Warn",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "def_disable_smartscreen",
+    "name": "Disable SmartScreen App Reputation Checks",
+    "description": "Turns off the reputation check on downloaded programs. This removes a real protection and also stops the check phoning home with a hash of what you run — decide which of those matters more to you.",
+    "category": "Defender & Firewall",
+    "risk": "high",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "EnableSmartScreen",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\AppHost",
+        "value": "EnableWebContentEvaluation",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_firewall_all_profiles",
+    "name": "Enable the Firewall on All Profiles",
+    "description": "Turns the Windows firewall on for the domain, private and public network profiles, and makes that setting stick through policy.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile",
+        "value": "EnableFirewall",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\StandardProfile",
+        "value": "EnableFirewall",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile",
+        "value": "EnableFirewall",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_firewall_block_inbound_public",
+    "name": "Block All Inbound Connections on Public Networks",
+    "description": "Makes the public firewall profile ignore per-app allow rules and refuse every unsolicited inbound connection. The right setting for cafe and airport Wi-Fi.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile",
+        "value": "DoNotAllowExceptions",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile",
+        "value": "DefaultInboundAction",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_firewall_log_dropped_packets",
+    "name": "Log Dropped Packets in the Firewall",
+    "description": "Writes blocked connection attempts to pfirewall.log, which is what you need when working out why an app cannot reach the network.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\StandardProfile\\Logging",
+        "value": "LogDroppedPackets",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile\\Logging",
+        "value": "LogDroppedPackets",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\StandardProfile\\Logging",
+        "value": "LogFileSize",
+        "data": 16384,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_firewall_no_local_rules_public",
+    "name": "Ignore Locally Created Firewall Rules on Public Networks",
+    "description": "Stops the public profile honouring firewall rules added by installers and local users, leaving only policy-defined rules in force.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile",
+        "value": "AllowLocalPolicyMerge",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile",
+        "value": "AllowLocalIPsecPolicyMerge",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_disable_enhanced_notifications",
+    "name": "Disable Defender's Non-Critical Notifications",
+    "description": "Silences the Defender summary and 'no action needed' toasts. Real threat detections still notify you.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Reporting",
+        "value": "DisableEnhancedNotifications",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_disable_security_center_notifications",
+    "name": "Disable Windows Security Notifications",
+    "description": "Turns off the Windows Security app's notification stream, including its periodic account and browser-recommendation nags.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Notifications",
+        "value": "DisableNotifications",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows Defender Security Center\\Notifications",
+        "value": "DisableEnhancedNotifications",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_hide_account_protection",
+    "name": "Hide the Account Protection Page",
+    "description": "Removes the Account protection section from Windows Security, which is where the 'set up Windows Hello' and Microsoft account prompts live.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Account protection",
+        "value": "UILockdown",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_schedule_daily_quick_scan",
+    "name": "Schedule a Daily Quick Scan at 2am",
+    "description": "Sets Defender to run a quick scan every day at 02:00 instead of waiting for an idle window that may never come on a machine that is shut down at night.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "ScheduleDay",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "ScheduleTime",
+        "data": 120,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "ScanParameters",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_limit_scan_cpu_usage",
+    "name": "Limit Scan CPU Usage to 30 Percent",
+    "description": "Caps how much CPU a scheduled Defender scan may take, so a background scan does not make the machine unusable.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan",
+        "value": "AvgCPULoadFactor",
+        "data": 30,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_signature_update_daily",
+    "name": "Check for Definition Updates Every Four Hours",
+    "description": "Makes Defender refresh its signatures six times a day rather than relying on the Windows Update cadence.",
+    "category": "Defender & Firewall",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Signature Updates",
+        "value": "SignatureUpdateInterval",
+        "data": 4,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "def_enable_tamper_hardening",
+    "name": "Enable Early Launch Anti-Malware Boot Protection",
+    "description": "Sets the ELAM boot driver policy to 'good and unknown', so drivers already flagged as malicious are refused before the rest of the system starts. Value 3 (the Windows default) still loads known-bad drivers if they are marked boot-critical; this uses 1, which does not.",
+    "category": "Defender & Firewall",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Policies\\EarlyLaunch",
+        "value": "DriverLoadPolicy",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  }
+]
