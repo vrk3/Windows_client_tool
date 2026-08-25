@@ -1,0 +1,311 @@
+[
+  {
+    "id": "edge_disable_background_mode",
+    "name": "Stop Edge Running in the Background",
+    "description": "Prevents Microsoft Edge keeping processes alive after you close its last window. This is the single biggest reason msedge.exe shows up in Task Manager on a machine nobody is browsing on.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"BackgroundModeEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_startup_boost",
+    "name": "Disable Edge Startup Boost",
+    "description": "Stops Edge preloading itself at sign-in to shave a second off its launch time, which costs memory and a background process for the whole session.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"StartupBoostEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_enable_sleeping_tabs",
+    "name": "Enable Sleeping Tabs",
+    "description": "Lets Edge suspend tabs you have not touched, releasing their memory and CPU. The tab reloads instantly when you come back to it.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SleepingTabsEnabled","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SleepingTabsTimeout","data":900,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_telemetry",
+    "name": "Disable Edge Telemetry and Metrics",
+    "description": "Turns off Edge's browsing-data reporting, diagnostic uploads and site-info sharing.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"MetricsReportingEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SendSiteInfoToImproveServices","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"DiagnosticData","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"UserFeedbackAllowed","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_personalization",
+    "name": "Disable Edge Personalisation and Ad Targeting",
+    "description": "Stops Edge building an advertising and content profile from your browsing to personalise ads, news and search.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"PersonalizationReportingEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"AdsTransparencyEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"ShowRecommendationsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_strict_tracking_prevention",
+    "name": "Set Edge Tracking Prevention to Strict",
+    "description": "Blocks the majority of third-party trackers in Edge. A handful of sites break; most simply load faster.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"TrackingPrevention","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_block_third_party_cookies",
+    "name": "Block Third-Party Cookies in Edge",
+    "description": "Refuses cookies set by domains other than the one in the address bar, which is the main cross-site tracking mechanism.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"BlockThirdPartyCookies","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_send_do_not_track",
+    "name": "Send Do Not Track From Edge",
+    "description": "Adds the Do Not Track header to Edge's requests. Sites are free to ignore it, so treat this as a statement of intent rather than a control.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"ConfigureDoNotTrack","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_sidebar",
+    "name": "Disable the Edge Sidebar",
+    "description": "Removes the Edge sidebar and its Discover, shopping and Copilot panes.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"HubsSidebarEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"StandaloneHubsSidebarEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_copilot",
+    "name": "Disable Copilot in Edge",
+    "description": "Turns off the Copilot integration in Edge, including the page-context sharing that sends what you are reading to the model.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"CopilotPageContext","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"CopilotCDPPageContext","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"HubsSidebarEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_shopping_assistant",
+    "name": "Disable the Edge Shopping Assistant",
+    "description": "Turns off the coupon and price-comparison pop-ups Edge shows on retail sites, which work by sending the page you are on to Microsoft.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgeShoppingAssistantEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_collections",
+    "name": "Disable Edge Collections",
+    "description": "Removes the Collections feature and its toolbar button.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgeCollectionsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_new_tab_content",
+    "name": "Clean Up the Edge New Tab Page",
+    "description": "Strips the MSN news feed, promoted quick links and background imagery from the new tab page, leaving just the search box.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"NewTabPageContentEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"NewTabPageQuickLinksEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"NewTabPageAllowedBackgroundTypes","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_promotional_tabs",
+    "name": "Disable Edge Promotional Tabs and First-Run Page",
+    "description": "Stops Edge opening tabs advertising its own features, and skips the first-run welcome experience on a new profile.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"PromotionalTabsEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"HideFirstRunExperience","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SpotlightExperiencesAndRecommendationsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_default_browser_nag",
+    "name": "Stop Edge Asking to Be the Default Browser",
+    "description": "Suppresses the recurring prompt asking you to make Edge your default browser.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"DefaultBrowserSettingEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_import_on_launch",
+    "name": "Stop Edge Importing From Other Browsers",
+    "description": "Prevents Edge pulling your Chrome or Firefox history, bookmarks and passwords at each launch.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"ImportOnEachLaunch","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"AutoImportAtFirstRun","data":4,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_password_manager",
+    "name": "Disable the Built-In Edge Password Manager",
+    "description": "Stops Edge offering to save passwords, which is what you want if you use a dedicated password manager and do not want a second copy of your credentials in the browser profile.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"PasswordManagerEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_autofill_payments",
+    "name": "Disable Edge Payment Card Autofill",
+    "description": "Stops Edge storing and offering credit card details on checkout forms.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"AutofillCreditCardEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"PaymentMethodQueryEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_search_suggestions",
+    "name": "Disable Edge Address Bar Search Suggestions",
+    "description": "Stops Edge sending each keystroke in the address bar to the search engine for live suggestions.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SearchSuggestEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_enable_smartscreen",
+    "name": "Enable SmartScreen in Edge",
+    "description": "Keeps Edge's phishing and malicious-download protection on and stops it being overridden per site.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SmartScreenEnabled","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SmartScreenPuaEnabled","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"PreventSmartScreenPromptOverride","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_enable_https_only",
+    "name": "Always Use HTTPS in Edge",
+    "description": "Makes Edge upgrade navigations to HTTPS and warn before falling back to plain HTTP.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"AutomaticHttpsDefault","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_web_widget",
+    "name": "Disable the Edge Web Widget",
+    "description": "Turns off the floating Edge Bar / web widget that can be pinned to the desktop and refreshes content on its own.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"WebWidgetAllowed","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_edge_update_tasks",
+    "name": "Disable the Edge Auto-Update Scheduled Tasks",
+    "description": "Disables the MicrosoftEdgeUpdate tasks that run every hour to check for browser updates. Edge then only updates when you launch it and let it.",
+    "category": "Browsers", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"scheduled_task","task_name":"\\MicrosoftEdgeUpdateTaskMachineCore"},
+      {"type":"scheduled_task","task_name":"\\MicrosoftEdgeUpdateTaskMachineUA"}
+    ]
+  },
+  {
+    "id": "edge_disable_ie_mode_nag",
+    "name": "Disable Internet Explorer Mode Prompts",
+    "description": "Stops Edge offering to reload a page in Internet Explorer mode.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"InternetExplorerIntegrationReloadInIEModeAllowed","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_sync",
+    "name": "Disable Edge Profile Sync",
+    "description": "Stops Edge syncing history, favourites, passwords and open tabs to your Microsoft account.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"SyncDisabled","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"BrowserSignin","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_clear_browsing_data_on_exit",
+    "name": "Clear Edge Browsing Data on Exit",
+    "description": "Wipes history, cookies and cache each time Edge closes. You will be signed out of everything on each launch, which is the point.",
+    "category": "Browsers", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"ClearBrowsingDataOnExit","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_enhanced_images",
+    "name": "Disable Edge Image Enhancement",
+    "description": "Stops Edge sending images from pages you visit to Microsoft's servers to be upscaled and 'enhanced'.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgeEnhanceImagesEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "edge_disable_follow_and_shopping",
+    "name": "Disable Edge Follow, Rewards and Related Matches",
+    "description": "Turns off the creator-following, Microsoft Rewards and related-search features that each add their own background calls.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"EdgeFollowEnabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"ShowMicrosoftRewards","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge","value":"RelatedMatchesCloudServiceEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "ie_disable_first_run_wizard",
+    "name": "Disable the Internet Explorer First Run Wizard",
+    "description": "Stops the legacy IE first-run wizard appearing when something on the system still invokes the old engine.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Internet Explorer\\Main","value":"DisableFirstRunCustomize","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "chrome_disable_background_mode",
+    "name": "Stop Chrome Running in the Background",
+    "description": "Prevents Google Chrome keeping processes and extensions alive after its last window closes. Only has an effect if Chrome is installed.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Google\\Chrome","value":"BackgroundModeEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "chrome_disable_metrics",
+    "name": "Disable Chrome Usage Metrics Reporting",
+    "description": "Turns off Chrome's usage statistics and crash report uploads through policy. Only has an effect if Chrome is installed.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Google\\Chrome","value":"MetricsReportingEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "chrome_block_third_party_cookies",
+    "name": "Block Third-Party Cookies in Chrome",
+    "description": "Refuses cross-site cookies in Google Chrome. Only has an effect if Chrome is installed.",
+    "category": "Browsers", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Google\\Chrome","value":"BlockThirdPartyCookies","data":1,"kind":"DWORD"}
+    ]
+  }
+]

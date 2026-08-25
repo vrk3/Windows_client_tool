@@ -14,12 +14,22 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
-from modules.tweaks.tweak_engine import TweakEngine
+from modules.tweaks.tweak_engine import (
+    APPLIED, NOT_APPLIED, NOT_APPLICABLE, PARTIAL, UNKNOWN, TweakEngine,
+)
+from modules.tweaks.os_context import get_os_context
 from modules.tweaks.app_catalog import AppCatalog, PROTECTED_APPS_DEFAULT
 from modules.tweaks.preset_manager import PresetManager
 from core.semantic_colors import semantic
 
 logger = logging.getLogger(__name__)
+
+
+def _escape(text: str) -> str:
+    """Reasons quote registry data verbatim, and REG_SZ values can contain
+    `<` — which would silently eat the rest of a rich-text QLabel."""
+    return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
 
 _DEFS_DIR = os.path.join(os.path.dirname(__file__), "definitions")
 _CATEGORY_FILES = {
@@ -33,6 +43,37 @@ _CATEGORY_FILES = {
     "Network":        "network.json",
     "AI Features":   "ai_features.json",
     "Navigation Pane": "navigation.json",
+    "Explorer":      "explorer.json",
+    "Taskbar & Start": "taskbar_start.json",
+    "Power":         "power.json",
+    "Input":         "input.json",
+    "Windows Update": "updates.json",
+    "Defender & Firewall": "defender.json",
+    "Browsers":      "browser.json",
+    "Storage":       "storage.json",
+    "Multimedia":    "multimedia.json",
+    "Remote Access": "remote.json",
+}
+
+#: How each verdict reads in the Status column, and which semantic colour it
+#: takes. "Not Applicable" is deliberately grey rather than red — it is not a
+#: failure, it is a tweak that has nothing to do on this machine.
+_STATUS_DISPLAY = {
+    APPLIED:        ("✅ Applied",     "success"),
+    NOT_APPLIED:    ("— Not Applied", None),
+    PARTIAL:        ("◐ Partial",     "warning"),
+    NOT_APPLICABLE: ("⊘ N/A",         None),
+    UNKNOWN:        ("? Unknown",     "info"),
+}
+
+#: Status filter dropdown -> status code. "All" and "Applicable" are handled
+#: separately because they match more than one code.
+_FILTER_TO_STATUS = {
+    "Applied":        APPLIED,
+    "Not Applied":    NOT_APPLIED,
+    "Partial":        PARTIAL,
+    "Not Applicable": NOT_APPLICABLE,
+    "Unknown":        UNKNOWN,
 }
 
 
@@ -41,7 +82,7 @@ _CATEGORY_FILES = {
 # ---------------------------------------------------------------------------
 
 class _Signals(QObject):
-    status_detected = pyqtSignal(str, str)   # tweak_id, status
+    status_detected = pyqtSignal(str, str, str)  # tweak_id, status, reason
     apply_done      = pyqtSignal(bool, list) # success, errors
     apps_detected   = pyqtSignal(set, set)   # installed_winget_ids, installed_appx
 
@@ -70,6 +111,10 @@ class _DetailsPanel(QFrame):
         self._risk = QLabel()
         layout.addWidget(self._risk)
 
+        self._status = QLabel()
+        self._status.setWordWrap(True)
+        layout.addWidget(self._status)
+
         self._desc = QLabel()
         self._desc.setWordWrap(True)
         self._desc.setStyleSheet("color: #aaaaaa;")
@@ -93,13 +138,39 @@ class _DetailsPanel(QFrame):
         layout.addWidget(self._apply_btn)
 
         self._tweak = None
+        self._status_cache: Dict[str, tuple] = {}
         self._apply_btn.clicked.connect(self._on_apply_clicked)
+
+    def update_status(self, tweak_id: str, status: str, reason: str) -> None:
+        """Remember every verdict, and repaint if it is the one on screen.
+
+        Detection runs on a worker and lands row by row, so the panel is
+        usually opened before the answer for that row arrives.
+        """
+        self._status_cache[tweak_id] = (status, reason)
+        if self._tweak is not None and self._tweak.get("id") == tweak_id:
+            self._render_status(tweak_id)
+
+    def _render_status(self, tweak_id: str) -> None:
+        status, reason = self._status_cache.get(tweak_id, (UNKNOWN, ""))
+        text, colour = _STATUS_DISPLAY.get(status, (status, None))
+        label = text.split(" ", 1)[-1]
+        shade = semantic(colour) if colour else "#aaaaaa"
+        detail = f"<br><span style='color:#999999'>{_escape(reason)}</span>" if reason else ""
+        self._status.setText(
+            f"<span style='color:{shade}'><b>STATUS: {label.upper()}</b></span>{detail}")
+
+        applicable = status != NOT_APPLICABLE
+        self._apply_btn.setEnabled(applicable)
+        self._apply_btn.setText(
+            "Apply This Tweak" if applicable else "Not Applicable On This PC")
 
     def set_tweak(self, tweak: Optional[Dict]) -> None:
         self._tweak = tweak
         if tweak is None:
             self._title.setText("Select a tweak")
             self._risk.setText("")
+            self._status.setText("")
             self._desc.setText("Click a tweak to see its details.")
             self._steps.setText("")
             self._presets.setText("")
@@ -128,13 +199,23 @@ class _DetailsPanel(QFrame):
                 steps_text += f"  [{i+1}] Script: {step.get('command', step.get('cmd', ''))[:80]}...\n"
             elif step_type == "appx":
                 steps_text += f"  [{i+1}] AppX Remove: {step.get('package', '')}\n"
+            elif step_type == "registry_delete":
+                steps_text += f"  [{i+1}] Registry: delete {step.get('key', '')}\\{step.get('value', '')}\n"
             elif step_type == "scheduled_task":
                 steps_text += f"  [{i+1}] Scheduled Task: {step.get('task_name', '')} → Disable\n"
+            else:
+                steps_text += f"  [{i+1}] {step_type}\n"
         self._steps.setText(steps_text.strip() or "No steps defined.")
 
-        self._presets.setText(f"ID: {tweak.get('id', '')}\nCategory: {tweak.get('category', '')}")
+        meta = [f"ID: {tweak.get('id', '')}",
+                f"Category: {tweak.get('category', '')}"]
+        applies = tweak.get("applies_to")
+        if applies:
+            meta.append("Applies to: " + ", ".join(
+                f"{k}={v}" for k, v in applies.items()))
+        self._presets.setText("\n".join(meta))
 
-        self._apply_btn.setEnabled(True)
+        self._render_status(tweak.get("id", ""))
 
     def _on_apply_clicked(self) -> None:
         if self._tweak is not None:
@@ -175,8 +256,12 @@ class TweakRow(QWidget):
         risk_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(risk_label)
 
-        self.status_label = QLabel("?")
-        self.status_label.setFixedWidth(100)
+        self.status = UNKNOWN
+        self.status_reason = ""
+        self._name_label = name_label
+
+        self.status_label = QLabel("? Unknown")
+        self.status_label.setFixedWidth(110)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setAttribute(Qt.WidgetAttribute.WA_LayoutUsesWidgetRect, True)
         layout.addWidget(self.status_label)
@@ -198,14 +283,39 @@ class TweakRow(QWidget):
             "TweakRow:hover { background-color: #2a2d2e; }"
         )
 
-    def set_status(self, status: str) -> None:
-        text_map = {
-            "applied": "✅ Applied",
-            "not_applied": "— Not Applied",
-            "unknown": "? Unknown",
-        }
-        self.status_label.setText(text_map.get(status, status))
-        self.disable_btn.setVisible(status == "applied")
+    def set_status(self, status: str, reason: str = "") -> None:
+        """Show the verdict, and put the *why* one hover away.
+
+        The reason is the whole point of the rewrite: "Not Applied" alone is
+        indistinguishable from "we couldn't read the key", so every row now
+        carries the sentence that produced its label.
+        """
+        self.status = status
+        self.status_reason = reason
+
+        text, colour = _STATUS_DISPLAY.get(status, (status, None))
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet(
+            f"color: {semantic(colour)};" if colour else "")
+
+        label = text.split(" ", 1)[-1]
+        self.status_label.setToolTip(
+            f"{label}\n{reason}" if reason else label)
+
+        # A tweak with nothing to do here must not sit in a bulk selection and
+        # then report a failure the user has to go and interpret.
+        applicable = status != NOT_APPLICABLE
+        self.checkbox.setEnabled(applicable)
+        self.apply_btn.setEnabled(applicable)
+        if not applicable:
+            self.checkbox.setChecked(False)
+            self.apply_btn.setToolTip(f"Not applicable on this PC — {reason}")
+            self._name_label.setStyleSheet("color: #7a7a7a;")
+        else:
+            self.apply_btn.setToolTip("")
+            self._name_label.setStyleSheet("")
+
+        self.disable_btn.setVisible(status in (APPLIED, PARTIAL))
 
     @property
     def is_checked(self) -> bool:
@@ -311,9 +421,15 @@ class TweakTab(QWidget):
         count = sum(1 for r in self._rows.values() if r.is_checked)
         self._count_label.setText(f"{count} selected")
 
-    def set_status(self, tweak_id: str, status: str) -> None:
+    def set_status(self, tweak_id: str, status: str, reason: str = "") -> None:
         if tweak_id in self._rows:
-            self._rows[tweak_id].set_status(status)
+            self._rows[tweak_id].set_status(status, reason)
+
+    def status_counts(self) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for row in self._rows.values():
+            counts[row.status] = counts.get(row.status, 0) + 1
+        return counts
 
     def selected_tweaks(self) -> List[Dict]:
         return [t for t in self._tweaks
@@ -336,27 +452,23 @@ class TweakTab(QWidget):
             row.set_checked(False)
 
     def select_by_status(self, status: str) -> None:
-        """status: 'applied', 'not_applied', or 'all'"""
+        """status: a status code, or 'all'.
+
+        Matches on the row's stored status code, not on its label text — the
+        old substring test selected every "Not Applied" row when asked for
+        "Applied", because one string contains the other.
+        """
         for row in self._rows.values():
-            if status == "all":
+            if not row.checkbox.isEnabled():
+                continue
+            if status == "all" or row.status == status:
                 row.set_checked(True)
-            else:
-                label_text = row.status_label.text()
-                if status == "applied" and "Applied" in label_text:
-                    row.set_checked(True)
-                elif status == "not_applied" and "Not Applied" in label_text:
-                    row.set_checked(True)
         self._on_selection_changed()
 
     def _select_by_status_filtered(self, status: str) -> None:
-        """Select rows matching status (applied/not_applied) and update count."""
+        """Select exactly the rows with this status, clearing the rest."""
         for row in self._rows.values():
-            label_text = row.status_label.text()
-            checked = (
-                (status == "applied" and "Applied" in label_text) or
-                (status == "not_applied" and "Not Applied" in label_text)
-            )
-            row.set_checked(checked)
+            row.set_checked(row.checkbox.isEnabled() and row.status == status)
         self._on_selection_changed()
 
     # Signal emitted when row selection should show details
@@ -573,6 +685,7 @@ class TweaksModule(BaseModule):
             path = os.path.join(_DEFS_DIR, filename)
             tweaks = TweakEngine.load_definitions(path)
             tab = TweakTab(tweaks)
+            tab._category_name = category
             self._tab_widgets[category] = tab
             self._tabs.addTab(tab, category)
             tab.row_selected.connect(self._on_row_selected)
@@ -619,9 +732,26 @@ class TweaksModule(BaseModule):
         # Status filter
         layout.addWidget(QLabel("Status:"))
         self._status_filter = QComboBox()
-        self._status_filter.addItems(["All", "Applied", "Not Applied", "Unknown"])
+        self._status_filter.addItems([
+            "All", "Applicable", "Applied", "Not Applied", "Partial",
+            "Not Applicable", "Unknown",
+        ])
+        self._status_filter.setToolTip(
+            "Applicable — everything except tweaks that have nothing to do on "
+            "this PC\nPartial — some of the tweak's steps are in place\n"
+            "Not Applicable — the target service, task, app or Windows version "
+            "isn't on this PC")
         self._status_filter.currentTextChanged.connect(self._on_filter_changed)
         layout.addWidget(self._status_filter)
+
+        # What "not applicable" is being judged against — without this the
+        # verdict is unfalsifiable from the user's side.
+        self._os_label = QLabel(get_os_context().friendly_name)
+        self._os_label.setStyleSheet("color: #888888; font-size: 11px;")
+        self._os_label.setToolTip(
+            "Tweaks are checked against this Windows build, edition and "
+            "architecture.")
+        layout.addWidget(self._os_label)
 
         return bar
 
@@ -716,25 +846,24 @@ class TweaksModule(BaseModule):
                 if row is None:
                     continue
 
-                # Text match
+                # Text match — the status reason is searchable too, so
+                # "not installed" pulls up everything N/A for that reason.
                 name_match = not search_text or (
                     search_text in tweak["name"].lower() or
-                    search_text in tweak.get("description", "").lower()
+                    search_text in tweak.get("description", "").lower() or
+                    search_text in row.status_reason.lower()
                 )
 
                 # Risk match
                 risk_match = risk_filter == "all" or tweak.get("risk", "low") == risk_filter
 
                 # Status match
-                status_text = row.status_label.text()
                 if status_filter == "All":
                     status_match = True
-                elif status_filter == "Applied":
-                    status_match = "Applied" in status_text
-                elif status_filter == "Not Applied":
-                    status_match = "Not Applied" in status_text
+                elif status_filter == "Applicable":
+                    status_match = row.status != NOT_APPLICABLE
                 else:
-                    status_match = "?" in status_text
+                    status_match = row.status == _FILTER_TO_STATUS.get(status_filter)
 
                 visible = name_match and risk_match and status_match
                 row.setVisible(visible)
@@ -1001,11 +1130,12 @@ class TweaksModule(BaseModule):
             all_tweaks.extend(tab._tweaks)
 
         def _worker_fn(worker):
-            for tweak in all_tweaks:
-                if worker.is_cancelled:
-                    break
-                status = self._engine.detect_status(tweak)
-                self._signals.status_detected.emit(tweak["id"], status)
+            def _emit(tweak, result):
+                self._signals.status_detected.emit(
+                    tweak["id"], result.status, result.reason)
+
+            self._engine.detect_many(
+                all_tweaks, _emit, is_cancelled=lambda: worker.is_cancelled)
             return None
 
         w = Worker(_worker_fn)
@@ -1013,10 +1143,36 @@ class TweaksModule(BaseModule):
         if self.app:
             self.app.thread_pool.start(w)
 
-    def _on_status_detected(self, tweak_id: str, status: str) -> None:
+    def _on_status_detected(self, tweak_id: str, status: str, reason: str) -> None:
         for tab in self._tab_widgets.values():
-            tab.set_status(tweak_id, status)
+            tab.set_status(tweak_id, status, reason)
+        if self._details_panel is not None:
+            self._details_panel.update_status(tweak_id, status, reason)
         self._filter_tweaks()  # Re-apply status filter if needed
+        self._update_tab_labels()
+
+    def _update_tab_labels(self) -> None:
+        """Put "Network (3/45)" on the tab, counting only what is applicable —
+        a category of forty tweaks where thirty do not apply to this build
+        should not read as 3/40."""
+        if self._tabs is None:
+            return
+        for index in range(self._tabs.count()):
+            tab = self._tabs.widget(index)
+            category = getattr(tab, "_category_name", None)
+            if category is None:
+                continue
+            counts = tab.status_counts()
+            total = sum(counts.values())
+            na = counts.get(NOT_APPLICABLE, 0)
+            applied = counts.get(APPLIED, 0)
+            live = total - na
+            self._tabs.setTabText(index, f"{category} ({applied}/{live})")
+            self._tabs.setTabToolTip(
+                index,
+                f"{applied} applied, {counts.get(PARTIAL, 0)} partial, "
+                f"{counts.get(NOT_APPLIED, 0)} not applied, "
+                f"{na} not applicable, {counts.get(UNKNOWN, 0)} unknown")
 
     # ------------------------------------------------------------------
     # App detection

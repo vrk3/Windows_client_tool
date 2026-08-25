@@ -13,6 +13,14 @@ def engine(tmp_path):
     svc.close()
 
 
+def _oserror(winerror):
+    """winreg raises OSError subclasses carrying a Windows error code; the
+    engine branches on 2 (not found) vs 5 (access denied)."""
+    err = OSError()
+    err.winerror = winerror
+    return err
+
+
 def _reg_tweak():
     return {
         "id": "test_tweak",
@@ -87,10 +95,144 @@ def test_detect_status_not_applied_registry(engine):
     assert status == "not_applied"
 
 
-def test_detect_status_unknown_on_error(engine):
-    with patch("winreg.OpenKey", side_effect=OSError):
-        status = engine.detect_status(_reg_tweak())
-    assert status == "unknown"
+def test_missing_registry_key_reads_as_not_applied_not_unknown(engine):
+    """A key that does not exist is Windows sitting at its default, which is
+    exactly "not applied". Reporting it as "unknown" told the user we had no
+    idea when in fact we knew perfectly well."""
+    with patch("winreg.OpenKey", side_effect=_oserror(2)):
+        result = engine.detect(_reg_tweak())
+    assert result.status == "not_applied"
+    assert "does not exist" in result.reason
+
+
+def test_missing_registry_value_reads_as_not_applied(engine):
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.OpenKey", return_value=mock_key), \
+         patch("winreg.QueryValueEx", side_effect=_oserror(2)):
+        result = engine.detect(_reg_tweak())
+    assert result.status == "not_applied"
+    assert "not set" in result.reason
+
+
+def test_access_denied_is_the_only_registry_unknown(engine):
+    """"Unknown" now means we genuinely could not look — and says so."""
+    with patch("winreg.OpenKey", side_effect=_oserror(5)):
+        result = engine.detect(_reg_tweak())
+    assert result.status == "unknown"
+    assert "permission" in result.reason.lower()
+
+
+def test_absent_means_applied_flips_the_default_reading(engine):
+    tweak = _reg_tweak()
+    tweak["steps"][0]["absent_means"] = "applied"
+    with patch("winreg.OpenKey", side_effect=_oserror(2)):
+        assert engine.detect(tweak).status == "applied"
+
+
+def test_reason_names_the_actual_value_found(engine):
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.OpenKey", return_value=mock_key), \
+         patch("winreg.QueryValueEx", return_value=(7, 4)):
+        result = engine.detect(_reg_tweak())
+    assert result.status == "not_applied"
+    assert "is 7" in result.reason and "wants 1" in result.reason
+
+
+def test_mixed_steps_report_partial(engine):
+    tweak = {
+        "id": "mixed", "name": "Mixed", "steps": [
+            {"type": "registry", "key": r"HKCU\Software\A", "value": "V",
+             "data": 1, "kind": "DWORD"},
+            {"type": "registry", "key": r"HKCU\Software\B", "value": "V",
+             "data": 1, "kind": "DWORD"},
+        ],
+    }
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.OpenKey", return_value=mock_key), \
+         patch("winreg.QueryValueEx", side_effect=[(1, 4), (0, 4)]):
+        result = engine.detect(tweak)
+    assert result.status == "partial"
+    assert "1 of 2" in result.reason
+
+
+def test_absent_service_is_not_applicable_not_unknown(engine):
+    tweak = _svc_tweak()
+    with patch.object(engine._os, "service_exists", return_value=False):
+        result = engine.detect(tweak)
+    assert result.status == "not_applicable"
+    assert "TestSvc" in result.reason
+
+
+def test_unqueryable_service_stays_unknown(engine):
+    """False means "not installed"; None means "we were not allowed to look".
+    Collapsing the two would tell the user a service is absent when it is
+    merely unreadable."""
+    with patch.object(engine._os, "service_exists", return_value=None):
+        assert engine.detect(_svc_tweak()).status == "unknown"
+
+
+def test_applies_to_build_gate_reports_not_applicable(engine):
+    tweak = _reg_tweak()
+    tweak["applies_to"] = {"min_build": 99999}
+    result = engine.detect(tweak)
+    assert result.status == "not_applicable"
+    assert "99999" in result.reason
+
+
+def test_applies_to_alias_resolves(engine):
+    tweak = _reg_tweak()
+    tweak["applies_to"] = {"max_build": "22H2"}  # 19045 -- a Win10 build
+    result = engine.detect(tweak)
+    assert result.status == "not_applicable"
+
+
+def test_detect_block_overrides_command_steps(engine):
+    """A command step is unknowable; a `detect` block is how such a tweak
+    becomes checkable at all."""
+    tweak = _cmd_tweak()
+    assert engine.detect(tweak).status == "unknown"
+
+    tweak["detect"] = {"type": "registry", "key": r"HKCU\Software\Test",
+                       "value": "Val", "data": 1, "kind": "DWORD"}
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.OpenKey", return_value=mock_key), \
+         patch("winreg.QueryValueEx", return_value=(1, 4)):
+        assert engine.detect(tweak).status == "applied"
+
+
+def test_command_unknown_still_explains_itself(engine):
+    result = engine.detect(_cmd_tweak())
+    assert result.status == "unknown"
+    assert result.reason, "an Unknown with no reason is the bug being fixed"
+
+
+def test_binary_hex_string_compares_against_bytes(engine):
+    tweak = {
+        "id": "bin", "name": "Bin", "steps": [
+            {"type": "registry", "key": r"HKCU\Software\Test", "value": "B",
+             "data": "00 01 02", "kind": "BINARY"},
+        ],
+    }
+    mock_key = MagicMock()
+    mock_key.__enter__ = lambda s: s
+    mock_key.__exit__ = MagicMock(return_value=False)
+    with patch("winreg.OpenKey", return_value=mock_key), \
+         patch("winreg.QueryValueEx", return_value=(b"\x00\x01\x02", 3)):
+        assert engine.detect(tweak).status == "applied"
+
+
+def test_detect_status_string_api_still_works(engine):
+    """The Qt signal carries a plain string; keep that contract."""
+    with patch("winreg.OpenKey", side_effect=_oserror(2)):
+        assert engine.detect_status(_reg_tweak()) == "not_applied"
 
 
 def test_load_definitions_reads_json(tmp_path):

@@ -3,416 +3,826 @@
     "id": "disable_qos_reserved_bandwidth",
     "name": "Remove QoS Reserved Bandwidth Limit",
     "description": "By default Windows reserves 20% of bandwidth for QoS/DSCP traffic. Removing this reservation allows all apps to use the full connection speed.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Psched","value":"NonBestEffortLimit","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Psched",
+        "value": "NonBestEffortLimit",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_ipv6",
     "name": "Disable IPv6",
     "description": "Disables IPv6 on all network adapters. Removes the IPv6 attack surface and can reduce DNS lookup delays on networks without IPv6 infrastructure. Reboot required.",
-    "category": "Network", "risk": "medium", "requires_admin": true,
+    "category": "Network",
+    "risk": "medium",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"DisabledComponents","data":255,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+        "value": "DisabledComponents",
+        "data": 255,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_network_location_wizard",
     "name": "Disable Network Location Pop-up",
     "description": "Suppresses the 'Do you want your PC to be discoverable?' pop-up that appears every time you connect to a new network.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Network\\NewNetworkWindowOff","value":"","data":"","kind":"SZ"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Network\\NewNetworkWindowOff",
+        "value": "",
+        "data": "",
+        "kind": "SZ"
+      }
     ]
   },
   {
     "id": "optimise_dns_cache",
     "name": "Optimise DNS Cache TTL",
     "description": "Sets the DNS client cache max TTL to 86400 s (24 h) and negative cache to 300 s. Reduces repeat DNS lookups for frequently visited domains.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxCacheTtl","data":86400,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters","value":"MaxNegativeCacheTtl","data":300,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "value": "MaxCacheTtl",
+        "data": 86400,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "value": "MaxNegativeCacheTtl",
+        "data": 300,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_network_discovery_services",
     "name": "Disable Network Discovery (SSDP / UPnP)",
     "description": "Stops the SSDP Discovery, UPnP Host, and Function Discovery services that broadcast this machine's presence on the LAN. Reduces attack surface on public or untrusted networks.",
-    "category": "Network", "risk": "medium", "requires_admin": true,
+    "category": "Network",
+    "risk": "medium",
+    "requires_admin": true,
     "steps": [
-      {"type":"service","name":"FDResPub","start_type":"disabled"},
-      {"type":"service","name":"SSDPSRV","start_type":"disabled"},
-      {"type":"service","name":"upnphost","start_type":"disabled"}
+      {
+        "type": "service",
+        "name": "FDResPub",
+        "start_type": "disabled"
+      },
+      {
+        "type": "service",
+        "name": "SSDPSRV",
+        "start_type": "disabled"
+      },
+      {
+        "type": "service",
+        "name": "upnphost",
+        "start_type": "disabled"
+      }
     ]
   },
   {
     "id": "disable_lmhosts_lookup",
     "name": "Disable LMHosts Name Resolution",
     "description": "Disables the legacy LMHosts file used for NetBIOS name resolution. No modern application relies on this — disabling it reduces NetBIOS query broadcast noise.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"EnableLMHOSTS","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters",
+        "value": "EnableLMHOSTS",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "shorten_tcp_keepalive",
     "name": "Shorten TCP KeepAlive Interval",
     "description": "Reduces the TCP KeepAlive interval from 2 hours to 5 minutes. Detects dead connections faster, which improves resilience for apps that hold long-lived TCP sockets.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"KeepAliveTime","data":300000,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"KeepAliveInterval","data":1000,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "KeepAliveTime",
+        "data": 300000,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "KeepAliveInterval",
+        "data": 1000,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_tcp_timestamps",
     "name": "Disable TCP Timestamps",
     "description": "Disables the TCP timestamp option (RFC 1323). Timestamps can expose system uptime to network peers and marginally increase per-packet overhead. Low security improvement; mainly for hardening.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"Tcp1323Opts","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "Tcp1323Opts",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "enable_dns_over_https",
     "name": "Enable DNS-over-HTTPS (DoH)",
-    "description": "Configures DNS-over-HTTPS using Cloudflare (1.1.1.1) and Google (8.8.8.8) as secure resolvers. Encrypts DNS queries to prevent ISP and LAN surveillance.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "description": "Turns on automatic DNS-over-HTTPS (EnableAutoDoh=2) and points the first active adapter at Cloudflare and Google, both of which Windows knows as DoH resolvers. DNS queries then travel encrypted instead of in clear text over port 53.",
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Where Status -eq Up | Select -First 1 InterfaceIndex) -ServerAddresses 1.1.1.1,8.8.8.8"}
-    ]
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "value": "EnableAutoDoh",
+        "data": 2,
+        "kind": "DWORD"
+      },
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Where Status -eq Up | Select -First 1 InterfaceIndex) -ServerAddresses 1.1.1.1,8.8.8.8"
+      }
+    ],
+    "detect": {
+      "type": "registry",
+      "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+      "value": "EnableAutoDoh",
+      "data": 2,
+      "kind": "DWORD"
+    }
   },
   {
     "id": "disable_smb_compression",
     "name": "Disable SMB Compression",
     "description": "Prevents Windows from compressing data over SMB shares by default. Useful on fast networks where compression overhead outweighs bandwidth savings. Some legacy NAS devices also have issues with SMB compression.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters","value":"EnableCompressedTraffic","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters",
+        "value": "EnableCompressedTraffic",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_tcp_offloading",
     "name": "Disable TCP/IP Offloading (Chimney)",
     "description": "Disables TCP Chimney offloading which can cause network instability on some NICs and routers. Recommended if you experience intermittent disconnections.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableTCPChimney","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableRSS","data":0,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DisableTaskOffload","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "EnableTCPChimney",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "EnableRSS",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "DisableTaskOffload",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "set_tcp_auto_tuning_normal",
     "name": "Set TCP Auto-Tuning to Normal",
     "description": "Sets the TCP receive window auto-tuning level to normal. Resolves slow network speeds on some routers that mishandle large windows.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh interface tcp set global autotuninglevel=normal"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh interface tcp set global autotuninglevel=normal"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $s = Get-NetTCPSetting -SettingName Internet -ErrorAction Stop; if ($s.AutoTuningLevelLocal -eq 'Normal') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "TCP receive-window auto-tuning is Normal",
+      "not_applied_reason": "TCP receive-window auto-tuning is not Normal"
+    }
   },
   {
     "id": "disable_tcp_scaling",
-    "name": "Disable TCP Window Scaling",
-    "description": "Disables TCP receive window scaling. Only use this as a diagnostic step for network problems — can reduce throughput on high-latency connections.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "name": "Disable TCP Receive Window Auto-Tuning",
+    "description": "Pins the TCP receive window instead of letting Windows scale it. Worth trying only when an old router or a middlebox mishandles window scaling and throughput collapses on large transfers; on a healthy modern link this makes downloads slower, not faster.",
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh interface tcp set global rss=enabled autotuninglevel=normal"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh interface tcp set global autotuninglevel=disabled"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $s = Get-NetTCPSetting -SettingName Internet -ErrorAction Stop; if ($s.AutoTuningLevelLocal -eq 'Disabled') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "TCP receive-window auto-tuning is Disabled",
+      "not_applied_reason": "TCP receive-window auto-tuning is still enabled"
+    }
   },
   {
     "id": "enable_tcp_quickack",
     "name": "Enable TCP Quick ACK",
     "description": "Enables Quick ACK mode for faster acknowledgement of received data on per-connection basis. Improves responsiveness on high-latency connections.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"TcpAckFrequency","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "TcpAckFrequency",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_netbios_ns_broadcast",
     "name": "Disable NetBIOS Name Service Broadcast",
     "description": "Stops the computer from broadcasting NetBIOS name queries to the entire local subnet. Reduces network noise and slightly improves sleep/wake times on networks with many devices.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"NoNameReleaseOnDemand","data":1,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters","value":"NameServerPort","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters",
+        "value": "NoNameReleaseOnDemand",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters",
+        "value": "NameServerPort",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_smbv2_negotiate",
     "name": "Force SMBv2 Only (Disable SMBv1 Fallback)",
     "description": "Configures the SMB client to only negotiate SMBv2/v3. Adds extra protection against EternalBlue and other SMBv1 exploits without fully disabling SMB sharing.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters","value":"SMB2","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "value": "SMB2",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_icmp_redirect",
     "name": "Disable ICMP Redirect Acceptance",
     "description": "Prevents the system from accepting ICMP redirect packets. ICMP redirects can be abused to manipulate routing tables on LANs.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"EnableICMPRedirect","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "EnableICMPRedirect",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_dead_gateway",
     "name": "Disable Dead Gateway Detection",
     "description": "Prevents Windows from periodically testing alternate gateways listed in your routing table. Reduces background network activity on multi-NIC setups.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DisableDeadGWDetect","data":1,"kind":"DWORD"}
-    ]
-  },
-  {
-    "id": "optimize_dns_prefetch",
-    "name": "Enable DNS Prefetching",
-    "description": "Enables DNS name prefetching so Windows proactively resolves domain names before you click links. Improves browsing responsiveness.",
-    "category": "Network", "risk": "low", "requires_admin": false,
-    "steps": [
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoComplete","value":"AutoSuggest","data":1,"kind":"SZ"},
-      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoComplete","value":"Append Completion","data":1,"kind":"SZ"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "DisableDeadGWDetect",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_network_status",
     "name": "Disable NCSI Active Probing",
     "description": "Disables the active polling that Windows uses to check internet connectivity (downloading a file from msftconnect.com). Reduces background network activity but the status icon may show inaccurate results.",
-    "category": "Network", "risk": "low", "requires_admin": false,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": false,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator","value":"NoActiveProbe","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator",
+        "value": "NoActiveProbe",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_wol_magic_packet",
     "name": "Disable Wake-on-LAN Magic Packets",
     "description": "Disables the NIC from waking the PC in response to Wake-on-LAN magic packets received over the network. Improves security on machines that must not be remotely awakened.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Get-NetAdapter | Where Status -eq Up | ForEach-Object { Disable-NetAdapterWakeOnMagicPacket $_.Name -Confirm:$false -ErrorAction SilentlyContinue }"}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Get-NetAdapter | Where Status -eq Up | ForEach-Object { Disable-NetAdapterWakeOnMagicPacket $_.Name -Confirm:$false -ErrorAction SilentlyContinue }"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $a = Get-NetAdapter -Physical -ErrorAction Stop | Where-Object Status -eq 'Up'; if (-not $a) {'True'} elseif (($a | Get-NetAdapterPowerManagement -ErrorAction SilentlyContinue | Where-Object { $_.WakeOnMagicPacket -eq 'Enabled' }).Count -eq 0) {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "no active adapter wakes this PC on a magic packet",
+      "not_applied_reason": "at least one active adapter still wakes this PC on a magic packet"
+    }
   },
   {
     "id": "disable_smb1_client",
     "name": "Disable SMBv1 Client",
     "description": "Completely disables the SMBv1 client. SMBv1 is a 30-year-old protocol with known vulnerabilities (WannaCry, NotPetya). Most modern networks don't need it.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -WarningAction SilentlyContinue"}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -WarningAction SilentlyContinue"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -ErrorAction Stop).State -eq 'Disabled') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "the SMB1Protocol optional feature is disabled",
+      "not_applied_reason": "the SMB1Protocol optional feature is still enabled"
+    }
   },
   {
     "id": "disable_smb1_server",
     "name": "Disable SMBv1 Server",
     "description": "Completely disables the SMBv1 server role. Prevents this machine from serving files via SMBv1 to other clients.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Server -NoRestart -WarningAction SilentlyContinue"}
-    ]
-  },
-  {
-    "id": "disable_llmnr",
-    "name": "Disable LLMNR",
-    "description": "Disables Link-Local Multicast Name Resolution. LLMNR broadcasts names on the local network and can be spoofed in man-in-the-middle attacks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
-    "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient","value":"EnableMulticast","data":0,"kind":"DWORD"}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Server -NoRestart -WarningAction SilentlyContinue"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Server -ErrorAction Stop).State -eq 'Disabled') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "the SMB1Protocol-Server optional feature is disabled",
+      "not_applied_reason": "the SMB1Protocol-Server optional feature is still enabled"
+    }
   },
   {
     "id": "disable_netbios_over_tcpip",
     "name": "Disable NetBIOS over TCP/IP",
     "description": "Disables NetBIOS name resolution over TCP/IP on all adapters. NetBIOS is a legacy protocol not needed on modern networks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Get-WmiObject Win32_NetworkAdapterConfiguration | Where-Object {$_.IPEnabled -eq $true} | ForEach-Object { $_.SetTcpipNetbios(2) }"}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Get-WmiObject Win32_NetworkAdapterConfiguration | Where-Object {$_.IPEnabled -eq $true} | ForEach-Object { $_.SetTcpipNetbios(2) }"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $i = Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters\\Interfaces' -ErrorAction Stop; $bad = $i | Where-Object { (Get-ItemProperty $_.PSPath -Name NetbiosOptions -ErrorAction SilentlyContinue).NetbiosOptions -ne 2 }; if (-not $bad) {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "NetBIOS over TCP/IP is off on every interface",
+      "not_applied_reason": "NetBIOS over TCP/IP is still on for at least one interface"
+    }
   },
   {
     "id": "disable_wpad",
     "name": "Disable WPAD",
     "description": "Disables Web Proxy Auto-Discovery. WPAD can be exploited to intercept traffic on networks with a misconfigured proxy.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Wpad","value":"WpadOverride","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Wpad",
+        "value": "WpadOverride",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "enable_port_reserve",
     "name": "Enable Dynamic Port Range Reservation",
     "description": "Reserves a block of ephemeral ports (49152-65535) for custom applications. Improves reliability for apps that bind many sockets.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"MaxUserPort","data":65534,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "MaxUserPort",
+        "data": 65534,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_remote_connection",
     "name": "Disable Remote Desktop",
     "description": "Disables the Remote Desktop server. Prevents remote connections to this PC.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server","value":"fDenyTSConnections","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server",
+        "value": "fDenyTSConnections",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_pnp_network",
     "name": "Disable PnP-X Network Discovery",
     "description": "Disables the PnP-X (Plug and Play Extensions) network discovery protocol. A UPnP-derived protocol rarely needed on modern networks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"service","name":"FDResPub","start_type":"disabled"},
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Controls Folder\\Panel\\Servers\\WSDAdmin","value":"Enabled","data":0,"kind":"DWORD"}
+      {
+        "type": "service",
+        "name": "FDResPub",
+        "start_type": "disabled"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Controls Folder\\Panel\\Servers\\WSDAdmin",
+        "value": "Enabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "set_internet_open_timeout",
     "name": "Reduce Internet Open Timeout",
     "description": "Reduces the timeout for internet connection attempts from 5 seconds to 2 seconds. Speeds up connection attempts on slow networks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"TcpInitialRTT","data":2,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "TcpInitialRTT",
+        "data": 2,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_automatic_metric",
     "name": "Disable Automatic Interface Metric",
     "description": "Disables Windows from automatically assigning interface metrics. Use this to manually set route priorities for multi-NIC setups.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DisableAutomaticInterfaceMetric","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "DisableAutomaticInterfaceMetric",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_ipv6_isatap",
     "name": "Disable ISATAP Tunneling",
     "description": "Disables the ISATAP IPv6 tunneling adapter. ISATAP is a legacy transition mechanism not needed in pure IPv4 or native IPv6 environments.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"DisabledComponents","data":8,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+        "value": "DisabledComponents",
+        "data": 8,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_ipv6_teredo",
     "name": "Disable Teredo Tunneling",
     "description": "Disables the Teredo IPv6 tunneling client. Teredo can leak IPv6 connectivity information and is rarely needed.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"DisabledComponents","data":2,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+        "value": "DisabledComponents",
+        "data": 2,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "optimize_tcp_window_size",
     "name": "Optimize TCP Window Size",
     "description": "Sets the TCP receive window to 64KB and enables auto-tuning. Improves throughput on high-bandwidth, high-latency connections.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh interface tcp set global initialRto=2000 maxSynRetransmissions=2"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh interface tcp set global initialRto=2000 maxSynRetransmissions=2"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $s = Get-NetTCPSetting -SettingName Internet -ErrorAction Stop; if ($s.InitialRto -eq 2000 -and $s.MaxSynRetransmissions -eq 2) {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "initial RTO is 2000 ms and SYN retransmissions are capped at 2",
+      "not_applied_reason": "initial RTO / SYN retransmission limit are at their defaults"
+    }
   },
   {
     "id": "enable_network_profile_check",
     "name": "Enable Network Profile Type Checking",
     "description": "Enforces network profile type checking on all adapters. Prevents accidental exposure of private network adapters to public networks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator","value":"ShowProfileDetails","data":1,"kind":"DWORD"}
-    ]
-  },
-  {
-    "id": "disable_wifi_sense",
-    "name": "Disable Wi-Fi Sense",
-    "description": "Disables Wi-Fi Sense which shares Wi-Fi credentials with Outlook.com, Skype, and Facebook contacts. A privacy risk on corporate networks.",
-    "category": "Network", "risk": "low", "requires_admin": true,
-    "steps": [
-      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\WcmSvc\\wifinetworkmanager\\config","value":"AutoConnectAllowedOEM","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator",
+        "value": "ShowProfileDetails",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_packet_direct",
     "name": "Disable Packet Direct",
     "description": "Disables Packet Direct which can improve performance for specialized networking apps. Safe to disable on standard desktop workloads.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\PacketDirect","value":"EnablePacketDirect","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\PacketDirect",
+        "value": "EnablePacketDirect",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "set_network_buffer_sizes",
     "name": "Optimize Network Buffer Sizes",
     "description": "Sets the network buffers to recommended values for desktop workloads. Improves responsiveness under moderate network load.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DefaultSendWindow","data":131071,"kind":"DWORD"},
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters","value":"DefaultReceiveWindow","data":131071,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "DefaultSendWindow",
+        "data": 131071,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "value": "DefaultReceiveWindow",
+        "data": 131071,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_smbv3_compression",
     "name": "Disable SMBv3 Compression",
     "description": "Prevents SMBv3 compression. Useful if you suspect a vulnerability in the compression algorithm or need to troubleshoot SMB issues.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa","value":"SMBCompression","data":0,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+        "value": "SMBCompression",
+        "data": 0,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "disable_teredo_for_all",
     "name": "Disable Teredo Completely",
     "description": "Fully disables Teredo (both client and server) to prevent any IPv6 tunnel leakage.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters","value":"DisabledComponents","data":3,"kind":"DWORD"},
-      {"type":"service","name":"iphlpsvc","start_type":"manual"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+        "value": "DisabledComponents",
+        "data": 3,
+        "kind": "DWORD"
+      },
+      {
+        "type": "service",
+        "name": "iphlpsvc",
+        "start_type": "manual"
+      }
     ]
   },
   {
     "id": "set_tcp_congestion_control_default",
     "name": "Reset TCP Congestion Control to Default",
     "description": "Resets TCP congestion control to the Windows default (CUBIC). Use after testing advanced algorithms like BBR.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh interface tcp set global congestionprovider=default"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh interface tcp set global congestionprovider=default"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { $s = Get-NetTCPSetting -SettingName Internet -ErrorAction Stop; if ($s.CongestionProvider -in @('Default','CUBIC')) {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "the congestion provider is back at the Windows default",
+      "not_applied_reason": "a non-default congestion provider is in force"
+    }
   },
   {
     "id": "disable_rss",
     "name": "Disable RSS (Receive Side Scaling)",
     "description": "Disables RSS which distributes NIC receive processing across CPU cores. May improve compatibility on some older or quirky NIC drivers.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh interface tcp set global rss=disabled"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh interface tcp set global rss=disabled"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { if ((Get-NetOffloadGlobalSetting -ErrorAction Stop).ReceiveSideScaling -eq 'Disabled') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "Receive Side Scaling is disabled",
+      "not_applied_reason": "Receive Side Scaling is enabled"
+    }
   },
   {
     "id": "disable_jumbo_frames",
     "name": "Disable Jumbo Frames",
     "description": "Disables jumbo frames (MTU > 1500) on all adapters. Ensures maximum compatibility with all network equipment.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"powershell -NoProfile -Command Get-NetAdapter | Where-Object {$_.MtuSize -gt 1500} | Set-NetAdapterAdvancedProperty -DisplayName 'Jumbo Packet' -RegistryValue 1514 -NoRestart"}
-    ]
+      {
+        "type": "command",
+        "cmd": "powershell -NoProfile -Command Get-NetAdapter | Where-Object {$_.MtuSize -gt 1500} | Set-NetAdapterAdvancedProperty -DisplayName 'Jumbo Packet' -RegistryValue 1514 -NoRestart"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { if ((Get-NetAdapter -Physical -ErrorAction Stop | Where-Object { $_.MtuSize -gt 1500 }).Count -eq 0) {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "no adapter is using an MTU above 1500",
+      "not_applied_reason": "at least one adapter is using a jumbo MTU"
+    }
   },
   {
     "id": "disable_ndis_central",
     "name": "Disable NDIS Central Processing",
     "description": "Disables NDIS Central processing which offloads packet filtering to the NIC. Safe to disable for general desktop use.",
-    "category": "Network", "risk": "low", "requires_admin": true,
+    "category": "Network",
+    "risk": "low",
+    "requires_admin": true,
     "steps": [
-      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\NDIS\\Parameters","value":"DisableNdisCentralProcessing","data":1,"kind":"DWORD"}
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\NDIS\\Parameters",
+        "value": "DisableNdisCentralProcessing",
+        "data": 1,
+        "kind": "DWORD"
+      }
     ]
   },
   {
     "id": "optimize_winsock",
     "name": "Optimize Winsock Catalog",
     "description": "Clears the Winsock catalog and resets to defaults, fixing corruption that can cause network connectivity issues.",
-    "category": "Network", "risk": "medium", "requires_admin": true,
+    "category": "Network",
+    "risk": "medium",
+    "requires_admin": true,
     "steps": [
-      {"type":"command","cmd":"netsh winsock reset"}
-    ]
+      {
+        "type": "command",
+        "cmd": "netsh winsock reset"
+      }
+    ],
+    "detect": {
+      "type": "none",
+      "reason": "resetting the Winsock catalog is a repair action, not a setting — it leaves no value behind to read back"
+    }
   }
 ]

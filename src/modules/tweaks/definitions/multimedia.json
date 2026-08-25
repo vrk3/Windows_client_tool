@@ -1,0 +1,497 @@
+[
+  {
+    "id": "mm_disable_network_throttling",
+    "name": "Disable Multimedia Network Throttling",
+    "description": "Removes the 10-packets-per-millisecond cap the multimedia scheduler puts on network traffic to protect audio playback. Lifts a real ceiling on throughput for anyone on a gigabit link.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "value": "NetworkThrottlingIndex",
+        "data": 4294967295,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_restore_network_throttling",
+    "name": "Restore Multimedia Network Throttling",
+    "description": "Puts the network throttling index back to its default of 10, which prioritises glitch-free audio over raw network throughput.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "value": "NetworkThrottlingIndex",
+        "data": 10,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_system_responsiveness_low",
+    "name": "Reserve Less CPU for Background Multimedia",
+    "description": "Cuts the share of CPU the multimedia class scheduler holds back for low-priority tasks from 20 percent to 10, leaving more for foreground work. Setting it to zero can cause audio dropouts, so this stops at 10.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "value": "SystemResponsiveness",
+        "data": 10,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_system_responsiveness_default",
+    "name": "Restore Default Multimedia CPU Reservation",
+    "description": "Puts the multimedia scheduler's background CPU reservation back to the Windows default of 20 percent.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "value": "SystemResponsiveness",
+        "data": 20,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_audio_task_priority",
+    "name": "Raise Audio Thread Priority",
+    "description": "Gives the Audio and Pro Audio multimedia task profiles their highest scheduling priority, which is the usual fix for crackling under load in a DAW.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Audio",
+        "value": "Priority",
+        "data": 6,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Audio",
+        "value": "Scheduling Category",
+        "data": "High",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Pro Audio",
+        "value": "Priority",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Pro Audio",
+        "value": "Scheduling Category",
+        "data": "High",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_audio_ducking",
+    "name": "Disable Audio Ducking During Calls",
+    "description": "Stops Windows automatically turning other applications' volume down when a communications app detects a call.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Multimedia\\Audio",
+        "value": "UserDuckingPreference",
+        "data": 3,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_bluetooth_absolute_volume",
+    "name": "Disable Bluetooth Absolute Volume",
+    "description": "Decouples the Windows volume slider from the headset's own volume control. The usual fix for Bluetooth headphones where the bottom third of the slider is silent and the rest is far too loud.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Bluetooth\\Audio\\AVRCP\\CT",
+        "value": "DisableAbsoluteVolume",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_enable_hardware_gpu_scheduling",
+    "name": "Enable Hardware-Accelerated GPU Scheduling",
+    "description": "Hands GPU work scheduling to the graphics card's own processor instead of the CPU. Usually a small latency win on modern NVIDIA and AMD cards; needs a supported driver and a restart.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "value": "HwSchMode",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_hardware_gpu_scheduling",
+    "name": "Disable Hardware-Accelerated GPU Scheduling",
+    "description": "Puts GPU work scheduling back on the CPU. Worth trying if you get stutter, driver timeouts or capture-software glitches after enabling it.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "value": "HwSchMode",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_increase_tdr_delay",
+    "name": "Increase the GPU Timeout Detection Delay",
+    "description": "Raises the time Windows waits before deciding the graphics driver has hung and resetting it, from 2 to 10 seconds. Helps with long GPU compute or render jobs that trip the watchdog; hides genuine driver hangs for longer.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "value": "TdrDelay",
+        "data": 10,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "value": "TdrDdiDelay",
+        "data": 10,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_restore_tdr_delay",
+    "name": "Restore the Default GPU Timeout Delay",
+    "description": "Puts the graphics driver watchdog back to the Windows default of 2 seconds.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "value": "TdrDelay",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_block_camera_access",
+    "name": "Block All App Access to the Camera",
+    "description": "Denies every app the camera capability system-wide. Desktop applications that talk to the device driver directly are not covered by this switch.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam",
+        "value": "Value",
+        "data": "Deny",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_allow_camera_access",
+    "name": "Allow App Access to the Camera",
+    "description": "Restores the camera capability for apps, undoing a system-wide camera block.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam",
+        "value": "Value",
+        "data": "Allow",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_block_microphone_access",
+    "name": "Block All App Access to the Microphone",
+    "description": "Denies every app the microphone capability system-wide. As with the camera, classic desktop programs using the driver directly are unaffected.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone",
+        "value": "Value",
+        "data": "Deny",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_camera_indicator_sound",
+    "name": "Disable the Camera Shutter Sound",
+    "description": "Silences the shutter click the Camera app plays when taking a photo.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\CameraRoll",
+        "value": "CameraSoundEnabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_windows_startup_sound",
+    "name": "Disable the Windows Startup Sound",
+    "description": "Silences the chime played at the sign-in screen.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Authentication\\LogonUI\\BootAnimation",
+        "value": "DisableStartupSound",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+        "value": "DisableStartupSound",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_all_system_sounds",
+    "name": "Use the No Sounds Scheme",
+    "description": "Switches the sound scheme to silent, so notifications, errors and device connect events stop making noise.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\AppEvents\\Schemes",
+        "value": "",
+        "data": ".None",
+        "kind": "SZ"
+      }
+    ],
+    "detect": {
+      "type": "powershell",
+      "script": "try { if ((Get-ItemProperty 'HKCU:\\AppEvents\\Schemes' -ErrorAction Stop).'(default)' -eq '.None') {'True'} else {'False'} } catch { 'error' }",
+      "applied_when": "True",
+      "applied_reason": "the active sound scheme is 'No Sounds'",
+      "not_applied_reason": "a sound scheme other than 'No Sounds' is active"
+    }
+  },
+  {
+    "id": "mm_disable_windows_media_drm",
+    "name": "Disable Media Player DRM Internet Access",
+    "description": "Stops the Windows Media DRM component contacting Microsoft to acquire licences or report playback.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WMDRM",
+        "value": "DisableOnline",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_wmp_metadata_download",
+    "name": "Stop Media Player Downloading Album Art and Metadata",
+    "description": "Prevents Windows Media Player looking up track and album information online, which also stops it reporting what you play.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsMediaPlayer",
+        "value": "PreventCDDVDMetadataRetrieval",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsMediaPlayer",
+        "value": "PreventMusicFileMetadataRetrieval",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsMediaPlayer",
+        "value": "PreventRadioPresetsRetrieval",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_playback_task_priority",
+    "name": "Raise Video Playback Thread Priority",
+    "description": "Gives the Playback and Capture multimedia task profiles a higher scheduling priority, which reduces dropped frames during video playback and screen capture on a loaded machine.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Playback",
+        "value": "Priority",
+        "data": 6,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Playback",
+        "value": "Scheduling Category",
+        "data": "High",
+        "kind": "SZ"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Capture",
+        "value": "Priority",
+        "data": 6,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Capture",
+        "value": "Scheduling Category",
+        "data": "High",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_video_playback_optimization",
+    "name": "Disable Automatic Video Playback Optimisation",
+    "description": "Stops Windows processing video to 'improve' brightness and colour, and stops it lowering streaming resolution on battery.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\VideoSettings",
+        "value": "EnableAutoEnhanceDuringPlayback",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\VideoSettings",
+        "value": "VideoQualityOnBattery",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_hdr_auto",
+    "name": "Disable Auto HDR",
+    "description": "Turns off the automatic HDR upgrade Windows applies to SDR games. Useful when it makes colours look washed out on your display.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "applies_to": {
+      "min_build": "WIN11"
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences",
+        "value": "AutoHDREnable",
+        "data": "0",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_variable_refresh_rate",
+    "name": "Disable Variable Refresh Rate",
+    "description": "Turns off Windows' variable refresh rate support for games that do not have their own in-engine setting. Worth trying if you see flicker on an adaptive-sync monitor.",
+    "category": "Multimedia",
+    "risk": "low",
+    "requires_admin": false,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences",
+        "value": "VRROptimizeEnable",
+        "data": "0",
+        "kind": "SZ"
+      }
+    ]
+  },
+  {
+    "id": "mm_disable_windows_camera_frameserver",
+    "name": "Disable the Camera Frame Server",
+    "description": "Stops the frame-server that lets several apps share one webcam. Turning it off can fix a camera that a single app cannot claim, at the cost of concurrent access.",
+    "category": "Multimedia",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows Media Foundation\\Platform",
+        "value": "EnableFrameServerMode",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  }
+]

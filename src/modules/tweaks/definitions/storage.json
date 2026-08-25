@@ -1,0 +1,269 @@
+[
+  {
+    "id": "fs_disable_last_access_update",
+    "name": "Disable NTFS Last-Access Timestamps",
+    "description": "Stops NTFS writing a timestamp every time a file is merely read. Removes a write for every read on busy volumes, which matters most on directories with very many small files.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableLastAccessUpdate","data":2147483649,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_enable_last_access_update",
+    "name": "Enable NTFS Last-Access Timestamps",
+    "description": "Restores last-access timestamp tracking, which some backup and forensic tools rely on to tell what has been read.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableLastAccessUpdate","data":2147483648,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_disable_8dot3_names",
+    "name": "Disable 8.3 Short Name Creation",
+    "description": "Stops NTFS generating a legacy PROGRA~1-style name alongside every long filename. Speeds up creating files in large directories. Very old 16-bit installers may object.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisable8dot3NameCreation","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_enable_long_paths",
+    "name": "Enable Paths Longer Than 260 Characters",
+    "description": "Lifts the MAX_PATH limit for applications that opt in, which is what stops deeply nested node_modules and build trees failing to copy or delete.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"LongPathsEnabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_increase_ntfs_memory_usage",
+    "name": "Increase NTFS Paged Pool Memory",
+    "description": "Lets NTFS cache more metadata in paged pool, which helps on volumes with millions of files. Costs a modest amount of kernel memory.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsMemoryUsage","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_disable_ntfs_compression",
+    "name": "Disable NTFS Compression",
+    "description": "Blocks new NTFS-compressed files and folders. Compression trades CPU for space and can hurt on fast SSDs; existing compressed files are left alone.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableCompression","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_disable_encrypting_file_system",
+    "name": "Disable the Encrypting File System (EFS)",
+    "description": "Turns off per-file EFS encryption. Worth doing if you use BitLocker instead, since EFS-encrypted files become unreadable if the user certificate is ever lost.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"NtfsDisableEncryption","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "fs_enable_trim",
+    "name": "Enable TRIM for SSDs",
+    "description": "Makes Windows tell an SSD which blocks are no longer in use, which is what keeps write performance from degrading over time.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem","value":"DisableDeleteNotify","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_storage_sense",
+    "name": "Disable Storage Sense",
+    "description": "Stops Windows automatically deleting temporary files, emptying the Recycle Bin and clearing the Downloads folder on a schedule.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy","value":"01","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_enable_storage_sense",
+    "name": "Enable Storage Sense",
+    "description": "Lets Windows reclaim disk space on its own by clearing temporary files and old Recycle Bin contents. It will not touch your Downloads folder unless separately configured.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy","value":"01","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy","value":"04","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy","value":"32","data":30,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_reserved_storage",
+    "name": "Disable Reserved Storage",
+    "description": "Frees the roughly 7 GB Windows sets aside for updates and temporary files. Feature updates may then need you to free space by hand before they will install.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ReserveManager","value":"ShippedWithReserves","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ReserveManager","value":"PassedPolicy","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_recycle_bin_for_all",
+    "name": "Delete Files Immediately Instead of Recycling",
+    "description": "Bypasses the Recycle Bin entirely, so deleted files are gone at once. There is no undo after this — consider carefully.",
+    "category": "Storage", "risk": "high", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoRecycleFiles","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_use_recycle_bin",
+    "name": "Send Deleted Files to the Recycle Bin",
+    "description": "Restores normal deletion behaviour, so files go to the Recycle Bin and can be recovered.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoRecycleFiles","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_defrag_schedule",
+    "name": "Disable Scheduled Drive Optimisation",
+    "description": "Turns off the weekly ScheduledDefrag task. On an SSD this task issues TRIM rather than defragmenting, so leaving it on is usually the better choice.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"scheduled_task","task_name":"\\Microsoft\\Windows\\Defrag\\ScheduledDefrag"}
+    ]
+  },
+  {
+    "id": "storage_disable_disk_diagnostic_task",
+    "name": "Disable the Disk Diagnostic Data Collector",
+    "description": "Disables the scheduled task that gathers SMART and disk health data for reporting to Microsoft. Windows still warns you about a failing disk through other means.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"scheduled_task","task_name":"\\Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector"}
+    ]
+  },
+  {
+    "id": "storage_disable_volume_shadow_copies",
+    "name": "Disable System Restore Shadow Copies",
+    "description": "Stops Windows keeping restore points and previous file versions, which frees the shadow-copy space on the system drive. This also removes your ability to roll back a bad driver or update — including via this app's own restore points.",
+    "category": "Storage", "risk": "high", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore","value":"DisableSR","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_enable_system_restore",
+    "name": "Enable System Restore",
+    "description": "Allows Windows to keep restore points again, which is what lets you roll back a bad driver or update.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\SystemRestore","value":"DisableSR","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_write_caching_removable",
+    "name": "Optimise Removable Drives for Quick Removal",
+    "description": "Turns off write caching on removable drives so a USB stick can be unplugged without ejecting it first. Slower writes, far fewer corrupted sticks.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\usbstor","value":"RemovalPolicy","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_block_usb_write",
+    "name": "Make USB Storage Read-Only",
+    "description": "Blocks writes to removable storage devices while still allowing them to be read. A blunt but effective control against data walking out on a USB stick.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\StorageDevicePolicies","value":"WriteProtect","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_allow_usb_write",
+    "name": "Allow Writing to USB Storage",
+    "description": "Removes the removable-storage write block so USB drives can be written to normally.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\StorageDevicePolicies","value":"WriteProtect","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_windows_backup_reminders",
+    "name": "Disable Windows Backup Reminders",
+    "description": "Stops the recurring 'back up your files to OneDrive' prompts in Settings and File Explorer.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-338393Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-353694Enabled","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager","value":"SubscribedContent-353696Enabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_onedrive_autostart",
+    "name": "Stop OneDrive Starting With Windows",
+    "description": "Removes OneDrive from the per-user startup list. Files already synced stay on disk; nothing is deleted.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry_delete","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run","value":"OneDrive"}
+    ]
+  },
+  {
+    "id": "storage_disable_onedrive_personal_sync",
+    "name": "Block OneDrive Personal Account Sync",
+    "description": "Stops OneDrive syncing with personal Microsoft accounts while leaving work and school accounts able to connect.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\OneDrive","value":"DisablePersonalSync","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_error_reporting_dumps",
+    "name": "Stop Keeping Application Crash Dumps",
+    "description": "Turns off the local crash-dump archive Windows Error Reporting keeps under your profile, which quietly accumulates hundreds of megabytes.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting","value":"DontShowUI","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting","value":"LoggingDisabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_small_memory_dump",
+    "name": "Write Small Memory Dumps on a Blue Screen",
+    "description": "Switches crash dumps from the automatic (potentially many-gigabyte) kernel dump to a 256 KB minidump. Still enough for most blue-screen analysis.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Control\\CrashControl","value":"CrashDumpEnabled","data":3,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_low_disk_warning",
+    "name": "Disable the Low Disk Space Warning",
+    "description": "Suppresses the balloon that appears when a drive drops below ten percent free, useful on a small system drive you deliberately keep near full.",
+    "category": "Storage", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer","value":"NoLowDiskSpaceChecks","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_file_history",
+    "name": "Disable File History",
+    "description": "Turns off the File History backup engine, which continuously copies your libraries to a second drive.",
+    "category": "Storage", "risk": "medium", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\FileHistory","value":"Disabled","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_search_indexer_on_battery",
+    "name": "Pause Search Indexing on Battery",
+    "description": "Stops the search indexer running while the laptop is unplugged, which is one of the larger avoidable battery drains on a machine with a big mail store.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"PreventIndexOnBattery","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "storage_disable_indexing_encrypted",
+    "name": "Do Not Index Encrypted Files",
+    "description": "Keeps EFS-encrypted file contents out of the search index, where they would otherwise sit in plaintext.",
+    "category": "Storage", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search","value":"AllowIndexingEncryptedStoresOrItems","data":0,"kind":"DWORD"}
+    ]
+  }
+]

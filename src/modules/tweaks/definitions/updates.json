@@ -1,0 +1,587 @@
+[
+  {
+    "id": "wu_notify_before_download",
+    "name": "Notify Before Downloading Updates",
+    "description": "Makes Windows Update ask before it downloads and installs anything, instead of doing both on its own schedule. You still get told an update exists.",
+    "category": "Windows Update",
+    "risk": "medium",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "NoAutoUpdate",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "AUOptions",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_download_but_notify_install",
+    "name": "Download Updates but Ask Before Installing",
+    "description": "Lets Windows fetch updates in the background but hold off installing until you say so. A reasonable middle ground: nothing reboots unexpectedly, and the download is already done when you agree.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "NoAutoUpdate",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "AUOptions",
+        "data": 3,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_restore_automatic_updates",
+    "name": "Restore Fully Automatic Updates",
+    "description": "Removes the automatic-update policy overrides so Windows Update goes back to downloading and installing on its own. This is the safest configuration for a machine nobody watches.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "NoAutoUpdate"
+      },
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "AUOptions"
+      }
+    ]
+  },
+  {
+    "id": "wu_no_reboot_with_users_logged_on",
+    "name": "Never Reboot While Someone Is Signed In",
+    "description": "Stops Windows Update restarting the machine automatically while a user session is active. The restart waits for you to do it yourself.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+        "value": "NoAutoRebootWithLoggedOnUsers",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_restart_notifications",
+    "name": "Disable Restart Reminder Notifications",
+    "description": "Silences the recurring 'restart to finish installing updates' toasts. The update still installs at the next restart.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "RestartNotificationsAllowed2",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_defer_feature_updates_365",
+    "name": "Defer Feature Updates for a Year",
+    "description": "Holds back new Windows versions for 365 days while still taking monthly security fixes. This is how you stay on a known-good build without going unpatched.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferFeatureUpdates",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferFeatureUpdatesPeriodInDays",
+        "data": 365,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "BranchReadinessLevel",
+        "data": 16,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_defer_quality_updates_7",
+    "name": "Defer Quality Updates for a Week",
+    "description": "Delays monthly cumulative updates by seven days, which is long enough for a bad patch to be pulled before it reaches this machine.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferQualityUpdates",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferQualityUpdatesPeriodInDays",
+        "data": 7,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_clear_all_deferrals",
+    "name": "Clear All Update Deferrals",
+    "description": "Removes the feature and quality update deferral policies so this PC takes updates on Microsoft's normal schedule again.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferFeatureUpdates"
+      },
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferFeatureUpdatesPeriodInDays"
+      },
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferQualityUpdates"
+      },
+      {
+        "type": "registry_delete",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DeferQualityUpdatesPeriodInDays"
+      }
+    ]
+  },
+  {
+    "id": "wu_exclude_driver_updates",
+    "name": "Exclude Drivers From Windows Update",
+    "description": "Stops Windows Update replacing your GPU, audio and chipset drivers with its own generic versions. Strongly recommended if you install vendor drivers yourself.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "ExcludeWUDriversInQualityUpdate",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DriverSearching",
+        "value": "SearchOrderConfig",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_device_metadata_download",
+    "name": "Stop Downloading Device Icons and Metadata",
+    "description": "Prevents Windows fetching manufacturer icons and friendly names for attached hardware from the internet. Devices still work; they just show generic icons.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Device Metadata",
+        "value": "PreventDeviceMetadataFromNetwork",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_delivery_optimization_p2p",
+    "name": "Disable Peer-to-Peer Update Sharing",
+    "description": "Stops Delivery Optimization uploading update content to other PCs over the internet and downloading from them. Updates come from Microsoft only, which saves upstream bandwidth on a metered or slow connection.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "value": "DODownloadMode",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_delivery_optimization_lan_only",
+    "name": "Limit Update Sharing to the Local Network",
+    "description": "Lets Delivery Optimization share update content with other PCs on your LAN but never over the internet. A good setting for a household with several Windows machines.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "value": "DODownloadMode",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_dual_scan",
+    "name": "Stop Reaching the Internet When a WSUS Server Is Set",
+    "description": "Prevents Windows Update contacting Microsoft directly for feature updates when the machine is pointed at an internal WSUS server. Only meaningful in a managed environment.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "applies_to": {
+      "requires_gpedit": true
+    },
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "DoNotConnectToWindowsUpdateInternetLocations",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_auto_restart_signon",
+    "name": "Do Not Reopen Apps After an Update Restart",
+    "description": "Stops Windows automatically signing you back in and reopening your apps after an update-triggered restart. Removes an unattended auto-logon window.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+        "value": "DisableAutomaticRestartSignOn",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "value": "DisableAutomaticRestartSignOn",
+        "data": 1,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_set_active_hours",
+    "name": "Set Active Hours to 8am–11pm",
+    "description": "Tells Windows Update the machine is in use between 08:00 and 23:00, so it will not restart for updates during that window.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "ActiveHoursStart",
+        "data": 8,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "ActiveHoursEnd",
+        "data": 23,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "SmartActiveHoursState",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_other_microsoft_products",
+    "name": "Do Not Update Other Microsoft Products",
+    "description": "Stops Windows Update also servicing Office and other Microsoft software through the Microsoft Update channel.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "AllowMUUpdateService",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_get_latest_asap",
+    "name": "Do Not Opt In to Early Update Delivery",
+    "description": "Turns off 'get the latest updates as soon as they're available', which otherwise puts this PC in the first wave of a rollout.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        "value": "IsContinuousInnovationOptedIn",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_insider_builds",
+    "name": "Block Windows Insider Preview Builds",
+    "description": "Stops this machine being enrolled in the Insider programme and receiving preview builds.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PreviewBuilds",
+        "value": "AllowBuildPreview",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PreviewBuilds",
+        "value": "EnableConfigFlighting",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PreviewBuilds",
+        "value": "EnableExperimentation",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_store_auto_updates",
+    "name": "Disable Automatic Microsoft Store App Updates",
+    "description": "Stops the Store updating installed apps in the background. You can still update them by hand from the Store's Library page.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsStore",
+        "value": "AutoDownload",
+        "data": 2,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_enable_store_auto_updates",
+    "name": "Enable Automatic Microsoft Store App Updates",
+    "description": "Lets the Store keep installed apps up to date on its own, which is where security fixes for Store apps arrive.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsStore",
+        "value": "AutoDownload",
+        "data": 4,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_auto_reboot_task",
+    "name": "Disable the Update Reboot Scheduled Task",
+    "description": "Disables the UpdateOrchestrator Reboot task, one of the mechanisms behind an unattended restart. Windows may re-enable this task after a feature update.",
+    "category": "Windows Update",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "scheduled_task",
+        "task_name": "\\Microsoft\\Windows\\UpdateOrchestrator\\Reboot"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_scheduled_start_task",
+    "name": "Disable the Update Scheduled Start Task",
+    "description": "Disables the UpdateOrchestrator Scheduled Start task that wakes the update stack on its own timetable.",
+    "category": "Windows Update",
+    "risk": "medium",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "scheduled_task",
+        "task_name": "\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Scan"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_onesettings_refresh",
+    "name": "Disable the OneSettings Configuration Refresh Task",
+    "description": "Disables the scheduled task that periodically pulls Microsoft's OneSettings configuration blob, which is how feature flags and experiments are pushed to this machine between updates.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "scheduled_task",
+        "task_name": "\\Microsoft\\Windows\\Flighting\\OneSettings\\RefreshCache"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_update_toast_ads",
+    "name": "Disable Post-Update Feature Advertisements",
+    "description": "Stops Windows advertising new features and Microsoft services in the update pages and follow-up notifications after installing an update.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+        "value": "DisableWindowsConsumerFeatures",
+        "data": 1,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\UserProfileEngagement",
+        "value": "ScoobeSystemSettingEnabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_set_metered_connection_block",
+    "name": "Never Download Updates Over a Metered Connection",
+    "description": "Stops Windows Update using a connection you have marked as metered, which is what keeps a tethered phone plan from being spent on a cumulative update.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+        "value": "AllowAutoWindowsUpdateDownloadOverMeteredNetwork",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_maps_auto_update",
+    "name": "Disable Automatic Offline Maps Updates",
+    "description": "Stops Windows downloading offline map data in the background. Only matters if you have downloaded offline maps at all.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\Maps",
+        "value": "AutoUpdateEnabled",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_speech_model_update",
+    "name": "Disable Automatic Speech Model Updates",
+    "description": "Stops Windows downloading updated speech recognition models in the background.",
+    "category": "Windows Update",
+    "risk": "low",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Speech",
+        "value": "AllowSpeechModelUpdate",
+        "data": 0,
+        "kind": "DWORD"
+      }
+    ]
+  },
+  {
+    "id": "wu_disable_windows_update_medic",
+    "name": "Disable the Update Medic Service",
+    "description": "Stops WaaSMedicSvc, the watchdog whose job is to undo changes to Windows Update configuration. Its key is ACL-protected, so this may be refused even as Administrator.",
+    "category": "Windows Update",
+    "risk": "high",
+    "requires_admin": true,
+    "steps": [
+      {
+        "type": "registry",
+        "key": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WaaSMedicSvc",
+        "value": "Start",
+        "data": 4,
+        "kind": "DWORD"
+      }
+    ]
+  }
+]

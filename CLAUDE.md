@@ -368,7 +368,7 @@ Single-page dashboard with pie chart and auto-refresh. Uses `QuickCleanupTab` fr
 - **Privacy & Telemetry tab** — loads tweak definitions from `privacy.json`, `telemetry.json`, `services.json`, `network.json`; shows status (Applied/Not Applied) per tweak; preset filters (Light, Full, Privacy-Focused, Custom)
 - **AI & Navigation tab** — loads `ai_features.json` and `navigation.json`; same UI pattern
 
-Restore points created via `BackupService` before any apply operation. TweakEngine detects status for registry, service, appx, and scheduled_task step types.
+Restore points created via `BackupService` before any apply operation. TweakEngine detects status for every step type, and for `command`/`script` tweaks that carry a `detect` block — see **Tweak System** below for the five-value status vocabulary.
 
 ### PerfTunerModule UI Pattern (`src/modules/performance_tuner/perf_tuner_module.py`)
 
@@ -385,21 +385,75 @@ JSON definition files in `src/modules/tweaks/definitions/` define registry/scrip
 | Step type | Fields | What it does |
 |-----------|--------|--------------|
 | `registry` | `key`, `value`, `data`, `kind` | Sets a registry value via `winreg` |
+| `registry_delete` | `key`, `value` | Removes a value (some behaviour is only off when the value is *absent*, not 0) |
 | `service` | `name`, `start_type` | Changes service startup type via win32service |
 | `command` | `cmd` | Runs a shell command via `subprocess.run` with `CREATE_NO_WINDOW` |
+| `script` | `command`, `revert_command` | Like `command`, with an explicit revert string |
 | `appx` | `package` | Removes a UWP app via `Get-AppxPackage \| Remove-AppxPackage` |
-| `scheduled_task` | `task_name` | Disables a scheduled task via `schtasks /change /tn ... /disable` |
+| `scheduled_task` | `task_name` | Disables a scheduled task (`task_name` MUST start with `\`) |
 
-`tweak_engine.py` applies tweaks via `TweakEngine.apply_tweak()` and detects state via `TweakEngine.detect_status()` (returns `"applied"`, `"not_applied"`, or `"unknown"`). BackupService creates restore points automatically before applying.
+`tweak_engine.py` applies tweaks via `TweakEngine.apply_tweak()` and detects state via
+`TweakEngine.detect(tweak) -> DetectionResult(status, reason, steps)`.
+`detect_status()` still returns just the string, for the Qt signal.
 
-Key definition files:
-- `privacy.json` — privacy policy tweaks (47 entries)
-- `telemetry.json` — telemetry and diagnostics tweaks (19 entries)
-- `services.json` — service disable/enable tweaks (34 entries)
-- `debloat.json` — 90+ UWP app removal entries with `appx` step type
-- `ai_features.json` — Win11 24H2 AI feature tweaks (Click-to-Do, AI Hub, WSAIFabricSvc)
-- `navigation.json` — File Explorer navigation pane tweaks (Gallery, 3D Objects, Home, duplicate drives)
-- `definitions/builtins/*.json` — preset profiles (8 existing + 4 debloat presets)
+**Status vocabulary — five values, and "unknown" now means what it says:**
+
+| Status | When |
+|--------|------|
+| `applied` | every applicable step is in place |
+| `not_applied` | none are — *including when the key or value does not exist*, which is Windows sitting at its default |
+| `partial` | some steps in place, some not |
+| `not_applicable` | nothing to do here: the `applies_to` gate fails, or the targeted service / scheduled task / appx package is not on this machine |
+| `unknown` | we genuinely could not find out (access denied, or a `command` step with no `detect` block) |
+
+Every result carries a `reason` — the sentence the row's tooltip and the details
+panel show. A bare "Unknown" with nothing behind it is the bug this design exists
+to prevent; `test_command_unknown_still_explains_itself` pins that.
+
+**Two things are easy to get wrong here:**
+
+- **A missing registry key is `not_applied`, not `unknown`.** It was the latter for a
+  long time, which made most of the Network tab read "? Unknown" on a clean install.
+  Only `ERROR_ACCESS_DENIED` (5) produces `unknown`; `ERROR_FILE_NOT_FOUND` (2) is a
+  definite answer. Set `"absent_means": "applied"` on a step when Windows' default
+  already *is* the desired state.
+- **`service_exists()` / `scheduled_task_exists()` return `Optional[bool]`.** `False`
+  means not installed (→ `not_applicable`); `None` means the query itself failed
+  (→ `unknown`). Collapsing the two tells the user a service is absent when it is
+  merely unreadable.
+
+**`applies_to`** (optional, per tweak) gates on the machine, evaluated by
+`os_context.py`: `min_build` / `max_build` (a build number or an alias like `"23H2"`,
+`"WIN11_24H2"`), `os`, `editions`, `not_editions`, `arch`, `requires_gpedit`
+(→ not applicable on Home/S, where policy values are written but ignored),
+`client_only`, `server_only`.
+
+**`detect`** (optional, per tweak) overrides step-derived detection — this is how a
+`command`/`script` tweak becomes checkable at all, and
+`test_command_tweaks_declare_how_they_are_detected` requires one on every such tweak.
+It takes a probe object or a list of them, using any step type plus:
+`registry_key_exists`, `registry_key_absent`, `powershell` (`script` +
+`applied_when`, must be read-only — it runs on every sweep), `file_exists`,
+`file_absent`, and `none` (+ `reason`, for repair actions with no state to read).
+
+**`os_context.py`** caches the build, edition, architecture, per-service existence,
+per-task status and the whole `Get-AppxPackage` list for the process lifetime.
+`get_os_context()` is the singleton; `reset_os_context()` exists for tests.
+
+**`TweakEngine.detect_many()`** runs a sweep across a thread pool. The cost is
+dominated by process launches (schtasks, powercfg, PowerShell), which block with the
+GIL released — this took the 696-tweak sweep from ~17 s to ~6 s.
+
+Definition files (20 categories, ~700 tweaks; each file's `category` field must match
+the tab name in `_CATEGORY_FILES`, enforced by `test_tweak_definitions.py`):
+`privacy`, `performance`, `telemetry`, `ui_tweaks`, `services`, `gaming`, `security`,
+`network`, `ai_features`, `navigation`, `explorer`, `taskbar_start`, `power`, `input`,
+`updates`, `defender`, `browser`, `storage`, `multimedia`, `remote`.
+Plus `debloat.json` (120+ `appx` removals) and `definitions/builtins/*.json` (presets).
+
+`tests/test_tweak_definitions.py` validates every file structurally — unique ids, hive
+names, DWORD-vs-SZ data types, absolute scheduled-task paths, known `applies_to` keys.
+Run it after touching any definition file; it is the only thing that reads them.
 
 ### UpdatesModule (`src/modules/updates/`)
 

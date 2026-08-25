@@ -1,0 +1,266 @@
+[
+  {
+    "id": "input_disable_mouse_acceleration",
+    "name": "Disable Mouse Acceleration",
+    "description": "Turns off 'enhance pointer precision', so the cursor moves a fixed distance per unit of mouse movement regardless of how fast you flick. Essential for consistent aim in games and for anyone building muscle memory.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseSpeed","data":"0","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold1","data":"0","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold2","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_enable_mouse_acceleration",
+    "name": "Enable Mouse Acceleration",
+    "description": "Restores Windows' default 'enhance pointer precision' curve, which speeds the cursor up as you move the mouse faster.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseSpeed","data":"1","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold1","data":"6","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Mouse","value":"MouseThreshold2","data":"10","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_faster_key_repeat",
+    "name": "Fastest Keyboard Repeat Rate",
+    "description": "Sets the shortest repeat delay and the fastest repeat rate, so a held-down key starts repeating sooner and moves faster. Noticeable when navigating text with the arrow keys.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Keyboard","value":"KeyboardDelay","data":"0","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Keyboard","value":"KeyboardSpeed","data":"31","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_default_key_repeat",
+    "name": "Default Keyboard Repeat Rate",
+    "description": "Puts the keyboard repeat delay and rate back to the Windows defaults.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Keyboard","value":"KeyboardDelay","data":"1","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Keyboard","value":"KeyboardSpeed","data":"31","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_sticky_keys_prompt",
+    "name": "Disable the Sticky Keys Prompt",
+    "description": "Stops the dialog that appears when Shift is pressed five times. Sticky Keys itself can still be turned on from Settings.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Accessibility\\StickyKeys","value":"Flags","data":"506","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_filter_keys_prompt",
+    "name": "Disable the Filter Keys Prompt",
+    "description": "Stops the dialog that appears when the right Shift key is held for eight seconds.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Accessibility\\Keyboard Response","value":"Flags","data":"122","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_toggle_keys_prompt",
+    "name": "Disable the Toggle Keys Prompt",
+    "description": "Stops the dialog that appears when Num Lock is held for five seconds.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Accessibility\\ToggleKeys","value":"Flags","data":"58","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_larger_mouse_queue",
+    "name": "Increase the Mouse Input Queue",
+    "description": "Raises the mouse driver's buffered-packet count from 100 to 200. Helps a high-polling-rate gaming mouse avoid dropped packets when the system is busy; costs a few kilobytes of non-paged pool.",
+    "category": "Input", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\mouclass\\Parameters","value":"MouseDataQueueSize","data":200,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_larger_keyboard_queue",
+    "name": "Increase the Keyboard Input Queue",
+    "description": "Raises the keyboard driver's buffered-packet count from 100 to 200, which helps with dropped keystrokes on a heavily loaded machine.",
+    "category": "Input", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\kbdclass\\Parameters","value":"KeyboardDataQueueSize","data":200,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_scroll_inactive_windows",
+    "name": "Scroll Inactive Windows on Hover",
+    "description": "Lets the scroll wheel act on whatever window the pointer is over, without clicking it first.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MouseWheelRouting","data":2,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_scroll_focused_window_only",
+    "name": "Scroll Only the Focused Window",
+    "description": "Sends wheel events to the active window regardless of where the pointer is, which is the classic behaviour.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MouseWheelRouting","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_scroll_lines_three",
+    "name": "Scroll Three Lines Per Wheel Notch",
+    "description": "Sets the standard three-line scroll step, undoing a driver or app that has changed it.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"WheelScrollLines","data":"3","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_faster_menu_show_delay",
+    "name": "Remove the Menu Open Delay",
+    "description": "Drops the delay before a submenu opens from 400 ms to nothing, which is the single biggest perceived-responsiveness change in the Windows shell.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MenuShowDelay","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_default_menu_show_delay",
+    "name": "Restore the Default Menu Open Delay",
+    "description": "Puts the submenu open delay back to the Windows default of 400 ms.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MenuShowDelay","data":"400","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_touchpad_when_mouse",
+    "name": "Disable the Touchpad When a Mouse Is Connected",
+    "description": "Turns the precision touchpad off automatically while an external mouse is plugged in, which stops palm brushes moving the cursor.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PrecisionTouchPad","value":"LeaveOnWithMouse","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_keep_touchpad_with_mouse",
+    "name": "Keep the Touchpad Active With a Mouse Connected",
+    "description": "Leaves the precision touchpad usable even when an external mouse is attached.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PrecisionTouchPad","value":"LeaveOnWithMouse","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_touchpad_taps",
+    "name": "Disable Tap-to-Click",
+    "description": "Requires a real click on the precision touchpad instead of registering a light tap, which is the usual cure for a cursor that jumps mid-sentence.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PrecisionTouchPad","value":"TapsEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_pen_flicks",
+    "name": "Disable Pen Flicks",
+    "description": "Turns off the gesture that converts a quick pen stroke into a navigation command, which frequently fires by accident while drawing.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Wisp\\Pen\\SysEventParameters","value":"FlicksEnabled","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_pen_visual_feedback",
+    "name": "Disable Pen and Touch Visual Feedback",
+    "description": "Removes the ripple circles Windows draws at each touch or pen contact point.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Wisp\\Touch","value":"TouchGesture","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_touch_keyboard_autopopup",
+    "name": "Stop the Touch Keyboard Popping Up Automatically",
+    "description": "Prevents the on-screen keyboard appearing whenever a text box gets focus on a touchscreen device with a physical keyboard attached.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\SOFTWARE\\Microsoft\\TabletTip\\1.7","value":"EnableDesktopModeAutoInvoke","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_text_prediction",
+    "name": "Disable Hardware Keyboard Text Prediction",
+    "description": "Turns off the suggestion strip Windows shows while typing on a physical keyboard, which also stops what you type being fed to the prediction model.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\TabletTip\\1.7","value":"EnableTextPrediction","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\Input\\Settings","value":"EnableHwkbTextPrediction","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_autocorrect",
+    "name": "Disable Autocorrect for Misspelled Words",
+    "description": "Stops Windows silently rewriting words as you type in touch-keyboard-aware apps.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\TabletTip\\1.7","value":"EnableAutocorrection","data":0,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\TabletTip\\1.7","value":"EnableSpellchecking","data":0,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_language_hotkey",
+    "name": "Disable the Language Switch Hotkey",
+    "description": "Turns off Left Alt + Shift and Ctrl + Shift as keyboard-layout switches. Stops a stray shortcut silently swapping your layout to another language mid-sentence.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Keyboard Layout\\Toggle","value":"Language Hotkey","data":"3","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Keyboard Layout\\Toggle","value":"Layout Hotkey","data":"3","kind":"SZ"},
+      {"type":"registry","key":"HKCU\\Keyboard Layout\\Toggle","value":"Hotkey","data":"3","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_per_window_input_language",
+    "name": "Use a Separate Input Language Per Window",
+    "description": "Lets each app remember its own keyboard layout, so switching to your terminal does not change the layout in your editor.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Software\\Microsoft\\CTF","value":"TIPElevatedNoDefaultInputSwitch","data":1,"kind":"DWORD"},
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"MigrationPreference","data":1,"kind":"DWORD"}
+    ]
+  },
+  {
+    "id": "input_disable_num_lock_on_boot",
+    "name": "Turn Num Lock Off at Sign-In",
+    "description": "Leaves Num Lock off on the sign-in screen, which matters on laptops where the numeric keypad overlaps the letter keys.",
+    "category": "Input", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKU\\.DEFAULT\\Control Panel\\Keyboard","value":"InitialKeyboardIndicators","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_faster_cursor_blink",
+    "name": "Stop the Text Cursor Blinking",
+    "description": "Makes the text caret solid instead of blinking, which some people find much easier to track.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"CursorBlinkRate","data":"-1","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_snap_windows_drag",
+    "name": "Disable Window Snapping by Dragging",
+    "description": "Stops windows maximising or half-tiling when dragged to a screen edge. Win+arrow snapping is unaffected.",
+    "category": "Input", "risk": "low", "requires_admin": false,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Desktop","value":"WindowArrangementActive","data":"0","kind":"SZ"}
+    ]
+  },
+  {
+    "id": "input_disable_beep_sound",
+    "name": "Disable the System Beep",
+    "description": "Silences the console beep driver, which is what produces the sharp tone from the motherboard speaker on an invalid keystroke.",
+    "category": "Input", "risk": "low", "requires_admin": true,
+    "steps": [
+      {"type":"registry","key":"HKCU\\Control Panel\\Sound","value":"Beep","data":"no","kind":"SZ"},
+      {"type":"registry","key":"HKLM\\SYSTEM\\CurrentControlSet\\Services\\beep","value":"Start","data":4,"kind":"DWORD"}
+    ]
+  }
+]
