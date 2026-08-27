@@ -7,7 +7,8 @@ Qt main thread.
 """
 import logging
 import subprocess
-from typing import Tuple
+from datetime import datetime
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -51,3 +52,101 @@ def create_restore_point(description: str, timeout: int = 60) -> Tuple[bool, str
         return result.returncode == 0, output
     except Exception as e:
         return False, str(e)
+
+
+# ── deletion ────────────────────────────────────────────────────────────────
+#
+# Restore points are removed through srclient.dll's SRRemoveRestorePoint, which
+# takes the WMI SystemRestore SequenceNumber and returns a Win32 error code
+# directly (0 == ERROR_SUCCESS). Deliberately NOT vssadmin: `vssadmin delete
+# shadows` speaks in shadow-copy GUIDs, which do not map one-to-one onto the
+# restore points shown in the table, and `/all` would take the newest with it.
+
+ERROR_SUCCESS = 0
+ERROR_ACCESS_DENIED = 5
+
+
+def parse_restore_point_time(value) -> Optional[datetime]:
+    """Parse a WMI DMTF datetime ('20260824153000.000000-000') to a datetime.
+
+    Returns None for anything unparseable, so callers can fall back to the
+    sequence number for ordering instead of crashing on odd input.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value)[:14], "%Y%m%d%H%M%S")
+    except (ValueError, TypeError):
+        return None
+
+
+def _ordering_key(point: dict) -> Tuple[datetime, int]:
+    """Sort key placing the most recent restore point last."""
+    try:
+        seq = int(point.get("SequenceNumber") or 0)
+    except (TypeError, ValueError):
+        seq = 0
+    return (parse_restore_point_time(point.get("CreationTime")) or datetime.min, seq)
+
+
+def sequence_numbers_to_prune(points: List[dict]) -> List[int]:
+    """Sequence numbers of every restore point EXCEPT the most recent one.
+
+    Ordering is by creation time with the sequence number as tie-break; points
+    with no usable sequence number are skipped rather than guessed at, since a
+    wrong number would delete somebody else's restore point.
+    """
+    usable = []
+    for pt in points:
+        try:
+            seq = int(pt.get("SequenceNumber"))
+        except (TypeError, ValueError):
+            continue
+        usable.append((pt, seq))
+    if len(usable) < 2:
+        return []
+    usable.sort(key=lambda item: _ordering_key(item[0]))
+    return [seq for _pt, seq in usable[:-1]]
+
+
+def delete_restore_point(sequence_number: int) -> Tuple[bool, str]:
+    """Delete one Windows System Restore point by its WMI SequenceNumber.
+
+    Returns (success, message). Requires elevation — without it the OS answers
+    ERROR_ACCESS_DENIED, which is reported rather than swallowed.
+    """
+    import ctypes
+
+    try:
+        srclient = ctypes.WinDLL("srclient.dll")
+        srclient.SRRemoveRestorePoint.argtypes = [ctypes.c_uint32]
+        srclient.SRRemoveRestorePoint.restype = ctypes.c_uint32
+        code = int(srclient.SRRemoveRestorePoint(ctypes.c_uint32(int(sequence_number))))
+    except Exception as e:
+        logger.warning("SRRemoveRestorePoint(%s) raised", sequence_number, exc_info=True)
+        return False, str(e)
+
+    if code == ERROR_SUCCESS:
+        return True, ""
+    if code == ERROR_ACCESS_DENIED:
+        return False, "Access denied — run the tool as Administrator."
+    try:
+        return False, f"{ctypes.FormatError(code).strip()} (error {code})"
+    except Exception:
+        return False, f"Windows error {code}"
+
+
+def delete_restore_points(sequence_numbers: List[int]) -> Tuple[int, List[Tuple[int, str]]]:
+    """Delete several restore points. Returns (deleted_count, [(seq, error), …]).
+
+    Keeps going after a failure so one locked point does not abandon the rest.
+    """
+    deleted = 0
+    failures: List[Tuple[int, str]] = []
+    for seq in sequence_numbers:
+        ok, message = delete_restore_point(seq)
+        if ok:
+            deleted += 1
+        else:
+            failures.append((seq, message))
+    return deleted, failures
