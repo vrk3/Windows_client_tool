@@ -1,22 +1,29 @@
 """Firewall Rules Manager — view and manage Windows Firewall rules via netsh."""
 
+import logging
+import ntpath
+import os
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QThreadPool
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QEvent, QObject, Qt, QThreadPool
+from PyQt6.QtGui import QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
+    QApplication,
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QLabel, QProgressBar, QLineEdit,
     QComboBox, QMessageBox, QInputDialog, QFileDialog,
 )
 
 from core.base_module import BaseModule
+from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,17 +43,87 @@ _COLS = [
     "Name", "Enabled", "Direction", "Action",
     "Protocol", "Local Port", "Remote Port", "Program", "Profile",
 ]
-_COL_WIDTHS = [200, 60, 70, 70, 70, 80, 80, 150, 80]
+# Widths measured against a real 544-rule dump of this machine at 9pt, not
+# guessed: at the old 200/150/80 the Name column clipped 393 rows, Program
+# clipped 309 and rendered every path as the useless "C:...", and Profile --
+# the narrowest content in the table -- was the stretch section soaking up
+# 750px of empty space. These are scaled by the zoom factor, so they are the
+# widths at _BASE_FONT_PT, not absolutes.
+_COL_WIDTHS = [330, 70, 80, 70, 80, 110, 110, 380, 150]
+
+# Font zoom. The pane starts at the application font size and the user can
+# move it; _BASE_FONT_PT is filled in from the running app at build time.
+_MIN_FONT_PT = 6
+_MAX_FONT_PT = 24
+_FONT_CFG_KEY = "firewall.font_point_size"
+
+# No column may swallow the pane on "Fit Columns": one WindowsApps path is
+# 645px wide at 9pt and would push Profile off-screen on its own.
+_FIT_MAX_WIDTH = 520
+
+
+class _CtrlWheelZoom(QObject):
+    """Turns Ctrl+wheel over the table into a font-size nudge.
+
+    Lives in its own QObject because BaseModule is a plain ABC and cannot be
+    installed as an event filter.
+    """
+
+    def __init__(self, nudge: Callable[[int], None], parent=None) -> None:
+        super().__init__(parent)
+        self._nudge = nudge
+
+    def eventFilter(self, obj, event) -> bool:
+        if (event.type() == QEvent.Type.Wheel
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            delta = event.angleDelta().y()
+            if delta:
+                self._nudge(1 if delta > 0 else -1)
+            return True  # swallow it so the table does not also scroll
+        return False
 
 
 # ------------------------------------------------------------------
 # netsh data fetching / manipulation
 # ------------------------------------------------------------------
 
+# netsh's field names are not the ones you would guess, and every mismatch
+# leaves a column silently blank for all ~550 rules rather than erroring:
+#   * the plain `show rule` output has NO Program line at all -- it appears
+#     only under `verbose`, which is why the Program column and the
+#     search-by-program filter had never matched anything;
+#   * the names are `Profiles`, `LocalPort`, `RemotePort` -- not the spaced
+#     forms. Both spellings are accepted here in case a locale or an older
+#     Windows emits the other one.
+# Verified against a real 544-rule dump from this machine (0.7s, 540 KB).
+_FIELD_MAP = {
+    "Rule Name": "name",
+    "Enabled": "enabled",
+    "Direction": "direction",
+    "Action": "action",
+    "Protocol": "protocol",
+    "LocalPort": "local_port",
+    "Local Port": "local_port",
+    "RemotePort": "remote_port",
+    "Remote Port": "remote_port",
+    "Program": "program",
+    "Profiles": "profile",
+    "Profile": "profile",
+}
+
+_FIELD_RE = re.compile(
+    r"^\s*(" + "|".join(re.escape(k) for k in _FIELD_MAP) + r"):\s*(.*)$"
+)
+
+
 def fetch_firewall_rules() -> List[FirewallRule]:
-    """Parse output of 'netsh advfirewall firewall show rule all'."""
+    """Parse 'netsh advfirewall firewall show rule name=all verbose'.
+
+    `verbose` is required, not cosmetic: without it netsh omits the Program
+    line entirely. It costs nothing measurable (~0.7s for 544 rules here).
+    """
     proc = subprocess.run(
-        ["netsh", "advfirewall", "firewall", "show", "rule", "all"],
+        ["netsh", "advfirewall", "firewall", "show", "rule", "name=all", "verbose"],
         capture_output=True, text=True, timeout=120,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
@@ -61,53 +138,121 @@ def _parse_rules(raw: str) -> List[FirewallRule]:
     blocks = re.split(r"\n\s*\n", raw)
 
     for block in blocks:
-        lines = block.strip().split("\n")
-        if not lines:
-            continue
-
         data: dict = {}
-        for line in lines:
+        for line in block.split("\n"):
             if not line.strip():
                 continue
             # Format: "  Field Name:        value"
-            m = re.match(r"^\s*(Rule Name|Enabled|Direction|Action|Protocol|Local Port|Remote Port|Program|Profile):\s*(.*)$", line)
+            m = _FIELD_RE.match(line)
             if m:
-                key = m.group(1).strip()
-                val = m.group(2).strip()
-                data[key] = val
+                data[_FIELD_MAP[m.group(1)]] = m.group(2).strip()
 
-        if data.get("Rule Name"):
+        if data.get("name"):
             rules.append(FirewallRule(
-                name=data.get("Rule Name", ""),
-                enabled=data.get("Enabled", ""),
-                direction=data.get("Direction", ""),
-                action=data.get("Action", ""),
-                protocol=data.get("Protocol", ""),
-                local_port=data.get("Local Port", ""),
-                remote_port=data.get("Remote Port", ""),
-                program=data.get("Program", ""),
-                profile=data.get("Profile", ""),
+                name=data.get("name", ""),
+                enabled=data.get("enabled", ""),
+                direction=data.get("direction", ""),
+                action=data.get("action", ""),
+                protocol=data.get("protocol", ""),
+                local_port=data.get("local_port", ""),
+                remote_port=data.get("remote_port", ""),
+                program=data.get("program", ""),
+                profile=data.get("profile", ""),
             ))
     return rules
 
 
-def netsh_set_rule_enabled(name: str, enable: bool) -> None:
-    state = "yes" if enable else "no"
-    subprocess.run(
-        ["netsh", "advfirewall", "firewall", "set", "rule",
-         f"name={name}", "new", f"enable={state}"],
-        check=True, capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+# ------------------------------------------------------------------
+# Addressing a rule for modification
+# ------------------------------------------------------------------
+#
+# netsh CANNOT address every rule it lists. Store-app rules are named with an
+# MRT indirect string -- `@{Package_1.2.3_x64__abc?ms-resource://Pkg/Res/Name}`
+# -- and `netsh ... name=<that string>` answers "No rules match the specified
+# criteria." So does the *resolved* form ("Windows Calculator"). 33 of the 355
+# distinct rule names on this machine are like this, and double-clicking any of
+# them used to raise CalledProcessError, surfacing as a bare
+# "returned non-zero exit status 1".
+#
+# PowerShell's Get/Set/Remove-NetFirewallRule address them fine by DisplayName,
+# which is exactly the resolved form -- so netsh stays the fast default and
+# PowerShell is the fallback for what it cannot reach (~0.9s, only when needed).
 
 
-def netsh_delete_rule(name: str) -> None:
-    subprocess.run(
-        ["netsh", "advfirewall", "firewall", "delete", "rule",
-         f"name={name}"],
-        check=True, capture_output=True, text=True,
+def resolve_display_name(name: str) -> str:
+    """Resolve an `@{Package?ms-resource://...}` rule name to its display name.
+
+    Returns the input unchanged for ordinary names, and also if resolution
+    fails -- the caller is no worse off than before.
+    """
+    if not name.startswith("@{"):
+        return name
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        fn = ctypes.WinDLL("shlwapi.dll").SHLoadIndirectString
+        fn.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.UINT,
+                       ctypes.c_void_p]
+        buf = ctypes.create_unicode_buffer(1024)
+        if fn(name, buf, len(buf), None) == 0 and buf.value:
+            return buf.value
+    except Exception:
+        logger.warning("Could not resolve indirect rule name %r", name, exc_info=True)
+    return name
+
+
+def _powershell_firewall(cmdlet: str, display_name: str, extra: str = "") -> Tuple[bool, str]:
+    """Run a *-NetFirewallRule cmdlet against a rule's DisplayName.
+
+    The name is single-quote escaped rather than interpolated into a shell
+    string -- rule names are Windows-supplied text, not something to trust.
+    """
+    escaped = display_name.replace("'", "''")
+    command = "%s -DisplayName '%s'%s -ErrorAction Stop" % (
+        cmdlet, escaped, (" " + extra) if extra else "")
+    proc = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", command],
+        capture_output=True, text=True, timeout=60,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
+    output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    if proc.returncode == 0 and "ErrorRecord" not in output:
+        return True, output
+    return False, output or "%s exited with code %d" % (cmdlet, proc.returncode)
+
+
+def set_rule_enabled(name: str, enable: bool) -> Tuple[bool, str]:
+    """Enable or disable a rule, reporting why rather than raising."""
+    ok, message = _run_netsh(
+        ["advfirewall", "firewall", "set", "rule",
+         "name=%s" % name, "new", "enable=%s" % ("yes" if enable else "no")]
+    )
+    if ok:
+        return True, message
+
+    display = resolve_display_name(name)
+    ok, ps_message = _powershell_firewall(
+        "Set-NetFirewallRule", display,
+        "-Enabled %s" % ("True" if enable else "False"))
+    if ok:
+        return True, ps_message
+    return False, "netsh: %s\nPowerShell: %s" % (message, ps_message)
+
+
+def delete_rule(name: str) -> Tuple[bool, str]:
+    """Delete every rule with this name, reporting why rather than raising."""
+    ok, message = _run_netsh(
+        ["advfirewall", "firewall", "delete", "rule", "name=%s" % name]
+    )
+    if ok:
+        return True, message
+
+    display = resolve_display_name(name)
+    ok, ps_message = _powershell_firewall("Remove-NetFirewallRule", display)
+    if ok:
+        return True, ps_message
+    return False, "netsh: %s\nPowerShell: %s" % (message, ps_message)
 
 
 def netsh_block_program(exe_path: str) -> None:
@@ -151,6 +296,131 @@ def netsh_import_rules(path: str) -> None:
 
 
 # ------------------------------------------------------------------
+# Unblocking — finding and removing *block* rules by program or folder
+# ------------------------------------------------------------------
+#
+# Windows Firewall has no notion of a blocked folder: rules name an executable.
+# "Unblock a folder" therefore means "remove every block rule whose program
+# lives under this folder", which is what find_block_rules_in_folder does.
+
+# What netsh writes in the Program column for a rule that is not scoped to an
+# executable on disk. "System" is kernel-mode traffic (real rules use it — 144
+# of the 544 on this machine), and it is a literal, not a path.
+_ANY_PROGRAM = {"", "any", "system"}
+
+# The show-rule output says In/Out; the delete verb wants in/out.
+_DIRECTION_FLAGS = {"in": "in", "inbound": "in", "out": "out", "outbound": "out"}
+
+
+def normalize_program_path(path: str) -> str:
+    """Case-folded, env-expanded, separator-normalised path, for comparison only.
+
+    netsh reports plenty of built-in rules with the variable unexpanded
+    (%SystemRoot%\\system32\\svchost.exe), so a raw string compare against a
+    path chosen in a file dialog silently misses them. ntpath is used
+    explicitly rather than os.path so the comparison is Windows-shaped even
+    when these functions are exercised off Windows.
+    """
+    if not path:
+        return ""
+    expanded = os.path.expandvars(path.strip().strip('"'))
+    if not expanded:
+        return ""
+    return ntpath.normcase(ntpath.normpath(expanded))
+
+
+def _is_program_scoped(rule: "FirewallRule") -> bool:
+    return rule.program.strip().lower() not in _ANY_PROGRAM
+
+
+def find_block_rules_for_program(rules: List["FirewallRule"],
+                                 exe_path: str) -> List["FirewallRule"]:
+    """Every Block rule pointing at exactly this executable, in either direction."""
+    target = normalize_program_path(exe_path)
+    if not target:
+        return []
+    return [
+        r for r in rules
+        if r.action == "Block"
+        and _is_program_scoped(r)
+        and normalize_program_path(r.program) == target
+    ]
+
+
+def find_block_rules_in_folder(rules: List["FirewallRule"],
+                               folder: str) -> List["FirewallRule"]:
+    """Every Block rule whose program lives anywhere under this folder."""
+    root = normalize_program_path(folder)
+    if not root:
+        return []
+    prefix = root.rstrip("\\") + "\\"
+    matches = []
+    for r in rules:
+        if r.action != "Block" or not _is_program_scoped(r):
+            continue
+        if normalize_program_path(r.program).startswith(prefix):
+            matches.append(r)
+    return matches
+
+
+def _run_netsh(args: List[str]) -> Tuple[bool, str]:
+    """Run a netsh subcommand, returning (rc == 0, combined output).
+
+    The caller must NOT treat the boolean as proof the rule is gone — netsh
+    reports "No rules match the specified criteria." on stdout with a non-zero
+    exit, and locale affects the wording. The real check is re-reading the
+    rules afterwards, which is what the module does.
+    """
+    proc = subprocess.run(
+        ["netsh"] + args,
+        capture_output=True, text=True, timeout=60,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    if proc.returncode == 0:
+        return True, output
+    return False, output or "netsh exited with code %d" % proc.returncode
+
+
+def netsh_delete_matching_rule(rule: "FirewallRule") -> Tuple[bool, str]:
+    """Delete one rule, narrowed by name + program + direction.
+
+    Rule names are NOT unique in Windows Firewall — deleting by name alone
+    takes every same-named rule with it, including ones for other programs.
+    """
+    args = ["advfirewall", "firewall", "delete", "rule", "name=%s" % rule.name]
+    if _is_program_scoped(rule):
+        args.append("program=%s" % rule.program)
+    flag = _DIRECTION_FLAGS.get(rule.direction.strip().lower())
+    if flag:
+        args.append("dir=%s" % flag)
+    return _run_netsh(args)
+
+
+def unblock_rules(rules: List["FirewallRule"]) -> Tuple[int, List[str]]:
+    """Delete each of the given rules. Returns (deleted_count, error lines).
+
+    Keeps going after a failure so one protected rule does not abandon the
+    rest, and collapses duplicates: a rule present on several profiles shows
+    up once per profile but one netsh delete removes them all.
+    """
+    deleted = 0
+    errors: List[str] = []
+    seen = set()
+    for r in rules:
+        key = (r.name, r.program, r.direction)
+        if key in seen:
+            continue
+        seen.add(key)
+        ok, message = netsh_delete_matching_rule(r)
+        if ok:
+            deleted += 1
+        else:
+            errors.append("%s: %s" % (r.name, message))
+    return deleted, errors
+
+
+# ------------------------------------------------------------------
 # Module
 # ------------------------------------------------------------------
 
@@ -171,6 +441,14 @@ class FirewallManagerModule(BaseModule):
 
         self._refresh_btn = QPushButton("Refresh")
         self._block_btn = QPushButton("Block Program")
+        self._unblock_btn = QPushButton("Unblock Program")
+        self._unblock_btn.setToolTip(
+            "Remove every firewall block rule that targets a chosen executable"
+        )
+        self._unblock_folder_btn = QPushButton("Unblock Folder")
+        self._unblock_folder_btn.setToolTip(
+            "Remove every firewall block rule whose program lives under a chosen folder"
+        )
         self._open_port_btn = QPushButton("Open Port")
         self._delete_btn = QPushButton("Delete Rule")
         self._export_btn = QPushButton("Export Rules")
@@ -178,6 +456,7 @@ class FirewallManagerModule(BaseModule):
         self._search_edit = QLineEdit()
         self._search_edit.setPlaceholderText("Search name or program...")
         self._search_edit.setMaximumWidth(220)
+        self._search_edit.setMinimumWidth(160)
 
         self._dir_combo = QComboBox()
         self._dir_combo.addItems(["All", "Inbound", "Outbound"])
@@ -190,7 +469,26 @@ class FirewallManagerModule(BaseModule):
 
         self._delete_btn.setEnabled(False)
 
-        for btn in (self._refresh_btn, self._block_btn, self._open_port_btn,
+        # Text size controls. Ctrl+wheel and Ctrl+/Ctrl- do the same thing,
+        # but neither is discoverable, so the buttons carry the shortcuts in
+        # their tooltips.
+        self._zoom_out_btn = QPushButton("A-")
+        self._zoom_out_btn.setToolTip("Smaller text (Ctrl+- or Ctrl+wheel down)")
+        self._zoom_out_btn.setFixedWidth(32)
+        self._zoom_in_btn = QPushButton("A+")
+        self._zoom_in_btn.setToolTip("Larger text (Ctrl++ or Ctrl+wheel up)")
+        self._zoom_in_btn.setFixedWidth(32)
+        self._zoom_reset_btn = QPushButton("A")
+        self._zoom_reset_btn.setToolTip("Reset text size (Ctrl+0)")
+        self._zoom_reset_btn.setFixedWidth(28)
+        self._fit_btn = QPushButton("Fit Columns")
+        self._fit_btn.setToolTip(
+            "Widen every column to its widest visible value (capped so one "
+            "long path cannot push the rest off-screen)"
+        )
+
+        for btn in (self._refresh_btn, self._block_btn, self._unblock_btn,
+                    self._unblock_folder_btn, self._open_port_btn,
                     self._delete_btn, self._export_btn, self._import_btn):
             toolbar.addWidget(btn)
         toolbar.addWidget(QLabel("Direction:"))
@@ -200,6 +498,11 @@ class FirewallManagerModule(BaseModule):
         toolbar.addWidget(QLabel("Profile:"))
         toolbar.addWidget(self._profile_combo)
         toolbar.addWidget(self._search_edit)
+        toolbar.addStretch()
+        toolbar.addWidget(self._fit_btn)
+        toolbar.addWidget(self._zoom_out_btn)
+        toolbar.addWidget(self._zoom_reset_btn)
+        toolbar.addWidget(self._zoom_in_btn)
         layout.addLayout(toolbar)
 
         # ---- Progress ----
@@ -216,20 +519,34 @@ class FirewallManagerModule(BaseModule):
         self._table.setAlternatingRowColors(True)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        # A path elided on the right collapses to "C:..." and tells the user
+        # nothing; elided in the middle it still shows the drive and the exe.
+        self._table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self._table.setWordWrap(False)
 
-        for i, width in enumerate(_COL_WIDTHS[:-1]):
-            self._table.horizontalHeader().setSectionResizeMode(
-                i, QHeaderView.ResizeMode.Fixed)
-            self._table.setColumnWidth(i, width)
-        self._table.horizontalHeader().setSectionResizeMode(
-            len(_COLS) - 1, QHeaderView.ResizeMode.Stretch)
+        header = self._table.horizontalHeader()
+        # Interactive, not Fixed: Fixed silently refuses the drag, so there
+        # was no way for the user to widen a column that did not fit.
+        for i in range(len(_COLS)):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(24)
 
         layout.addWidget(self._table, 1)
 
         # ---- Status bar ----
         self._status_lbl = QLabel("Click Refresh to load firewall rules.")
-        self._status_lbl.setStyleSheet("color: #888; font-size: 12px;")
+        self._status_lbl.setStyleSheet("color: #888;")
         layout.addWidget(self._status_lbl)
+
+        # ---- Text size ----
+        self._base_font_pt = self._resolve_base_font_pt(outer)
+        self._font_pt = self._load_saved_font_pt()
+        self._apply_font()
+        self._install_zoom_shortcuts(outer)
+        # BaseModule is not a QObject, so the wheel filter needs its own.
+        self._wheel_filter = _CtrlWheelZoom(self._nudge_font, outer)
+        self._table.viewport().installEventFilter(self._wheel_filter)
 
         self._all_rules: List[FirewallRule] = []
         self._outer = outer
@@ -237,6 +554,8 @@ class FirewallManagerModule(BaseModule):
         # ---- Signal connections ----
         self._refresh_btn.clicked.connect(self._do_refresh)
         self._block_btn.clicked.connect(self._block_program)
+        self._unblock_btn.clicked.connect(self._unblock_program)
+        self._unblock_folder_btn.clicked.connect(self._unblock_folder)
         self._open_port_btn.clicked.connect(self._open_port)
         self._delete_btn.clicked.connect(self._delete_rule)
         self._export_btn.clicked.connect(self._export_rules)
@@ -247,8 +566,106 @@ class FirewallManagerModule(BaseModule):
         self._profile_combo.currentTextChanged.connect(self._apply_filter)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
         self._table.itemDoubleClicked.connect(self._on_double_click)
+        self._zoom_in_btn.clicked.connect(lambda: self._nudge_font(1))
+        self._zoom_out_btn.clicked.connect(lambda: self._nudge_font(-1))
+        self._zoom_reset_btn.clicked.connect(self._reset_font)
+        self._fit_btn.clicked.connect(self._fit_columns)
 
         return outer
+
+    # ------------------------------------------------------------------
+    # Text size
+    # ------------------------------------------------------------------
+
+    def _resolve_base_font_pt(self, widget: QWidget) -> int:
+        """The application's own point size, or 9 if Qt reports pixels."""
+        for font in (widget.font(),
+                     QApplication.instance().font() if QApplication.instance()
+                     else widget.font()):
+            pt = font.pointSize()
+            if pt > 0:
+                return pt
+        return 9
+
+    def _load_saved_font_pt(self) -> int:
+        saved = None
+        if self.app is not None:
+            try:
+                saved = self.app.config.get(_FONT_CFG_KEY, None)
+            except Exception:
+                logger.debug("Ignored config read failure", exc_info=True)
+        try:
+            pt = int(saved)
+        except (TypeError, ValueError):
+            pt = self._base_font_pt
+        return max(_MIN_FONT_PT, min(_MAX_FONT_PT, pt))
+
+    def _save_font_pt(self) -> None:
+        if self.app is None:
+            return
+        try:
+            self.app.config.set(_FONT_CFG_KEY, self._font_pt)
+        except Exception:
+            logger.debug("Ignored config write failure", exc_info=True)
+
+    def _apply_font(self) -> None:
+        """Push the current size into the table, its header and the status bar.
+
+        Row height and column widths both move with it -- a bigger font in a
+        fixed-height row just clips the descenders, and a bigger font in the
+        old widths clips more text, not less.
+        """
+        font = self._table.font()
+        font.setPointSize(self._font_pt)
+        self._table.setFont(font)
+
+        header_font = self._table.horizontalHeader().font()
+        header_font.setPointSize(self._font_pt)
+        self._table.horizontalHeader().setFont(header_font)
+        self._table.verticalHeader().setFont(header_font)
+        self._status_lbl.setFont(header_font)
+
+        line = self._table.fontMetrics().height()
+        self._table.verticalHeader().setDefaultSectionSize(line + 10)
+
+        scale = self._font_pt / float(self._base_font_pt or 9)
+        for i, width in enumerate(_COL_WIDTHS):
+            self._table.setColumnWidth(i, max(24, int(round(width * scale))))
+
+    def _nudge_font(self, step: int) -> None:
+        new_pt = max(_MIN_FONT_PT, min(_MAX_FONT_PT, self._font_pt + step))
+        if new_pt == self._font_pt:
+            return
+        self._font_pt = new_pt
+        self._apply_font()
+        self._save_font_pt()
+        self._status_lbl.setText("Text size: %dpt" % self._font_pt)
+
+    def _reset_font(self) -> None:
+        if self._font_pt == self._base_font_pt:
+            return
+        self._font_pt = self._base_font_pt
+        self._apply_font()
+        self._save_font_pt()
+        self._status_lbl.setText("Text size reset to %dpt." % self._font_pt)
+
+    def _install_zoom_shortcuts(self, widget: QWidget) -> None:
+        for keys, slot in (
+            (("Ctrl++", "Ctrl+="), lambda: self._nudge_font(1)),
+            (("Ctrl+-",), lambda: self._nudge_font(-1)),
+            (("Ctrl+0",), self._reset_font),
+        ):
+            for key in keys:
+                shortcut = QShortcut(QKeySequence(key), widget)
+                shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+                shortcut.activated.connect(slot)
+
+    def _fit_columns(self) -> None:
+        """Size every column to its widest visible value, capped."""
+        self._table.resizeColumnsToContents()
+        for i in range(self._table.columnCount()):
+            self._table.setColumnWidth(
+                i, min(self._table.columnWidth(i) + 12, _FIT_MAX_WIDTH))
 
     # ------------------------------------------------------------------
     # Actions
@@ -339,6 +756,128 @@ class FirewallManagerModule(BaseModule):
         self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
 
+    def _unblock_program(self) -> None:
+        exe_path, _ = QFileDialog.getOpenFileName(
+            self._outer, "Select Program to Unblock",
+            "", "Executables (*.exe);;All Files (*)",
+        )
+        if not exe_path:
+            return
+        self._start_unblock_scan(
+            find_block_rules_for_program, exe_path, "program", Path(exe_path).name
+        )
+
+    def _unblock_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self._outer, "Select Folder to Unblock"
+        )
+        if not folder:
+            return
+        self._start_unblock_scan(
+            find_block_rules_in_folder, folder, "folder", folder
+        )
+
+    def _start_unblock_scan(self, finder: Callable, target: str,
+                            kind: str, label: str) -> None:
+        """Re-read the live rules, then ask before deleting the ones that match.
+
+        Rules are fetched fresh rather than filtered out of self._all_rules:
+        that list may be stale or never loaded, and deleting off a stale list
+        is how you delete a rule the user cannot see.
+        """
+        self._set_buttons_enabled(False)
+        self._progress.show()
+        self._status_lbl.setText("Looking for block rules for %s..." % label)
+
+        def work(_w):
+            return finder(fetch_firewall_rules(), target)
+
+        def on_found(matches: List[FirewallRule]) -> None:
+            self._progress.hide()
+            self._set_buttons_enabled(True)
+
+            if not matches:
+                self._status_lbl.setText("No block rules found for %s." % label)
+                QMessageBox.information(
+                    self._outer, "Nothing to Unblock",
+                    "No Windows Firewall block rule references this %s:\n%s"
+                    % (kind, target),
+                )
+                return
+
+            listing = "\n".join(
+                "\u2022 %s  (%s \u2192 %s)" % (r.name, r.direction, r.program)
+                for r in matches[:15]
+            )
+            if len(matches) > 15:
+                listing += "\n\u2026 and %d more" % (len(matches) - 15)
+            noun = "rule" if len(matches) == 1 else "rules"
+
+            if not confirm_destructive(
+                self._outer,
+                "Unblock %s" % kind.title(),
+                "Remove %d firewall block %s for this %s?"
+                % (len(matches), noun, kind),
+                detail=listing,
+            ):
+                self._status_lbl.setText("Unblock cancelled.")
+                return
+
+            self._start_unblock_delete(matches, finder, target, label)
+
+        worker = Worker(work)
+        worker.signals.result.connect(on_found)
+        worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
+        QThreadPool.globalInstance().start(worker)
+
+    def _start_unblock_delete(self, matches: List[FirewallRule], finder: Callable,
+                              target: str, label: str) -> None:
+        self._set_buttons_enabled(False)
+        self._progress.show()
+        self._status_lbl.setText(
+            "Removing %d block rule(s) for %s..." % (len(matches), label)
+        )
+
+        def work(_w):
+            deleted, errors = unblock_rules(matches)
+            # Ask Windows what is actually left rather than trusting netsh's
+            # exit code — it reports "no rules match" as a failure and its
+            # wording is localised.
+            rules = fetch_firewall_rules()
+            return deleted, errors, finder(rules, target), rules
+
+        def on_done(result) -> None:
+            deleted, errors, leftover, rules = result
+            self._on_rules_loaded(rules)
+
+            if leftover or errors:
+                detail = "\n".join(errors[:10])
+                QMessageBox.warning(
+                    self._outer, "Unblock Incomplete",
+                    "Removed %d rule(s), but %d block rule(s) still reference %s."
+                    % (deleted, len(leftover), label)
+                    + ("\n\n" + detail if detail else ""),
+                )
+                self._status_lbl.setText(
+                    "Unblock incomplete \u2014 %d block rule(s) remain for %s."
+                    % (len(leftover), label)
+                )
+            else:
+                QMessageBox.information(
+                    self._outer, "Unblocked",
+                    "Removed %d firewall block rule(s) for:\n%s" % (deleted, target),
+                )
+                self._status_lbl.setText(
+                    "Unblocked %s (%d rule(s) removed)." % (label, deleted)
+                )
+
+        worker = Worker(work)
+        worker.signals.result.connect(on_done)
+        worker.signals.error.connect(self._on_error)
+        self._workers.append(worker)
+        QThreadPool.globalInstance().start(worker)
+
     def _delete_rule(self) -> None:
         name = self._get_selected_name()
         if not name:
@@ -356,11 +895,26 @@ class FirewallManagerModule(BaseModule):
         self._status_lbl.setText(f"Deleting rule '{name}'...")
 
         def work(_w):
-            netsh_delete_rule(name)
-            return fetch_firewall_rules()
+            ok, message = delete_rule(name)
+            rules = fetch_firewall_rules()
+            # Verify against Windows rather than trusting the exit code.
+            gone = not any(r.name == name for r in rules)
+            return ok and gone, message, rules
+
+        def on_done(result):
+            ok, message, rules = result
+            self._on_rules_loaded(rules)
+            if ok:
+                self._status_lbl.setText(f"Deleted rule '{name}'.")
+                return
+            self._status_lbl.setText(f"Could not delete rule '{name}'.")
+            QMessageBox.warning(
+                self._outer, "Could Not Delete Rule",
+                "Windows would not delete this rule:\n%s\n\n%s" % (name, message),
+            )
 
         worker = Worker(work)
-        worker.signals.result.connect(self._on_rules_loaded)
+        worker.signals.result.connect(on_done)
         worker.signals.error.connect(self._on_error)
         self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
@@ -378,14 +932,35 @@ class FirewallManagerModule(BaseModule):
         # Infer desired state: if currently True (enabled), disable; else enable
         new_state = current_state != "Yes"
 
-        self._status_lbl.setText(f"Setting rule '{name}' to {'enabled' if new_state else 'disabled'}...")
+        wanted = "Yes" if new_state else "No"
+        self._status_lbl.setText(
+            f"Setting rule '{name}' to {'enabled' if new_state else 'disabled'}..."
+        )
 
         def work(_w):
-            netsh_set_rule_enabled(name, new_state)
-            return fetch_firewall_rules()
+            ok, message = set_rule_enabled(name, new_state)
+            rules = fetch_firewall_rules()
+            # Don't trust the exit code -- read back what the rule now says.
+            applied = any(r.name == name and r.enabled == wanted for r in rules)
+            return ok and applied, message, rules
+
+        def on_done(result):
+            ok, message, rules = result
+            self._on_rules_loaded(rules)
+            if ok:
+                self._status_lbl.setText(
+                    f"Rule '{name}' is now {'enabled' if new_state else 'disabled'}."
+                )
+                return
+            self._status_lbl.setText(f"Could not change rule '{name}'.")
+            QMessageBox.warning(
+                self._outer, "Could Not Change Rule",
+                "Windows would not %s this rule:\n%s\n\n%s"
+                % ("enable" if new_state else "disable", name, message),
+            )
 
         worker = Worker(work)
-        worker.signals.result.connect(self._on_rules_loaded)
+        worker.signals.result.connect(on_done)
         worker.signals.error.connect(self._on_error)
         self._workers.append(worker)
         QThreadPool.globalInstance().start(worker)
@@ -480,8 +1055,17 @@ class FirewallManagerModule(BaseModule):
                 rule.protocol, rule.local_port, rule.remote_port,
                 rule.program, rule.profile,
             ]
+            tip = (
+                "%s\nProgram: %s\nProtocol: %s  Local: %s  Remote: %s\n"
+                "Profile: %s" % (
+                    rule.name, rule.program or "(any)", rule.protocol or "-",
+                    rule.local_port or "-", rule.remote_port or "-",
+                    rule.profile or "-")
+            )
             for col, val in enumerate(vals):
                 item = QTableWidgetItem(val)
+                # Whatever the column width, the full value is one hover away.
+                item.setToolTip(tip)
                 # Colour coding
                 if rule.action == "Allow":
                     item.setForeground(QColor("#2ecc71"))
@@ -517,6 +1101,8 @@ class FirewallManagerModule(BaseModule):
     def _set_buttons_enabled(self, enabled: bool) -> None:
         self._refresh_btn.setEnabled(enabled)
         self._block_btn.setEnabled(enabled)
+        self._unblock_btn.setEnabled(enabled)
+        self._unblock_folder_btn.setEnabled(enabled)
         self._open_port_btn.setEnabled(enabled)
         self._export_btn.setEnabled(enabled)
         self._import_btn.setEnabled(enabled)
