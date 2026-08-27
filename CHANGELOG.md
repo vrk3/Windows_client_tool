@@ -34,8 +34,8 @@
     writing different data as fighting it.
 - **Group Policy: raw registry locations are resolved to their gpedit names.**
   `admx_catalog.py` builds an offline index over the 224 ADMX files in
-  `C:\Windows\PolicyDefinitions` (3,340 policies, plus the ADML string
-  tables), so a row reading `...\CloudContent  DisableWindowsConsumerFeatures
+  `C:\Windows\PolicyDefinitions` (3,552 policies and 4,629 (key, value) pairs
+  here, built in 0.17s), so a row reading `...\CloudContent  DisableWindowsConsumerFeatures
   = 1` is labelled "Turn off Microsoft consumer experiences" with its explain
   text and its path under Administrative Templates.
 - **Group Policy: a "Refresh Policy" dialog** that runs `gpupdate` with live
@@ -161,6 +161,15 @@
   still navigates to TreeSize.
 
 ### Fixed
+- **The admin banner took half the window.** Unelevated, "Some features
+  require administrator privileges." was drawn 450px tall on a 900px window,
+  with the entire application squeezed into the bottom half. The banner is a
+  plain QWidget (Preferred, so growable) and the splitter under it is a
+  *horizontal* QSplitter, which Qt gives the Expanding flag only across, not
+  down — so nothing in the root layout claimed the spare height and Qt split
+  it equally between the two. The splitter now carries the stretch factor.
+  Elevated there is no banner, and it also vanished whenever the search
+  results table appeared, which is how it lasted this long.
 - **Group Policy: user policy was reported as computer policy.** The parser
   walked the whole document with a single `root.iter()` and filed everything
   it found under `computer_gpos`, so every user-scope GPO was mislabelled.

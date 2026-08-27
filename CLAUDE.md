@@ -540,9 +540,10 @@ Smaller traps, each of which cost real debugging:
   `Software\Policies\Microsoft\Windows\Safer` as REG_NONE with an empty value
   name and zero bytes — it exists to create the key. There is nothing to
   `QueryValueEx`; key existence is the whole question.
-- **Most ADMX values are not on the `<policy>` element.** 1,229 of the 3,340
-  policies have no `valueName` attribute — their values come from `<elements>`
-  children and from `<item key= valueName=>` rows (4,379 of those). Indexing
+- **Most ADMX values are not on the `<policy>` element.** On this machine
+  1,365 of the 3,502 policies have no `valueName` attribute — their values come
+  from `<elements>` children (2,297 carry one) and from `<item key= valueName=>`
+  rows (4,379 of those). Indexing
   only the policy attribute misses most settings anyone actually sets. `<list>`
   has no value name at all, so it lands in a separate key-only index consulted
   only after an exact miss.

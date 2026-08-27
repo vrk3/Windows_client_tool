@@ -70,7 +70,15 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([200, 1200])
-        root_layout.addWidget(splitter)
+        # Stretch 1: the splitter owns every spare pixel of height. A
+        # *horizontal* QSplitter is Expanding across and only Preferred down,
+        # and the admin banner above it is a plain QWidget — Preferred too. With
+        # nothing in this column claiming the surplus, Qt split it EQUALLY
+        # between the two, and a 28px banner was drawn 450px tall with the app
+        # crushed into the bottom half. Unelevated only, and it vanished
+        # whenever the search results table (Expanding) appeared, which is how
+        # it went unnoticed. The same trap waits for anything else added here.
+        root_layout.addWidget(splitter, 1)
 
         self._search_results = SearchResultsTable(self)
         self._search_results.setVisible(False)
