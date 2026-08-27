@@ -3,6 +3,74 @@
 ## Unreleased
 
 ### Added
+- **Group Policy: the pane was rebuilt, and it now shows the settings.** It
+  listed GPO names and nothing else — double-clicking a row did nothing,
+  because the rows had no children: the settings each GPO delivered were
+  parsed into a dict key no code ever read. Settings are now the bulk of the
+  tree, nested by their own category path the way gpedit nests them, under
+  separate **Computer Configuration** and **User Configuration** roots, with a
+  filter box over the lot.
+- **Group Policy: local policy is read from `Registry.pol` directly.**
+  `gpresult` refuses the computer half of the report without elevation, but
+  the policy *file* is world-readable — so on a machine that is not
+  domain-joined, where local policy is the only policy there is, the pane now
+  shows it in full with no UAC prompt (`pol_parser.py`, a PReg decoder).
+- **Group Policy: each local-policy row says whether it actually took
+  effect.** The `.pol` file states what policy *asks* for; the registry says
+  what the machine *does*. `policy_drift.py` reads both and reports `applied`,
+  `different`, `missing` or `unreadable` — the fourth being the point, since
+  "we were denied access to look" is not "the value is not set".
+- **Group Policy: a Policy Audit root**, for two findings Windows itself will
+  never report:
+  - *Set outside Group Policy* (tattooed values) — things sitting in policy's
+    four managed branches that no `Registry.pol` accounts for. They survive
+    `gpupdate /force` forever, never appear in gpedit, and are attributed to
+    no GPO. Grouped by branch, because a flat list reads as far more alarming
+    than it is: Windows' own shipped UAC defaults are technically tattooed.
+  - *Tweaks that write into policy keys* — 286 of this app's own registry
+    steps write into managed branches, where the Registry client-side
+    extension can undo them with no error and no trace in the revert log. A
+    tweak writing the same data as policy is reported as duplicating it; one
+    writing different data as fighting it.
+- **Group Policy: raw registry locations are resolved to their gpedit names.**
+  `admx_catalog.py` builds an offline index over the 224 ADMX files in
+  `C:\Windows\PolicyDefinitions` (3,340 policies, plus the ADML string
+  tables), so a row reading `...\CloudContent  DisableWindowsConsumerFeatures
+  = 1` is labelled "Turn off Microsoft consumer experiences" with its explain
+  text and its path under Administrative Templates.
+- **Group Policy: a "Refresh Policy" dialog** that runs `gpupdate` with live
+  streamed output, a target selector and a working Cancel. The verdict comes
+  from the output text, not the exit code — unelevated, refreshing computer
+  policy fails in the middle of an otherwise normal run that still exits 0,
+  and that is a *partial* refresh, neither success nor failure.
+- **Group Policy: snapshots and comparison.** "Snapshot" freezes the current
+  report to `%APPDATA%/WindowsTweaker/gpresult_snapshots`; "Compare..." diffs
+  the report on screen against a saved one — added, removed and changed
+  settings, GPOs and extensions. A scope that merely *became visible* (running
+  elevated after running unelevated) is reported as a visibility change and
+  its contents are not walked, so several hundred settings appearing at once
+  is not announced as the machine having changed.
+- **Group Policy: Export HTML**, Microsoft's own full RSOP report, plus
+  buttons for `gpedit.msc` and `rsop.msc` that disable themselves with an
+  explanation on editions where those consoles are not installed.
+- **Firewall Rules: Unblock Program and Unblock Folder.** Pick an executable
+  (or a folder, for everything under it) and every Block rule pointing at it,
+  in either direction, is listed for confirmation and then deleted. Paths are
+  compared env-expanded and case-folded, because netsh reports plenty of
+  built-in rules with the variable unexpanded
+  (`%SystemRoot%\system32\svchost.exe`) and a raw string compare misses them.
+  Each rule is deleted narrowed by name **and** program **and** direction —
+  firewall rule names are not unique, and deleting by name alone takes
+  same-named rules for other programs with it.
+- **Firewall Rules: the table zooms.** Ctrl+wheel, Ctrl+plus/minus/0, or the
+  A- / A / A+ buttons; the chosen size is remembered across launches. "Fit
+  Columns" sizes every column to its widest visible value.
+- **Restore Manager: restore points can be deleted.** "Delete Selected" and
+  "Keep Only Latest", both confirmed first, via `srclient.dll`'s
+  `SRRemoveRestorePoint`. Points with no usable sequence number are skipped
+  rather than guessed at — a wrong number deletes somebody else's restore
+  point — and without elevation the OS's `ERROR_ACCESS_DENIED` is reported
+  rather than swallowed.
 - **Tweaks: 306 new tweaks across 10 new categories** — Explorer, Taskbar &
   Start, Power, Input, Windows Update, Defender & Firewall, Browsers, Storage,
   Multimedia and Remote Access. The tab now carries ~700 tweaks over 20
@@ -93,6 +161,21 @@
   still navigates to TreeSize.
 
 ### Fixed
+- **Group Policy: user policy was reported as computer policy.** The parser
+  walked the whole document with a single `root.iter()` and filed everything
+  it found under `computer_gpos`, so every user-scope GPO was mislabelled.
+  `<ComputerResults>` and `<UserResults>` are now walked separately and cannot
+  be confused.
+- **Group Policy: unelevated, half the report went missing silently.**
+  `gpresult /x` exits 0 and writes well-formed XML containing only
+  `<UserResults>` — the computer half is refused with no error anywhere. The
+  pane showed the user half and said nothing. It now asks for each scope
+  explicitly, which is what makes the refusal visible, and a scope that was
+  not collected says so in a banner with the reason.
+- **Firewall Rules: package rules were listed under their resource strings.**
+  Enabling or deleting a rule named `@{Microsoft.WindowsStore_...?ms-resource://...}`
+  went through the raw name; it is now resolved to its display name via
+  `SHLoadIndirectString` first, falling back to the raw name if that fails.
 - **Tweaks: "Select Applied" also selected every "Not Applied" row.** The
   filter tested `"Applied" in label_text`, and one string contains the other.
   Selection and filtering now match on the stored status code.

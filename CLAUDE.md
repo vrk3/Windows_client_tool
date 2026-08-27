@@ -473,6 +473,100 @@ Run it after touching any definition file; it is the only thing that reads them.
 
 **Worker tracking**: every tab here is a `QWidget` (not `BaseModule`) with its own `self._workers: list` and `_cancel_all()`, per the general widget-subclass rule below. `UpdatesModule.on_deactivate()` / `on_stop()` call `_cancel_all()` on all four stateful tabs explicitly — `BaseModule.cancel_all_workers()` only covers workers created directly on the module itself, not on child tab widgets.
 
+### Group Policy Module (`src/modules/gpresult/`)
+
+One sidebar pane (`ModuleGroup.MANAGE`, `requires_admin = False`) over ten
+modules. It is a *report*, not an editor — `gpedit.msc` and `rsop.msc` are
+buttons on its toolbar. The tree has three roots: **Computer Configuration**,
+**User Configuration**, and **Policy Audit** for findings that are this tool
+comparing two sources rather than anything Windows said.
+
+| File | Qt? | What it owns |
+|---|---|---|
+| `rsop_runner.py` | no | runs `gpresult /x`, per scope; also `export_html_report`, `mmc_console_path` |
+| `rsop_parser.py` | no | RSOP XML → `RsopResult` / `RsopScope` / `GpoInfo` / `PolicySetting` / `ExtensionStatus` |
+| `pol_parser.py` | no | decodes `Registry.pol` (PReg) → `PolFile` / `PolicyValue`; `local_policy_files()` |
+| `policy_drift.py` | no | `.pol` vs the live registry → `applied` / `different` / `missing` / `unreadable` |
+| `tattooed.py` | no | values in the four policy branches that no `.pol` accounts for |
+| `tweak_conflicts.py` | no | this app's own tweaks that write into policy-managed keys |
+| `admx_catalog.py` | no | offline (key, value) → friendly name / explain text / gpedit path index over `C:\Windows\PolicyDefinitions` |
+| `rsop_snapshot.py` | no | `save_snapshot` / `list_snapshots` / `load_snapshot` / `diff_rsop` |
+| `gpupdate.py` | no | runs `gpupdate` streaming, `parse_output` decides the verdict |
+| `gpresult_module.py`, `snapshot_dialog.py`, `gpupdate_dialog.py` | yes | the pane and its two dialogs |
+
+**Only the three UI files import Qt** — the same split `scan/`+`store/` keep in
+TreeSize, and it is why every rule above is tested headless.
+
+The recurring theme, and the reason most of these files exist:
+
+- **`gpresult /x` unelevated exits 0 and returns half the report.** The XML is
+  well-formed and contains only `<UserResults>`; the computer half is refused
+  with no error anywhere. Asking for it explicitly (`/scope computer`) is what
+  makes the refusal visible — it exits 1 saying "Access Denied". So a missing
+  `<ComputerResults>` is reported as **not collected, with the reason**, never
+  as "no computer policy". `RsopScope.available` carries that, set from
+  whether the element was *present*, not from whether its lists were empty.
+- **`gpupdate` does the same thing**: it prints "Computer policy could not be
+  updated successfully" in the middle of otherwise normal output and still
+  exits 0. The verdict comes from `parse_output` (`STATUS_SUCCESS` /
+  `STATUS_PARTIAL` / `STATUS_FAILURE` / `STATUS_CANCELLED`), and `returncode`
+  is one signal among several. `/logoff` and `/boot` are **never** passed —
+  they perform the logoff or reboot rather than suppressing the prompt; stdin
+  is `DEVNULL` so the prompt reads EOF, and the requirement is detected from
+  the output wording instead.
+- **`Registry.pol` is world-readable even when `gpresult` refuses.** On a
+  machine that is not domain-joined, local policy is the only policy there is,
+  so `pol_parser` fills in unelevated what the RSOP call dropped — with no UAC
+  prompt at all.
+- **A refused read is never reported as an absent value.** `policy_drift`
+  keeps `missing` and `unreadable` apart, the same distinction `rsop_parser`
+  draws between an empty scope and a refused one and `tweak_engine` draws
+  between `ERROR_FILE_NOT_FOUND` and `ERROR_ACCESS_DENIED`. Collapsing them
+  invents drift and sends someone hunting for it.
+- **A scope becoming visible is not the machine changing.** Snapshot the
+  report unelevated, then elevated, and a naive diff announces hundreds of new
+  settings. `rsop_snapshot` reports that as a *visibility* change
+  (`VISIBILITY_GAINED`/`_LOST`) and does not walk the scope's contents.
+
+Smaller traps, each of which cost real debugging:
+
+- **`Registry.pol`'s type and size fields are exactly four bytes, never scanned
+  for the `;` delimiter.** A 59-byte record encodes its size as `3B 00 00 00`,
+  and `0x003B` *is* the UTF-16 code unit for `;` — a delimiter scan terminates
+  the field early and desynchronises everything after it. It parses this
+  machine's six records perfectly and corrupts the first real domain policy it
+  meets.
+- **A key-only `.pol` record is not drift.** This machine carries
+  `Software\Policies\Microsoft\Windows\Safer` as REG_NONE with an empty value
+  name and zero bytes — it exists to create the key. There is nothing to
+  `QueryValueEx`; key existence is the whole question.
+- **Most ADMX values are not on the `<policy>` element.** 1,229 of the 3,340
+  policies have no `valueName` attribute — their values come from `<elements>`
+  children and from `<item key= valueName=>` rows (4,379 of those). Indexing
+  only the policy attribute misses most settings anyone actually sets. `<list>`
+  has no value name at all, so it lands in a separate key-only index consulted
+  only after an exact miss.
+- **Tattooed findings are grouped by branch, not listed flat.** Windows' own
+  shipped UAC defaults under `CurrentVersion\Policies\System` are technically
+  tattooed too, and a flat list reads as far more alarming than it is.
+- **The tweak-conflict wording is "can be reverted without warning", not "is
+  reverted every 90 minutes".** With default settings the Registry CSE skips
+  processing when no GPO version changed, so a hand-written policy value can
+  sit untouched for weeks. A tweak writing the *same* data as policy is
+  duplicating it (harmless); one writing *different* data is fighting it and
+  will lose — reported separately, never collapsed.
+- **`rsop_snapshot` listing must not deserialise the payloads.** An elevated
+  report is megabytes of JSON. Each snapshot writes a small `.meta.json`
+  sidecar and listing reads only those; a snapshot missing its sidecar still
+  lists, by falling back to its payload for that one file.
+- Nothing in `tweak_conflicts` loads at import time — ~800 tweak definitions is
+  not a cost to pay for `import`.
+
+`rsop_snapshot`, `snapshot_dialog`, `gpupdate` and `gpupdate_dialog` are
+imported inside the pane's button handlers, so they are listed in
+`HIDDEN_IMPORTS` (`pyinstaller_common.py`) — miss one and the frozen build runs
+fine until someone clicks Snapshot, Compare or Refresh Policy.
+
 ## UI Patterns
 
 **Dark theme** — all modules use `#2d2d2d` backgrounds, `#3c3c3c` cards, `#e0e0e0` text. QSS styles in `src/ui/styles/dark.qss`.
