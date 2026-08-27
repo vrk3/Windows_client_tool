@@ -58,6 +58,16 @@ HIDDEN_IMPORTS = [
     "modules.windows_update.wu_module",
     "modules.reliability.reliability_module",
     "modules.crash_dumps.crash_dump_module",
+    # Group Policy. The pane imports these four inside its button handlers,
+    # so a pane that is only ever read does not drag two dialogs and the
+    # snapshot machinery in with it. Same trap once more: without them the
+    # frozen build opens the pane and reports policy perfectly well, and
+    # Snapshot, Compare and Refresh Policy raise ImportError the moment
+    # someone clicks them.
+    "modules.gpresult.rsop_snapshot",
+    "modules.gpresult.snapshot_dialog",
+    "modules.gpresult.gpupdate",
+    "modules.gpresult.gpupdate_dialog",
     # Imported inside a function in all five of its consumers — Hardware
     # Info, Reliability, Security Dashboard, Services and System Report —
     # every one of them behind a `try:` that degrades silently. Same trap as
