@@ -497,12 +497,18 @@ def check_pua_protection() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("PUA Protection", f"Could not read: {reason}")]}
         level = prefs.get("PUAProtection", 0)
-        labels = {0: "Off", 1: "Audit Mode", 2: "On"}
+        # Disabled=0, Enabled=1, AuditMode=2 -- read off the live cmdlet's own
+        # enum, not from memory. This table had 1 and 2 the other way round and
+        # coloured 2 green, so a machine that was only AUDITING potentially
+        # unwanted applications was told it was blocking them.
+        labels = {0: "Off", 1: "On (Block)", 2: "Audit Mode"}
         label = labels.get(level, f"Unknown ({level})")
-        enabled = level >= 1
+        enabled = level == 1
         return {
-            "status": label, "color": "green" if level == 2 else ("amber" if level == 1 else "red"),
-            "available": True, "details": [("PUA Protection", label)], "enabled": enabled, "level": level,
+            "status": label,
+            "color": "green" if level == 1 else ("amber" if level == 2 else "red"),
+            "available": True, "details": [("PUA Protection", label)],
+            "enabled": enabled, "level": level,
         }
     except Exception as e:
         return {"status": f"Error: {e}", "color": "amber", "details": []}
@@ -1190,10 +1196,17 @@ def check_defender_cloud_timeout() -> Dict[str, Any]:
         if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Cloud Timeout", f"Could not read: {reason}")]}
-        timeout = prefs.get("CloudTimeout", 50)
-        color, label = ("green", f"{timeout}s") if timeout >= 30 else ("amber", f"{timeout}s (short)")
+        # Get-MpPreference returns CloudExtendedTimeout, never "CloudTimeout".
+        # Asking for the name that does not exist meant the `.get()` default
+        # was the answer on every machine: a flat "50s / green" that had read
+        # nothing. It is 0 on this one.
+        timeout = prefs.get("CloudExtendedTimeout", 0)
+        color, label = (("green", f"+{timeout}s") if timeout >= 30
+                        else ("amber", f"+{timeout}s (short)"))
         return {"status": label, "color": color, "available": True,
-                "details": [("Cloud Timeout", f"{timeout}s")]}
+                "seconds": timeout,
+                "details": [("Cloud Extended Timeout",
+                             f"+{timeout}s on top of the 10s default")]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1205,11 +1218,17 @@ def check_defender_cloud_block_level() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Cloud Block Level", f"Could not read: {reason}")]}
         level = prefs.get("CloudBlockLevel", 0)
-        labels = {0: "Default", 2: "Low", 4: "Moderate", 6: "High", 7: "High+"}
+        # Microsoft's own value names for Set-MpPreference -CloudBlockLevel.
+        # This table used to read 2 as "Low" and 6 as "High", naming every
+        # level above Default one step too low.
+        labels = {0: "Default", 1: "Moderate", 2: "High", 4: "High+",
+                  6: "Zero Tolerance"}
         label = labels.get(level, f"Unknown ({level})")
-        color = "green" if level >= 4 else "amber"
+        # High (2) is the level the catalog asks for, so it cannot render amber.
+        color = "green" if level >= 2 else "amber"
         return {"status": label, "color": color, "available": True,
-                "details": [("Cloud Block Level", f"Level {level} — {label}")]}
+                "level": level,
+                "details": [("Cloud Block Level", f"Level {level} - {label}")]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1223,6 +1242,7 @@ def check_defender_cpu_usage() -> Dict[str, Any]:
         cpu = prefs.get("ScanAvgCPULoadFactor", 50)
         color = "green" if cpu <= 50 else "amber"
         return {"status": f"{cpu}%", "color": color, "available": True,
+                "percent": cpu,
                 "details": [("Scan CPU Load Limit", f"{cpu}%")]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -2465,58 +2485,100 @@ def check_memory_integrity_registry() -> Dict[str, Any]:
     except Exception:
         return {"status": "Error", "color": "amber", "details": [("Memory Integrity", "Check failed")]}
 
+#: Get-ProcessMitigation's tri-state. NOTSET is "Windows' default applies",
+#: which is emphatically not the same as OFF.
+_MITIGATION_NOTSET, _MITIGATION_ON, _MITIGATION_OFF = 0, 1, 2
+
+
+def _mitigation_state(data: Dict[str, Any], group: str, field: str):
+    """One tri-state field out of a Get-ProcessMitigation -System result."""
+    settings = data.get(group)
+    if not isinstance(settings, dict):
+        return None
+    return settings.get(field)
+
+
+def _mitigation_census(data: Dict[str, Any]):
+    """(on, off, notset) lists of "Group.Field" names, over every tri-state."""
+    on, off, notset = [], [], []
+    for group, settings in (data or {}).items():
+        if not isinstance(settings, dict):
+            continue
+        for field, value in settings.items():
+            if not isinstance(value, int) or isinstance(value, bool):
+                continue  # Override* flags are booleans, not tri-states
+            name = f"{group}.{field}"
+            if value == _MITIGATION_ON:
+                on.append(name)
+            elif value == _MITIGATION_OFF:
+                off.append(name)
+            elif value == _MITIGATION_NOTSET:
+                notset.append(name)
+    return on, off, notset
+
+
 def check_exploit_protection_system() -> Dict[str, Any]:
+    """How many system-wide process mitigations are explicitly turned ON.
+
+    Get-ProcessMitigation reports a tri-state per mitigation: 0 NOTSET,
+    1 ON, 2 OFF. NOTSET means Windows' own default applies -- DEP, bottom-up
+    ASLR and CFG are all on by default for images that opt in -- so a machine
+    with nothing overridden is NOT a machine with no mitigations. This used to
+    count keys whose NAME contained "enable" and whose value was 1, then
+    colour the result red at 0, which is what every default install produces.
+    """
     try:
-        rc, out, _ = _ps("Get-ProcessMitigation -System | ConvertTo-Json -Compress", timeout=20)
-        if rc != 0 or not out:
-            return {"status": "N/A", "color": "amber",
-                    "details": [("System Exploit Protections", "WMI unavailable")]}
-        data = json.loads(out)
-        count = 0
-        enabled_list = []
-        if isinstance(data, dict):
-            for category, settings in data.items():
-                if isinstance(settings, dict):
-                    for k, v in settings.items():
-                        if v in (1, True, "On") and "enable" in str(k).lower():
-                            count += 1
-                            enabled_list.append(str(k))
-                elif isinstance(settings, (list, int, bool)):
-                    if settings in (1, True, "On", "True"):
-                        count += 1
-                        enabled_list.append(str(category))
-        color = "green" if count >= 10 else ("amber" if count >= 5 else "red")
-        return {"status": f"{count} mitigations active", "color": color,
-                "details": [("System Mitigations", str(count))], "enabled": count > 0,
-                "mitigation_count": count}
+        data = snapshots.process_mitigation()
+        reason = snapshots.unavailable("process_mitigation")
+        if reason is not None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("System Exploit Protections",
+                                 f"Could not read: {reason}")]}
+        on, off, notset = _mitigation_census(data)
+        return {"status": f"{len(on)} enforced, {len(notset)} at Windows default",
+                "color": "red" if off else "green",
+                "available": True,
+                "details": [("Explicitly enabled", str(len(on))),
+                            ("Explicitly DISABLED", str(len(off))),
+                            ("Windows default (not overridden)", str(len(notset)))]
+                           + [("Disabled", name) for name in off[:6]],
+                "enabled": not off,
+                "mitigation_count": len(on)}
     except Exception:
         return {"status": "Error", "color": "amber",
                 "details": [("Exploit Protection", "Check failed")]}
 
+
 def check_exploit_protection_cfg() -> Dict[str, Any]:
+    """System-wide Control Flow Guard.
+
+    The real shape of `Get-ProcessMitigation -System | ConvertTo-Json` is one
+    object per mitigation group at the TOP level -- {"Cfg": {"Enable": 0,
+    ...}, "Aslr": {...}} -- so the old walk, which looked for a key named
+    "CFG" INSIDE each sub-object, could never match anything and reported
+    "Off / red" on every machine.
+    """
     try:
-        rc, out, _ = _ps("Get-ProcessMitigation -System | ConvertTo-Json -Compress", timeout=20)
-        if rc != 0 or not out:
-            return {"status": "N/A", "color": "amber",
-                    "details": [("CFG", "WMI unavailable")], "enabled": False}
-        data = json.loads(out)
-        cfg_enabled = False
-        if isinstance(data, dict):
-            for cat, settings in data.items():
-                if isinstance(settings, dict):
-                    if "enable" in str(settings.get("CFG", "")).lower():
-                        cfg_enabled = settings.get("CFG") in (1, True, "On", "True")
-                        if cfg_enabled:
-                            break
-                    if settings.get("EnableControlFlowGuard") in (1, True, "On"):
-                        cfg_enabled = True
-                        break
-        return {"status": "On" if cfg_enabled else "Off",
-                "color": "green" if cfg_enabled else "red",
-                "details": [("Control Flow Guard (CFG)", "On" if cfg_enabled else "Off")],
-                "enabled": cfg_enabled}
+        data = snapshots.process_mitigation()
+        reason = snapshots.unavailable("process_mitigation")
+        if reason is not None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("CFG", f"Could not read: {reason}")]}
+        state = _mitigation_state(data, "Cfg", "Enable")
+        labels = {_MITIGATION_ON: ("On (enforced system-wide)", "green", True),
+                  _MITIGATION_OFF: ("Off (explicitly disabled)", "red", False),
+                  _MITIGATION_NOTSET: ("Not enforced system-wide "
+                                       "(Windows default applies)", "amber",
+                                       False)}
+        label, color, enabled = labels.get(
+            state, (f"Unknown ({state})", "amber", False))
+        return {"status": label, "color": color, "available": True,
+                "details": [("Control Flow Guard (CFG)", label)],
+                "enabled": enabled}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": [("CFG", "Check failed")]}
+        return {"status": "Error", "color": "amber",
+                "details": [("CFG", "Check failed")]}
+
 
 def check_exploit_protection_dep() -> Dict[str, Any]:
     try:
@@ -2560,19 +2622,24 @@ def check_exploit_protection_aslr() -> Dict[str, Any]:
             details.append(("High Entropy ASLR (64-bit)", "On" if he_on else "Off"))
         else:
             details.append(("High Entropy ASLR (64-bit)", "Not configured (Windows default)"))
-        # Also check via Get-ProcessMitigation
-        rc, out, _ = _ps("Get-ProcessMitigation -System | ConvertTo-Json -Compress", timeout=15)
-        if rc == 0 and out:
-            data = json.loads(out) if out else {}
-            # count ASLR-related mitigations found
-            aslr_count = 0
-            raw = str(data).lower()
-            for term in ["bottomup", "high entropy", "aslr", "forcerelocate", "force,"]:
-                if term in raw:
-                    aslr_count += 1
-            details.append(("ASLR Mitigation Count", str(aslr_count)))
-        color = "green" if all("Off" not in d[1] for d in details) else "amber"
-        return {"status": "Active", "color": color, "details": details, "enabled": True}
+        # Get-ProcessMitigation's own view, from the shared snapshot rather
+        # than a fourth run of the same cmdlet. Counting how many times a
+        # substring appeared in str(data) -- what this used to do -- said 3
+        # on a machine with nothing configured.
+        if snapshots.unavailable("process_mitigation") is None:
+            aslr = snapshots.process_mitigation().get("Aslr") or {}
+            enforced = [f for f, v in aslr.items()
+                        if isinstance(v, int) and not isinstance(v, bool)
+                        and v == _MITIGATION_ON]
+            details.append(("ASLR mitigations enforced system-wide",
+                            str(len(enforced))))
+        # `enabled` used to be the literal True, whatever the two registry
+        # values said, so a catalog control bound here would have read a
+        # constant. It now agrees with the colour, which was already right.
+        on = all("Off" not in d[1] for d in details)
+        return {"status": "Active" if on else "Partly off",
+                "color": "green" if on else "amber",
+                "details": details, "enabled": on}
     except Exception:
         return {"status": "Error", "color": "amber", "details": [("ASLR", "Check failed")]}
 
@@ -2777,36 +2844,117 @@ def check_ntp_sync() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 # Defender exclusions
+#: What Get-MpPreference puts in an exclusion list for a non-administrator.
+#: It does not refuse and it does not return an empty list -- it returns one
+#: string saying it will not tell you, which len() happily counted as one
+#: exclusion. Three of those read as "3 exclusions".
+_EXCLUSION_REDACTED = "must be an administrator"
+
+
+def _exclusion_count(raw) -> Optional[int]:
+    """How many exclusions, or None if Defender redacted the list."""
+    if raw is None:
+        return 0
+    if isinstance(raw, str):
+        raw = [raw]
+    if any(isinstance(item, str) and _EXCLUSION_REDACTED in item.lower()
+           for item in raw):
+        return None
+    return len(raw)
+
+
 def check_defender_exclusions() -> Dict[str, Any]:
     try:
-        p = len(_get_mp_pref_value("ExclusionPath") or [])
-        r = len(_get_mp_pref_value("ExclusionProcess") or [])
-        e = len(_get_mp_pref_value("ExclusionExtension") or [])
-        total = p + r + e
+        prefs = snapshots.mp_preference()
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Exclusions", f"Could not read: {reason}")]}
+        counts = {label: _exclusion_count(prefs.get(field))
+                  for label, field in (("Paths", "ExclusionPath"),
+                                       ("Processes", "ExclusionProcess"),
+                                       ("Extensions", "ExclusionExtension"))}
+        if any(c is None for c in counts.values()):
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Exclusions",
+                                 "Defender will not list exclusions to a "
+                                 "non-administrator -- run elevated to see "
+                                 "them")]}
+        total = sum(counts.values())
         color = "green" if total == 0 else ("amber" if total <= 5 else "red")
         return {"status": f"{total} exclusions", "color": color,
-                "details": [("Paths", str(p)), ("Processes", str(r)), ("Extensions", str(e))]}
+                "available": True, "total": total,
+                "details": [(label, str(count))
+                            for label, count in counts.items()]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
 # Threat actions
+#: ThreatAction, read off the live cmdlet on 2026-08-28:
+#:   Clean=1 Quarantine=2 Remove=3 Allow=6 UserDefined=8 NoAction=9
+#:   Block=10 None=11
+#: 0 is NOT a member -- it is what Get-MpPreference reports for a severity
+#: nobody has configured, which is why 11 ("None", the enum's own way of
+#: saying unspecified) is what a revert can set and 0 is not.
+_THREAT_ACTION_LABELS = {0: "Default (Defender decides)", 1: "Clean",
+                         2: "Quarantine", 3: "Remove", 6: "Allow",
+                         8: "UserDefined", 9: "NoAction", 10: "Block",
+                         11: "None (not configured)"}
+
+#: Action codes that leave a detection in place, or leave the decision unmade.
+_THREAT_ACTION_UNPROTECTED = (0, 6, 9, 11)
+
+
 def _threat_label(v):
-    return {0: "Default", 1: "Clean", 2: "Quarantine", 3: "Remove", 6: "Allow", 8: "UserDefined", 9: "NoAction", 10: "Block"}.get(v, f"Unknown ({v})")
+    return _THREAT_ACTION_LABELS.get(v, f"Unknown ({v})")
 
 def _threat_check(level_name: str, pref: str):
+    """Defender's default action for one threat severity.
+
+    A refused Get-MpPreference used to leave `v` as None, which is not in
+    (0, 6, 9), so the card rendered GREEN while `enabled` said False: green
+    to the eye and "unsafe" to the catalog, from a read that never happened.
+    The refusal is now reported as a refusal, and `value` carries the raw
+    action code the catalog compares against.
+    """
     try:
-        v = _get_mp_pref_value(pref)
-        lbl = _threat_label(v) if v is not None else "Unknown"
-        color = "red" if v in (0, 6, 9) else "green"
-        return {"status": lbl, "color": color,
-                "details": [(f"{level_name} Threat Action", lbl)], "enabled": v is not None and v not in (0, 6, 9)}
+        prefs = snapshots.mp_preference()
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [(f"{level_name} Threat Action",
+                                 f"Could not read: {reason}")]}
+        v = prefs.get(pref)
+        if v is None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [(f"{level_name} Threat Action",
+                                 "Defender did not return this preference")]}
+        lbl = _threat_label(v)
+        protected = v not in _THREAT_ACTION_UNPROTECTED
+        return {"status": lbl, "color": "green" if protected else "red",
+                "available": True, "value": v,
+                "details": [(f"{level_name} Threat Action", lbl)],
+                "enabled": protected}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
-check_defender_threat_low = lambda: _threat_check("Low", "LowThreatDefaultAction")
-check_defender_threat_moderate = lambda: _threat_check("Moderate", "ModerateThreatDefaultAction")
-check_defender_threat_high = lambda: _threat_check("High", "HighThreatDefaultAction")
-check_defender_threat_severe = lambda: _threat_check("Severe", "SevereThreatDefaultAction")
+
+# `def`, not `check_x = lambda: ...`: a lambda's __name__ is '<lambda>', which
+# is useless in a traceback or a log line (Task 5, Ruling 18).
+def check_defender_threat_low() -> Dict[str, Any]:
+    return _threat_check("Low", "LowThreatDefaultAction")
+
+
+def check_defender_threat_moderate() -> Dict[str, Any]:
+    return _threat_check("Moderate", "ModerateThreatDefaultAction")
+
+
+def check_defender_threat_high() -> Dict[str, Any]:
+    return _threat_check("High", "HighThreatDefaultAction")
+
+
+def check_defender_threat_severe() -> Dict[str, Any]:
+    return _threat_check("Severe", "SevereThreatDefaultAction")
 
 # Toggle: set threat actions
 def _toggle_threat(pref: str, level: int, label: str) -> Dict[str, Any]:

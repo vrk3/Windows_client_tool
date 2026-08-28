@@ -512,3 +512,32 @@ def test_invalidate_cannot_lose_a_names_first_ever_refusal(monkeypatch):
         "a refusal recorded by a first-ever fetch was silently erased by "
         "a racing invalidate() -- unavailable() now reads it as fine")
     assert "Access is denied" in reason
+
+
+def test_get_process_mitigation_runs_once_for_the_three_readers_that_need_it(
+        monkeypatch):
+    """check_exploit_protection_system, _cfg and _aslr each ran the cmdlet
+    themselves -- 0.8s apiece, three times per sweep of the same tab."""
+    calls = []
+
+    def fake_ps(cmd, timeout=30):
+        calls.append(cmd)
+        return 0, '{"Cfg":{"Enable":0},"Dep":{"Enable":0}}', ""
+
+    monkeypatch.setattr(snapshots, "_ps", fake_ps)
+
+    security_reader.check_exploit_protection_system()
+    security_reader.check_exploit_protection_cfg()
+    security_reader.check_exploit_protection_aslr()
+
+    assert len(calls) == 1, f"ran Get-ProcessMitigation {len(calls)} times"
+    assert "Get-ProcessMitigation" in calls[0]
+
+
+def test_a_refused_process_mitigation_read_is_recorded_as_a_reason(monkeypatch):
+    monkeypatch.setattr(
+        snapshots, "_ps",
+        lambda cmd, timeout=30: (1, "", "Access is denied."))
+
+    assert snapshots.process_mitigation() == {}
+    assert "Access is denied" in snapshots.unavailable("process_mitigation")

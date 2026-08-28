@@ -133,6 +133,23 @@ def optional_features() -> Dict[str, str]:
         {}, transform=_index, timeout=120)
 
 
+def process_mitigation() -> Dict[str, Any]:
+    """`Get-ProcessMitigation -System`, once for the three readers that need it.
+
+    check_exploit_protection_system, _cfg and _aslr each ran this cmdlet
+    separately -- 0.8s apiece, so 1.5s of every warm sweep of the Exploit &
+    CVE tab was the same command run three times. Same reasoning as
+    mp_preference, same machinery.
+
+    Values in the result are Get-ProcessMitigation's own tri-state:
+    0 NOTSET (Windows' default applies), 1 ON, 2 OFF. NOTSET is not OFF.
+    """
+    return _cached(
+        "process_mitigation",
+        "Get-ProcessMitigation -System | ConvertTo-Json -Compress -Depth 4",
+        {}, timeout=30)
+
+
 #: `Get-SpeculationControlSettings`, when the module is already on this
 #: machine -- never installed by this call, see task-3b. When the module is
 #: absent, falls back to the registry values Windows itself exposes for the
@@ -185,6 +202,7 @@ _FETCHERS = {
     "service_states": service_states,
     "optional_features": optional_features,
     "speculation_control": speculation_control,
+    "process_mitigation": process_mitigation,
 }
 
 
