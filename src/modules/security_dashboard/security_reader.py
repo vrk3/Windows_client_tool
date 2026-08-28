@@ -2189,29 +2189,11 @@ def _check_service(service_name: str, display: str, good_running: bool = True) -
         return {"status": "Error", "color": "amber", "details": [(display, "Check failed")], "enabled": False}
 
 
-def check_service_dnscache() -> Dict[str, Any]:
-    return _check_service("Dnscache", "DNS Client", good_running=True)
-
-def check_service_dhcp() -> Dict[str, Any]:
-    return _check_service("Dhcp", "DHCP Client", good_running=True)
-
 def check_service_lanman_workstation() -> Dict[str, Any]:
     return _check_service("LanmanWorkstation", "Lanman Workstation", good_running=True)
 
 def check_service_lanman_server() -> Dict[str, Any]:
     return _check_service("LanmanServer", "Lanman Server", good_running=False)
-
-def check_service_wsearch() -> Dict[str, Any]:
-    return _check_service("WSearch", "Windows Search", good_running=False)
-
-def check_service_sysmain() -> Dict[str, Any]:
-    return _check_service("SysMain", "SysMain / Superfetch", good_running=False)
-
-def check_service_fax() -> Dict[str, Any]:
-    return _check_service("Fax", "Fax", good_running=False)
-
-def check_service_xbox_live() -> Dict[str, Any]:
-    return _check_service("XboxNetApiSvc", "Xbox Live Networking", good_running=False)
 
 def check_service_xbox_game_save() -> Dict[str, Any]:
     return _check_service("XblGameSave", "Xbox Game Save", good_running=False)
@@ -2222,17 +2204,11 @@ def check_service_xbox_accessory() -> Dict[str, Any]:
 def check_service_diag_track() -> Dict[str, Any]:
     return _check_service("DiagTrack", "Connected User Experiences / Telemetry", good_running=False)
 
-def check_service_wpn() -> Dict[str, Any]:
-    return _check_service("WpnService", "Push Notifications", good_running=False)
-
 def check_service_maps_broker() -> Dict[str, Any]:
     return _check_service("MapsBroker", "Maps Broker", good_running=False)
 
 def check_service_walletsvc() -> Dict[str, Any]:
     return _check_service("WalletService", "Wallet Service", good_running=False)
-
-def check_service_fdphost() -> Dict[str, Any]:
-    return _check_service("fdPHost", "Function Discovery Provider", good_running=False)
 
 def check_service_fdrespub() -> Dict[str, Any]:
     return _check_service("FDResPub", "Function Discovery Publication", good_running=False)
@@ -2245,10 +2221,6 @@ def check_service_remote_access_connection() -> Dict[str, Any]:
 
 def check_service_telephony() -> Dict[str, Any]:
     return _check_service("TapiSrv", "Telephony", good_running=False)
-
-def check_service_webclient() -> Dict[str, Any]:
-    return _check_service("WebClient", "WebClient", good_running=False)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CATEGORY F — SERVICE TOGGLES (10)
@@ -2438,6 +2410,8 @@ def check_hibernation() -> Dict[str, Any]:
     except Exception:
         return {"status": "Error", "color": "amber", "details": [("Hibernation", "Check failed")]}
 
+# Reports "Not Configured" (not Enabled/Disabled) when HiberbootEnabled is absent, because an
+# absent value means the Windows default applies and that default differs by build.
 def check_fast_startup() -> Dict[str, Any]:
     try:
         key = r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
@@ -2629,16 +2603,26 @@ def _svc_toggle(name: str, label: str, enabled: bool) -> Dict[str, Any]:
                 "after_value": before.get("enabled"), "action": "enable" if enabled else "disable"}
 
 def check_service_print_spooler(): return _svc_check("Spooler", "Print Spooler", running_bad=True)
+# Dnscache (DNS Client) must be running -- stopping it breaks name resolution, so running is good.
 def check_service_dnscache(): return _svc_check("Dnscache", "DNS Client", running_bad=False)
+# Dhcp (DHCP Client) must be running -- stopping it breaks IP lease renewal, so running is good.
 def check_service_dhcp(): return _svc_check("Dhcp", "DHCP Client", running_bad=False)
+# WSearch: polarity retained as-was (both original definitions agreed on running_bad=True) --
+# the security verdict is the catalog's to make, not this reader's; see task-1-report.md.
 def check_service_wsearch(): return _svc_check("WSearch", "Windows Search", running_bad=True)
+# SysMain: polarity retained as-was, same reasoning as WSearch above -- catalog decides desired=None.
 def check_service_sysmain(): return _svc_check("SysMain", "SysMain (Superfetch)", running_bad=True)
+# Fax should be stopped -- legacy service, unnecessary attack surface, so running is bad.
 def check_service_fax(): return _svc_check("Fax", "Fax Service", running_bad=True)
+# XboxNetApiSvc should be stopped on a non-gaming/managed machine, so running is bad.
 def check_service_xbox_live(): return _svc_check("XboxNetApiSvc", "Xbox Networking", running_bad=True)
 def check_service_diagtrack(): return _svc_check("DiagTrack", "Diagnostics Tracking", running_bad=True)
+# WpnService (push notifications) stopped is the hardened state, so running is bad.
 def check_service_wpn(): return _svc_check("WpnService", "Push Notifications", running_bad=True)
 def check_service_mapsbroker(): return _svc_check("MapsBroker", "Maps Broker", running_bad=True)
+# fdPHost (function discovery) should be stopped on an untrusted network, so running is bad.
 def check_service_fdphost(): return _svc_check("fdPHost", "Function Discovery", running_bad=True)
+# WebClient (WebDAV) should be stopped -- a known lateral-movement path, so running is bad.
 def check_service_webclient(): return _svc_check("WebClient", "WebClient", running_bad=True)
 def check_service_bthserv(): return _svc_check("bthserv", "Bluetooth", running_bad=True)
 def check_service_snmp(): return _svc_check("SNMP", "SNMP Service", running_bad=True)
@@ -2736,17 +2720,6 @@ def check_screensaver_active() -> Dict[str, Any]:
                     "details": [("Screen Saver", str(val)[:50])], "enabled": True}
         return {"status": "Not Configured", "color": "amber",
                 "details": [("Screen Saver", "None")], "enabled": False}
-    except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
-
-def check_fast_startup() -> Dict[str, Any]:
-    try:
-        val = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power", "HiberbootEnabled")
-        if val == 1:
-            return {"status": "Enabled", "color": "amber",
-                    "details": [("Fast Startup", "On (may cause issues)")], "enabled": True}
-        return {"status": "Disabled", "color": "green",
-                "details": [("Fast Startup", "Off")], "enabled": False}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
