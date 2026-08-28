@@ -2899,6 +2899,29 @@ def check_system_log_size() -> Dict[str, Any]:
 # vulnerable").
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _speculation_fallback_details(d: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Informational detail lines surfacing the raw registry values behind
+    the fallback, when the module is absent -- so an Unknown verdict still
+    hands the user something real rather than a fetch nobody reads. This
+    project deliberately does not decode these bits into a mitigated/
+    vulnerable verdict (task-3b defect C1): that would risk a confident
+    wrong answer, which is worse than a visibly missing one.
+    """
+    lines = []
+    override = d.get("FeatureSettingsOverride")
+    mask = d.get("FeatureSettingsOverrideMask")
+    vbs = d.get("VirtualizationBasedSecurityEnabled")
+    if override is not None:
+        lines.append(("FeatureSettingsOverride",
+                       hex(override) if isinstance(override, int) else str(override)))
+    if mask is not None:
+        lines.append(("FeatureSettingsOverrideMask",
+                       hex(mask) if isinstance(mask, int) else str(mask)))
+    if vbs is not None:
+        lines.append(("Virtualization Based Security", "Enabled" if vbs else "Disabled"))
+    return lines
+
+
 def _speculation_read(cve_label: str, required_field: str):
     """(data, unavailable_response_or_None) for one CVE reader.
 
@@ -2918,7 +2941,8 @@ def _speculation_read(cve_label: str, required_field: str):
         return None, {"status": "Unknown", "color": "amber", "available": False,
                        "details": [(cve_label,
                                      "SpeculationControl module not present -- "
-                                     "the registry fallback cannot determine this")]}
+                                     "the registry fallback cannot determine this")]
+                                  + _speculation_fallback_details(d)}
     return d, None
 
 
@@ -3028,7 +3052,11 @@ def check_swapgs() -> Dict[str, Any]:
         return {"status": "Mitigated" if bhb else "N/A", "color": "green" if bhb else "amber",
                 "available": True, "details": [("BHB Mitigation", "Enabled" if bhb else "N/A")]}
     except Exception:
-        return {"status": "N/A", "color": "amber", "details": [("SWAPGS", "Check failed")]}
+        # "N/A" here (not "Unknown") used to be swept into the aggregate's
+        # "mitigated" bucket by its "N/A" substring check -- an unexpected
+        # exception told the user they were protected against SWAPGS.
+        return {"status": "Unknown", "color": "amber", "available": False,
+                "details": [("SWAPGS", "Check failed")]}
 
 def check_tsx_async_abort() -> Dict[str, Any]:
     """TSX Async Abort / TAA (CVE-2019-11135) — checked via MDS/SBDR/FBSDP."""
@@ -3082,7 +3110,11 @@ def check_mmio_stale_data() -> Dict[str, Any]:
         return {"status": "Mitigated" if ok else "N/A", "color": "green" if ok else "amber",
                 "available": True, "details": [("Fill Buffer Clear", "Present" if ok else "N/A")]}
     except Exception:
-        return {"status": "N/A", "color": "amber", "details": [("MMIO", "Check failed")]}
+        # Same reasoning as check_swapgs's except-branch above: "N/A" read
+        # as "mitigated" to the aggregate's classifier, so an exception here
+        # told the user they were protected against MMIO Stale Data.
+        return {"status": "Unknown", "color": "amber", "available": False,
+                "details": [("MMIO", "Check failed")]}
 
 def check_downfall_gds() -> Dict[str, Any]:
     """Downfall / GDS (CVE-2022-40982)."""

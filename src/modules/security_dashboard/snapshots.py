@@ -26,9 +26,12 @@ _reasons: Dict[str, Optional[str]] = {}
 #: dispatches several cold fetches at once (e.g. mp_preference and
 #: speculation_control together) lets them run concurrently; two threads
 #: racing for the SAME snapshot still serialise onto the same Lock object,
-#: so the cmdlet still launches exactly once. `_locks_guard` only protects
-#: the brief moment of creating a name's Lock the first time -- it is never
-#: held during the fetch itself.
+#: so the cmdlet still launches exactly once. `_lock_for()` only holds
+#: `_locks_guard` for the brief moment of creating a name's Lock the first
+#: time -- it is never held during the fetch itself. `invalidate()` is the
+#: one exception: it holds `_locks_guard` for its entire body, so that no
+#: name's lock -- new or existing -- can be created or hidden from it while
+#: it runs. See `invalidate()`'s docstring for why that matters.
 _locks_guard = threading.Lock()
 _locks: Dict[str, threading.Lock] = {}
 
@@ -223,18 +226,29 @@ def availability() -> Dict[str, Optional[str]]:
 def invalidate() -> None:
     """Drop every snapshot. Called by the pane's Refresh, never on a timer.
 
-    Acquires every snapshot name's lock before clearing, so a fetch already
-    in flight for some name cannot write a stale value into `_cache` after
-    this has cleared it, and no new fetch for that name can start until
-    this is done.
+    Holds `_locks_guard` for the whole call, not just while listing the
+    known per-name locks. A prior version released the guard right after
+    `list(_locks.values())` and only then acquired each one -- which meant
+    a snapshot being fetched for the very first time could create its lock
+    in `_lock_for()` *after* that snapshot was taken, making it invisible
+    to the acquire loop below. `_fetch_json` could then set `_reasons[name]`
+    for a refusal, this would clear it out from under the fetch, and
+    `_cached()` would still go on to write `_cache[name]` afterwards --
+    leaving a warm, "successful-looking" cache entry with no matching
+    reason, so `unavailable(name)` read a real refusal as fine. Holding the
+    guard throughout means `_lock_for()` cannot register or hand out ANY
+    lock -- new or existing -- while this runs, so no fetch can start (and
+    no in-flight fetch's lock can go unnoticed) until this is done. See
+    `test_invalidate_cannot_lose_a_names_first_ever_refusal` in
+    test_security_snapshots.py, which fails without this.
     """
     with _locks_guard:
         locks = list(_locks.values())
-    for lock in locks:
-        lock.acquire()
-    try:
-        _cache.clear()
-        _reasons.clear()
-    finally:
         for lock in locks:
-            lock.release()
+            lock.acquire()
+        try:
+            _cache.clear()
+            _reasons.clear()
+        finally:
+            for lock in locks:
+                lock.release()

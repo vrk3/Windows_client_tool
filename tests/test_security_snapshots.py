@@ -204,6 +204,61 @@ def test_speculation_control_registry_fallback_is_a_successful_empty_read(monkey
     assert snapshots.unavailable("speculation_control") is None
 
 
+def test_speculation_read_surfaces_the_raw_registry_fallback_values_as_details(monkeypatch):
+    """Reviewer ruling (task-3b follow-up): the registry fallback stays
+    narrow -- no per-CVE verdict decoded from the override/mask bits -- but
+    a fetch whose results nothing reads looks like a broken fallback to the
+    next person. The raw values must show up as informational detail lines
+    alongside the Unknown verdict."""
+    monkeypatch.setattr(
+        snapshots, "_ps",
+        lambda cmd, timeout=30: (
+            0,
+            '{"Source":"registry_fallback","FeatureSettingsOverride":8,'
+            '"FeatureSettingsOverrideMask":3,'
+            '"VirtualizationBasedSecurityEnabled":true}',
+            ""))
+    result = security_reader.check_spectre_v2()
+    assert result["status"] == "Unknown"
+    detail_text = " ".join(f"{k}={v}" for k, v in result.get("details", []))
+    assert "0x8" in detail_text, f"raw FeatureSettingsOverride missing from details: {result}"
+    assert "0x3" in detail_text, f"raw FeatureSettingsOverrideMask missing from details: {result}"
+    assert "Enabled" in detail_text, f"raw VBS state missing from details: {result}"
+
+
+def test_speculation_read_still_reports_unknown_with_no_registry_values_at_all(monkeypatch):
+    """When even the registry fallback comes back empty, there's nothing to
+    surface -- still Unknown, just without the extra detail lines."""
+    monkeypatch.setattr(
+        snapshots, "_ps",
+        lambda cmd, timeout=30: (0, '{"Source":"registry_fallback"}', ""))
+    result = security_reader.check_spectre_v2()
+    assert result["status"] == "Unknown"
+    assert result["color"] == "amber"
+
+
+@pytest.mark.parametrize("reader,label", [
+    (security_reader.check_swapgs, "SWAPGS"),
+    (security_reader.check_mmio_stale_data, "MMIO"),
+])
+def test_an_exception_in_swapgs_or_mmio_never_reads_as_mitigated(monkeypatch, reader, label):
+    """Reviewer finding: both readers' generic `except Exception:` handlers
+    used to return status "N/A", which the aggregate's classifier treats as
+    mitigated -- an unexpected exception told the user they were protected.
+    Must be Unknown/amber/available:False like every other CVE reader's
+    exception path."""
+    def boom(cmd, timeout=30):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(snapshots, "_ps", boom)
+    result = reader()
+    assert result["status"] == "Unknown", (
+        f"{reader.__name__} answered {result['status']!r} on exception -- "
+        f"the aggregate's classifier would count that as mitigated: {result}")
+    assert result["color"] == "amber"
+    assert result.get("available") is False
+
+
 @pytest.mark.parametrize("reader", _SPECULATION_READERS, ids=lambda fn: fn.__name__)
 def test_every_cpu_vulnerability_reader_answers_unknown_not_vulnerable_when_module_absent(
         monkeypatch, reader):
@@ -353,3 +408,107 @@ def test_two_different_snapshots_fetch_concurrently_not_serialised(monkeypatch):
     b_start, b_end = windows["mp_computer_status"]
     assert a_start < b_end and b_start < a_end, (
         f"the two fetch windows did not overlap: {windows}")
+
+
+def test_invalidate_cannot_lose_a_names_first_ever_refusal(monkeypatch):
+    """Reviewer-found race (task-3b follow-up), reproduced deterministically.
+
+    A prior version of `invalidate()` took `locks = list(_locks.values())`
+    under `_locks_guard`, then released the guard, THEN acquired each lock
+    individually. That left a gap: a snapshot name being fetched for the
+    very first time creates its lock in `_lock_for()` -- if that creation
+    happens after invalidate()'s snapshot was taken, the new lock is
+    invisible to invalidate()'s acquire loop, and invalidate() can clear
+    `_cache`/`_reasons` while that fetch is still in flight, unguarded.
+
+    Sequence this pins: (1) invalidate() takes its (empty-of-this-name)
+    lock snapshot and pauses: (2) a first-ever fetch for the name runs,
+    registers its own lock (which invalidate()'s stale snapshot never
+    sees), gets a refusal, and records the reason in `_reasons`, then
+    pauses just before writing `_cache`; (3) invalidate() resumes --
+    with the bug, its stale snapshot has nothing to wait for, so it clears
+    `_cache`/`_reasons` right through the in-flight fetch, wiping the
+    reason; (4) the fetch resumes and writes `_cache[name]` anyway. Final
+    state with the bug: `_cache` has a "successful-looking" entry, but
+    `_reasons` does not, and `unavailable()`'s warm-cache path in
+    `_cached()` never re-populates `_reasons` -- so the refusal is read as
+    fine. The fix holds `_locks_guard` for invalidate()'s entire body, so
+    step (1)'s pause cannot happen with anything still unaccounted for.
+    """
+    import threading
+
+    name = "mp_preference"
+    snapshots._locks.pop(name, None)
+    monkeypatch.setattr(
+        snapshots, "_ps", lambda cmd, timeout=30: (1, "", "Access is denied."))
+
+    # --- Hook 1: pause invalidate() right after it takes its lock
+    # snapshot (the moment its `with _locks_guard:` block's __exit__ runs
+    # for the FIRST time -- subsequent releases, e.g. from `_lock_for`,
+    # must pass straight through or the fetch thread below would deadlock
+    # on its own housekeeping).
+    real_locks_guard = snapshots._locks_guard
+    invalidate_took_snapshot = threading.Event()
+    let_invalidate_proceed = threading.Event()
+    guard_fired = {"once": False}
+
+    class _PausingGuard:
+        def acquire(self, *a, **kw):
+            return real_locks_guard.acquire(*a, **kw)
+
+        def release(self):
+            real_locks_guard.release()
+            if not guard_fired["once"]:
+                guard_fired["once"] = True
+                invalidate_took_snapshot.set()
+                let_invalidate_proceed.wait(timeout=5)
+
+        def __enter__(self):
+            self.acquire()
+            return self
+
+        def __exit__(self, *exc):
+            self.release()
+
+    monkeypatch.setattr(snapshots, "_locks_guard", _PausingGuard())
+
+    invalidate_thread = threading.Thread(target=snapshots.invalidate)
+    invalidate_thread.start()
+    assert invalidate_took_snapshot.wait(timeout=5), \
+        "invalidate() never reached the point after taking its lock snapshot"
+
+    # --- Hook 2: pause the fetch right after it has recorded its refusal
+    # reason, but before `_cached()` writes to `_cache`.
+    fetch_reason_set = threading.Event()
+    let_fetch_write_cache = threading.Event()
+    real_fetch_json = snapshots._fetch_json
+
+    def paused_fetch_json(fname, command, timeout=30):
+        result = real_fetch_json(fname, command, timeout=timeout)
+        fetch_reason_set.set()
+        let_fetch_write_cache.wait(timeout=5)
+        return result
+
+    monkeypatch.setattr(snapshots, "_fetch_json", paused_fetch_json)
+
+    fetch_thread = threading.Thread(target=snapshots.mp_preference)
+    fetch_thread.start()
+    assert fetch_reason_set.wait(timeout=5), \
+        "the first-ever fetch never reached the point after recording its reason"
+    assert snapshots._reasons.get(name) == "Access is denied."
+
+    # Let invalidate() resume: with the bug, its stale snapshot has
+    # nothing to wait for regarding `name`, so it clears straight through.
+    let_invalidate_proceed.set()
+    invalidate_thread.join(timeout=5)
+
+    # Only now does the fetch write to `_cache` -- after invalidate() has
+    # (with the bug) already wiped `_reasons`.
+    let_fetch_write_cache.set()
+    fetch_thread.join(timeout=5)
+
+    reason = snapshots.unavailable(name)
+    assert reason is not None, (
+        "a refusal recorded by a first-ever fetch was silently erased by "
+        "a racing invalidate() -- unavailable() now reads it as fine")
+    assert "Access is denied" in reason
