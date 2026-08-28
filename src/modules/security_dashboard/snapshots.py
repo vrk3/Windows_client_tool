@@ -111,12 +111,48 @@ def optional_features() -> Dict[str, str]:
         {}, transform=_index, timeout=120)
 
 
+#: snapshot name -> the getter that fetches (and caches) it. Used only by
+#: `unavailable()` to force a first fetch; callers should keep calling the
+#: named functions directly for the data itself.
+_FETCHERS = {
+    "mp_preference": mp_preference,
+    "mp_computer_status": mp_computer_status,
+    "service_states": service_states,
+    "optional_features": optional_features,
+}
+
+
+def unavailable(name: str) -> Optional[str]:
+    """Why this snapshot could not be read, or None if it was read fine.
+
+    Ask THIS, never `if not snapshot_dict:`. An empty snapshot and a refused
+    one are different facts, and a snapshot that legitimately returns few or
+    no fields is a successful read.
+
+    A snapshot that has never been fetched is neither of those -- it is an
+    open question, not an answer -- so this triggers the fetch first. A
+    caller must not be able to read silence as "fine"; the alternative
+    (returning None for "never tried") would make a snapshot look available
+    before anyone ever asked Windows. Every real call site already holds the
+    snapshot dict from calling the matching getter first, so this never
+    causes I/O the caller wasn't already about to pay for anyway.
+    """
+    if name not in _reasons:
+        fetcher = _FETCHERS.get(name)
+        if fetcher is None:
+            return f"unknown snapshot: {name}"
+        fetcher()
+    return _reasons.get(name)
+
+
 def availability() -> Dict[str, Optional[str]]:
     """snapshot name -> refusal reason, or None if it was read successfully.
 
-    A caller that finds an empty snapshot MUST consult this before reporting
-    a setting as absent. An empty dict here means "we could not look", not
-    "there was nothing there".
+    A caller that finds an empty snapshot MUST consult `unavailable(name)`
+    (not this) before reporting a setting as absent -- this dict only shows
+    what has already been fetched, so a snapshot no one has asked for yet is
+    silently missing from it. An empty dict here means "we could not look",
+    not "there was nothing there".
     """
     return dict(_reasons)
 

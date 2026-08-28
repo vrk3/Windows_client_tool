@@ -492,8 +492,8 @@ def check_tamper_protection() -> Dict[str, Any]:
 def check_pua_protection() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("PUA Protection", f"Could not read: {reason}")]}
         level = prefs.get("PUAProtection", 0)
@@ -511,8 +511,8 @@ def check_pua_protection() -> Dict[str, Any]:
 def check_controlled_folder_access() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Controlled Folder Access", f"Could not read: {reason}")]}
         cfa = prefs.get("EnableControlledFolderAccess", 0)
@@ -531,8 +531,8 @@ def check_controlled_folder_access() -> Dict[str, Any]:
 def check_cloud_protection() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Cloud Protection", f"Could not read: {reason}")]}
         maps = prefs.get("MAPSReporting", 0)
@@ -561,8 +561,8 @@ def check_cloud_protection() -> Dict[str, Any]:
 def check_defender_signatures() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unavailable", "color": "amber", "available": False,
                     "details": [("Signatures", f"Could not retrieve: {reason}")]}
         data = status
@@ -633,11 +633,11 @@ def check_rdp() -> Dict[str, Any]:
 def check_smbv1() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
+        if snapshots.unavailable("optional_features") is not None:
             # Fallback: the feature list itself was refused. Fall back to
             # whether the service list, at least, could be read.
             services = snapshots.service_states()
-            if not services:
+            if snapshots.unavailable("service_states") is not None:
                 return {"status": "Unknown", "color": "amber", "available": False,
                         "details": [("SMBv1", "Could not determine")]}
             return {"status": "Probably Disabled (Win10+)", "color": "green", "available": True,
@@ -655,8 +655,8 @@ def check_smbv1() -> Dict[str, Any]:
 def check_network_protection_defender() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Network Protection", f"Could not read: {reason}")]}
         np_val = prefs.get("EnableNetworkProtection", 0)
@@ -693,8 +693,8 @@ def get_defender_realtime() -> Dict[str, Any]:
     """Get current real-time protection state for toggling."""
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "Could not query state"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"enabled": None, "error": reason}
         disabled = prefs.get("DisableRealtimeMonitoring", False)
         return {"enabled": not disabled, "raw": prefs}
@@ -1137,8 +1137,8 @@ def _mp_pref_flag_check(field: str, label: str, invert: bool = True,
     """
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [(label, f"Could not read: {reason}")]}
         raw = prefs.get(field, 0)
@@ -1157,8 +1157,8 @@ def check_defender_behavior_monitoring() -> Dict[str, Any]:
 def check_defender_nis() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("NIS", f"Could not read: {reason}")]}
         nis = bool(status.get("NISEnabled", False))
@@ -1186,8 +1186,8 @@ def check_defender_removable_drive() -> Dict[str, Any]:
 def check_defender_cloud_timeout() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Cloud Timeout", f"Could not read: {reason}")]}
         timeout = prefs.get("CloudTimeout", 50)
@@ -1200,8 +1200,8 @@ def check_defender_cloud_timeout() -> Dict[str, Any]:
 def check_defender_cloud_block_level() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Cloud Block Level", f"Could not read: {reason}")]}
         level = prefs.get("CloudBlockLevel", 0)
@@ -1216,8 +1216,8 @@ def check_defender_cloud_block_level() -> Dict[str, Any]:
 def check_defender_cpu_usage() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("CPU Load Limit", f"Could not read: {reason}")]}
         cpu = prefs.get("ScanAvgCPULoadFactor", 50)
@@ -1230,8 +1230,8 @@ def check_defender_cpu_usage() -> Dict[str, Any]:
 def check_defender_check_signatures() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Check Signatures Before Scan", f"Could not read: {reason}")]}
         enabled = bool(prefs.get("CheckForSignaturesBeforeRunningScan", False))
@@ -1244,8 +1244,8 @@ def check_defender_check_signatures() -> Dict[str, Any]:
 def check_defender_catchup_scan() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Catchup Scans", f"Could not read: {reason}")]}
         quick = bool(prefs.get("DisableCatchupQuickScan", False))
@@ -1287,8 +1287,8 @@ def check_defender_quarantine() -> Dict[str, Any]:
 def check_defender_last_scan() -> Dict[str, Any]:
     try:
         data = snapshots.mp_computer_status()
-        if not data:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Last Scans", f"Could not read: {reason}")]}
         def fmt(raw):
@@ -1318,8 +1318,8 @@ def check_defender_last_scan() -> Dict[str, Any]:
 def check_defender_engine_version() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Engine Version", f"Could not read: {reason}")]}
         ver = str(status.get("AMEngineVersion", "Unknown"))
@@ -1331,8 +1331,8 @@ def check_defender_engine_version() -> Dict[str, Any]:
 def check_defender_av_mode() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("AV Mode", f"Could not read: {reason}")]}
         mode = status.get("AMRunningMode", -1)
@@ -1350,8 +1350,8 @@ def check_defender_av_mode() -> Dict[str, Any]:
 def check_defender_oobe() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("OOBE RTP", f"Could not read: {reason}")]}
         enabled = bool(prefs.get("OobeEnableRtpAndSigUpdate", False))
@@ -1364,8 +1364,8 @@ def check_defender_oobe() -> Dict[str, Any]:
 def check_defender_asr_rules() -> Dict[str, Any]:
     try:
         prefs = snapshots.mp_preference()
-        if not prefs:
-            reason = snapshots.availability().get("mp_preference") or "unavailable"
+        reason = snapshots.unavailable("mp_preference")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("ASR Rules", f"Could not read: {reason}")]}
         ids = prefs.get("AttackSurfaceReductionRules_Ids", []) or []
@@ -1381,8 +1381,8 @@ def check_defender_asr_rules() -> Dict[str, Any]:
 def check_elam() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("ELAM", f"Could not read: {reason}")]}
         enabled = bool(status.get("AMServiceEnabled", False))
@@ -1395,8 +1395,8 @@ def check_elam() -> Dict[str, Any]:
 def check_defender_scanning_history() -> Dict[str, Any]:
     try:
         status = snapshots.mp_computer_status()
-        if not status:
-            reason = snapshots.availability().get("mp_computer_status") or "unavailable"
+        reason = snapshots.unavailable("mp_computer_status")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Scan History", f"Could not read: {reason}")]}
         quick = str(status.get("QuickScanEndTime", "Never"))
@@ -1470,8 +1470,8 @@ def check_mdns() -> Dict[str, Any]:
 def check_winrm() -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("WinRM", f"Could not read: {reason}")]}
         info = services.get("winrm")
@@ -1489,8 +1489,8 @@ def check_winrm() -> Dict[str, Any]:
 def check_remote_registry() -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Remote Registry", f"Could not read: {reason}")]}
         info = services.get("remoteregistry")
@@ -1508,8 +1508,8 @@ def check_remote_registry() -> Dict[str, Any]:
 def check_telnet() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
-            reason = snapshots.availability().get("optional_features") or "unavailable"
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Telnet Client", f"Could not read: {reason}")]}
         state = features.get("telnetclient")
@@ -1660,8 +1660,8 @@ def check_autorun() -> Dict[str, Any]:
 def check_powershell_v2() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
-            reason = snapshots.availability().get("optional_features") or "unavailable"
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("PowerShell v2", f"Could not read: {reason}")]}
         state = features.get("microsoftwindowspowershellv2root")
@@ -1813,8 +1813,8 @@ def check_ctrl_alt_del() -> Dict[str, Any]:
 def check_sandbox() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
-            reason = snapshots.availability().get("optional_features") or "unavailable"
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Sandbox", f"Could not read: {reason}")]}
         state = features.get("containers-disposableclientvm")
@@ -1831,8 +1831,8 @@ def check_sandbox() -> Dict[str, Any]:
 def check_hyperv() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
-            reason = snapshots.availability().get("optional_features") or "unavailable"
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Hyper-V", f"Could not read: {reason}")]}
         state = features.get("microsoft-hyper-v-all")
@@ -1950,8 +1950,8 @@ def check_windows_version() -> Dict[str, Any]:
 def check_wu_service() -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("WU Service", f"Could not read: {reason}")]}
         info = services.get("wuauserv")
@@ -2182,8 +2182,8 @@ def set_ps_script_block_logging(enabled: bool) -> Dict[str, Any]:
 def _check_service(service_name: str, display: str, good_running: bool = True) -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [(display, f"Could not read: {reason}")]}
         info = services.get(service_name.lower())
@@ -2304,8 +2304,8 @@ def set_service_remote_registry_disabled() -> Dict[str, Any]:
 def _check_win_feature(feature: str, label: str, good_enabled: bool = True) -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if not features:
-            reason = snapshots.availability().get("optional_features") or "unavailable"
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [(label, f"Could not read: {reason}")]}
         state = features.get(feature.lower())
@@ -2584,8 +2584,8 @@ def check_exploit_protection_aslr() -> Dict[str, Any]:
 def _svc_check(name: str, label: str, running_bad: bool = True) -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [(label, f"Could not read: {reason}")]}
         info = services.get(name.lower())
@@ -2647,8 +2647,8 @@ def check_service_upnp(): return _svc_check("upnphost", "UPnP Device Host", runn
 def check_service_defender_status():
     try:
         services = snapshots.service_states()
-        if not services:
-            reason = snapshots.availability().get("service_states") or "unavailable"
+        reason = snapshots.unavailable("service_states")
+        if reason is not None:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("WinDefend", f"Could not read: {reason}")]}
         info = services.get("windefend")
