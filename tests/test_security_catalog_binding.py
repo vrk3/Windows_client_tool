@@ -12,6 +12,7 @@ import pytest
 
 from modules.security_dashboard import security_reader
 from modules.security_dashboard.catalog import NOT_A_CONTROL, load_catalog
+from modules.security_dashboard.catalog.model import Category, SecurityControl
 
 
 def _all_readers():
@@ -19,14 +20,48 @@ def _all_readers():
             if name.startswith("check_") and obj.__module__ == security_reader.__name__}
 
 
+def _bound_reader_names(controls):
+    """Names (in security_reader) whose actual function object some control
+    uses as its reader. Matched by IDENTITY, not by __name__: a reader
+    defined as `check_x = lambda: ...` has __name__ == '<lambda>', not
+    'check_x', so name-matching can never recognise it as bound no matter
+    what a catalog entry sets `reader=` to. Comparing the reader objects
+    themselves survives lambdas, aliases (`check_x = check_y`), and anything
+    else a future reader might be defined as.
+    """
+    bound_objs = {c.reader for c in controls}
+    return {name for name in _all_readers()
+            if getattr(security_reader, name) in bound_objs}
+
+
 @pytest.mark.xfail(reason="catalog population in progress, Tasks 6-8", strict=False)
 def test_every_reader_is_bound_or_explicitly_excluded():
-    bound = {c.reader.__name__ for c in load_catalog().values()
-             if hasattr(c.reader, "__name__")}
+    bound = _bound_reader_names(load_catalog().values())
     unaccounted = sorted(_all_readers() - bound - set(NOT_A_CONTROL))
     assert not unaccounted, (
         f"{len(unaccounted)} readers reach nothing and are not listed in "
         f"NOT_A_CONTROL:\n  " + "\n  ".join(unaccounted))
+
+
+def test_a_lambda_reader_is_recognised_as_bound():
+    """Regression pin for the identity-matching fix above. Four real readers
+    (check_defender_threat_low/moderate/high/severe) are module-level lambdas,
+    so their __name__ is the literal string '<lambda>'. A control that binds
+    one of them (`reader=security_reader.check_defender_threat_low`, exactly
+    what Task 6 will write) must be recognised as bound. Name-based matching
+    (`c.reader.__name__ in bound_names`) fails this silently forever, because
+    '<lambda>' never equals 'check_defender_threat_low' -- confirmed by
+    running this test against the prior name-based implementation, where it
+    failed with 'check_defender_threat_low' left unaccounted.
+    """
+    stub = SecurityControl(
+        id="_pin_lambda_binding_regression",
+        title="pin", category=Category.DEFENDER, description="",
+        why_it_matters="",
+        reader=security_reader.check_defender_threat_low,
+        read_only_reason="test fixture, not a real control")
+    bound = _bound_reader_names([stub])
+    assert "check_defender_threat_low" in bound
 
 
 def test_every_exclusion_names_a_real_reader():

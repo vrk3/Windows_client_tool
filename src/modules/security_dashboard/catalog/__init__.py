@@ -9,6 +9,21 @@ from .model import Category, ControlState, Risk, SecurityControl
 #: cannot quietly fail to reach the pane.
 NOT_A_CONTROL: Dict[str, str] = {}
 
+# Carried instruction (Task 5 addendum, Ruling 6) for whichever task binds
+# check_service_wsearch and check_service_sysmain: DO NOT put them in
+# NOT_A_CONTROL -- they are real, wireable controls. But their readers
+# currently score a RUNNING service as red/bad (_svc_check(..., running_bad=
+# True)), which is a false positive in a *security* dashboard: Windows
+# Search and SysMain running is a performance/telemetry question, not attack
+# surface. That polarity is retained-as-was on purpose -- it was not the
+# reader's mistake to fix here, and the verdict belongs in the catalog, not
+# in security_reader.py. When these two become catalog entries, give both
+# `desired=None` ("no opinion") so a running service is never counted as a
+# problem, while the card still shows the reader's honest status. Consequence
+# for the pane's "Only problems" filter: it must key off `desired`, NOT off
+# the reader's `color` field -- a reader may legitimately colour something
+# amber/red that the catalog has no opinion about.
+
 
 def load_catalog() -> Dict[str, SecurityControl]:
     """id -> control, across every category module."""
