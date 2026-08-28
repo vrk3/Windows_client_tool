@@ -47,6 +47,24 @@ def _service(name: str, start_type: str) -> Dict[str, Any]:
     return {"type": "service", "name": name, "start_type": start_type}
 
 
+#: Set-NetFirewallProfile takes the profile state by name.
+_REVERT_TRUE_FALSE = {"True": "True", "False": "False"}
+#: `firewall_inbound_blocked` reads True when nothing is explicitly allowed,
+#: so reverting means putting the profiles back to NotConfigured -- which is
+#: what they were, and which Windows treats as block.
+_REVERT_INBOUND = {"True": "NotConfigured", "False": "Allow"}
+
+
+def _profile_step(assignment: str, revert_assignment: str,
+                  revert_values: Dict[str, str]) -> Dict[str, Any]:
+    """One Set-NetFirewallProfile script step, with its way back."""
+    return {"type": "script",
+            "command": _PS + "Set-NetFirewallProfile -All " + assignment,
+            "revert_template": _PS + "Set-NetFirewallProfile -All "
+                                     + revert_assignment,
+            "revert_values": revert_values}
+
+
 CONTROLS: Tuple[SecurityControl, ...] = (
 
     # -- the firewall itself -----------------------------------------------
@@ -63,10 +81,10 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         # three must be on for this to count as applied.
         read_value=lambda d: (all(d["profiles"].values())
                               if d.get("profiles") else None),
-        on_steps=({"type": "script",
-                   "command": _PS + "Set-NetFirewallProfile -All -Enabled True"},),
-        off_steps=({"type": "script",
-                    "command": _PS + "Set-NetFirewallProfile -All -Enabled False"},),
+        on_steps=(_profile_step("-Enabled True", "-Enabled ${old}",
+                                _REVERT_TRUE_FALSE),),
+        off_steps=(_profile_step("-Enabled False", "-Enabled ${old}",
+                                 _REVERT_TRUE_FALSE),),
         desired=True,
         risk=Risk.MEDIUM,
     ),
@@ -81,12 +99,12 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "service invisible until someone deliberately opens a "
                        "hole for it.",
         reader=check_firewall_stealth,
-        on_steps=({"type": "script",
-                   "command": _PS + "Set-NetFirewallProfile -All "
-                                    "-DefaultInboundAction Block"},),
-        off_steps=({"type": "script",
-                    "command": _PS + "Set-NetFirewallProfile -All "
-                                     "-DefaultInboundAction NotConfigured"},),
+        on_steps=(_profile_step("-DefaultInboundAction Block",
+                                "-DefaultInboundAction ${old}",
+                                _REVERT_INBOUND),),
+        off_steps=(_profile_step("-DefaultInboundAction NotConfigured",
+                                 "-DefaultInboundAction ${old}",
+                                 _REVERT_INBOUND),),
         desired=True,
         risk=Risk.MEDIUM,
     ),

@@ -285,3 +285,207 @@ def test_a_none_reading_supplied_by_the_caller_is_honoured():
 
     assert calls == []
     assert cs.changes[0].from_value is None
+
+
+# ============================================================================
+# Task 10: a cmdlet control's revert is computed from what was there before
+# ============================================================================
+
+def test_a_script_step_gets_a_revert_command_built_from_the_current_value():
+    """BackupService cannot revert a script step without one, and a static
+    revert command in the catalog cannot know what it is reverting TO."""
+    control = _control(
+        "rt", True,
+        on_steps=({"type": "script",
+                   "command": "Set-MpPreference -DisableRealtimeMonitoring $false",
+                   "revert_template": "Set-MpPreference -DisableRealtimeMonitoring ${old}",
+                   "revert_values": {"True": "$false", "False": "$true"}},),
+        off_steps=({"type": "script",
+                    "command": "Set-MpPreference -DisableRealtimeMonitoring $true",
+                    "revert_template": "Set-MpPreference -DisableRealtimeMonitoring ${old}",
+                    "revert_values": {"True": "$false", "False": "$true"}},))
+    cs = ChangeSet()
+    cs.add(control, False)
+    step = cs.changes[0].resolved_steps()[0]
+    assert step["revert_command"] == (
+        "Set-MpPreference -DisableRealtimeMonitoring $false")
+
+
+def test_a_registry_step_needs_no_revert_command():
+    """BackupService restores the recorded before_value exactly, including
+    deleting a value that did not exist. Do not invent one."""
+    cs = ChangeSet()
+    cs.add(_control("llmnr", True), False)
+    assert "revert_command" not in cs.changes[0].resolved_steps()[0]
+
+
+def test_an_unreadable_current_value_yields_no_revert_command():
+    """Better no revert than a revert to a value we guessed."""
+    control = _control(
+        "rt", None, reader=lambda: {"available": False},
+        on_steps=({"type": "script", "command": "x",
+                   "revert_template": "y ${old}",
+                   "revert_values": {"True": "$false"}},))
+    cs = ChangeSet()
+    cs.add(control, True)
+    assert cs.changes[0].resolved_steps()[0].get("revert_command") is None
+
+
+def test_resolving_does_not_mutate_the_catalogs_own_step():
+    """The catalog's dicts are shared between every ChangeSet in the process.
+    resolved_steps() works on copies; if it popped from the original, the
+    second batch of the session would find no revert template at all."""
+    step = {"type": "script", "command": "x", "revert_template": "y ${old}",
+            "revert_values": {"True": "$false"}}
+    control = _control("rt", True, on_steps=(step,), off_steps=(step,))
+
+    cs = ChangeSet()
+    cs.add(control, False)
+    cs.changes[0].resolved_steps()
+
+    assert "revert_template" in step and "revert_values" in step
+
+
+def test_a_numeric_control_reverts_to_its_own_number():
+    """CloudExtendedTimeout is 0-50: a lookup table of every value would be
+    absurd, so a number reverts to itself."""
+    control = _control(
+        "timeout", 30,
+        on_steps=({"type": "script", "command": "Set-X -T 50",
+                   "revert_template": "Set-X -T ${old}"},),
+        off_steps=({"type": "script", "command": "Set-X -T 0",
+                    "revert_template": "Set-X -T ${old}"},))
+    cs = ChangeSet()
+    cs.add(control, 50)
+
+    assert cs.changes[0].resolved_steps()[0]["revert_command"] == "Set-X -T 30"
+
+
+def test_a_string_value_is_never_pasted_into_a_command_unmapped():
+    """from_value comes off the machine. A bare string substituted into a
+    shell command is an injection surface, so a non-numeric value reverts
+    only through an explicit map."""
+    control = _control(
+        "policy", "Bypass; rm -rf /",
+        on_steps=({"type": "script", "command": "Set-ExecutionPolicy X",
+                   "revert_template": "Set-ExecutionPolicy ${old}"},),
+        off_steps=({"type": "script", "command": "Set-ExecutionPolicy Y",
+                    "revert_template": "Set-ExecutionPolicy ${old}"},))
+    cs = ChangeSet()
+    cs.add(control, "Restricted")
+
+    assert cs.changes[0].resolved_steps()[0].get("revert_command") is None
+
+
+def test_a_value_the_map_does_not_cover_yields_no_revert():
+    """The threat-action controls are exactly this: Get-MpPreference reports 0
+    for an unconfigured severity, and 0 is not a member of the ThreatAction
+    enum, so there IS no command that reverts to it. Saying nothing is the
+    honest answer."""
+    control = _control(
+        "threat", 0,
+        on_steps=({"type": "script", "command": "Set-MpPreference -X Quarantine",
+                   "revert_template": "Set-MpPreference -X ${old}",
+                   "revert_values": {"2": "Quarantine", "3": "Remove"}},),
+        off_steps=({"type": "script", "command": "Set-MpPreference -X None",
+                    "revert_template": "Set-MpPreference -X ${old}",
+                    "revert_values": {"2": "Quarantine", "3": "Remove"}},))
+    cs = ChangeSet()
+    cs.add(control, 2)
+
+    assert cs.changes[0].resolved_steps()[0].get("revert_command") is None
+
+
+def test_resolved_steps_uses_the_target_the_user_chose():
+    control = _control("a", True)
+    cs = ChangeSet()
+    cs.add(control, False)
+
+    assert cs.changes[0].resolved_steps()[0]["data"] == 0
+
+
+# -- the gate: no script step in the real catalog may lack a revert ----------
+
+def test_every_script_step_in_the_catalog_can_compute_a_revert():
+    """A `script` step is the one kind BackupService cannot undo on its own --
+    it records no before-value for a command. If the catalog ships one with no
+    revert_template, that control is a one-way door, silently.
+    """
+    from modules.security_dashboard.catalog import load_catalog
+
+    missing = []
+    for cid, control in load_catalog().items():
+        for step in control.on_steps + control.off_steps:
+            if step.get("type") == "script" and "revert_template" not in step:
+                missing.append(f"{cid}: {step['command'][:60]}")
+
+    assert not missing, (
+        f"{len(missing)} script steps have no way back:\n  "
+        + "\n  ".join(missing))
+
+
+# -- which staged changes have no way back -----------------------------------
+#
+# BackupService reverts a `registry` step from its recorded before-value and a
+# `service` step from its recorded start type. It records NOTHING for a
+# `command`, and for a `script` only the revert_command computed above. So a
+# batch can contain changes that simply cannot be undone by this tool, and the
+# review dialog has to be able to say which.
+
+def test_a_registry_change_is_revertible():
+    cs = ChangeSet()
+    cs.add(_control("llmnr", True), False)
+
+    assert cs.changes[0].one_way_steps() == ()
+
+
+def test_a_command_step_is_a_one_way_door():
+    control = _control("feature", True,
+                       on_steps=({"type": "command", "cmd": "dism /enable"},),
+                       off_steps=({"type": "command", "cmd": "dism /disable"},))
+    cs = ChangeSet()
+    cs.add(control, False)
+
+    assert len(cs.changes[0].one_way_steps()) == 1
+
+
+def test_a_script_step_with_a_computed_revert_is_not_one_way():
+    control = _control(
+        "rt", True,
+        on_steps=({"type": "script", "command": "x",
+                   "revert_template": "y ${old}",
+                   "revert_values": {"True": "on", "False": "off"}},),
+        off_steps=({"type": "script", "command": "x2",
+                    "revert_template": "y ${old}",
+                    "revert_values": {"True": "on", "False": "off"}},))
+    cs = ChangeSet()
+    cs.add(control, False)
+
+    assert cs.changes[0].one_way_steps() == ()
+
+
+def test_a_script_step_whose_revert_could_not_be_computed_is_one_way():
+    """The threat-action controls on a machine where nothing is configured:
+    from_value 0, and no command sets a severity back to 0."""
+    control = _control(
+        "threat", 0,
+        on_steps=({"type": "script", "command": "set Quarantine",
+                   "revert_template": "set ${old}",
+                   "revert_values": {"2": "Quarantine"}},),
+        off_steps=({"type": "script", "command": "set None",
+                    "revert_template": "set ${old}",
+                    "revert_values": {"2": "Quarantine"}},))
+    cs = ChangeSet()
+    cs.add(control, 2)
+
+    assert len(cs.changes[0].one_way_steps()) == 1
+
+
+def test_the_batch_can_count_its_one_way_changes():
+    cs = ChangeSet()
+    cs.add(_control("safe", True), False)
+    cs.add(_control("risky", True,
+                    on_steps=({"type": "command", "cmd": "a"},),
+                    off_steps=({"type": "command", "cmd": "b"},)), False)
+
+    assert [c.control_id for c in cs.one_way_changes] == ["risky"]

@@ -43,16 +43,54 @@ from .model import Category, Risk, SecurityControl
 _PS = "powershell -NoProfile -Command "
 
 
-def _set_pref(assignment: str) -> dict:
-    """One `Set-MpPreference` script step."""
-    return {"type": "script", "command": f"{_PS}Set-MpPreference {assignment}"}
+#: from_value -> the token that puts a `Disable<X>` preference back. The
+#: feature being ON means the preference was $false.
+_REVERT_DISABLE_FLAG = {"True": "$false", "False": "$true"}
+#: ...and for a preference that is not inverted.
+_REVERT_BOOL = {"True": "$true", "False": "$false"}
+#: MAPSReporting: Disabled=0, Basic=1, Advanced=2.
+_REVERT_MAPS = {"0": "Disabled", "1": "Basic", "2": "Advanced"}
+#: CloudBlockLevel, off the live cmdlet's enum.
+_REVERT_CLOUD_BLOCK_LEVEL = {"0": "Default", "1": "Moderate", "2": "High",
+                             "4": "HighPlus", "6": "ZeroTolerance"}
+#: PUAProtection and EnableNetworkProtection share this shape.
+_REVERT_ENABLED_AUDIT = {"0": "Disabled", "1": "Enabled", "2": "AuditMode"}
+#: EnableControlledFolderAccess reads as a bool but is written by name.
+_REVERT_ENABLED_BOOL = {"True": "Enabled", "False": "Disabled"}
+#: ThreatAction. **0 is deliberately absent**: Get-MpPreference reports 0 for
+#: an unconfigured severity, and 0 is not a member of the enum, so there is no
+#: command that reverts to it. A missing key yields no revert command, which
+#: is the honest answer rather than a guess (Ruling 20).
+_REVERT_THREAT_ACTION = {"1": "Clean", "2": "Quarantine", "3": "Remove",
+                         "6": "Allow", "8": "UserDefined", "9": "NoAction",
+                         "10": "Block", "11": "None"}
+
+
+def _set_pref(assignment: str, revert_values: dict = None) -> dict:
+    """One `Set-MpPreference` script step, carrying its own way back.
+
+    BackupService records a before-value for a registry write and nothing at
+    all for a command, so a script step that cannot say how to undo itself is
+    a one-way door. `${old}` is filled in at stage time from what the machine
+    actually had (staging.PendingChange.resolved_steps).
+
+    `revert_values` is omitted only for a numeric parameter, which reverts to
+    its own number.
+    """
+    parameter = assignment.split()[0]
+    step = {"type": "script",
+            "command": f"{_PS}Set-MpPreference {assignment}",
+            "revert_template": f"{_PS}Set-MpPreference {parameter} ${{old}}"}
+    if revert_values is not None:
+        step["revert_values"] = revert_values
+    return step
 
 
 def _disable_flag(field: str) -> dict:
     """Steps for a `Disable<X>` preference, which is inverted: the feature is
     ON when the preference is $false."""
-    return {"on": (_set_pref(f"-{field} $false"),),
-            "off": (_set_pref(f"-{field} $true"),)}
+    return {"on": (_set_pref(f"-{field} $false", _REVERT_DISABLE_FLAG),),
+            "off": (_set_pref(f"-{field} $true", _REVERT_DISABLE_FLAG),)}
 
 
 _THREAT_ACTIONS = (
@@ -99,8 +137,8 @@ def _threat_control(suffix: str, severity: str, param: str) -> SecurityControl:
                        "judgement you never see.",
         reader=_THREAT_READERS[suffix],
         read_value=lambda d: d.get("value"),
-        on_steps=(_set_pref(f"-{param} Quarantine"),),
-        off_steps=(_set_pref(f"-{param} None"),),
+        on_steps=(_set_pref(f"-{param} Quarantine", _REVERT_THREAT_ACTION),),
+        off_steps=(_set_pref(f"-{param} None", _REVERT_THREAT_ACTION),),
         desired=2,
         risk=Risk.LOW,
     )
@@ -120,8 +158,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "a file that has already run is too late.",
         reader=check_defender,
         read_value=lambda d: d.get("real_time"),
-        on_steps=(_set_pref("-DisableRealtimeMonitoring $false"),),
-        off_steps=(_set_pref("-DisableRealtimeMonitoring $true"),),
+        on_steps=(_set_pref("-DisableRealtimeMonitoring $false", _REVERT_DISABLE_FLAG),),
+        off_steps=(_set_pref("-DisableRealtimeMonitoring $true", _REVERT_DISABLE_FLAG),),
         desired=True,
         risk=Risk.MEDIUM,
     ),
@@ -224,8 +262,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         why_it_matters="Blocks an exploit aimed at an unpatched service "
                        "before the service ever sees the packet.",
         reader=check_defender_nis,
-        on_steps=(_set_pref("-DisableIntrusionPreventionSystem $false"),),
-        off_steps=(_set_pref("-DisableIntrusionPreventionSystem $true"),),
+        on_steps=(_set_pref("-DisableIntrusionPreventionSystem $false", _REVERT_DISABLE_FLAG),),
+        off_steps=(_set_pref("-DisableIntrusionPreventionSystem $true", _REVERT_DISABLE_FLAG),),
         desired=True,
         risk=Risk.LOW,
     ),
@@ -239,10 +277,10 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         why_it_matters="A laptop that is asleep at 02:00 every night never "
                        "runs its scheduled scan at all without this.",
         reader=check_defender_catchup_scan,
-        on_steps=(_set_pref("-DisableCatchupQuickScan $false"),
-                  _set_pref("-DisableCatchupFullScan $false")),
-        off_steps=(_set_pref("-DisableCatchupQuickScan $true"),
-                   _set_pref("-DisableCatchupFullScan $true")),
+        on_steps=(_set_pref("-DisableCatchupQuickScan $false", _REVERT_DISABLE_FLAG),
+                  _set_pref("-DisableCatchupFullScan $false", _REVERT_DISABLE_FLAG)),
+        off_steps=(_set_pref("-DisableCatchupQuickScan $true", _REVERT_DISABLE_FLAG),
+                   _set_pref("-DisableCatchupFullScan $true", _REVERT_DISABLE_FLAG)),
         desired=True,
         risk=Risk.LOW,
     ),
@@ -256,8 +294,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         why_it_matters="A scan with week-old definitions is a scan for last "
                        "week's malware.",
         reader=check_defender_check_signatures,
-        on_steps=(_set_pref("-CheckForSignaturesBeforeRunningScan $true"),),
-        off_steps=(_set_pref("-CheckForSignaturesBeforeRunningScan $false"),),
+        on_steps=(_set_pref("-CheckForSignaturesBeforeRunningScan $true", _REVERT_BOOL),),
+        off_steps=(_set_pref("-CheckForSignaturesBeforeRunningScan $false", _REVERT_BOOL),),
         desired=True,
         risk=Risk.LOW,
     ),
@@ -272,8 +310,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         why_it_matters="Closes the window on a freshly imaged machine that is "
                        "on the network but not yet protected.",
         reader=check_defender_oobe,
-        on_steps=(_set_pref("-OobeEnableRtpAndSigUpdate $true"),),
-        off_steps=(_set_pref("-OobeEnableRtpAndSigUpdate $false"),),
+        on_steps=(_set_pref("-OobeEnableRtpAndSigUpdate $true", _REVERT_BOOL),),
+        off_steps=(_set_pref("-OobeEnableRtpAndSigUpdate $false", _REVERT_BOOL),),
         desired=True,
         risk=Risk.LOW,
     ),
@@ -290,8 +328,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "minutes ago anywhere in the world is blocked here.",
         reader=check_cloud_protection,
         read_value=lambda d: d.get("maps_level"),
-        on_steps=(_set_pref("-MAPSReporting Advanced"),),
-        off_steps=(_set_pref("-MAPSReporting Disabled"),),
+        on_steps=(_set_pref("-MAPSReporting Advanced", _REVERT_MAPS),),
+        off_steps=(_set_pref("-MAPSReporting Disabled", _REVERT_MAPS),),
         desired=2,
         risk=Risk.LOW,
     ),
@@ -307,8 +345,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "run while the cloud makes up its mind.",
         reader=check_defender_cloud_block_level,
         read_value=lambda d: d.get("level"),
-        on_steps=(_set_pref("-CloudBlockLevel High"),),
-        off_steps=(_set_pref("-CloudBlockLevel Default"),),
+        on_steps=(_set_pref("-CloudBlockLevel High", _REVERT_CLOUD_BLOCK_LEVEL),),
+        off_steps=(_set_pref("-CloudBlockLevel Default", _REVERT_CLOUD_BLOCK_LEVEL),),
         desired=2,
         risk=Risk.MEDIUM,
     ),
@@ -342,8 +380,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "a home machine, and off is the Windows default.",
         reader=check_pua_protection,
         read_value=lambda d: d.get("level"),
-        on_steps=(_set_pref("-PUAProtection Enabled"),),
-        off_steps=(_set_pref("-PUAProtection Disabled"),),
+        on_steps=(_set_pref("-PUAProtection Enabled", _REVERT_ENABLED_AUDIT),),
+        off_steps=(_set_pref("-PUAProtection Disabled", _REVERT_ENABLED_AUDIT),),
         # Enabled=1 blocks; AuditMode=2 only logs. This machine reads 2.
         desired=1,
         risk=Risk.LOW,
@@ -360,8 +398,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "reach the address it was told to phone home to.",
         reader=check_network_protection_defender,
         read_value=lambda d: d.get("level"),
-        on_steps=(_set_pref("-EnableNetworkProtection Enabled"),),
-        off_steps=(_set_pref("-EnableNetworkProtection Disabled"),),
+        on_steps=(_set_pref("-EnableNetworkProtection Enabled", _REVERT_ENABLED_AUDIT),),
+        off_steps=(_set_pref("-EnableNetworkProtection Disabled", _REVERT_ENABLED_AUDIT),),
         desired=1,
         risk=Risk.MEDIUM,
     ),
@@ -375,8 +413,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
         why_it_matters="This is the anti-ransomware control: an encryptor "
                        "that runs cannot write over the files it encrypted.",
         reader=check_controlled_folder_access,
-        on_steps=(_set_pref("-EnableControlledFolderAccess Enabled"),),
-        off_steps=(_set_pref("-EnableControlledFolderAccess Disabled"),),
+        on_steps=(_set_pref("-EnableControlledFolderAccess Enabled", _REVERT_ENABLED_BOOL),),
+        off_steps=(_set_pref("-EnableControlledFolderAccess Disabled", _REVERT_ENABLED_BOOL),),
         desired=True,
         risk=Risk.MEDIUM,
     ),

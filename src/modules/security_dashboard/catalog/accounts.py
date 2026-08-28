@@ -48,6 +48,22 @@ def _sz(key: str, value: str, data: str) -> Dict[str, Any]:
             "kind": "SZ"}
 
 
+#: The only tokens Set-ExecutionPolicy accepts. This doubles as the guard that
+#: keeps a string read off the machine out of a shell command: a `from_value`
+#: not in this map yields no revert command at all.
+_EXECUTION_POLICIES = {name: name for name in
+                       ("Restricted", "AllSigned", "RemoteSigned",
+                        "Unrestricted", "Bypass", "Undefined")}
+
+
+def _execution_policy_step(policy: str) -> Dict[str, Any]:
+    prefix = "powershell -NoProfile -Command Set-ExecutionPolicy "
+    return {"type": "script",
+            "command": f"{prefix}{policy} -Scope LocalMachine -Force",
+            "revert_template": prefix + "${old} -Scope LocalMachine -Force",
+            "revert_values": _EXECUTION_POLICIES}
+
+
 CONTROLS: Tuple[SecurityControl, ...] = (
 
     # -- the elevation boundary --------------------------------------------
@@ -333,12 +349,8 @@ CONTROLS: Tuple[SecurityControl, ...] = (
                        "opinion on its value.",
         reader=check_ps_execution_policy,
         read_value=lambda d: d.get("policy"),
-        on_steps=({"type": "script",
-                   "command": "powershell -NoProfile -Command Set-ExecutionPolicy "
-                              "RemoteSigned -Scope LocalMachine -Force"},),
-        off_steps=({"type": "script",
-                    "command": "powershell -NoProfile -Command Set-ExecutionPolicy "
-                               "Undefined -Scope LocalMachine -Force"},),
+        on_steps=(_execution_policy_step("RemoteSigned"),),
+        off_steps=(_execution_policy_step("Undefined"),),
         desired=None,
         risk=Risk.LOW,
     ),

@@ -37,12 +37,92 @@ class _Unread:
 _UNREAD = _Unread()
 
 
+def _revert_command(template: str, values: Optional[Dict[str, str]],
+                    from_value: Any) -> Optional[str]:
+    """Fill `${old}` in a revert template, or return None if it cannot be."""
+    if from_value is None:
+        return None
+    if values is not None:
+        old = values.get(str(from_value))
+    elif isinstance(from_value, bool):
+        # A bool has no obvious cmdlet token -- $true/$false, Enabled/
+        # Disabled and 1/0 are all plausible -- so it must be mapped.
+        old = None
+    elif isinstance(from_value, int):
+        old = str(from_value)
+    else:
+        # A string read off the machine, going into a shell command. Not
+        # without an explicit map.
+        old = None
+    return template.replace("${old}", old) if old is not None else None
+
+
 @dataclass(frozen=True)
 class PendingChange:
     control_id: str
     control: SecurityControl
     from_value: Optional[Any]
     to_value: Any
+
+    def resolved_steps(self) -> Tuple[Dict, ...]:
+        """The steps to run, with `script` reverts computed from `from_value`.
+
+        A static revert command in the catalog cannot know what it is
+        reverting TO, and BackupService cannot work it out either: it records
+        a before-value for a registry write or a service change, and nothing
+        at all for a command. So a script step carries a `revert_template`
+        with `${old}` in it, and this fills that in from the value the machine
+        had before the change was staged.
+
+        Three ways `${old}` is resolved, in order:
+
+        * `revert_values` maps the old value (as a string) to the token the
+          cmdlet accepts. Required for anything that is not a plain number.
+        * A bare int reverts to itself, so a 0-50 parameter does not need a
+          table of 51 entries.
+        * Anything else yields **no revert command**. That is deliberate in
+          three cases that all exist in the real catalog: an unreadable
+          `from_value`; a string off the machine, which must never be pasted
+          into a shell command unmapped; and a value the map does not cover,
+          which is exactly the threat-action controls -- Get-MpPreference
+          reports 0 for an unconfigured severity and 0 is not a member of the
+          ThreatAction enum, so no command reverts to it.
+
+        Steps are copied before anything is popped: the catalog's dicts are
+        shared across every ChangeSet in the process.
+        """
+        resolved = []
+        for step in self.control.steps_for(self.to_value):
+            step = dict(step)
+            template = step.pop("revert_template", None)
+            values = step.pop("revert_values", None)
+            if template:
+                step["revert_command"] = _revert_command(
+                    template, values, self.from_value)
+            resolved.append(step)
+        return tuple(resolved)
+
+    def one_way_steps(self) -> Tuple[Dict, ...]:
+        """The steps in this change that cannot be undone by this tool.
+
+        BackupService reverts a `registry` step from its recorded
+        before-value and a `service` step from its recorded start type. It
+        records **nothing** for a `command`, and for a `script` only the
+        revert command computed above -- which is absent when the machine's
+        previous value has no command that restores it.
+
+        So this is not a warning about risk, it is a statement of fact about
+        the undo path, and the review dialog has to be able to show it.
+        """
+        one_way = []
+        for step in self.resolved_steps():
+            kind = step.get("type")
+            if kind in ("registry", "registry_delete", "service"):
+                continue
+            if kind == "script" and step.get("revert_command"):
+                continue
+            one_way.append(step)
+        return tuple(one_way)
 
 
 class ChangeSet:
@@ -108,6 +188,11 @@ class ChangeSet:
         unelevated, a full baseline stages 60 changes of which 14 are these.
         """
         return tuple(c for c in self._changes.values() if c.from_value is None)
+
+    @property
+    def one_way_changes(self) -> Tuple[PendingChange, ...]:
+        """Staged changes carrying at least one step that cannot be undone."""
+        return tuple(c for c in self._changes.values() if c.one_way_steps())
 
     @property
     def needs_admin(self) -> bool:
