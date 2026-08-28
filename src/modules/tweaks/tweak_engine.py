@@ -52,6 +52,30 @@ STATUS_LABELS = {
 _ERROR_FILE_NOT_FOUND = 2
 _ERROR_ACCESS_DENIED = 5
 
+#: Phrases a Windows admin command uses to refuse while still exiting 0.
+#: netsh and dism both write their real complaint to STDOUT, not stderr, so a
+#: return code is never the deciding signal here.
+_REFUSAL_MARKERS = (
+    "access is denied", "elevated permissions are required",
+    "requires elevation", "you do not have permission",
+    "the requested operation requires elevation",
+    "no rules match the specified criteria",
+)
+
+
+class StepRefused(RuntimeError):
+    """A command step ran and Windows declined to do it.
+
+    Carries the StepRecord built from the evidence (rc/stdout/stderr) that was
+    captured just before this was raised — str(exc) is still just the payload
+    (blob or "exit code N"), so on_error() callers see the same message either
+    way; `.record` is there for a caller that wants the structured fields too.
+    """
+
+    def __init__(self, message: str, record: Optional[StepRecord] = None):
+        super().__init__(message)
+        self.record = record
+
 
 def _parse_key(full_key: str):
     parts = full_key.split("\\", 1)
@@ -333,20 +357,42 @@ class TweakEngine:
 
     def _apply_command(self, step: Dict) -> StepRecord:
         cmd = step["cmd"]
-        subprocess.run(
-            cmd, shell=True, check=False, capture_output=True,
+        proc = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
-        return StepRecord("command", cmd, None, None)
+        record = StepRecord("command", cmd, None, None,
+                            rc=proc.returncode,
+                            stdout=(proc.stdout or "").strip(),
+                            stderr=(proc.stderr or "").strip())
+        self._raise_if_refused(record, proc.returncode)
+        return record
 
     def _apply_script(self, step: Dict) -> StepRecord:
         cmd = step.get("command", step.get("cmd", ""))
-        subprocess.run(
-            cmd, shell=True, check=False, capture_output=True,
+        proc = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         revert_cmd = step.get("revert_command")
-        return StepRecord("script", cmd, None, None, revert_command=revert_cmd)
+        record = StepRecord("script", cmd, None, None, revert_command=revert_cmd,
+                            rc=proc.returncode,
+                            stdout=(proc.stdout or "").strip(),
+                            stderr=(proc.stderr or "").strip())
+        self._raise_if_refused(record, proc.returncode)
+        return record
+
+    @staticmethod
+    def _raise_if_refused(record: StepRecord, returncode: int) -> None:
+        """Windows admin commands routinely exit 0 while refusing — netsh and
+        dism both write their real complaint to STDOUT. Build the StepRecord
+        first so the captured evidence exists, then raise: this is what turns
+        a refused command into a failed step instead of a silently "applied"
+        one."""
+        blob = f"{record.stdout}\n{record.stderr}".strip()
+        low = blob.lower()
+        if returncode != 0 or any(m in low for m in _REFUSAL_MARKERS):
+            raise StepRefused(blob or f"exit code {returncode}", record=record)
 
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]

@@ -70,7 +70,8 @@ def test_apply_registry_tweak_succeeds(engine):
 
 def test_apply_command_tweak_succeeds(engine):
     errors = []
-    with patch("subprocess.run"):
+    ok_proc = MagicMock(returncode=0, stdout="", stderr="")
+    with patch("subprocess.run", return_value=ok_proc):
         result = engine.apply_tweak(_cmd_tweak(), rp_id="rp1", on_error=errors.append)
     assert result is True
 

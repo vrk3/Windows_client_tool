@@ -23,6 +23,9 @@ class StepRecord:
     revert_command: Optional[str] = None
     value_name: str = ""        # registry only — the value name under `target` (the key path)
     reg_kind: Optional[int] = None  # registry only — winreg.REG_* type, needed to write before_value back
+    rc: Optional[int] = None    # command/script only — the process exit code
+    stdout: str = ""            # command/script only — netsh and dism put refusals HERE, not on stderr
+    stderr: str = ""            # command/script only
 
 
 @dataclass
@@ -90,6 +93,10 @@ class BackupService:
             self._conn.execute(
                 "ALTER TABLE tweak_steps ADD COLUMN reg_kind INTEGER")
             logger.info("added reg_kind column to tweak_steps")
+        for name in ("rc", "stdout", "stderr"):
+            if name not in cols:
+                self._conn.execute(f"ALTER TABLE tweak_steps ADD COLUMN {name} TEXT")
+                logger.info("added %s column to tweak_steps", name)
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
@@ -127,15 +134,18 @@ class BackupService:
                 """INSERT INTO tweak_steps
                    (id, tweak_id, restore_point_id, applied_at,
                     step_type, target, before_value, after_value, revert_command,
-                    value_name, reg_kind)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    value_name, reg_kind, rc, stdout, stderr)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (uuid.uuid4().hex, tweak_id, restore_point_id, now,
                  step.step_type, step.target,
                  json.dumps(self._json_safe(step.before_value)),
                  json.dumps(self._json_safe(step.after_value)),
                  getattr(step, 'revert_command', None),
                  getattr(step, 'value_name', ""),
-                 getattr(step, 'reg_kind', None)),
+                 getattr(step, 'reg_kind', None),
+                 getattr(step, 'rc', None),
+                 getattr(step, 'stdout', ""),
+                 getattr(step, 'stderr', "")),
             )
         self._conn.commit()
 
