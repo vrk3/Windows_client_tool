@@ -406,13 +406,13 @@ def test_the_windows_update_control_reads_not_disabled_not_running():
 #: added in Task 7 to catch the unelevated failure, and the elevated probe is
 #: what caught it rejecting a perfectly good ACL.
 REAL_ICACLS_OK = (
-    "C:\Windows\System32\config\SAM NT AUTHORITY\SYSTEM:(I)(F)\n"
-    "                                  BUILTIN\Administrators:(I)(F)\n"
+    r"C:\Windows\System32\config\SAM NT AUTHORITY\SYSTEM:(I)(F)" "\n"
+    r"                                  BUILTIN\Administrators:(I)(F)" "\n"
     "\n"
     "Successfully processed 1 files; Failed processing 0 files\n")
 
 REAL_ICACLS_DENIED = (
-    "C:\Windows\System32\config\SAM: Access is denied.\n"
+    r"C:\Windows\System32\config\SAM: Access is denied." "\n"
     "Successfully processed 0 files; Failed processing 1 files\n")
 
 
