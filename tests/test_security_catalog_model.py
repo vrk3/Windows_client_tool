@@ -19,6 +19,12 @@ def test_a_control_with_no_writer_must_say_why_it_is_read_only():
         _control()
 
 
+def test_a_whitespace_only_reason_does_not_count_as_a_reason():
+    """The invariant exists so the user is told why; whitespace tells no one."""
+    with pytest.raises(ValueError, match="read_only_reason"):
+        _control(read_only_reason="   ")
+
+
 def test_a_control_with_a_writer_needs_no_reason():
     c = _control(on_steps=({"type": "registry", "key": "HKLM\\A", "value": "V",
                             "data": 1, "kind": "DWORD"},))
@@ -48,6 +54,20 @@ def test_a_control_may_supply_its_own_value_extractor():
     assert c.read() == 3
 
 
+def test_a_read_value_that_raises_anything_reads_as_none(caplog):
+    """read()'s "None means we could not look" promise must hold for any
+    exception read_value raises, not just KeyError/TypeError."""
+    def _bad_extractor(d):
+        return d["level"] / 0  # ZeroDivisionError, outside (KeyError, TypeError)
+
+    c = _control(read_only_reason="r",
+                 reader=lambda: {"available": True, "level": 3},
+                 read_value=_bad_extractor)
+    with caplog.at_level("WARNING"):
+        assert c.read() is None
+    assert any("read_value" in rec.message for rec in caplog.records)
+
+
 def test_a_reader_with_no_enabled_key_reads_as_none():
     """A dict that doesn't even mention 'enabled' is an unset read, not False."""
     c = _control(read_only_reason="r", reader=lambda: {"status": "n/a"})
@@ -64,6 +84,37 @@ def test_a_reader_that_raises_reads_as_none_not_as_a_verdict(caplog):
     with caplog.at_level("WARNING"):
         assert c.read() is None
     assert any("reader raised" in rec.message for rec in caplog.records)
+
+
+def test_steps_for_none_raises_instead_of_silently_choosing_off():
+    """desired defaults to None; a control with no opinion must refuse to
+    hand back steps rather than silently running the OFF path."""
+    c = _control(on_steps=({"type": "registry", "key": "HKLM\\A", "value": "V",
+                            "data": 1, "kind": "DWORD"},),
+                 off_steps=({"type": "registry", "key": "HKLM\\A", "value": "V",
+                            "data": 0, "kind": "DWORD"},))
+    with pytest.raises(ValueError, match="no desired value"):
+        c.steps_for(None)
+
+
+def test_steps_for_a_truthy_value_returns_on_steps():
+    on = ({"type": "registry", "key": "HKLM\\A", "value": "V",
+           "data": 1, "kind": "DWORD"},)
+    off = ({"type": "registry", "key": "HKLM\\A", "value": "V",
+            "data": 0, "kind": "DWORD"},)
+    c = _control(on_steps=on, off_steps=off)
+    assert c.steps_for(True) == on
+    assert c.steps_for(2) == on  # multi-valued control, e.g. cloud block level
+
+
+def test_steps_for_a_falsy_non_none_value_returns_off_steps():
+    on = ({"type": "registry", "key": "HKLM\\A", "value": "V",
+           "data": 1, "kind": "DWORD"},)
+    off = ({"type": "registry", "key": "HKLM\\A", "value": "V",
+            "data": 0, "kind": "DWORD"},)
+    c = _control(on_steps=on, off_steps=off)
+    assert c.steps_for(False) == off
+    assert c.steps_for(0) == off  # e.g. cloud block level mapping 0 -> off
 
 
 def test_ids_are_unique_across_the_whole_catalog():

@@ -1,7 +1,7 @@
 """One entry per security control: what it reads, what it writes, what it costs
 to get wrong."""
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -54,7 +54,8 @@ class SecurityControl:
     read_value: Optional[Callable[[Dict[str, Any]], Any]] = None
 
     def __post_init__(self):
-        if not self.on_steps and not self.off_steps and not self.read_only_reason:
+        has_reason = bool(self.read_only_reason and self.read_only_reason.strip())
+        if not self.on_steps and not self.off_steps and not has_reason:
             raise ValueError(
                 f"control {self.id!r} has no on_steps/off_steps and no "
                 "read_only_reason: a control we cannot write must say why")
@@ -80,12 +81,16 @@ class SecurityControl:
         if self.read_value is not None:
             try:
                 return self.read_value(result)
-            except (KeyError, TypeError):
+            except Exception:
                 logger.warning(
                     "control %r: read_value could not extract a value from "
-                    "%r", self.id, result)
+                    "%r", self.id, result, exc_info=True)
                 return None
         return result.get("enabled")
 
     def steps_for(self, desired_value: Any) -> Tuple[Dict, ...]:
+        if desired_value is None:
+            raise ValueError(
+                f"control {self.id!r} has no desired value: cannot ask a "
+                "control with no opinion for its steps")
         return self.on_steps if desired_value else self.off_steps
