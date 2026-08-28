@@ -19,9 +19,28 @@ from .security_reader import _ps
 
 logger = logging.getLogger(__name__)
 
-_lock = threading.Lock()
 _cache: Dict[str, Any] = {}
 _reasons: Dict[str, Optional[str]] = {}
+
+#: One lock per snapshot name, not one lock for all of them. A pane that
+#: dispatches several cold fetches at once (e.g. mp_preference and
+#: speculation_control together) lets them run concurrently; two threads
+#: racing for the SAME snapshot still serialise onto the same Lock object,
+#: so the cmdlet still launches exactly once. `_locks_guard` only protects
+#: the brief moment of creating a name's Lock the first time -- it is never
+#: held during the fetch itself.
+_locks_guard = threading.Lock()
+_locks: Dict[str, threading.Lock] = {}
+
+
+def _lock_for(name: str) -> threading.Lock:
+    with _locks_guard:
+        lock = _locks.get(name)
+        if lock is None:
+            lock = threading.Lock()
+            _locks[name] = lock
+        return lock
+
 
 #: Phrases a Windows cmdlet uses to refuse while still exiting 0.
 _REFUSAL_MARKERS = (
@@ -63,7 +82,7 @@ def _fetch_json(name: str, command: str, timeout: int = 30) -> Any:
 
 
 def _cached(name: str, command: str, empty, transform=None, timeout: int = 30):
-    with _lock:
+    with _lock_for(name):
         if name in _cache:
             return _cache[name]
         data = _fetch_json(name, command, timeout=timeout)
@@ -111,6 +130,49 @@ def optional_features() -> Dict[str, str]:
         {}, transform=_index, timeout=120)
 
 
+#: `Get-SpeculationControlSettings`, when the module is already on this
+#: machine -- never installed by this call, see task-3b. When the module is
+#: absent, falls back to the registry values Windows itself exposes for the
+#: CPU speculative-execution mitigations (KB4073119 / ADV180002):
+#: FeatureSettingsOverride / FeatureSettingsOverrideMask under Memory
+#: Management, and VBS enablement under DeviceGuard. That fallback is
+#: intentionally NOT decoded into per-CVE booleans here -- the override/mask
+#: bits say whether an admin forced a mitigation off, never whether the
+#: hardware/firmware is vulnerable in the first place, and guessing the rest
+#: from two integers is exactly the invented verdict this project forbids.
+#: Callers ask for the specific field they need and treat its absence as
+#: "could not determine", never as False.
+_SPECULATION_CONTROL_CMD = (
+    "if (Get-Command Get-SpeculationControlSettings -ErrorAction SilentlyContinue) {"
+    " Import-Module SpeculationControl -Force -ErrorAction SilentlyContinue | Out-Null;"
+    " Get-SpeculationControlSettings | ConvertTo-Json -Compress"
+    " } else {"
+    " $mm = Get-ItemProperty -Path "
+    "'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management' "
+    "-ErrorAction SilentlyContinue;"
+    " $dg = Get-ItemProperty -Path "
+    "'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard' -ErrorAction SilentlyContinue;"
+    " [PSCustomObject]@{"
+    " Source = 'registry_fallback';"
+    " FeatureSettingsOverride = $mm.FeatureSettingsOverride;"
+    " FeatureSettingsOverrideMask = $mm.FeatureSettingsOverrideMask;"
+    " VirtualizationBasedSecurityEnabled = $dg.EnableVirtualizationBasedSecurity"
+    " } | ConvertTo-Json -Compress }"
+)
+
+
+def speculation_control() -> Dict[str, Any]:
+    """CPU speculative-execution mitigation status (Spectre/Meltdown family).
+
+    Uses `Get-SpeculationControlSettings` when already present. NEVER
+    downloads or installs it -- a *read* must not fetch and execute code
+    from the internet, see task-3b defect C1. When the module is absent the
+    result is the small registry-only dict described above; treat a missing
+    field as "could not determine", not as a negative answer (defect C2).
+    """
+    return _cached("speculation_control", _SPECULATION_CONTROL_CMD, {}, timeout=60)
+
+
 #: snapshot name -> the getter that fetches (and caches) it. Used only by
 #: `unavailable()` to force a first fetch; callers should keep calling the
 #: named functions directly for the data itself.
@@ -119,6 +181,7 @@ _FETCHERS = {
     "mp_computer_status": mp_computer_status,
     "service_states": service_states,
     "optional_features": optional_features,
+    "speculation_control": speculation_control,
 }
 
 
@@ -158,7 +221,20 @@ def availability() -> Dict[str, Optional[str]]:
 
 
 def invalidate() -> None:
-    """Drop every snapshot. Called by the pane's Refresh, never on a timer."""
-    with _lock:
+    """Drop every snapshot. Called by the pane's Refresh, never on a timer.
+
+    Acquires every snapshot name's lock before clearing, so a fetch already
+    in flight for some name cannot write a stale value into `_cache` after
+    this has cleared it, and no new fetch for that name can start until
+    this is done.
+    """
+    with _locks_guard:
+        locks = list(_locks.values())
+    for lock in locks:
+        lock.acquire()
+    try:
         _cache.clear()
         _reasons.clear()
+    finally:
+        for lock in locks:
+            lock.release()

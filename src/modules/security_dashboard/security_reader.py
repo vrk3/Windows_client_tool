@@ -2884,40 +2884,57 @@ def check_system_log_size() -> Dict[str, Any]:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CPU VULNERABILITY MITIGATIONS — Spectre, Meltdown, all known variants
-# Uses Get-SpeculationControlSettings if available, else registry fallback
+#
+# Backed by snapshots.speculation_control() -- ONE cached PowerShell call for
+# all fourteen readers below (task-3b defect B), which uses
+# Get-SpeculationControlSettings when already present and NEVER downloads or
+# installs it (task-3b defect C1: a *read* must not fetch and execute code
+# from the internet). When the module is absent the snapshot is a small
+# registry-only dict that does not carry the per-CVE fields these readers
+# look for -- `_speculation_read` treats a missing field as "could not
+# determine" (status Unknown, amber) rather than letting `.get(key, False)`
+# silently turn "we don't know" into "not mitigated" / red (defect C2, the
+# project's canonical refused-read-reported-as-a-fact bug in its most
+# alarming form: a failed module load must never read as "you are
+# vulnerable").
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _get_speculation_data() -> Dict[str, Any]:
-    """Get SpeculationControl data — downloads module if needed."""
-    try:
-        rc, out, _ = _ps(
-            "if (-not (Get-Command Get-SpeculationControlSettings -ErrorAction SilentlyContinue)) {"
-            " $url='https://raw.githubusercontent.com/microsoft/SpeculationControl/master/SpeculationControl.psm1';"
-            " $dir=\"$env:USERPROFILE\\Documents\\WindowsPowerShell\\Modules\\SpeculationControl\";"
-            " New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue | Out-Null;"
-            " Invoke-WebRequest -Uri $url -OutFile \"$dir\\SpeculationControl.psm1\" -ErrorAction SilentlyContinue | Out-Null } ;"
-            " if (Get-Command Get-SpeculationControlSettings -ErrorAction SilentlyContinue) {"
-            " Import-Module SpeculationControl -Force -ErrorAction SilentlyContinue | Out-Null;"
-            " Get-SpeculationControlSettings | ConvertTo-Json -Compress } else { 'MODULE_UNAVAILABLE' }",
-            timeout=60)
-        if rc == 0 and out and out != "MODULE_UNAVAILABLE":
-            return json.loads(out)
-    except Exception:
-        logger.warning("Get-SpeculationControlSettings failed, using registry fallback", exc_info=True)
-    return {"source": "registry_fallback"}
+def _speculation_read(cve_label: str, required_field: str):
+    """(data, unavailable_response_or_None) for one CVE reader.
+
+    `unavailable_response_or_None` is None when it is safe to read
+    `required_field` from `data`. Otherwise it is the full Unknown/amber
+    response the caller should return as-is -- either the snapshot fetch
+    itself was refused (`snapshots.unavailable` had a reason), or it
+    succeeded but is the registry-only fallback, which does not carry this
+    field. Both are "could not determine", never a guessed verdict.
+    """
+    d = snapshots.speculation_control()
+    reason = snapshots.unavailable("speculation_control")
+    if reason is not None:
+        return None, {"status": "Unknown", "color": "amber", "available": False,
+                       "details": [(cve_label, f"Could not read: {reason}")]}
+    if required_field not in d:
+        return None, {"status": "Unknown", "color": "amber", "available": False,
+                       "details": [(cve_label,
+                                     "SpeculationControl module not present -- "
+                                     "the registry fallback cannot determine this")]}
+    return d, None
 
 
 def check_spectre_v2() -> Dict[str, Any]:
     """Spectre v2 / BTI (CVE-2017-5715)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Spectre v2", "BTIHardwarePresent")
+        if unavailable is not None:
+            return unavailable
         hw = d.get("BTIHardwarePresent", False)
         os_ok = d.get("BTIWindowsSupportEnabled", False) or d.get("BTIWindowsSupportPresent", False)
         retpoline = d.get("BTIKernelRetpolineEnabled", False)
         enabled = hw and os_ok
         status = "Mitigated" if enabled else ("Hardware OK but OS off" if hw else "Not mitigated")
         color = "green" if enabled else "red" if hw else "amber"
-        return {"status": status, "color": color,
+        return {"status": status, "color": color, "available": True,
                 "details": [("BTI Hardware", "Present" if hw else "N/A"),
                             ("BTI OS Support", "Enabled" if os_ok else "Disabled"),
                             ("Retpoline", "Enabled" if retpoline else "N/A")], "enabled": enabled}
@@ -2927,18 +2944,20 @@ def check_spectre_v2() -> Dict[str, Any]:
 def check_meltdown() -> Dict[str, Any]:
     """Meltdown (CVE-2017-5754)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Meltdown", "KVAShadowWindowsSupportPresent")
+        if unavailable is not None:
+            return unavailable
         hw_vuln = d.get("RdclHardwareProtectedReported") and not d.get("RdclHardwareProtected", True)
         kva_present = d.get("KVAShadowWindowsSupportPresent", False)
         kva_enabled = d.get("KVAShadowWindowsSupportEnabled", False)
         kva_required = d.get("KVAShadowRequired", False)
         enabled = kva_present and kva_enabled
         if not hw_vuln and not kva_required:
-            return {"status": "Not vulnerable (HW)", "color": "green",
+            return {"status": "Not vulnerable (HW)", "color": "green", "available": True,
                     "details": [("Hardware", "Not vulnerable to Meltdown")], "enabled": True}
         status = "Mitigated (KPTI on)" if kva_enabled else ("Vulnerable (KPTI off)" if hw_vuln else "Unknown")
         color = "green" if kva_enabled or not hw_vuln else "red"
-        return {"status": status, "color": color,
+        return {"status": status, "color": color, "available": True,
                 "details": [("Hardware Vulnerable", str(hw_vuln)), ("KVA Shadow", "On" if kva_enabled else "Off"),
                             ("KVA Required", str(kva_required))], "enabled": not hw_vuln or kva_enabled}
     except Exception:
@@ -2947,16 +2966,18 @@ def check_meltdown() -> Dict[str, Any]:
 def check_l1tf() -> Dict[str, Any]:
     """L1TF/Foreshadow (CVE-2018-3615, -3620, -3646)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("L1TF", "L1TFHardwareVulnerable")
+        if unavailable is not None:
+            return unavailable
         hw_vuln = d.get("L1TFHardwareVulnerable", True)
         os_present = d.get("L1TFWindowsSupportPresent", False)
         os_enabled = d.get("L1TFWindowsSupportEnabled", False)
         if not hw_vuln:
-            return {"status": "Not vulnerable (HW)", "color": "green",
+            return {"status": "Not vulnerable (HW)", "color": "green", "available": True,
                     "details": [("Hardware", "Not vulnerable to L1TF")], "enabled": True}
         enabled = os_present and os_enabled
         return {"status": "Mitigated" if enabled else "Vulnerable",
-                "color": "green" if enabled else "red",
+                "color": "green" if enabled else "red", "available": True,
                 "details": [("OS Support", "Present" if os_present else "N/A"),
                             ("OS Enabled", "Yes" if os_enabled else "No")], "enabled": enabled}
     except Exception:
@@ -2965,14 +2986,16 @@ def check_l1tf() -> Dict[str, Any]:
 def check_mds() -> Dict[str, Any]:
     """MDS/Zombieload (CVE-2018-12126/127/130, CVE-2019-11091)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("MDS", "MDSHardwareVulnerable")
+        if unavailable is not None:
+            return unavailable
         hw_vuln = d.get("MDSHardwareVulnerable", True)
         os_present = d.get("MDSWindowsSupportPresent", False)
         if not hw_vuln:
-            return {"status": "Not vulnerable (HW)", "color": "green",
+            return {"status": "Not vulnerable (HW)", "color": "green", "available": True,
                     "details": [("Hardware", "Not vulnerable to MDS")], "enabled": True}
         return {"status": "Mitigated" if os_present else "Vulnerable (no OS support)",
-                "color": "green" if os_present else "red",
+                "color": "green" if os_present else "red", "available": True,
                 "details": [("OS MDS Support", "Present" if os_present else "Absent")], "enabled": os_present}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("MDS", "Check failed")]}
@@ -2980,14 +3003,16 @@ def check_mds() -> Dict[str, Any]:
 def check_ssbd() -> Dict[str, Any]:
     """Spectre v4 / SSBD (CVE-2018-3639)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("SSBD/Spectre v4", "SSBDHardwarePresent")
+        if unavailable is not None:
+            return unavailable
         hw_present = d.get("SSBDHardwarePresent", False)
         os_present = d.get("SSBDWindowsSupportPresent", False)
         sys_enabled = d.get("SSBDWindowsSupportEnabledSystemWide", False)
         enabled = hw_present and os_present and sys_enabled
         status = "System-wide enabled" if enabled else ("HW/OS present, not enabled" if hw_present else "N/A")
         color = "green" if enabled else ("amber" if hw_present else "amber")
-        return {"status": status, "color": color,
+        return {"status": status, "color": color, "available": True,
                 "details": [("HW Support", str(hw_present)), ("OS Support", str(os_present)),
                             ("System-Wide", "Yes" if sys_enabled else "No")], "enabled": enabled}
     except Exception:
@@ -2996,19 +3021,24 @@ def check_ssbd() -> Dict[str, Any]:
 def check_swapgs() -> Dict[str, Any]:
     """SWAPGS (CVE-2019-1125)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("SWAPGS", "BhbEnabled")
+        if unavailable is not None:
+            return unavailable
         bhb = d.get("BhbEnabled", False) or d.get("BhbDisabledSystemPolicy") is False
         return {"status": "Mitigated" if bhb else "N/A", "color": "green" if bhb else "amber",
-                "details": [("BHB Mitigation", "Enabled" if bhb else "N/A")]}
+                "available": True, "details": [("BHB Mitigation", "Enabled" if bhb else "N/A")]}
     except Exception:
         return {"status": "N/A", "color": "amber", "details": [("SWAPGS", "Check failed")]}
 
 def check_tsx_async_abort() -> Dict[str, Any]:
     """TSX Async Abort / TAA (CVE-2019-11135) — checked via MDS/SBDR/FBSDP."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("TAA", "SBDRSSDPHardwareVulnerable")
+        if unavailable is not None:
+            return unavailable
         ok = not d.get("SBDRSSDPHardwareVulnerable", True) and not d.get("FBSDPHardwareVulnerable", True)
         return {"status": "Mitigated (HW immune)" if ok else "Unknown", "color": "green" if ok else "amber",
+                "available": True,
                 "details": [("SBDR HW Vulnerable", str(d.get("SBDRSSDPHardwareVulnerable", "?"))),
                             ("FBSDP HW Vulnerable", str(d.get("FBSDPHardwareVulnerable", "?")))]}
     except Exception:
@@ -3017,21 +3047,26 @@ def check_tsx_async_abort() -> Dict[str, Any]:
 def check_srbds() -> Dict[str, Any]:
     """SRBDS/CrossTalk (CVE-2020-0543) — checked via SBDR."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("SRBDS", "SBDRSSDPHardwareVulnerable")
+        if unavailable is not None:
+            return unavailable
         ok = not d.get("SBDRSSDPHardwareVulnerable", True)
         return {"status": "Not vulnerable (HW)" if ok else "Unknown", "color": "green" if ok else "amber",
-                "details": [("SBDR HW", "Immune" if ok else "Unknown")]}
+                "available": True, "details": [("SBDR HW", "Immune" if ok else "Unknown")]}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("SRBDS", "Check failed")]}
 
 def check_retbleed() -> Dict[str, Any]:
     """Retbleed (CVE-2022-29900/29901)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Retbleed", "BranchConfusionStatus")
+        if unavailable is not None:
+            return unavailable
         branch_ok = d.get("BranchConfusionStatus", "").upper() == "SYSTEM_SPECULATION_CONTROL_BRANCH_CONFUSION_HARDWARE_IMMUNE"
         retpoline = d.get("BTIKernelRetpolineEnabled", False)
         cured = branch_ok or retpoline
         return {"status": "Mitigated" if cured else "Unknown", "color": "green" if cured else "amber",
+                "available": True,
                 "details": [("Branch Confusion", "HW Immune" if branch_ok else "Unknown"),
                             ("Retpoline", "On" if retpoline else "Off")]}
     except Exception:
@@ -3040,21 +3075,25 @@ def check_retbleed() -> Dict[str, Any]:
 def check_mmio_stale_data() -> Dict[str, Any]:
     """MMIO Stale Data (CVE-2022-21123/125/127/166) — checked via FBClear."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("MMIO", "FBClearWindowsSupportPresent")
+        if unavailable is not None:
+            return unavailable
         ok = d.get("FBClearWindowsSupportPresent", False)
         return {"status": "Mitigated" if ok else "N/A", "color": "green" if ok else "amber",
-                "details": [("Fill Buffer Clear", "Present" if ok else "N/A")]}
+                "available": True, "details": [("Fill Buffer Clear", "Present" if ok else "N/A")]}
     except Exception:
         return {"status": "N/A", "color": "amber", "details": [("MMIO", "Check failed")]}
 
 def check_downfall_gds() -> Dict[str, Any]:
     """Downfall / GDS (CVE-2022-40982)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Downfall", "GdsStatus")
+        if unavailable is not None:
+            return unavailable
         status = d.get("GdsStatus", "")
         immune = "HARDWARE_IMMUNE" in str(status).upper()
         return {"status": "Not vulnerable (HW immune)" if immune else status,
-                "color": "green" if immune else "amber",
+                "color": "green" if immune else "amber", "available": True,
                 "details": [("GDS Status", str(status))]}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("Downfall", "Check failed")]}
@@ -3062,11 +3101,13 @@ def check_downfall_gds() -> Dict[str, Any]:
 def check_zenbleed() -> Dict[str, Any]:
     """Zenbleed (CVE-2023-20593) — AMD Zen 2."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Zenbleed", "DivideByZeroStatus")
+        if unavailable is not None:
+            return unavailable
         div_by_zero = str(d.get("DivideByZeroStatus", "")).upper()
         mitigated = "MITIGATED" in div_by_zero
         return {"status": "Mitigated" if mitigated else "Unknown",
-                "color": "green" if mitigated else "amber",
+                "color": "green" if mitigated else "amber", "available": True,
                 "details": [("Divide by Zero", str(d.get("DivideByZeroStatus", "N/A")))]}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("Zenbleed", "N/A")]}
@@ -3074,11 +3115,13 @@ def check_zenbleed() -> Dict[str, Any]:
 def check_inception() -> Dict[str, Any]:
     """Inception (CVE-2023-20569) — AMD Zen 3/4, checked via SRSO."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("Inception", "SrsoStatus")
+        if unavailable is not None:
+            return unavailable
         srso = str(d.get("SrsoStatus", "")).upper()
         mitigated = "MITIGATION" in srso or "IMMUNE" in srso
         return {"status": "Mitigated" if mitigated else "Disabled",
-                "color": "green" if mitigated else "amber",
+                "color": "green" if mitigated else "amber", "available": True,
                 "details": [("SRSO Status", str(d.get("SrsoStatus", "N/A")))]}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("Inception", "N/A")]}
@@ -3086,11 +3129,13 @@ def check_inception() -> Dict[str, Any]:
 def check_rfds() -> Dict[str, Any]:
     """RFDS (CVE-2023-28746) — Register File Data Sampling (Atom)."""
     try:
-        d = _get_speculation_data()
+        d, unavailable = _speculation_read("RFDS", "RfdsStatus")
+        if unavailable is not None:
+            return unavailable
         status = str(d.get("RfdsStatus", "")).upper()
         immune = "IMMUNE" in status
         return {"status": "Not vulnerable (HW immune)" if immune else "Unknown",
-                "color": "green" if immune else "amber",
+                "color": "green" if immune else "amber", "available": True,
                 "details": [("RFDS Status", str(d.get("RfdsStatus", "N/A")))]}
     except Exception:
         return {"status": "Unknown", "color": "amber", "details": [("RFDS", "N/A")]}
@@ -3234,29 +3279,64 @@ def check_ntlm_relay_protection() -> Dict[str, Any]:
             "color": "green" if ok else "amber",
             "details": details, "enabled": ok}
 
-def check_windows_defender_cve_mitigations() -> Dict[str, Any]:
-    """Aggregate check: all major Win10/11 CVEs."""
-    checks = [
-        ("Spectre v2", check_spectre_v2), ("Meltdown", check_meltdown),
-        ("L1TF/Foreshadow", check_l1tf), ("MDS/Zombieload", check_mds),
-        ("Spectre v4/SSBD", check_ssbd), ("PrintNightmare", check_printnightmare),
-        ("Zerologon", check_zerologon), ("PetitPotam", check_petitpotam),
-        ("Follina", check_follina), ("BlackLotus", check_blacklotus),
-        ("Kerberos Armoring", check_kerberos_armoring), ("Credential Guard", check_credential_guard_vbs),
-        ("SMB Ghost", check_smb_ghost), ("HiveNightmare", check_sam_hive_permissions),
-        ("NTLM Relay", check_ntlm_relay_protection), ("SWAPGS", check_swapgs),
-        ("TSX Abort", check_tsx_async_abort), ("SRBDS", check_srbds),
-        ("Retbleed", check_retbleed), ("MMIO Stale", check_mmio_stale_data),
-        ("Downfall/GDS", check_downfall_gds), ("Zenbleed", check_zenbleed),
-        ("Inception", check_inception), ("RFDS", check_rfds),
-    ]
+#: id (the reader's own function name) -> (display label, reader function).
+#: The id is what a caller's `readings` mapping keys on -- see
+#: `check_windows_defender_cve_mitigations` below.
+_CVE_MITIGATION_CHECKS = [
+    ("check_spectre_v2", "Spectre v2", check_spectre_v2),
+    ("check_meltdown", "Meltdown", check_meltdown),
+    ("check_l1tf", "L1TF/Foreshadow", check_l1tf),
+    ("check_mds", "MDS/Zombieload", check_mds),
+    ("check_ssbd", "Spectre v4/SSBD", check_ssbd),
+    ("check_printnightmare", "PrintNightmare", check_printnightmare),
+    ("check_zerologon", "Zerologon", check_zerologon),
+    ("check_petitpotam", "PetitPotam", check_petitpotam),
+    ("check_follina", "Follina", check_follina),
+    ("check_blacklotus", "BlackLotus", check_blacklotus),
+    ("check_kerberos_armoring", "Kerberos Armoring", check_kerberos_armoring),
+    ("check_credential_guard_vbs", "Credential Guard", check_credential_guard_vbs),
+    ("check_smb_ghost", "SMB Ghost", check_smb_ghost),
+    ("check_sam_hive_permissions", "HiveNightmare", check_sam_hive_permissions),
+    ("check_ntlm_relay_protection", "NTLM Relay", check_ntlm_relay_protection),
+    ("check_swapgs", "SWAPGS", check_swapgs),
+    ("check_tsx_async_abort", "TSX Abort", check_tsx_async_abort),
+    ("check_srbds", "SRBDS", check_srbds),
+    ("check_retbleed", "Retbleed", check_retbleed),
+    ("check_mmio_stale_data", "MMIO Stale", check_mmio_stale_data),
+    ("check_downfall_gds", "Downfall/GDS", check_downfall_gds),
+    ("check_zenbleed", "Zenbleed", check_zenbleed),
+    ("check_inception", "Inception", check_inception),
+    ("check_rfds", "RFDS", check_rfds),
+]
+
+
+def check_windows_defender_cve_mitigations(
+        readings: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Aggregate check: all major Win10/11 CVEs.
+
+    Pass `readings` -- a mapping of reader function name (e.g.
+    "check_spectre_v2") to that reader's already-computed result dict -- to
+    have this consume readings a caller already took instead of re-running
+    them. Any of the 24 sub-checks not present in `readings` is still called
+    directly here.
+
+    Called with no arguments, as other code and tests may depend on being
+    able to do, this re-runs all 24 sub-readers itself every time. That is
+    the slow path (task-3b measured it at ~30s before the sub-readers were
+    cached) -- prefer passing `readings` wherever the caller already has
+    them, e.g. the CVE tab's own sweep.
+    """
+    readings = readings or {}
     mitigated, vulnerable, na = 0, 0, 0
     details = []
-    for name, fn in checks:
+    for key, name, fn in _CVE_MITIGATION_CHECKS:
         try:
-            r = fn()
+            r = readings[key] if key in readings else fn()
             s = r.get("status", "")
-            if "Mitigated" in s or "Protected" in s or "Patched" in s or "Hardened" in s or "Not vulnerable" in s or "ARMORED" in s or "VBS Active" in s or "N/A" in s or "Restricted" in s or "Disabled (safe)" in s:
+            if r.get("available") is False or s == "Unknown":
+                na += 1
+                details.append((name, f"Unknown: {s[:40]}" if s and s != "Unknown" else "Unknown"))
+            elif "Mitigated" in s or "Protected" in s or "Patched" in s or "Hardened" in s or "Not vulnerable" in s or "ARMORED" in s or "VBS Active" in s or "N/A" in s or "Restricted" in s or "Disabled (safe)" in s:
                 mitigated += 1
                 details.append((name, s[:50]))
             else:
@@ -3264,6 +3344,7 @@ def check_windows_defender_cve_mitigations() -> Dict[str, Any]:
                 details.append((name, f"CHECK: {s[:40]}"))
         except Exception:
             na += 1
+            details.append((name, "Check failed"))
     if vulnerable > 0:
         color, overall = "red", f"{vulnerable} issue(s) need attention"
     elif na > 0:
