@@ -49,7 +49,12 @@ def _lock_for(name: str) -> threading.Lock:
 _REFUSAL_MARKERS = (
     "access is denied", "elevated permissions are required",
     "requires elevation", "not recognized", "no rules match",
-    "unauthorizedaccess", "requested registry access is not allowed",
+    # "unauthorized" on its own, not "unauthorized operation": PowerShell
+    # WRAPS its error text, and unelevated Get-WinEvent -ListLog Security
+    # really does emit "Attempted to perform an unauthorized \noperation"
+    # with the newline in the middle -- while exiting 0 and printing "0" to
+    # stdout, so the size reader called it a 0 MB log.
+    "unauthorized", "requested registry access is not allowed",
 )
 
 

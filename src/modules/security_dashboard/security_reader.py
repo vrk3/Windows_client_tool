@@ -387,39 +387,48 @@ def check_smartscreen() -> Dict[str, Any]:
 
 
 def check_hvci() -> Dict[str, Any]:
+    """Hypervisor-enforced Code Integrity, as it is RUNNING right now.
+
+    This returned no `enabled` and no `available` on any path, so a control
+    bound to it could never read a value at all.
+    """
     try:
         rc, out, err = _ps(
-            "Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\\Microsoft\\Windows\\DeviceGuard | "
+            "Get-CimInstance -ClassName Win32_DeviceGuard -Namespace "
+            r"root\Microsoft\Windows\DeviceGuard | "
             "Select-Object VirtualizationBasedSecurityStatus, RequiredSecurityProperties, "
             "AvailableSecurityProperties, SecurityServicesConfigured, SecurityServicesRunning | "
             "ConvertTo-Json -Compress", timeout=20
         )
         if rc != 0 or not out:
-            return {"status": "N/A (WMI unavailable)", "color": "amber",
-                    "details": [("HVCI / Memory Integrity", "Not available")]}
-
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("HVCI / Memory Integrity",
+                                 f"Could not read: {(err or '').strip()[:60]}")]}
         data = json.loads(out)
         vbs_status = data.get("VirtualizationBasedSecurityStatus", 0)
-        vbs_map = {0: "Disabled", 1: "Enabled but not running", 2: "Enabled and running"}
-        vbs_label = vbs_map.get(vbs_status, f"Unknown ({vbs_status})")
-        details = [
-            ("VBS Status", vbs_label),
-        ]
-
-        sec_running = data.get("SecurityServicesRunning", 0)
-        if isinstance(sec_running, int):
-            hvci_on = bool(sec_running & 2)  # Bit 1 = Hypervisor-enforced Code Integrity
-            details.append(("HVCI / Memory Integrity", "On" if hvci_on else "Off"))
+        vbs_map = {0: "Disabled", 1: "Enabled but not running",
+                   2: "Enabled and running"}
+        details = [("VBS Status", vbs_map.get(vbs_status, f"Unknown ({vbs_status})"))]
+        # SecurityServicesRunning is a LIST of service ids in newer builds and
+        # a bitmask in older ones. 2 is HVCI in both readings.
+        running = data.get("SecurityServicesRunning", 0)
+        if isinstance(running, list):
+            hvci_on = 2 in running
+        elif isinstance(running, int):
+            hvci_on = bool(running & 2)
         else:
             hvci_on = False
-
+        details.append(("HVCI / Memory Integrity", "On" if hvci_on else "Off"))
         if vbs_status >= 1 and hvci_on:
-            return {"status": "Protected", "color": "green", "details": details}
+            status, color = "Protected", "green"
         elif vbs_status >= 1:
-            return {"status": "Partial (VBS on, HVCI off)", "color": "amber", "details": details}
-        return {"status": "Disabled", "color": "red", "details": details}
-    except Exception as e:
-        return {"status": f"Error: {e}", "color": "amber",
+            status, color = "Partial (VBS on, HVCI off)", "amber"
+        else:
+            status, color = "Disabled", "red"
+        return {"status": status, "color": color, "available": True,
+                "enabled": hvci_on, "details": details}
+    except Exception:
+        return {"status": "Error", "color": "amber", "available": False,
                 "details": [("HVCI", "Check failed")]}
 
 
@@ -1740,18 +1749,29 @@ def check_admin_shares() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_autorun() -> Dict[str, Any]:
+    """Whether AutoRun can still run something from a drive.
+
+    `enabled` means "AutoRun can run", and it used to be present only on the
+    fully-disabled path -- so a machine where AutoRun was live read None, and
+    the catalog could not tell that apart from a refusal.
+    """
     try:
-        val = _reg_read(r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoDriveTypeAutoRun")
+        val = _reg_read(r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion"
+                        r"\Policies\Explorer", "NoDriveTypeAutoRun")
         if val == 255:
             return {"status": "Disabled (All)", "color": "green",
-                    "details": [("AutoRun", "Off — all drives")], "enabled": False}
+                    "available": True, "enabled": False,
+                    "details": [("AutoRun", "Off on all drive types")]}
         if val is not None:
             return {"status": f"Partial (value={val})", "color": "amber",
-                    "details": [("AutoRun", f"Value: {val}")]}
+                    "available": True, "enabled": True,
+                    "details": [("AutoRun", f"NoDriveTypeAutoRun = {val}")]}
         return {"status": "Not Configured", "color": "red",
-                "details": [("AutoRun", "Not set — may be active")]}
+                "available": True, "enabled": True,
+                "details": [("AutoRun", "No policy set, so AutoRun can run")]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CATEGORY C — SYSTEM HARDENING (16 checks)
@@ -2067,19 +2087,40 @@ def check_bios_mode() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_test_signing() -> Dict[str, Any]:
+    """Whether the boot configuration allows test-signed drivers.
+
+    This used to be `"testsigning" in out and "yes" in out`, matched against
+    the WHOLE of bcdedit's output -- and `recoveryenabled Yes` is on nearly
+    every machine, so an explicit `testsigning No` rendered as a red
+    "Enabled (DANGER)". The flag's own line is what decides.
+    """
     try:
-        rc, out, _ = _cmd_run(["bcdedit", "/enum"], timeout=15)
+        rc, out, err = _cmd_run(["bcdedit", "/enum"], timeout=15)
         if rc != 0 or not out:
-            return {"status": "Unknown", "color": "amber",
-                    "details": [("Test Signing", "Could not query BCD")]}
-        test_on = "testsigning" in out.lower() and "yes" in out.lower()
-        if test_on:
-            return {"status": "Enabled (DANGER)", "color": "red",
-                    "details": [("Test Signing", "On — allows unsigned drivers!")], "enabled": True}
-        return {"status": "Disabled", "color": "green",
-                "details": [("Test Signing", "Off")], "enabled": False}
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Test Signing",
+                                 "bcdedit needs administrator rights")]}
+        value = None
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and parts[0].lower() == "testsigning":
+                value = parts[1].lower()
+                break
+        if value is None:
+            # bcdedit omits the flag entirely when it has never been set,
+            # which is Windows' default: off.
+            return {"status": "Disabled (not set)", "color": "green",
+                    "available": True, "enabled": False,
+                    "details": [("Test Signing", "Not present in the BCD")]}
+        on = value == "yes"
+        return {"status": "Enabled (DANGER)" if on else "Disabled",
+                "color": "red" if on else "green",
+                "available": True, "enabled": on,
+                "details": [("Test Signing",
+                             "On, unsigned drivers may load" if on else "Off")]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
 
 def check_windows_version() -> Dict[str, Any]:
     try:
@@ -2094,6 +2135,12 @@ def check_windows_version() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_wu_service() -> Dict[str, Any]:
+    """The Windows Update service.
+
+    It is trigger-started, so "Stopped" is its normal state and only
+    "Disabled" is a finding -- which is why this carries `disabled` as well as
+    `enabled`, and why the catalog control compares against `disabled`.
+    """
     try:
         services = snapshots.service_states()
         reason = snapshots.unavailable("service_states")
@@ -2102,14 +2149,17 @@ def check_wu_service() -> Dict[str, Any]:
                     "details": [("WU Service", f"Could not read: {reason}")]}
         info = services.get("wuauserv")
         if info is None:
-            return {"status": "Service Not Found", "color": "red", "available": True,
+            return {"status": "Service Not Found", "color": "red",
+                    "available": True, "enabled": False, "disabled": True,
                     "details": [("WU Service", "Not found")]}
-        status = str(info.get("status") or "?")
-        stype = str(info.get("start_type") or "?")
-        running = "Running" in status or status == "4"
-        return {"status": status,
-                "color": "green" if running else "amber", "available": True,
-                "details": [("Windows Update Service", status), ("Start Type", stype)]}
+        facts = _service_facts(info)
+        return {"status": facts["status_label"],
+                "color": "red" if facts["disabled"] else "green",
+                "available": True, "enabled": facts["running"],
+                "disabled": facts["disabled"],
+                "start_type": facts["start_label"],
+                "details": [("Windows Update Service", facts["status_label"]),
+                            ("Start Type", facts["start_label"])]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -2139,6 +2189,28 @@ def check_dump_encryption() -> Dict[str, Any]:
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
+#: Get-BitLockerVolume serialises these as INTEGERS too, and the card used to
+#: render them literally: "Drive C:  0 (0)".
+_BITLOCKER_VOLUME_STATUS = {0: "Fully Decrypted", 1: "Fully Encrypted",
+                            2: "Encryption In Progress",
+                            3: "Decryption In Progress",
+                            4: "Encryption Suspended",
+                            5: "Decryption Suspended"}
+_BITLOCKER_METHODS = {0: "None", 1: "AES 128 with Diffuser",
+                      2: "AES 256 with Diffuser", 3: "AES 128", 4: "AES 256",
+                      5: "Hardware Encryption", 6: "XTS-AES 128",
+                      7: "XTS-AES 256"}
+
+
+def _bitlocker_label(table: Dict[int, str], raw) -> str:
+    if isinstance(raw, str) and not raw.isdigit():
+        return raw
+    try:
+        return table.get(int(raw), f"Unknown ({raw})")
+    except (TypeError, ValueError):
+        return str(raw)
+
+
 def check_bitlocker_encryption() -> Dict[str, Any]:
     try:
         rc, out, err = _ps("Get-BitLockerVolume | Select MountPoint,EncryptionMethod,VolumeStatus,ProtectionStatus | ConvertTo-Json -Compress", timeout=30)
@@ -2146,24 +2218,29 @@ def check_bitlocker_encryption() -> Dict[str, Any]:
         # "Get-CimInstance : Access denied" on stderr. An empty answer from a
         # query that was not allowed to run is not an absence of volumes.
         if "access denied" in (err or "").lower():
-            return {"status": NEEDS_ADMIN, "color": "amber",
+            return {"status": NEEDS_ADMIN, "color": "amber", "available": False,
                     "details": [("BitLocker", NEEDS_ADMIN)]}
         if rc != 0 or not out:
-            return {"status": "N/A", "color": "amber", "details": [("BitLocker", "No volumes or not available")]}
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("BitLocker", "No answer from Get-BitLockerVolume")]}
         data = json.loads(out) if out.strip().startswith("[") else [json.loads(out)]
         details, c_protected = [], False
         for vol in data:
             mp = vol.get("MountPoint", "?")
-            method = str(vol.get("EncryptionMethod", "None"))
-            vstat = str(vol.get("VolumeStatus", "?"))
+            method = _bitlocker_label(_BITLOCKER_METHODS,
+                                      vol.get("EncryptionMethod"))
+            vstat = _bitlocker_label(_BITLOCKER_VOLUME_STATUS,
+                                     vol.get("VolumeStatus"))
             prot = vol.get("ProtectionStatus", 0)
             details.append((f"Drive {mp}", f"{vstat} ({method})"))
             if str(mp).upper() == "C:" and prot == 1:
                 c_protected = True
         return {"status": "C: Protected" if c_protected else "C: Not Protected",
-                "color": "green" if c_protected else "red", "details": details}
+                "color": "green" if c_protected else "red",
+                "available": True, "enabled": c_protected, "details": details}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2335,17 +2412,23 @@ def _check_service(service_name: str, display: str, good_running: bool = True) -
         info = services.get(service_name.lower())
         if info is None:
             return {"status": "Not Found", "color": "amber", "available": True,
-                    "details": [(display, "Service not found")], "enabled": False}
-        st = str(info.get("status") or "")
-        running = "Running" in st or st == "4"
+                    "details": [(display, "Service not found")],
+                    "enabled": False, "disabled": True}
+        facts = _service_facts(info)
+        running = facts["running"]
         if running:
             color, status = ("green", "Running") if good_running else ("red", "Running")
         else:
             color, status = ("red", "Stopped") if good_running else ("green", "Stopped")
         return {"status": status, "color": color, "available": True,
-                "details": [(f"{display} Service", st)], "enabled": running}
+                "enabled": running, "disabled": facts["disabled"],
+                "start_type": facts["start_label"],
+                "details": [(f"{display} Service",
+                             f"{facts['status_label']} "
+                             f"({facts['start_label']} start)")]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": [(display, "Check failed")], "enabled": False}
+        return {"status": "Error", "color": "amber",
+                "details": [(display, "Check failed")], "enabled": False}
 
 
 def check_service_lanman_workstation() -> Dict[str, Any]:
@@ -2774,6 +2857,40 @@ def check_exploit_protection_aslr() -> Dict[str, Any]:
 # BONUS BATCH — Services, Network Toggles, Account Security (~40 functions)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+#: `Get-Service | ConvertTo-Json` serialises both enums as INTEGERS, so the
+#: snapshot carries numbers and every reader below used to hand them straight
+#: to the card -- "Windows Update Service: 1" -- and, because only Automatic
+#: was ever tested for, called a DISABLED service "Manual".
+_SERVICE_STATUS_LABELS = {1: "Stopped", 2: "Start Pending", 3: "Stop Pending",
+                          4: "Running", 5: "Continue Pending",
+                          6: "Pause Pending", 7: "Paused"}
+_SERVICE_START_LABELS = {0: "Boot", 1: "System", 2: "Automatic", 3: "Manual",
+                         4: "Disabled"}
+
+
+def _service_status_label(raw) -> str:
+    """"Running" / "Stopped" / ... from either the number or the name."""
+    try:
+        return _SERVICE_STATUS_LABELS.get(int(raw), f"Unknown ({raw})")
+    except (TypeError, ValueError):
+        return str(raw or "Unknown")
+
+
+def _service_start_label(raw) -> str:
+    try:
+        return _SERVICE_START_LABELS.get(int(raw), f"Unknown ({raw})")
+    except (TypeError, ValueError):
+        return str(raw or "Unknown")
+
+
+def _service_facts(info: Dict[str, Any]) -> Dict[str, Any]:
+    """(status label, start-type label, running, disabled) for one service."""
+    status = _service_status_label(info.get("status"))
+    start = _service_start_label(info.get("start_type"))
+    return {"status_label": status, "start_label": start,
+            "running": status == "Running", "disabled": start == "Disabled"}
+
+
 def _svc_check(name: str, label: str, running_bad: bool = True) -> Dict[str, Any]:
     try:
         services = snapshots.service_states()
@@ -2784,19 +2901,23 @@ def _svc_check(name: str, label: str, running_bad: bool = True) -> Dict[str, Any
         info = services.get(name.lower())
         if info is None:
             return {"status": "Not Found", "color": "green", "available": True,
-                    "details": [(label, "Not found")], "enabled": False}
-        st, ty = str(info.get("status") or ""), str(info.get("start_type") or "")
-        running = "Running" in st or st == "4"
-        auto = "2" in ty or "Automatic" in ty
+                    "details": [(label, "Not found")], "enabled": False,
+                    "disabled": True}
+        facts = _service_facts(info)
+        running, auto = facts["running"], facts["start_label"] == "Automatic"
         if running_bad:
             color = "red" if running else ("amber" if auto else "green")
         else:
             color = "green" if running else ("amber" if auto else "red")
-        return {"status": "Running" if running else "Stopped", "color": color, "available": True,
-                "details": [(label, f"{'Running' if running else 'Stopped'} ({'Auto' if auto else 'Manual'})")],
-                "enabled": running}
+        return {"status": facts["status_label"], "color": color,
+                "available": True, "enabled": running,
+                "disabled": facts["disabled"],
+                "start_type": facts["start_label"],
+                "details": [(label, f"{facts['status_label']} "
+                                    f"({facts['start_label']} start)")]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": [(label, "Check failed")]}
+        return {"status": "Error", "color": "amber",
+                "details": [(label, "Check failed")]}
 
 def _svc_toggle(name: str, label: str, enabled: bool) -> Dict[str, Any]:
     before = _svc_check(name, label, running_bad=True)
@@ -3144,23 +3265,38 @@ def set_last_username_hidden(enabled: bool) -> Dict[str, Any]:
             "action": "enable" if enabled else "disable"}
 
 # Log size checks
-def check_security_log_size() -> Dict[str, Any]:
+def _event_log_size(log: str, label: str, green_at: int) -> Dict[str, Any]:
+    """Maximum size of one event log, in MB.
+
+    Both callers used to ignore `rc` and fall back to `float(out or 0)`, so a
+    refused or failed query rendered "0 MB" in red -- a verdict about the
+    machine produced by a question that was never answered.
+    """
     try:
-        rc, out, _ = _ps("(Get-WinEvent -ListLog Security).MaximumSizeInBytes / 1MB", timeout=15)
-        mb = float(out.strip()) if out else 0
-        color = "green" if mb >= 128 else ("amber" if mb >= 64 else "red")
-        return {"status": f"{mb:.0f} MB", "color": color, "details": [("Security Log Max Size", f"{mb:.0f} MB")]}
+        rc, out, err = _ps(f"(Get-WinEvent -ListLog {log}).MaximumSizeInBytes / 1MB",
+                           timeout=15)
+        # `rc` is not the signal here: unelevated, this exits 0 and prints "0"
+        # while putting "Attempted to perform an unauthorized operation" on
+        # stderr, so the old reader called the Security log 0 MB and red.
+        refused = snapshots._looks_refused(rc, out or "", err or "")
+        if refused is not None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [(label, f"Could not read: {refused[:70]}")]}
+        mb = float(out.strip())
+        color = "green" if mb >= green_at else ("amber" if mb >= green_at / 2 else "red")
+        return {"status": f"{mb:.0f} MB", "color": color, "available": True,
+                "megabytes": int(mb),
+                "details": [(label, f"{mb:.0f} MB")]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
+
+
+def check_security_log_size() -> Dict[str, Any]:
+    return _event_log_size("Security", "Security Log Max Size", 128)
 
 def check_system_log_size() -> Dict[str, Any]:
-    try:
-        rc, out, _ = _ps("(Get-WinEvent -ListLog System).MaximumSizeInBytes / 1MB", timeout=15)
-        mb = float(out.strip()) if out else 0
-        return {"status": f"{mb:.0f} MB", "color": "green" if mb >= 64 else "amber",
-                "details": [("System Log Max Size", f"{mb:.0f} MB")]}
-    except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+    return _event_log_size("System", "System Log Max Size", 64)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3688,7 +3824,14 @@ def check_sam_hive_permissions() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("SAM hive", f"{sam_path} not found")]}
         rc, out, err = _ps(f"icacls '{sam_path}'", timeout=10)
-        if rc != 0 or not out or "Failed processing" in out:
+        # EVERY successful icacls run ends with "Failed processing 0 files",
+        # so testing for that substring rejected the success case as well --
+        # found by running the probe elevated, where icacls works.
+        failed = any(line.strip().startswith("Failed processing")
+                     and not line.strip().startswith("Failed processing 0")
+                     for part in (out or "").split(";")
+                     for line in [part])
+        if rc != 0 or not out or failed or "Access is denied" in (out or ""):
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("SAM ACL",
                                  f"icacls could not read the ACL: "

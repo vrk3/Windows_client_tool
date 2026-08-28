@@ -34,8 +34,13 @@ def _bound_reader_names(controls):
             if getattr(security_reader, name) in bound_objs}
 
 
-@pytest.mark.xfail(reason="catalog population in progress, Tasks 6-8", strict=False)
 def test_every_reader_is_bound_or_explicitly_excluded():
+    """Closed on 2026-08-29 (Task 8): 149 controls + 16 exclusions = 165.
+
+    This was committed deliberately failing, under xfail, at "165 readers
+    reach nothing", and the marker came off when the count hit zero. From
+    here, a new check_* function that nobody wires up fails the suite.
+    """
     bound = _bound_reader_names(load_catalog().values())
     unaccounted = sorted(_all_readers() - bound - set(NOT_A_CONTROL))
     assert not unaccounted, (

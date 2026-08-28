@@ -39,6 +39,36 @@ NOT_A_CONTROL: Dict[str, str] = {
         "inventory, and changing it belongs to the network adapter, not to a "
         "security switch.",
 
+    # -- Device, Services, Features (Task 8) -------------------------------
+    # Three cases where two readers ask the machine the SAME question. Binding
+    # both would give one setting two cards that write one value, and let a
+    # batch stage two conflicting changes to it.
+    "check_core_isolation_summary":
+        "Reads the same registry value as check_memory_integrity_registry -- "
+        "DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity\\Enabled -- "
+        "and differs only in its label. The `memory_integrity` control is "
+        "bound to the other one.",
+    "check_service_diag_track":
+        "A second reader for the DiagTrack service, through a different "
+        "helper. The `service_diagtrack` control is bound to "
+        "check_service_diagtrack.",
+    "check_service_maps_broker":
+        "A second reader for the MapsBroker service, through a different "
+        "helper. The `service_mapsbroker` control is bound to "
+        "check_service_mapsbroker.",
+
+    "check_disk_cleanup_state":
+        "Reports whether cleanmgr.exe is present and Storage Sense has a "
+        "policy. A capability reading, and disk cleanup is the Cleanup "
+        "module's job, not a security setting.",
+    "check_system_restore_disks":
+        "How much disk the shadow-copy store is using. An inventory; the "
+        "amount is configured per volume with vssadmin, and System Restore "
+        "has its own module.",
+    "check_windows_version":
+        "The build number. It is the input to several checks here -- SMBGhost "
+        "gates on it -- but it is not itself a setting.",
+
     # -- Exploit & CVE (Task 6) --------------------------------------------
     "check_windows_defender_cve_mitigations":
         "An aggregate over 24 individual CVE readers, each of which is its "
