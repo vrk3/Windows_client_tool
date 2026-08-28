@@ -30,6 +30,15 @@ NOT_A_CONTROL: Dict[str, str] = {
         "settable, and CFG and ASLR -- the two that are -- are controls "
         "in their own right.",
 
+    # -- Firewall & Network (Task 7) ---------------------------------------
+    "check_listening_ports":
+        "An inventory of what is listening. The Firewall Rules module is "
+        "where a port is closed.",
+    "check_dns_servers":
+        "Which DNS servers this machine was handed, usually by DHCP. An "
+        "inventory, and changing it belongs to the network adapter, not to a "
+        "security switch.",
+
     # -- Exploit & CVE (Task 6) --------------------------------------------
     "check_windows_defender_cve_mitigations":
         "An aggregate over 24 individual CVE readers, each of which is its "

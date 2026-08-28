@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import winreg
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple
@@ -430,7 +431,9 @@ def check_credential_guard() -> Dict[str, Any]:
             "ConvertTo-Json -Compress", timeout=20
         )
         if rc != 0 or not out:
-            return {"status": "N/A", "color": "amber", "details": [("Credential Guard", "WMI unavailable")]}
+            return {"status": "Unknown", "color": "amber",
+                    "available": False,
+                    "details": [("Credential Guard", "WMI unavailable")]}
 
         data = json.loads(out)
         sec_conf = data.get("SecurityServicesConfigured", 0)
@@ -440,11 +443,14 @@ def check_credential_guard() -> Dict[str, Any]:
 
         if cg_running:
             return {"status": "Running", "color": "green",
+                    "available": True, "enabled": True,
                     "details": [("Credential Guard", "Active")]}
         elif cg_configured:
             return {"status": "Configured (needs reboot)", "color": "amber",
+                    "available": True, "enabled": False,
                     "details": [("Credential Guard", "Configured, reboot required")]}
         return {"status": "Not Configured", "color": "amber",
+                "available": True, "enabled": False,
                 "details": [("Credential Guard", "Off")]}
     except Exception as e:
         return {"status": f"Error: {e}", "color": "amber",
@@ -639,15 +645,15 @@ def check_rdp() -> Dict[str, Any]:
 def check_smbv1() -> Dict[str, Any]:
     try:
         features = snapshots.optional_features()
-        if snapshots.unavailable("optional_features") is not None:
-            # Fallback: the feature list itself was refused. Fall back to
-            # whether the service list, at least, could be read.
-            services = snapshots.service_states()
-            if snapshots.unavailable("service_states") is not None:
-                return {"status": "Unknown", "color": "amber", "available": False,
-                        "details": [("SMBv1", "Could not determine")]}
-            return {"status": "Probably Disabled (Win10+)", "color": "green", "available": True,
-                    "details": [("SMBv1", "Likely off")]}
+        reason = snapshots.unavailable("optional_features")
+        if reason is not None:
+            # This used to answer "Probably Disabled (Win10+)", green, with
+            # available=True -- a guess dressed as a reading, and on this
+            # machine it fires every unelevated run because
+            # Get-WindowsOptionalFeature requires elevation. "Probably" is
+            # not a state of the machine.
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("SMBv1", f"Could not read: {reason}")]}
         state = features.get("smb1protocol")
         if isinstance(state, str) and "Enabled" in state:
             return {"status": "Enabled", "color": "red", "available": True,
@@ -1437,12 +1443,17 @@ def check_llmnr() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient", "EnableMulticast")
         if val is None:
+            # No policy means LLMNR is ON: that is Windows' default,
+            # and it is the state this control exists to change.
             return {"status": "Not Configured", "color": "amber",
+                    "available": True, "enabled": True,
                     "details": [("LLMNR", "No policy — enabled by default")]}
         disabled = val == 0
         return {"status": "Disabled" if disabled else "Enabled",
+                "available": True,
                 "color": "green" if disabled else "red",
-                "details": [("LLMNR", "Off" if disabled else "On (MitM risk)")], "enabled": disabled}
+                "details": [("LLMNR", "Off" if disabled else "On (MitM risk)")],
+                "enabled": not disabled}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1450,27 +1461,59 @@ def check_netbios_tcpip() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Services\NetBT\Parameters", "NodeType")
         if val is None:
+            # No NodeType means H-node, which has NetBIOS ON.
             return {"status": "Not Configured", "color": "amber",
+                    "available": True, "enabled": True,
                     "details": [("NetBIOS", "No NodeType — default H-node")]}
         labels = {1: "B-node (broadcast)", 2: "P-node (NetBIOS disabled)", 4: "M-node", 8: "H-node (default)"}
         label = labels.get(val, f"Unknown ({val})")
         disabled = val == 2
-        return {"status": label,
+        return {"status": label, "available": True, "node_type": val,
                 "color": "green" if disabled else ("amber" if val == 8 else "red"),
-                "details": [("NetBIOS NodeType", label)], "enabled": disabled}
+                "details": [("NetBIOS NodeType", label)],
+                "enabled": not disabled}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
+#: Bit 0x08 of DefaultConnectionSettings byte 8 is "Automatically detect
+#: settings" -- the switch that makes this machine ask the network where its
+#: proxy configuration is, which is what WPAD poisoning answers.
+_WPAD_AUTODETECT_BIT = 0x08
+
+
 def check_wpad() -> Dict[str, Any]:
+    """WPAD auto-detect, per user.
+
+    The `AutoDetect` value this used to read is absent on a default Windows,
+    and absence was reported as "Disabled (default)" in GREEN. It is not the
+    setting: Internet Settings keeps auto-detect in bit 0x08 of byte 8 of
+    DefaultConnectionSettings, and on this machine that bit is SET.
+    """
     try:
         val = _reg_read(r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings", "AutoDetect")
-        if val is None:
-            return {"status": "Disabled (default)", "color": "green",
-                    "details": [("WPAD", "Off")], "enabled": False}
-        enabled = val != 0
+        if val is not None:
+            enabled = val != 0
+            return {"status": "Enabled" if enabled else "Disabled",
+                    "color": "red" if enabled else "green", "available": True,
+                    "details": [("WPAD Auto-Detect (AutoDetect value)",
+                                 "On" if enabled else "Off")],
+                    "enabled": enabled}
+        raw = _reg_read(r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion"
+                        r"\Internet Settings\Connections",
+                        "DefaultConnectionSettings", "REG_BINARY")
+        if not raw or len(raw) < 9:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("WPAD Auto-Detect",
+                                 "Neither AutoDetect nor DefaultConnectionSettings "
+                                 "could be read")]}
+        enabled = bool(raw[8] & _WPAD_AUTODETECT_BIT)
         return {"status": "Enabled" if enabled else "Disabled",
-                "color": "green" if not enabled else "red",
-                "details": [("WPAD Auto-Detect", "On" if enabled else "Off")], "enabled": enabled}
+                "color": "red" if enabled else "green", "available": True,
+                "details": [("WPAD Auto-Detect",
+                             "On (this machine asks the network for its proxy)"
+                             if enabled else "Off"),
+                            ("Connection flags", f"0x{raw[8]:02X}")],
+                "enabled": enabled}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1478,12 +1521,16 @@ def check_mdns() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters", "EnableMDNS")
         if val is None:
+            # Windows enables mDNS by default.
             return {"status": "Not Configured", "color": "amber",
+                    "available": True, "enabled": True,
                     "details": [("mDNS", "No policy — enabled by default")]}
         disabled = val == 0
         return {"status": "Disabled" if disabled else "Enabled",
+                "available": True,
                 "color": "green" if disabled else "red",
-                "details": [("mDNS", "Off" if disabled else "On")], "enabled": disabled}
+                "details": [("mDNS", "Off" if disabled else "On")],
+                "enabled": not disabled}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1560,50 +1607,81 @@ def check_ntlm_level() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "LmCompatibilityLevel")
         if val is None:
+            # No value means Windows' own default, level 3.
             return {"status": "Not Configured", "color": "amber",
+                    "available": True, "level": 3,
                     "details": [("NTLM Level", "Default (send NTLMv2)")]}
         labels = {0: "Send LM & NTLM", 1: "Negotiate", 2: "Send NTLM only",
                   3: "NTLMv2 only", 4: "NTLMv2, refuse LM", 5: "NTLMv2, refuse LM & NTLM"}
         label = labels.get(val, f"Unknown ({val})")
         color = "green" if val >= 5 else ("green" if val >= 3 else ("amber" if val >= 1 else "red"))
-        return {"status": f"Level {val} — {label}", "color": color,
+        return {"available": True, "level": val,
+                "status": f"Level {val} — {label}", "color": color,
                 "details": [("LM Compatibility Level", f"Level {val} — {label}")]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_network_profile() -> Dict[str, Any]:
     try:
-        rc, out, _ = _ps("Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select -ExpandProperty NetworkCategory -First 1", timeout=20)
+        rc, out, err = _ps("Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select -ExpandProperty NetworkCategory -First 1", timeout=20)
         if rc != 0 or not out:
-            return {"status": "Unknown", "color": "amber", "details": [("Network Profile", "Unknown")]}
-        cat_map = {"0": "Public", "1": "Private", "2": "DomainAuthenticated"}
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Network Profile",
+                                 f"Could not read: {(err or '').strip()[:60]}")]}
+        # PowerShell renders the enum by NAME here, so the numeric table this
+        # used to consult never matched and every machine read
+        # "Unknown (Private)". Both forms are accepted now.
         cat = out.strip()
-        label = cat_map.get(cat, f"Unknown ({cat})")
-        if cat == "0":
-            return {"status": "Public (most secure)", "color": "green",
-                    "details": [("Network Category", "Public")]}
-        return {"status": label, "color": "amber" if cat != "0" else "green",
+        by_number = {"0": "Public", "1": "Private", "2": "DomainAuthenticated"}
+        label = by_number.get(cat, cat)
+        public = label == "Public"
+        return {"status": "Public (most secure)" if public else label,
+                "color": "green" if public else "amber",
+                "available": True, "category": label,
                 "details": [("Network Category", label)]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
+#: Get-NetFirewallProfile's DefaultInbound/OutboundAction, read off the live
+#: cmdlet's own enum: NotConfigured=0, Allow=2, Block=4. Nothing maps 0 to
+#: Allow -- NotConfigured means Windows' default applies, and the default
+#: inbound action is Block. Reading 0 as "allow" put a red "Inbound Allowed"
+#: on every machine that had never had an explicit policy set.
+_FIREWALL_ACTIONS = {0: "Not configured (default: block)", 2: "Allow",
+                     4: "Block"}
+
+
+def _firewall_action(raw) -> str:
+    if isinstance(raw, str) and not raw.isdigit():
+        return raw
+    try:
+        return _FIREWALL_ACTIONS.get(int(raw), f"Unknown ({raw})")
+    except (TypeError, ValueError):
+        return f"Unknown ({raw})"
+
+
 def check_firewall_stealth() -> Dict[str, Any]:
     try:
-        rc, out, _ = _ps("Get-NetFirewallProfile | Select Name,DefaultInboundAction,DefaultOutboundAction | ConvertTo-Json -Compress", timeout=15)
+        rc, out, err = _ps("Get-NetFirewallProfile | Select Name,DefaultInboundAction,DefaultOutboundAction | ConvertTo-Json -Compress", timeout=15)
         if rc != 0 or not out:
-            return {"status": "Unknown", "color": "amber", "details": [("Profiles", "WMI failed")]}
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Firewall profiles",
+                                 f"Could not read: {(err or out or '').strip()[:80]}")]}
         data = json.loads(out) if out.strip().startswith("[") else [json.loads(out)]
-        details, stealth_ok = [], True
+        details, allowed = [], []
         for prof in data:
             name = prof.get("Name", "?")
-            ib = str(prof.get("DefaultInboundAction", "?"))
-            ob = str(prof.get("DefaultOutboundAction", "?"))
+            ib = _firewall_action(prof.get("DefaultInboundAction"))
+            ob = _firewall_action(prof.get("DefaultOutboundAction"))
             details.append((f"{name} Inbound", ib))
             details.append((f"{name} Outbound", ob))
-            if "allow" in ib.lower() or ib == "0":
-                stealth_ok = False
-        return {"status": "Inbound Blocked (Stealth)" if stealth_ok else "Inbound Allowed",
-                "color": "green" if stealth_ok else "red", "details": details}
+            if ib == "Allow":
+                allowed.append(name)
+        stealth_ok = not allowed
+        return {"status": ("Inbound Blocked (Stealth)" if stealth_ok
+                           else "Inbound Allowed on " + ", ".join(allowed)),
+                "color": "green" if stealth_ok else "red",
+                "available": True, "enabled": stealth_ok, "details": details}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1642,9 +1720,11 @@ def check_anonymous_restrict() -> Dict[str, Any]:
         details = [("RestrictAnonymous", "On" if ra == 1 else "Off"),
                    ("RestrictAnonymousSAM", "On" if ras == 1 else "Off")]
         if ra == 1 and ras == 1:
-            return {"status": "Fully Restricted", "color": "green", "details": details}
+            return {"status": "Fully Restricted", "color": "green",
+                    "available": True, "enabled": True, "details": details}
         return {"status": "Partially Restricted" if (ra == 1 or ras == 1) else "Not Restricted",
-                "color": "amber" if (ra == 1 or ras == 1) else "red", "details": details}
+                "color": "amber" if (ra == 1 or ras == 1) else "red",
+                "available": True, "enabled": False, "details": details}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1709,13 +1789,25 @@ def check_ps_constrained_lang() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_ps_execution_policy() -> Dict[str, Any]:
+    """The machine's execution policy, not this process's.
+
+    `Get-ExecutionPolicy` with no scope returns the EFFECTIVE policy of the
+    shell it runs in. Run from a launcher started with -ExecutionPolicy
+    Bypass, this reported "Bypass" -- a fact about its own launcher. The
+    control writes LocalMachine, so LocalMachine is what must be read back.
+    """
     try:
-        rc, out, _ = _ps("Get-ExecutionPolicy", timeout=10)
-        if rc != 0 or not out:
-            return {"status": "Unknown", "color": "amber", "details": [("Execution Policy", "Unknown")]}
+        rc, out, _ = _ps("Get-ExecutionPolicy -Scope LocalMachine", timeout=10)
+        if rc != 0 or not out or not out.strip():
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Execution Policy", "Could not read")]}
         policy = out.strip()
-        color = "green" if "Restricted" in policy else ("amber" if "RemoteSigned" in policy else "red")
-        return {"status": policy, "color": color, "details": [("PowerShell Execution Policy", policy)]}
+        color = ("green" if "Restricted" in policy or "AllSigned" in policy
+                 else ("amber" if "RemoteSigned" in policy else "red"))
+        return {"status": policy, "color": color, "available": True,
+                "policy": policy,
+                "details": [("PowerShell Execution Policy (LocalMachine)",
+                             policy)]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -1745,12 +1837,18 @@ def check_wdigest() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest", "UseLogonCredential")
         if val is None:
-            return {"status": "Not Configured", "color": "amber",
+            # Absent is the SECURE state on 8.1 and later: WDigest does
+            # not cache plaintext unless this value turns it back on.
+            return {"status": "Not Configured (secure default)",
+                    "color": "green", "available": True,
+                    "enabled": False,
                     "details": [("WDigest", "Key not present")]}
         if val == 0:
             return {"status": "Disabled (secure)", "color": "green",
+                    "available": True,
                     "details": [("WDigest Caching", "Off — credentials not cached")], "enabled": False}
         return {"status": "Enabled (insecure)", "color": "red",
+                "available": True,
                 "details": [("WDigest Caching", "On — credentials cached")], "enabled": True}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -1760,10 +1858,12 @@ def check_cached_logons() -> Dict[str, Any]:
         val = _reg_read(r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", "CachedLogonsCount", "REG_SZ")
         if val is None:
             return {"status": "10 (default)", "color": "amber",
+                    "available": True, "count": 10,
                     "details": [("Cached Logons", "Default: 10")]}
         count = int(val) if str(val).isdigit() else 10
         color = "green" if count <= 2 else ("amber" if count <= 10 else "red")
         return {"status": f"{count} cached logons", "color": color,
+                "available": True, "count": count,
                 "details": [("Cached Logon Count", str(count))]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -1789,7 +1889,9 @@ def check_password_min_length() -> Dict[str, Any]:
     try:
         rc, out, _ = _cmd_run(["net", "accounts"], timeout=15)
         if rc != 0 or not out:
-            return {"status": "Unknown", "color": "amber", "details": [("Password Min Length", "Unknown")]}
+            return {"status": "Unknown", "color": "amber",
+                    "available": False,
+                    "details": [("Password Min Length", "Unknown")]}
         min_len = 0
         for line in out.splitlines():
             if "Minimum password length" in line:
@@ -1797,6 +1899,7 @@ def check_password_min_length() -> Dict[str, Any]:
                 min_len = int(raw) if raw.isdigit() else 0
         color = "green" if min_len >= 14 else ("amber" if min_len >= 8 else "red")
         return {"status": f"{min_len} chars", "color": color,
+                "available": True, "length": min_len,
                 "details": [("Minimum Password Length", str(min_len))]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -1821,7 +1924,10 @@ def check_ctrl_alt_del() -> Dict[str, Any]:
         elif val == 1:
             return {"status": "Not Required", "color": "amber",
                     "details": [("Ctrl+Alt+Del", "Not required")], "enabled": False}
+        # Not configured means CAD is not required at the logon screen,
+        # which is Windows' default outside a domain.
         return {"status": "Not Configured", "color": "amber",
+                "available": True, "enabled": False,
                 "details": [("Ctrl+Alt+Del", "Not configured")]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -1887,20 +1993,40 @@ def check_wsl() -> Dict[str, Any]:
         return {"status": "Error", "color": "amber", "details": []}
 
 def check_audit_policy() -> Dict[str, Any]:
+    """How many audit subcategories are recording anything.
+
+    auditpol prints one line per subcategory ending in Success, Failure,
+    "Success and Failure" or "No Auditing". The word "Enabled" never appears
+    in its output, and counting lines that contained it therefore counted
+    zero on every machine and rendered "No Categories Enabled" in red -- on
+    this one, elevated, 12 of 60 subcategories are auditing.
+    """
     try:
         rc, out, _ = _cmd_run(["auditpol", "/get", "/category:*"], timeout=30)
         if rc != 0 or not out:
-            return {"status": "Not Available", "color": "amber",
-                    "details": [("Audit Policy", "Could not retrieve (needs admin)")]}
-        enabled = sum(1 for line in out.splitlines() if "Enabled" in line and "No Auditing" not in line)
-        total = sum(1 for line in out.splitlines() if "No Auditing" in line)
-        if enabled == 0:
-            return {"status": "No Categories Enabled", "color": "red",
-                    "details": [("Enabled", "0 categories")]}
-        return {"status": f"{enabled} Categories Enabled", "color": "green",
-                "details": [("Enabled", f"{enabled} categories")]}
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("Audit Policy",
+                                 "auditpol needs administrator rights")]}
+        subcategories = [line for line in out.splitlines()
+                         if line.startswith("  ") and line.strip()]
+        audited = [line for line in subcategories
+                   if "No Auditing" not in line]
+        total = len(subcategories)
+        count = len(audited)
+        if count == 0:
+            color, status = "red", "Nothing is audited"
+        elif count < 10:
+            color, status = "amber", f"{count} of {total} subcategories audited"
+        else:
+            color, status = "green", f"{count} of {total} subcategories audited"
+        return {"status": status, "color": color, "available": True,
+                "audited": count, "total": total, "enabled": count > 0,
+                "details": [("Subcategories auditing", f"{count} of {total}")]
+                           + [(line.strip()[:38].strip(), line.strip()[38:].strip())
+                              for line in audited[:8]]}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
 
 def check_tpm_details() -> Dict[str, Any]:
     """TPM state, or an honest refusal — never a claim about absent hardware.
@@ -2778,9 +2904,12 @@ def check_guest_account() -> Dict[str, Any]:
 def check_autologon() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", "AutoAdminLogon", "REG_SZ")
-        active = val and str(val) != "0"
+        # `val and ...` is None when the value is absent, not False, so
+        # a machine with no auto-logon reported "could not look".
+        active = bool(val is not None and str(val) != "0")
         return {"status": "Enabled" if active else "Disabled", "color": "red" if active else "green",
-                "details": [("Auto Logon", "On (security risk)" if active else "Off")], "enabled": active}
+                "details": [("Auto Logon", "On (security risk)" if active else "Off")],
+                "available": True, "enabled": active}
     except Exception:
         return {"status": "Error", "color": "amber", "details": [("AutoLogon", "Check failed")]}
 
@@ -2796,9 +2925,11 @@ def check_last_username_hidden() -> Dict[str, Any]:
 def check_screensaver_secure() -> Dict[str, Any]:
     try:
         val = _reg_read(r"HKCU\Control Panel\Desktop", "ScreenSaverIsSecure", "REG_SZ")
-        secure = val and str(val) == "1"
+        secure = bool(val is not None and str(val) == "1")
         return {"status": "Lock on resume" if secure else "No lock", "color": "green" if secure else "amber",
-                "details": [("Screen Saver Lock", "On" if secure else "Off (no lock on resume)")], "enabled": secure}
+                "details": [("Screen Saver Lock",
+                             "On" if secure else "Off (no lock on resume)")],
+                "available": True, "enabled": secure}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
@@ -2807,8 +2938,10 @@ def check_screensaver_active() -> Dict[str, Any]:
         val = _reg_read(r"HKCU\Control Panel\Desktop", "SCRNSAVE.EXE", "REG_SZ")
         if val and str(val).strip():
             return {"status": "Configured", "color": "green",
+                    "available": True,
                     "details": [("Screen Saver", str(val)[:50])], "enabled": True}
         return {"status": "Not Configured", "color": "amber",
+                "available": True,
                 "details": [("Screen Saver", "None")], "enabled": False}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -3481,36 +3614,99 @@ def check_credential_guard_vbs() -> Dict[str, Any]:
             "color": "green" if vbs == 1 else "red",
             "details": details, "enabled": vbs == 1}
 
+#: Windows 10 1903 and 1909. No other build shipped SMBv3.1.1 compression.
+_SMBGHOST_AFFECTED_BUILDS = (18362, 18363)
+
+
+def _windows_build() -> Optional[int]:
+    try:
+        return int(sys.getwindowsversion().build)
+    except Exception:
+        return None
+
+
+def _file_present(path: str) -> Optional[bool]:
+    """True, False, or None when the answer itself was refused.
+
+    `os.path.exists` returns False for a file it is not allowed to stat, so
+    "not found" and "not allowed to look" arrive identically -- which is how
+    the SAM hive check reported a clean bill of health unelevated.
+    """
+    try:
+        os.stat(path)
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return None
+
+
 def check_smb_ghost() -> Dict[str, Any]:
     """SMBGhost (CVE-2020-0796) — SMBv3 compression RCE."""
     try:
-        rc, out, _ = _ps("Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters' "
-                          "-Name SMB1 -ErrorAction SilentlyContinue | Select -ExpandProperty SMB1", timeout=10)
-        smb1 = int(out.strip()) if out and out.strip().isdigit() else None
-        return {"status": "SMBv1 Disabled (safe)" if smb1 == 0 else "SMBv1 Enabled" if smb1 == 1 else "Unknown",
-                "color": "green" if smb1 == 0 else ("red" if smb1 == 1 else "amber"),
-                "details": [("SMBv1", "Disabled" if smb1 == 0 else "Enabled" if smb1 == 1 else "Not configured")],
-                "enabled": smb1 == 0}
+        # This used to read the SMB1 value and report "SMBv1 Disabled (safe)".
+        # SMBGhost is not about SMBv1 at all: it is the SMBv3.1.1 compression
+        # RCE, its registry mitigation is DisableCompression, and only builds
+        # 18362 and 18363 (1903/1909) ever shipped the vulnerable code. The
+        # card was answering confidently about a different vulnerability.
+        build = _windows_build()
+        if build is not None and build not in _SMBGHOST_AFFECTED_BUILDS:
+            return {"status": f"Not affected (build {build})", "color": "green",
+                    "available": True, "enabled": True,
+                    "details": [("SMBv3.1.1 compression",
+                                 "Only Windows 10 1903/1909 were affected")]}
+        disabled = _reg_read(r"HKLM\SYSTEM\CurrentControlSet\Services"
+                             r"\LanmanServer\Parameters", "DisableCompression")
+        mitigated = disabled == 1
+        return {"status": "Mitigated" if mitigated else "Not mitigated",
+                "color": "green" if mitigated else "red",
+                "available": True, "enabled": mitigated,
+                "details": [("SMBv3 compression",
+                             "Disabled" if mitigated else "Enabled"),
+                            ("Windows build", str(build))]}
     except Exception:
-        return {"status": "Unknown", "color": "amber", "details": [("SMBGhost", "Check failed")]}
+        return {"status": "Unknown", "color": "amber", "available": False,
+                "details": [("SMBGhost", "Check failed")]}
 
 def check_sam_hive_permissions() -> Dict[str, Any]:
     """HiveNightmare (CVE-2021-36934) — SAM file readable by non-admin (Win10/11 pre-July 2021)."""
     try:
-        import os
         sam_path = r"C:\Windows\System32\config\SAM"
-        if not os.path.exists(sam_path):
-            return {"status": "N/A", "color": "green", "details": [("SAM", "File not found")], "enabled": True}
-        # Check if BUILTIN\Users has read access (simplified: check ACL)
-        rc, out, _ = _ps(f"icacls '{sam_path}' 2>&1 | Select-String 'BUILTIN\\\\Users'", timeout=10)
-        has_users_read = ":(R)" in out or ":(F)" in out or ":(M)" in out if out else False
+        # Both halves of this used to fall through to GREEN when they failed.
+        # Unelevated, os.stat on the SAM hive raises PermissionError (winerror
+        # 5) and os.path.exists flattens that to False -- "file not found",
+        # scored as "not vulnerable". icacls then fails too (rc 1, "Failed
+        # processing 1 files"), and an empty result matched no BUILTIN\Users
+        # line, which also scored as safe.
+        present = _file_present(sam_path)
+        if present is None:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("SAM hive",
+                                 "Cannot examine the file unelevated -- this "
+                                 "is a refusal, not an absence")]}
+        if present is False:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("SAM hive", f"{sam_path} not found")]}
+        rc, out, err = _ps(f"icacls '{sam_path}'", timeout=10)
+        if rc != 0 or not out or "Failed processing" in out:
+            return {"status": "Unknown", "color": "amber", "available": False,
+                    "details": [("SAM ACL",
+                                 f"icacls could not read the ACL: "
+                                 f"{(out or err or '').strip()[:60]}")]}
+        users_lines = [line for line in out.splitlines()
+                       if "BUILTIN\\Users" in line]
+        has_users_read = any(marker in line for line in users_lines
+                             for marker in (":(R", ":(F)", ":(M)", "(RX)"))
         if not has_users_read:
             return {"status": "Restricted (safe)", "color": "green",
-                    "details": [("SAM ACL", "BUILTIN\\Users not readable")], "enabled": True}
+                    "available": True, "enabled": True,
+                    "details": [("SAM ACL", "BUILTIN\\Users has no read access")]}
         return {"status": "Exposed (vulnerable)", "color": "red",
-                "details": [("SAM ACL", "BUILTIN\\Users has read access!")], "enabled": False}
+                "available": True, "enabled": False,
+                "details": [("SAM ACL", "BUILTIN\\Users has read access!")]}
     except Exception:
-        return {"status": "Unknown", "color": "amber", "details": [("HiveNightmare", "Check failed")]}
+        return {"status": "Unknown", "color": "amber", "available": False,
+                "details": [("HiveNightmare", "Check failed")]}
 
 def check_ntlm_relay_protection() -> Dict[str, Any]:
     """NTLM relay attack mitigations (PetitPotam, DFSCoerce, etc.)."""

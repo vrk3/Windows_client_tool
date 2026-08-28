@@ -22,9 +22,7 @@ sys.path.insert(0, os.path.join(
 
 from modules.security_dashboard import security_reader, snapshots  # noqa: E402
 from modules.security_dashboard.catalog import NOT_A_CONTROL, load_catalog  # noqa: E402
-from modules.security_dashboard.catalog.model import Category  # noqa: E402
 
-TASK_6 = (Category.DEFENDER, Category.EXPLOIT_CVE)
 
 
 def is_elevated() -> bool:
@@ -72,8 +70,6 @@ def probe() -> dict:
     t0 = time.time()
     rows = {}
     for cid, control in load_catalog().items():
-        if control.category not in TASK_6:
-            continue
         started = time.time()
         value = control.read()
         raw = control.reader() or {}

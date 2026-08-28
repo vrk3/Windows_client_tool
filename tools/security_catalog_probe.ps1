@@ -5,6 +5,7 @@
 # nothing to this machine except the two files named below.
 $repo = 'C:\Users\iorda\source\repos\Windows_client_tool'
 $json = Join-Path $repo 'tools\_probe_elevated.json'
+# (evidence is copied into .superpowers/sdd/ after each run)
 $log  = Join-Path $repo 'tools\_probe_elevated.log'
 
 Set-Location $repo
