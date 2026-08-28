@@ -84,3 +84,6 @@ logs/
 
 # ── Project-specific runtime artifacts ───────────────────────────────────────
 config/user_config.json
+
+# security catalog probe output (evidence lives in .superpowers/sdd/)
+tools/_probe_*
