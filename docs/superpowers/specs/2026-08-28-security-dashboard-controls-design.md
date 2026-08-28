@@ -87,9 +87,26 @@ at ~line 2599):
 | `check_fast_startup` | 2441, 2742 | 2742 |
 
 This is the same shape as the `shell.py` duplicate-method bug from phase 1: both
-definitions are syntactically fine, the suite stays green, and the answer is
-decided by file order. There is already an AST test for this over `ui/` modules
-only. It gets extended to every module (§7.2).
+definitions are syntactically fine and the suite stays green. There is already an
+AST test for this over `ui/` modules only. It gets extended to every module (§7.2).
+
+**Corrected 2026-08-28, after implementation.** This section originally said the
+answer was "decided by file order", implying the pane might show either verdict.
+That was wrong, and resolving the duplicates established what is actually true:
+all ten *losing* definitions were **dead code**. No dict, registry, alias or
+string lookup referenced any of the ten names anywhere in `src/`, so the second
+definition always won at import and the pane was consistently showing it. The
+damage was narrower than claimed and concentrated in one place — `check_fast_startup`,
+whose live definition mapped an **absent** `HiberbootEnabled` value to
+"Disabled"/green. That is this project's recurring defect, not a duplication
+defect: *a refused or missing read reported as a good verdict.* The surviving
+definition returns "Not Configured".
+
+Widening the AST test found an eleventh instance the ten never hinted at:
+`ServicesModule._do_refresh` in `src/modules/services_manager/services_module.py`,
+defined twice with byte-identical bodies. The `ui/`-only scope of the old test is
+why nobody had seen it. That is the argument for §7.2 restated as evidence: the
+test's value was not in fixing the ten it was written for.
 
 **B. The write path cannot tell you a change failed.** `TweakEngine._apply_command`
 and `_apply_script` both run `subprocess.run(cmd, shell=True, check=False,
