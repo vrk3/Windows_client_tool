@@ -541,3 +541,38 @@ def test_a_refused_process_mitigation_read_is_recorded_as_a_reason(monkeypatch):
 
     assert snapshots.process_mitigation() == {}
     assert "Access is denied" in snapshots.unavailable("process_mitigation")
+
+
+# The real first 200 characters of `Get-SpeculationControlSettings |
+# ConvertTo-Json` on this machine, 2026-08-28. The cmdlet writes a human
+# report to the HOST and returns its object afterwards, so stdout begins with
+# prose and the JSON parse fails -- on a machine where the module IS installed
+# and the data IS available. Every one of the fourteen CVE readers then said
+# "could not determine".
+REAL_CHATTY_SPECULATION_OUTPUT = (
+    "For more information about the output below, please refer to "
+    "https://support.microsoft.com/help/4074629\n\n"
+    "Speculation control settings for CVE-2017-5715 [branch target injection]\n"
+    "Hardware support for branch target injection mitigation is present: True\n"
+    '{"BTIHardwarePresent":true,"BTIWindowsSupportPresent":true}'
+)
+
+
+def test_the_speculation_command_suppresses_the_cmdlets_human_report():
+    """Whatever shape the command takes, it must not hand ConvertTo-Json's
+    output to the parser with a page of prose in front of it."""
+    assert ("-Quiet" in snapshots._SPECULATION_CONTROL_CMD
+            or "6>$null" in snapshots._SPECULATION_CONTROL_CMD), (
+        "Get-SpeculationControlSettings writes its report to the host; "
+        "nothing here suppresses it")
+
+
+def test_prose_in_front_of_the_json_is_a_reason_not_data(monkeypatch):
+    """If it ever happens again it must read as 'could not determine', never
+    as an empty-but-successful answer."""
+    monkeypatch.setattr(
+        snapshots, "_ps",
+        lambda cmd, timeout=30: (0, REAL_CHATTY_SPECULATION_OUTPUT, ""))
+
+    assert snapshots.speculation_control() == {}
+    assert snapshots.unavailable("speculation_control") is not None

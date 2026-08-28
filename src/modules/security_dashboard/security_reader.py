@@ -3070,6 +3070,28 @@ def _speculation_fallback_details(d: Dict[str, Any]) -> List[Tuple[str, str]]:
     return lines
 
 
+def _speculation_status(raw) -> str:
+    """Classify a SYSTEM_SPECULATION_CONTROL_*_STATUS string.
+
+    Returns "immune", "mitigated", "disabled" or "unknown".
+
+    DISABLED is tested BEFORE mitigated, and that is the whole point: the
+    string SYSTEM_SPECULATION_CONTROL_SRSO_MITIGATION_DISABLED contains the
+    substring "MITIGATION", so a naive `"MITIGATION" in status` classified an
+    explicitly disabled mitigation as mitigated.
+    """
+    text = str(raw or "").upper()
+    if not text:
+        return "unknown"
+    if "IMMUNE" in text or "NOT_AFFECTED" in text or "NOT_APPLICABLE" in text:
+        return "immune"
+    if "DISABLED" in text or "NOT_SUPPORTED" in text:
+        return "disabled"
+    if "MITIGATED" in text or "ENABLED" in text:
+        return "mitigated"
+    return "unknown"
+
+
 def _speculation_read(cve_label: str, required_field: str):
     """(data, unavailable_response_or_None) for one CVE reader.
 
@@ -3196,9 +3218,27 @@ def check_swapgs() -> Dict[str, Any]:
         d, unavailable = _speculation_read("SWAPGS", "BhbEnabled")
         if unavailable is not None:
             return unavailable
-        bhb = d.get("BhbEnabled", False) or d.get("BhbDisabledSystemPolicy") is False
-        return {"status": "Mitigated" if bhb else "N/A", "color": "green" if bhb else "amber",
-                "available": True, "details": [("BHB Mitigation", "Enabled" if bhb else "N/A")]}
+        # `BhbEnabled or BhbDisabledSystemPolicy is False` used to be the test,
+        # which reads "no policy turned it off" as "it is on" -- and that
+        # second clause is True on any machine with no such policy, so this
+        # rendered GREEN with BhbEnabled False. The mitigation's own flag is
+        # the only thing that says it is running.
+        enabled = bool(d.get("BhbEnabled", False))
+        by_policy = bool(d.get("BhbDisabledSystemPolicy", False))
+        no_hardware = bool(d.get("BhbDisabledNoHardwareSupport", False))
+        if enabled:
+            status, color = "Mitigated", "green"
+        elif by_policy:
+            status, color = "Disabled by policy", "red"
+        elif no_hardware:
+            status, color = "Not applicable (no hardware support)", "green"
+        else:
+            status, color = "Not enabled", "amber"
+        return {"status": status, "color": color, "available": True,
+                "details": [("BHB Mitigation", status),
+                            ("BhbEnabled", str(enabled)),
+                            ("Disabled by policy", str(by_policy))],
+                "enabled": enabled}
     except Exception:
         # "N/A" here (not "Unknown") used to be swept into the aggregate's
         # "mitigated" bucket by its "N/A" substring check -- an unexpected
@@ -3254,9 +3294,29 @@ def check_mmio_stale_data() -> Dict[str, Any]:
         d, unavailable = _speculation_read("MMIO", "FBClearWindowsSupportPresent")
         if unavailable is not None:
             return unavailable
-        ok = d.get("FBClearWindowsSupportPresent", False)
-        return {"status": "Mitigated" if ok else "N/A", "color": "green" if ok else "amber",
-                "available": True, "details": [("Fill Buffer Clear", "Present" if ok else "N/A")]}
+        # Support being PRESENT is the mitigation shipping, not the mitigation
+        # running. This reported "Mitigated / green" off the present flag
+        # alone, on a machine whose FBClearWindowsSupportEnabled is False.
+        present = bool(d.get("FBClearWindowsSupportPresent", False))
+        enabled = bool(d.get("FBClearWindowsSupportEnabled", False))
+        vulnerable_fields = ("SBDRSSDPHardwareVulnerable",
+                             "FBSDPHardwareVulnerable",
+                             "PSDPHardwareVulnerable")
+        reported = [f for f in vulnerable_fields if f in d]
+        hw_vulnerable = [f for f in reported if d.get(f)]
+        details = [("Fill Buffer Clear support",
+                    "Present" if present else "Absent"),
+                   ("Fill Buffer Clear enabled", "Yes" if enabled else "No")]
+        details += [(f, str(d.get(f))) for f in reported]
+        if reported and not hw_vulnerable:
+            return {"status": "Not vulnerable (hardware)", "color": "green",
+                    "available": True, "details": details, "enabled": True}
+        if enabled:
+            return {"status": "Mitigated", "color": "green", "available": True,
+                    "details": details, "enabled": True}
+        return {"status": "Not enabled" if present else "No OS support",
+                "color": "amber", "available": True,
+                "details": details, "enabled": False}
     except Exception:
         # Same reasoning as check_swapgs's except-branch above: "N/A" read
         # as "mitigated" to the aggregate's classifier, so an exception here
@@ -3298,13 +3358,20 @@ def check_inception() -> Dict[str, Any]:
         d, unavailable = _speculation_read("Inception", "SrsoStatus")
         if unavailable is not None:
             return unavailable
-        srso = str(d.get("SrsoStatus", "")).upper()
-        mitigated = "MITIGATION" in srso or "IMMUNE" in srso
-        return {"status": "Mitigated" if mitigated else "Disabled",
-                "color": "green" if mitigated else "amber", "available": True,
-                "details": [("SRSO Status", str(d.get("SrsoStatus", "N/A")))]}
+        # `"MITIGATION" in srso` matched SRSO_MITIGATION_DISABLED, so a status
+        # that says the mitigation is DISABLED rendered as Mitigated, green,
+        # on an AMD machine -- and Inception is an AMD Zen 3/4 flaw.
+        raw = d.get("SrsoStatus")
+        labels = {"immune": ("Not vulnerable (hardware immune)", "green", True),
+                  "mitigated": ("Mitigated", "green", True),
+                  "disabled": ("Mitigation disabled", "red", False),
+                  "unknown": (f"Unknown ({raw})", "amber", False)}
+        status, color, ok = labels[_speculation_status(raw)]
+        return {"status": status, "color": color, "available": True,
+                "details": [("SRSO Status", str(raw or "N/A"))], "enabled": ok}
     except Exception:
-        return {"status": "Unknown", "color": "amber", "details": [("Inception", "N/A")]}
+        return {"status": "Unknown", "color": "amber", "available": False,
+                "details": [("Inception", "Check failed")]}
 
 def check_rfds() -> Dict[str, Any]:
     """RFDS (CVE-2023-28746) — Register File Data Sampling (Atom)."""

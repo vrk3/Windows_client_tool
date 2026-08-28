@@ -165,7 +165,17 @@ def process_mitigation() -> Dict[str, Any]:
 _SPECULATION_CONTROL_CMD = (
     "if (Get-Command Get-SpeculationControlSettings -ErrorAction SilentlyContinue) {"
     " Import-Module SpeculationControl -Force -ErrorAction SilentlyContinue | Out-Null;"
-    " Get-SpeculationControlSettings | ConvertTo-Json -Compress"
+    # The cmdlet writes a page of human-readable findings to the HOST and
+    # returns its object afterwards, so plain `| ConvertTo-Json` produces
+    # prose followed by JSON and the parse fails -- which is how a machine
+    # with the module INSTALLED still reported "could not determine" for all
+    # fourteen CVE readers. -Quiet returns the object only; the 6>$null form
+    # is the fallback for module versions predating that switch (Write-Host
+    # goes to the information stream on PowerShell 5+).
+    " if ((Get-Command Get-SpeculationControlSettings).Parameters.ContainsKey('Quiet')) {"
+    " Get-SpeculationControlSettings -Quiet | ConvertTo-Json -Compress"
+    " } else {"
+    " Get-SpeculationControlSettings 6>$null | ConvertTo-Json -Compress }"
     " } else {"
     " $mm = Get-ItemProperty -Path "
     "'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management' "
