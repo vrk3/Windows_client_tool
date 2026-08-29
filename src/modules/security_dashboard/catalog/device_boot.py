@@ -227,13 +227,25 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="smartscreen",
-        title="SmartScreen",
+        title="SmartScreen enforced by policy",
         category=Category.DEVICE_BOOT,
-        description="Checks downloaded programs and visited sites against "
-                    "Microsoft's reputation service.",
+        description="Whether SmartScreen -- Microsoft's reputation check on "
+                    "downloaded programs and visited sites -- is pinned on by "
+                    "policy. \"Not configured\" means the policy is absent, "
+                    "not that SmartScreen is off: Windows has its own default, "
+                    "which this control neither reads nor writes.",
         why_it_matters="It is the warning that appears before somebody runs "
-                       "the installer they were emailed.",
+                       "the installer they were emailed. Set by policy, it "
+                       "cannot be turned off in Settings.",
         reader=check_smartscreen,
+        # "Not Configured" is the policy value being absent, which for a
+        # control whose steps write exactly that value is False. Without this
+        # the reader returns no `enabled` on that path, read() is None,
+        # staging records no prior value, and the verify pass compares None
+        # against True -- reporting APPLIED_UNVERIFIED however well the write
+        # landed. A writable control that could never be verified.
+        read_value=lambda d: (d["enabled"] if "enabled" in d
+                              else d.get("status") == "Enabled"),
         on_steps=(_dword(_SMARTSCREEN_POLICY, "EnableSmartScreen", 1),),
         off_steps=(_dword(_SMARTSCREEN_POLICY, "EnableSmartScreen", 0),),
         desired=True,
@@ -326,6 +338,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="crash_dump_encryption",
+        read_value=lambda d: d.get("status"),
         title="Crash dump encryption",
         category=Category.DEVICE_BOOT,
         description="Whether kernel crash dumps are written encrypted.",
@@ -341,6 +354,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="ntp_sync",
+        read_value=lambda d: d.get("status"),
         title="Time synchronisation",
         category=Category.DEVICE_BOOT,
         description="Whether the clock is synchronised, and against what.",
@@ -355,6 +369,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="windows_update_policy",
+        read_value=lambda d: d.get("status"),
         title="Windows Update automatic install policy",
         category=Category.DEVICE_BOOT,
         description="The AUOptions policy value, when one is set.",

@@ -314,6 +314,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="network_profile",
+        read_value=lambda d: d.get("status"),
         title="Network profile (Public / Private)",
         category=Category.FIREWALL_NETWORK,
         description="Which firewall profile the current network uses. Public "

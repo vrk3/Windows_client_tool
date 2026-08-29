@@ -87,3 +87,6 @@ config/user_config.json
 
 # security catalog probe output (evidence lives in .superpowers/sdd/)
 tools/_probe_*
+# security_catalog_check.ps1 / security_roundtrip_llmnr.ps1 write these
+tools/_check_elevated.*
+tools/_roundtrip_elevated.*

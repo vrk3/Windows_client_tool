@@ -358,6 +358,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
     # -- read-only, each with the reason -----------------------------------
     SecurityControl(
         id="ps_constrained_language",
+        read_value=lambda d: d.get("status"),
         title="PowerShell Constrained Language Mode",
         category=Category.ACCOUNTS,
         description="Restricts PowerShell to a subset of the language with no "

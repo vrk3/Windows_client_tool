@@ -464,6 +464,7 @@ CONTROLS: Tuple[SecurityControl, ...] = (
 
     SecurityControl(
         id="defender_engine_version",
+        read_value=lambda d: d.get("status"),
         title="Defender engine version",
         category=Category.DEFENDER,
         description="The version of the Defender scanning engine currently "

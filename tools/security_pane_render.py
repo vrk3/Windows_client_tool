@@ -24,7 +24,7 @@ from modules.security_dashboard.security_module import (  # noqa: E402
     SecurityDashboardModule)
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "ui-pane"
-TABS = ["Device & Boot", "Defender", "Accounts & Credentials"]
+TABS = ["Defender", "Exploit & CVE", "History"]
 
 
 def settle(ms=800):
@@ -60,6 +60,17 @@ def main() -> int:
         settle()
 
         for name in TABS:
+            if name == "History":
+                for index in range(module._tabs.count()):
+                    if module._tabs.tabText(index) == "History":
+                        module._tabs.setCurrentIndex(index)
+                        break
+                settle()
+                safe = "history"
+                path = os.path.join(OUT, f"pane-{theme}-{safe}.png")
+                widget.grab().save(path)
+                print("wrote", path)
+                continue
             module.show_category_tab(name)
             # the read is on a pool thread; give it time to come back
             for _ in range(60):
