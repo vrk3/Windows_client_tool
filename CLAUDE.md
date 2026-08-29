@@ -421,6 +421,22 @@ to prevent; `test_command_unknown_still_explains_itself` pins that.
   means not installed (→ `not_applicable`); `None` means the query itself failed
   (→ `unknown`). Collapsing the two tells the user a service is absent when it is
   merely unreadable.
+- **A revert undoes the KEY as well as the value.** `StepRecord.key_created`
+  records, at apply time, that `CreateKeyEx` made the key — `BackupOutcome.ok`
+  with `exported` False means there was no key to export. `revert_step` then
+  removes it, but only when it deleted the value, only when the key is empty
+  *right now*, and never a parent. It is not inferable at revert time: a key's
+  mere existence can be the whole point (`pol_parser` meets key-only policy
+  records on this machine), so deleting an empty key the app did not create
+  would be a change dressed up as an undo. Without this, an elevated LLMNR
+  round-trip reported "back to exactly what it was" while leaving
+  `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient` behind, empty.
+- **`backup_registry_key` returns a `BackupOutcome`, and `ok` is not
+  `exported`.** `reg export` answers rc=1 both for a key that is not there and
+  for one it was refused (measured: a missing key and `HKLM\SECURITY` are
+  indistinguishable by return code), so the key's existence is checked
+  separately. "Nothing to back up" is fine; "no way back" is logged at ERROR
+  naming the key about to change.
 
 **`applies_to`** (optional, per tweak) gates on the machine, evaluated by
 `os_context.py`: `min_build` / `max_build` (a build number or an alias like `"23H2"`,
