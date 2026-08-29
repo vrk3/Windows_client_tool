@@ -18,7 +18,27 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+from core.admin_utils import is_admin  # noqa: E402
+
 CREATION_FLAGS = 0x08000000  # CREATE_NO_WINDOW
+
+
+class _RefusalWeAlreadyKnew(Exception):
+    """Raised instead of spending five seconds to be told what we know.
+
+    A process cannot gain elevation while it runs, so an unelevated process
+    asking a namespace that only answers administrators has a certain answer
+    before it asks.
+    """
+
+
+#: Namespaces measured at a FIXED ~5s to refuse an ordinary user (2026-08-24,
+#: three attempts each; 2026-08-29, again, per tab open). Only these two --
+#: `root\Microsoft\Windows\Defender` answers unelevated and is not in here.
+_ELEVATION_ONLY_NAMESPACES = frozenset({
+    r"root\cimv2\Security\MicrosoftVolumeEncryption",
+    r"root\cimv2\Security\MicrosoftTpm",
+})
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -71,6 +91,12 @@ def _wmi_namespace(namespace: str):
     if remembered is not None:
         raise remembered
 
+    if namespace in _ELEVATION_ONLY_NAMESPACES and not is_admin():
+        # The 5 seconds buys nothing: this namespace does not answer ordinary
+        # users, and elevation cannot arrive mid-process. Opening Device &
+        # Boot cost 16.79s against 1.9s elevated, almost all of it here.
+        raise _RefusalWeAlreadyKnew(namespace)
+
     import wmi
 
     try:
@@ -94,6 +120,8 @@ def _wmi_failure_reason(exc: Exception) -> str:
     crash. The wmi package has already classified it — access denied gets its
     own subclass — so the answer is there to be used rather than stringified.
     """
+    if isinstance(exc, _RefusalWeAlreadyKnew):
+        return NEEDS_ADMIN
     try:
         import wmi
 
@@ -258,7 +286,12 @@ def check_bitlocker() -> Dict[str, Any]:
             return {"status": "C: Unprotected", "color": "red", "details": details}
         return {"status": "Unknown", "color": "amber", "details": details}
     except Exception as e:
-        return {"status": _wmi_failure_reason(e), "color": "amber", "details": []}
+        # `available: False` is what stops read() falling through to
+        # read_value, whose `"Protected" in status` test answered False --
+        # "your system drive is NOT encrypted" -- for a reading nobody was
+        # allowed to take. It is the only control of the 149 that did this.
+        return {"status": _wmi_failure_reason(e), "color": "amber",
+                "available": False, "details": []}
 
 
 def check_secure_boot_tpm() -> Dict[str, Any]:
@@ -2212,6 +2245,12 @@ def _bitlocker_label(table: Dict[int, str], raw) -> str:
 
 
 def check_bitlocker_encryption() -> Dict[str, Any]:
+    if not is_admin():
+        # Get-BitLockerVolume takes a measured 5.41s to refuse an ordinary
+        # user — and refuses by exiting 0 with empty stdout, so the wait buys
+        # nothing but the answer we already have.
+        return {"status": NEEDS_ADMIN, "color": "amber", "available": False,
+                "details": [("BitLocker", NEEDS_ADMIN)]}
     try:
         rc, out, err = _ps("Get-BitLockerVolume | Select MountPoint,EncryptionMethod,VolumeStatus,ProtectionStatus | ConvertTo-Json -Compress", timeout=30)
         # Refused, this cmdlet ALSO exits 0: empty stdout and
