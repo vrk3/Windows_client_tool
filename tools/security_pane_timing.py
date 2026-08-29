@@ -45,6 +45,14 @@ def main() -> int:
           f"{sum(len(t.cards) for t in module._category_tabs.values())} cards "
           f"built over {len(module._category_tabs)} tabs")
 
+    # What opening the module does before any tab is clicked. The expensive
+    # optional_features snapshot (an ~8s DISM enumeration, needed by Windows
+    # Features and by telnet_client on Firewall & Network) is warmed here, so
+    # it overlaps with reading whichever tab is shown first instead of landing
+    # on it. Reading the tabs back-to-back below is the WORST case for that --
+    # a real user spends seconds looking at the first tab before clicking on.
+    module._start_snapshot_prefetch()
+
     print("\nper tab, first show (build + read):")
     total = 0.0
     for name, tab in module._category_tabs.items():

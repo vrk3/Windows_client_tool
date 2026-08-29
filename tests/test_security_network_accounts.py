@@ -142,6 +142,13 @@ def test_the_network_category_name_is_understood(powershell, raw, expected):
 # -- check_smbv1 -------------------------------------------------------------
 
 def test_a_refused_feature_list_is_not_a_probably(monkeypatch):
+    """Both sources refused. smbv1 now asks Get-SmbServerConfiguration first
+    (1.02s, and it answers an ordinary user) rather than building the 8s
+    feature list, so refusing the list alone is no longer the whole story --
+    this pins the case where nothing answers, which is the one that used to
+    produce a green "Probably Disabled"."""
+    monkeypatch.setattr(security_reader, "_ps",
+                        lambda cmd, timeout=30: (1, "", "Access is denied."))
     monkeypatch.setattr(snapshots, "optional_features", dict)
     monkeypatch.setattr(snapshots, "service_states",
                         lambda: {"lanmanserver": {"status": "Running"}})

@@ -684,8 +684,71 @@ def check_rdp() -> Dict[str, Any]:
         return {"status": f"Error: {e}", "color": "amber", "details": []}
 
 
+def _feature_list_in_hand() -> bool:
+    """Is the optional_features snapshot both BUILT and usable?
+
+    A refusal is cached like any other answer, so `name in _cache` alone says
+    "somebody asked", not "somebody got a list". Unelevated that is exactly
+    what happens -- the prefetch asks, DISM refuses, the empty result is
+    cached -- and reading it as "the list is in hand" sent both cheap readers
+    back to an unusable snapshot, which is how Firewall & Network's unreadable
+    count went UP after the cheap sources were added.
+    """
+    return ("optional_features" in snapshots._cache
+            and snapshots.unavailable("optional_features") is None)
+
+
+def _smbv1_from_server_config() -> Optional[Dict[str, Any]]:
+    """SMBv1's state without enumerating every optional feature on the box.
+
+    `Get-WindowsOptionalFeature -Online` is a DISM enumeration: 7.9s of the
+    8.8s Firewall & Network cost elevated, to read one control. This asks the
+    SMB server what it is doing instead -- 1.02s, measured, and it answers an
+    ordinary user, where the feature list needs elevation even to refuse.
+
+    Returns None when it could not get an answer, which is never the same as
+    "SMBv1 is off": "Disabled" is precisely the answer that would let somebody
+    stop worrying about EternalBlue.
+    """
+    rc, out, err = _ps(
+        "Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol "
+        "| ConvertTo-Json -Compress", timeout=20)
+    if rc != 0 or not out:
+        logger.debug("SMB server config unavailable (rc=%s): %s", rc, err)
+        return None
+    try:
+        data = json.loads(out)
+    except ValueError:
+        # rc 0 and unparseable: a cmdlet talking to the human as well as the
+        # pipeline. Get-SpeculationControlSettings does exactly this.
+        logger.debug("SMB server config did not parse: %r", out[:120])
+        return None
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    enabled = data.get("EnableSMB1Protocol")
+    if enabled is None:
+        return None
+    if enabled:
+        return {"status": "Enabled", "color": "red", "available": True,
+                "details": [("SMBv1", "On (vulnerable to EternalBlue)"),
+                            ("Read from", "Get-SmbServerConfiguration")],
+                "enabled": True}
+    return {"status": "Disabled", "color": "green", "available": True,
+            "details": [("SMBv1", "Off"),
+                        ("Read from", "Get-SmbServerConfiguration")],
+            "enabled": False}
+
+
 def check_smbv1() -> Dict[str, Any]:
     try:
+        # The feature list is the better answer -- it knows about the client
+        # half too -- but only worth having if somebody has already paid for
+        # it. Asking for it here is what BUILDS it.
+        if not _feature_list_in_hand():
+            cheap = _smbv1_from_server_config()
+            if cheap is not None:
+                return cheap
+
         features = snapshots.optional_features()
         reason = snapshots.unavailable("optional_features")
         if reason is not None:
@@ -703,7 +766,11 @@ def check_smbv1() -> Dict[str, Any]:
         return {"status": "Disabled", "color": "green", "available": True,
                 "details": [("SMBv1", "Off")], "enabled": False}
     except Exception as e:
-        return {"status": f"Error: {e}", "color": "amber", "details": []}
+        # A reader that threw took no reading. Without `available: False` this
+        # is the shape that published a refused BitLocker read as "not
+        # encrypted".
+        return {"status": f"Error: {e}", "color": "amber",
+                "available": False, "details": []}
 
 
 def check_network_protection_defender() -> Dict[str, Any]:
@@ -1614,8 +1681,43 @@ def check_remote_registry() -> Dict[str, Any]:
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
 
+def _telnet_from_disk() -> Optional[Dict[str, Any]]:
+    """Is the Telnet Client installed? Its binary is the feature's payload.
+
+    Installing the TelnetClient optional feature puts telnet.exe in System32,
+    and removing it takes the file away, so the file answers in 0.039s --
+    measured, unelevated -- where the feature list costs 8.10s to build and
+    needs elevation. Checked against the authoritative reading: the elevated
+    catalog run recorded telnet_client False, and telnet.exe is absent here.
+
+    None when the question could not be answered at all.
+    """
+    system_root = os.environ.get("SystemRoot")
+    if not system_root:
+        return None
+    # A 64-bit process reads the real System32; this app is 64-bit.
+    present = os.path.exists(os.path.join(system_root, "System32", "telnet.exe"))
+    if present:
+        return {"status": "Enabled", "color": "red", "available": True,
+                "details": [("Telnet Client", "Installed"),
+                            ("Read from", "System32\\telnet.exe")],
+                "enabled": True}
+    return {"status": "Not Installed", "color": "green", "available": True,
+            "details": [("Telnet Client", "Feature not present"),
+                        ("Read from", "System32\\telnet.exe")],
+            "enabled": False}
+
+
 def check_telnet() -> Dict[str, Any]:
     try:
+        # Only worth the feature list if somebody has already built it: it
+        # distinguishes Disabled from absent, where the binary cannot. Asking
+        # for it here is what costs 8.10s.
+        if not _feature_list_in_hand():
+            cheap = _telnet_from_disk()
+            if cheap is not None:
+                return cheap
+
         features = snapshots.optional_features()
         reason = snapshots.unavailable("optional_features")
         if reason is not None:
@@ -1630,7 +1732,10 @@ def check_telnet() -> Dict[str, Any]:
                 "color": "red" if enabled else "green", "available": True,
                 "details": [("Telnet Client", state)], "enabled": enabled}
     except Exception:
-        return {"status": "Error", "color": "amber", "details": []}
+        # No reading was taken; `available: False` keeps read() from falling
+        # through to read_value and inventing one.
+        return {"status": "Error", "color": "amber", "available": False,
+                "details": []}
 
 def check_smb_signing() -> Dict[str, Any]:
     try:

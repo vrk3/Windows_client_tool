@@ -8,6 +8,7 @@ Each toggle stores its previous state for per-setting revert.
 
 import ctypes
 import os
+import threading
 import re
 import tempfile
 from ctypes import wintypes
@@ -807,6 +808,9 @@ class SecurityDashboardModule(BaseModule):
         self._workers: list = []
         self._overview_worker = None
         self._loaded_overview = False
+        #: The optional_features snapshot is an 8s DISM enumeration;
+        #: it is warmed once, when the module is first opened.
+        self._snapshot_prefetch_started = False
         self._loaded_events = False
         #: The catalog, and the pane's own copy of what it last read. Both
         #: are what staging and the filters work off, so neither the machine
@@ -1249,7 +1253,41 @@ class SecurityDashboardModule(BaseModule):
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
+    def _start_snapshot_prefetch(self, run=None) -> None:
+        """Build the expensive optional_features snapshot off the tab reads.
+
+        `Get-WindowsOptionalFeature -Online` is a DISM enumeration of every
+        feature on the machine: 8.10s elevated, measured. Two tabs need it
+        (Windows Features, and `telnet_client` on Firewall & Network), so
+        whichever control asks first pays for it and the rest are free — which
+        put ~8s on a tab nobody would guess owns it.
+
+        `snapshots._cached` locks per name, so a tab that asks while this is
+        still running waits for THIS build instead of starting a second one.
+        Started when somebody opens the module, never at app launch: a user
+        who never visits this pane should not pay for a DISM enumeration.
+        """
+        if self._snapshot_prefetch_started:
+            return
+        self._snapshot_prefetch_started = True
+
+        def warm() -> None:
+            try:
+                snapshots.optional_features()
+            except Exception:
+                # An optimisation that failed. The tab that needs the list
+                # reports its own reading, exactly as it did before.
+                logger.debug("optional_features prefetch failed",
+                             exc_info=True)
+
+        if run is None:
+            def run(fn):
+                threading.Thread(target=fn, daemon=True,
+                                 name="security-snapshot-prefetch").start()
+        run(warm)
+
     def on_activate(self) -> None:
+        self._start_snapshot_prefetch()
         if not self._loaded_overview:
             self._loaded_overview = True
             self._refresh_overview()
