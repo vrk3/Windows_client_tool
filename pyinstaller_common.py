@@ -21,6 +21,14 @@ def get_datas(project_root: str) -> list:
         (os.path.join(project_root, "config"), "config"),
         (os.path.join(project_root, "src", "ui", "styles"), "ui/styles"),
         (os.path.join(project_root, "src", "modules", "tweaks", "definitions"), "modules/tweaks/definitions"),
+        # The Security Dashboard's baselines. JSON beside the catalog, loaded
+        # by profile.py relative to its own __file__ -- so without this entry
+        # the frozen build RUNS, the Baselines menu opens, and it says "No
+        # baselines are installed". Same trap as the hidden imports below:
+        # nothing looks broken, the feature is just quietly missing.
+        (os.path.join(project_root, "src", "modules", "security_dashboard",
+                      "catalog", "baselines"),
+         "modules/security_dashboard/catalog/baselines"),
     ]
 
 

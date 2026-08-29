@@ -143,3 +143,22 @@ def test_every_baseline_file_carries_a_description():
                   encoding="utf-8") as handle:
             data = json.load(handle)
         assert data.get("description", "").strip()
+
+
+def test_the_baselines_are_bundled_into_the_frozen_build():
+    """They are JSON beside the catalog, not code, so PyInstaller does not
+    find them by following imports. Without a datas entry the exe RUNS and the
+    Baselines menu says "No baselines are installed".
+
+    Caught by reading get_datas() before deploying a build -- a raw string
+    search over the exe proves nothing either way, because data files sit in
+    the PKG archive zlib-compressed. CArchiveReader(exe).toc is what shows
+    them.
+    """
+    import os as _os
+
+    import pyinstaller_common
+
+    root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    destinations = [dst for _src, dst in pyinstaller_common.get_datas(root)]
+    assert "modules/security_dashboard/catalog/baselines" in destinations

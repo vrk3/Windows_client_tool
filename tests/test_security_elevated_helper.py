@@ -127,3 +127,16 @@ def test_a_helper_that_crashed_says_so_rather_than_reporting_nothing(tmp_path):
     assert isinstance(result, BatchResult)
     assert "could not open its database" in result.error
     assert result.results == []
+
+
+def test_a_result_file_with_a_byte_order_mark_still_reads(tmp_path):
+    """The helper's own writes have no BOM, but a file that has been through
+    a Windows tool does, and json.load refuses it outright."""
+    path = tmp_path / "r.json"
+    path.write_bytes(b"\xef\xbb\xbf" + json.dumps({
+        "version": 1, "rp_id": "rp-9",
+        "results": [{"control_id": "llmnr", "state": "applied_verified",
+                     "requested": False, "observed": False,
+                     "reason": ""}]}).encode("utf-8"))
+    result = read_result_file(str(path))
+    assert result is not None and result.verified == 1

@@ -77,7 +77,12 @@ def read_result_file(path: str) -> Optional[BatchResult]:
     a refusal gets rendered as a success.
     """
     try:
-        with open(path, encoding="utf-8") as handle:
+        # utf-8-sig, not utf-8: a JSON file that has been through Notepad or
+        # PowerShell's Out-File carries a UTF-8 BOM, and json.load refuses it
+        # outright -- "Unexpected UTF-8 BOM". Found by running the FROZEN exe
+        # against a batch file PowerShell had written. utf-8-sig strips a BOM
+        # if there is one and is identical to utf-8 if there is not.
+        with open(path, encoding="utf-8-sig") as handle:
             payload = json.load(handle)
     except (OSError, ValueError) as exc:
         logger.warning("no usable result file at %s: %s", path, exc)
@@ -135,7 +140,8 @@ def run_from_file(batch_path: str, result_path: str) -> int:
 
     backup = None
     try:
-        with open(batch_path, encoding="utf-8") as handle:
+        # utf-8-sig for the same reason as read_result_file above.
+        with open(batch_path, encoding="utf-8-sig") as handle:
             batch = json.load(handle)
 
         catalog = load_catalog()

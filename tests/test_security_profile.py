@@ -100,3 +100,15 @@ def test_valid_json_that_is_not_a_profile_is_refused(tmp_path):
     path = tmp_path / "p.json"
     path.write_text('["not", "a", "profile"]')
     assert read_profile(str(path)) is None
+
+
+def test_a_profile_saved_by_a_windows_tool_still_loads(tmp_path, catalog):
+    """Notepad and PowerShell's Out-File both write a UTF-8 BOM, and json.load
+    refuses it: "Unexpected UTF-8 BOM". Found by running the FROZEN exe
+    against a batch file PowerShell had written -- and "Import profile..."
+    points at exactly the kind of file someone edits by hand.
+    """
+    path = tmp_path / "p.json"
+    path.write_bytes(b"\xef\xbb\xbf" + b'{"version": 1, "controls": {"a": false}}')
+    data = read_profile(str(path))
+    assert data is not None and data["controls"] == {"a": False}

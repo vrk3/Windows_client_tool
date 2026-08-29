@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import platform
+import sys
 from typing import Any, Dict, List, Optional
 
 from .staging import ChangeSet, diff_against
@@ -29,9 +30,27 @@ logger = logging.getLogger(__name__)
 
 PROFILE_VERSION = 1
 
+def _baseline_dir() -> str:
+    """Where the shipped baselines live, running from source or frozen.
+
+    PyInstaller puts data files under `sys._MEIPASS`, and a module inside the
+    PYZ has a `__file__` under there too -- but only if the files were bundled
+    at all. Both paths are checked so a build that forgot the datas entry
+    fails loudly here rather than showing an empty Baselines menu.
+    """
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "catalog", "baselines")
+    if os.path.isdir(here):
+        return here
+    bundled = getattr(sys, "_MEIPASS", None)
+    if bundled:
+        return os.path.join(bundled, "modules", "security_dashboard",
+                            "catalog", "baselines")
+    return here
+
+
 #: Baselines ship beside the catalog.
-_BASELINE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "catalog", "baselines")
+_BASELINE_DIR = _baseline_dir()
 
 
 def _app_version() -> str:
@@ -94,7 +113,10 @@ def read_profile(path: str) -> Optional[dict]:
     JSON file is a thing that happens.
     """
     try:
-        with open(path, encoding="utf-8") as handle:
+        # utf-8-sig, not utf-8: this is a file a person picked, quite possibly
+        # one they edited in Notepad or wrote with PowerShell's Out-File --
+        # both of which add a UTF-8 BOM that json.load refuses outright.
+        with open(path, encoding="utf-8-sig") as handle:
             data = json.load(handle)
     except (OSError, ValueError) as exc:
         logger.warning("not a usable profile at %s: %s", path, exc)
