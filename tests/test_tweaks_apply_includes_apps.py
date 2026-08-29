@@ -1,0 +1,152 @@
+"""Apply Selected has to include what is checked in the Apps tab.
+
+`_on_apply` collected `self._tab_widgets.values()`, and the Apps tab is added
+to the QTabWidget but never put into `_tab_widgets` -- so whatever was checked
+there was invisible to the only button most people press, and the answer was
+"Check at least one tweak to apply."
+"""
+import pytest
+
+from modules.tweaks.tweaks_module import TweaksModule
+
+
+class _Backup:
+    def __init__(self):
+        self.points = []
+
+    def create_restore_point(self, label, module):
+        self.points.append((label, module))
+        return "rp-1"
+
+    def record_steps(self, *a, **k):
+        pass
+
+    def backup_registry_key(self, *a, **k):
+        pass
+
+    def backup_appx_package(self, *a, **k):
+        pass
+
+
+class _Config:
+    def get(self, key, default=None):
+        return default
+
+    def set(self, *a, **k):
+        pass
+
+    def save(self):
+        pass
+
+
+class _Pool:
+    def __init__(self):
+        self.started = []
+
+    def start(self, worker):
+        self.started.append(worker)
+
+
+class _App:
+    def __init__(self):
+        self.backup = _Backup()
+        self.config = _Config()
+        self.thread_pool = _Pool()
+        self.event_bus = None
+
+
+@pytest.fixture
+def module(qapp):
+    mod = TweaksModule()
+    mod.on_start(_App())
+    mod._held = mod.create_widget()
+    # No modal dialogs: a .exec() from a handler waits for a click that is
+    # never coming.
+    mod._confirm_app_changes = lambda changes: True
+    mod._warn_nothing_selected = lambda: mod._warned.append(1)
+    mod._warned = []
+    yield mod
+    mod.on_stop()
+
+
+def _queue_an_app_removal(module, package="Microsoft.BingSearch"):
+    module._app_tab.populate_installed({package})
+    from PyQt6.QtCore import Qt
+    item = module._app_tab._installed_list.item(0)
+    item.setCheckState(Qt.CheckState.Checked)
+    return package
+
+
+def test_apply_with_nothing_checked_anywhere_still_says_so(module):
+    module._on_apply()
+    assert module._warned == [1]
+    assert module.app.thread_pool.started == []
+
+
+def test_a_queued_app_removal_is_enough_to_apply(module):
+    """This is the reported bug: checked in Apps, and Apply Selected said
+    nothing was selected."""
+    _queue_an_app_removal(module)
+    module._on_apply()
+    assert module._warned == [], "it refused work that was actually queued"
+    assert len(module.app.thread_pool.started) == 1
+
+
+def test_the_apps_tabs_own_button_applies_too(module):
+    """It was connected to nothing at all."""
+    _queue_an_app_removal(module)
+    module._app_tab.apply_requested.emit()
+    assert len(module.app.thread_pool.started) == 1
+
+
+def test_the_work_reaches_the_catalog(module):
+    """`install_app` and `remove_appx` were implemented and never called."""
+    removed, installed = [], []
+    module._catalog.remove_appx = lambda pkg, on_output=None: removed.append(pkg) or True
+    module._catalog.install_app = lambda wid, on_output=None: installed.append(wid) or True
+
+    _queue_an_app_removal(module, "Microsoft.ZuneMusic")
+    module._app_tab._install_queue.add("VideoLAN.VLC")
+    module._on_apply()
+
+    worker = module.app.thread_pool.started[0]
+    worker.run()
+    assert removed == ["Microsoft.ZuneMusic"]
+    assert installed == ["VideoLAN.VLC"]
+
+
+def test_a_removal_that_failed_is_reported_not_swallowed(module):
+    module._catalog.remove_appx = lambda pkg, on_output=None: False
+    _queue_an_app_removal(module, "Microsoft.ZuneMusic")
+    module._on_apply()
+    worker = module.app.thread_pool.started[0]
+    reported = []
+    worker.signals.result.connect(reported.append)   # run() reports by signal
+    worker.run()
+    text = " ".join(str(e) for e in (reported[0] if reported else []))
+    assert "Microsoft.ZuneMusic" in text
+
+
+def test_a_restore_point_is_taken_before_touching_anything(module):
+    _queue_an_app_removal(module)
+    module._on_apply()
+    assert module.app.backup.points, "no way back was recorded"
+
+
+def test_destructive_app_changes_are_confirmed_first(module):
+    """Removing somebody's applications is not a thing to do on one click."""
+    asked = []
+    module._confirm_app_changes = lambda changes: asked.append(changes) or False
+    _queue_an_app_removal(module)
+    module._on_apply()
+    assert asked and asked[0]["remove"] == ["Microsoft.BingSearch"]
+    assert module.app.thread_pool.started == [], "declined, but it ran anyway"
+
+
+def test_the_queue_is_cleared_once_the_work_is_done(module):
+    module._catalog.remove_appx = lambda pkg, on_output=None: True
+    _queue_an_app_removal(module)
+    module._on_apply()
+    module.app.thread_pool.started[0].run()
+    module._on_apply_result([])
+    assert not module._app_tab.has_queued_changes()

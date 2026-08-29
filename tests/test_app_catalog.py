@@ -62,3 +62,54 @@ def test_get_appx_packages_parses_output(catalog_path):
     result = c._parse_appx_list(fake)
     assert "Microsoft.3DViewer" in result
     assert "Microsoft.XboxGameBar" in result
+
+
+# --- removal has to be verified, not assumed -------------------------------
+#
+# `Get-AppxPackage 'Microsoft.NoSuchThing' | Remove-AppxPackage` exits 0 and
+# prints nothing, so returning `rc == 0` reported a removal that never
+# happened -- and the Tweaks Apps tab then said "Everything applied
+# successfully". Measured on this machine, not assumed.
+
+class _Recorder:
+    """Stands in for subprocess.run: canned answers, in call order."""
+
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.calls = []
+
+    def __call__(self, args, **kwargs):
+        self.calls.append(args)
+        rc, out, err = self.answers.pop(0)
+        return type("P", (), {"returncode": rc, "stdout": out, "stderr": err})()
+
+
+def test_a_removal_that_left_the_package_there_is_not_a_success(monkeypatch,
+                                                               catalog_path):
+    from modules.tweaks.app_catalog import AppCatalog
+    recorder = _Recorder([(0, "", ""),                    # the removal
+                          (0, "Microsoft.BingSearch", "")])  # still installed
+    monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
+    c = AppCatalog(catalog_path=catalog_path)
+    assert c.remove_appx("Microsoft.BingSearch") is False
+    assert len(recorder.calls) == 2, "it never checked whether the package went"
+
+
+def test_a_removal_that_actually_removed_it_is_a_success(monkeypatch,
+                                                         catalog_path):
+    from modules.tweaks.app_catalog import AppCatalog
+    recorder = _Recorder([(0, "", ""), (0, "", "")])   # gone afterwards
+    monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
+    c = AppCatalog(catalog_path=catalog_path)
+    assert c.remove_appx("Microsoft.BingSearch") is True
+
+
+def test_a_refusal_is_reported_with_its_reason(monkeypatch, catalog_path):
+    from modules.tweaks.app_catalog import AppCatalog
+    recorder = _Recorder([(0, "", "Access is denied."),
+                          (0, "Microsoft.BingSearch", "")])
+    monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
+    c = AppCatalog(catalog_path=catalog_path)
+    lines = []
+    assert c.remove_appx("Microsoft.BingSearch", on_output=lines.append) is False
+    assert any("Access is denied" in line for line in lines)

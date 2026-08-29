@@ -145,6 +145,15 @@ class AppCatalog:
 
     def remove_appx(self, package_name: str,
                     on_output: Optional[callable] = None) -> bool:
+        """Remove a package, then check that it is actually gone.
+
+        `Get-AppxPackage 'Microsoft.NoSuchThing' | Remove-AppxPackage` exits
+        **0** and prints nothing — measured on this machine. So returning
+        `rc == 0` reported a removal that never happened, and the caller went
+        on to say "applied successfully". The package list is the only thing
+        that settles it: if the package is still there, the removal failed,
+        whatever PowerShell's exit code says.
+        """
         cmd = f"Get-AppxPackage '{package_name}' | Remove-AppxPackage"
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", cmd],
@@ -154,7 +163,18 @@ class AppCatalog:
         if on_output:
             for line in (result.stdout + result.stderr).splitlines():
                 on_output(line)
-        return result.returncode == 0
+
+        check = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"Get-AppxPackage '{package_name}' | "
+             "Select-Object -ExpandProperty Name"],
+            capture_output=True, text=True, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        still_there = bool((check.stdout or "").strip())
+        if still_there and on_output:
+            on_output(f"{package_name} is still installed after the removal")
+        return not still_there
 
     def _run_winget(self, args: List[str],
                     on_output: Optional[callable]) -> bool:
