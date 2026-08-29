@@ -68,6 +68,15 @@ HIDDEN_IMPORTS = [
     "modules.gpresult.snapshot_dialog",
     "modules.gpresult.gpupdate",
     "modules.gpresult.gpupdate_dialog",
+    # The Security Dashboard's elevated helper. main.py imports it inside
+    # main(), so that the ordinary GUI start does not pay for it, which means
+    # PyInstaller cannot see it. The trap here is worse than a missing tab:
+    # the frozen build launches its own exe with --apply-security-batch to get
+    # a single UAC prompt, and without this the ELEVATED child is the process
+    # that dies with ImportError — after the user has granted the prompt, in a
+    # window they cannot read, having written no result file. The pane would
+    # correctly report the outcome as unknown, forever.
+    "modules.security_dashboard.elevated_helper",
     # Imported inside a function in all five of its consumers — Hardware
     # Info, Reliability, Security Dashboard, Services and System Report —
     # every one of them behind a `try:` that degrades silently. Same trap as

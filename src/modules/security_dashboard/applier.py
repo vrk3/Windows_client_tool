@@ -43,6 +43,10 @@ class BatchResult:
     rp_id: str
     results: List[ControlResult] = field(default_factory=list)
     windows_restore_point: Optional[str] = None
+    #: Set only by the elevated helper, which cannot report to its parent any
+    #: way except through the result file: if the batch could not be run at
+    #: all, this is why. Empty results with no error means nothing was staged.
+    error: str = ""
 
     @property
     def verified(self) -> int:
