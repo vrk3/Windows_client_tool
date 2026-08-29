@@ -365,10 +365,30 @@ class TweakEngine:
                 win32service.SERVICE_QUERY_CONFIG | win32service.SERVICE_CHANGE_CONFIG)
             config = win32service.QueryServiceConfig(hs)
             before = config[1]
-            win32service.ChangeServiceConfig(
-                hs, win32service.SERVICE_NO_CHANGE,
-                new_start, win32service.SERVICE_NO_CHANGE,
-                None, None, False, None, None, None, None)
+            try:
+                win32service.ChangeServiceConfig(
+                    hs, win32service.SERVICE_NO_CHANGE,
+                    new_start, win32service.SERVICE_NO_CHANGE,
+                    None, None, False, None, None, None, None)
+            except Exception as e:
+                # Windows protects a few services beyond their own ACL, and
+                # refuses an elevated Administrator here. Measured with
+                # tools/service_config_probe.py: DoSvc refuses while
+                # RemoteRegistry, DiagTrack, SysMain, WSearch, MapsBroker,
+                # RetailDemo, WMPNetworkSvc and lfsvc all accept the identical
+                # call — and `sc sdshow DoSvc` grants Builtin Administrators
+                # DC (SERVICE_CHANGE_CONFIG), so the DACL is not what stops it.
+                # The raw pywin32 tuple reads as a bug in this app; it is not.
+                if getattr(e, "winerror", None) == 5:
+                    raise PermissionError(
+                        f"Windows refused to change the start type of "
+                        f"'{name}' even with administrator rights — it "
+                        "protects this service beyond its own permissions. "
+                        "Nothing was changed. Where Windows offers the same "
+                        "setting (Settings, or Group Policy), that is the way "
+                        "to change it."
+                    ) from e
+                raise
         finally:
             if hs:
                 win32service.CloseServiceHandle(hs)
