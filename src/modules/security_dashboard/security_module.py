@@ -800,7 +800,13 @@ class SecurityDashboardModule(BaseModule):
     name = "Security Dashboard"
     icon = "\U0001f6e1\ufe0f"
     description = "Windows security status overview with controls"
-    requires_admin = True
+    #: NOT admin-gated. `ModuleRegistry.start_all()` refuses to start a
+    #: module with this set, and that took the whole pane away from an
+    #: ordinary user -- while 112 of its 149 controls read fine unelevated,
+    #: and `_on_apply` has always handed writes to `run_elevated_batch()` for
+    #: exactly this case. Reads are best-effort and say what they could not
+    #: see; writes ask for elevation when somebody actually applies something.
+    requires_admin = False
     group = ModuleGroup.SYSTEM
 
     def __init__(self):
@@ -888,6 +894,17 @@ class SecurityDashboardModule(BaseModule):
         header_row.addWidget(refresh_btn)
         layout.addLayout(header_row)
         layout.addWidget(self._progress)
+
+        # Said once, up front. Per-control "Requires administrator" is true
+        # but scattered over seven tabs, and someone reading a partial view
+        # should be told it is partial before they trust it.
+        note = self._elevation_note()
+        if note:
+            self._elevation_label = QLabel(note)
+            self._elevation_label.setWordWrap(True)
+            self._elevation_label.setStyleSheet(
+                f"color: {semantic('warning')};")
+            layout.addWidget(self._elevation_label)
 
         layout.addWidget(self._build_filter_bar())
 
@@ -1605,12 +1622,9 @@ class SecurityDashboardModule(BaseModule):
         self._pending.apply_button.setEnabled(False)
 
         changes = changes_of(self._changeset)
-        elevated = is_admin()
 
         def job(_worker):
-            if elevated:
-                return self._apply_in_process()
-            return run_elevated_batch(changes)
+            return self._elevated_or_in_process(changes)
 
         worker = COMWorker(job)
         worker.signals.result.connect(self._on_batch_result)
@@ -1618,6 +1632,30 @@ class SecurityDashboardModule(BaseModule):
         worker.signals.finished.connect(self._on_batch_finished)
         self._workers.append(worker)
         self._dispatch(worker)
+
+    def _elevated_or_in_process(self, changes):
+        """Write here if we can, otherwise ask for one UAC prompt.
+
+        Reached unelevated for the first time now the pane is no longer
+        admin-gated: `run_elevated_batch` re-runs the batch elevated and
+        reports back through a file.
+        """
+        if is_admin():
+            return self._apply_in_process()
+        return run_elevated_batch(changes)
+
+    def _elevation_note(self) -> str:
+        """What to say up front about running without administrator rights.
+
+        Empty when elevated. Per-control "Requires administrator" is true but
+        scattered across seven tabs; this says once that the view is partial
+        and that applying will prompt.
+        """
+        if is_admin():
+            return ""
+        return ("Running without administrator rights — some settings cannot "
+                "be read, and are shown as unknown rather than guessed. "
+                "Applying a change will ask for elevation.")
 
     def _apply_in_process(self):
         from core.system_restore import create_restore_point
