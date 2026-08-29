@@ -15,6 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class BackupOutcome:
+    """What `backup_registry_key` actually managed to do.
+
+    `ok` answers "is there a way back", which is NOT the same as `exported`:
+    a key that does not exist yet needs no .reg file, because the way back
+    from creating a value is deleting it again.
+    """
+
+    ok: bool
+    exported: bool
+    path: str
+    reason: str
+
+
+@dataclass
 class StepRecord:
     step_type: str   # registry | service | appx | command | script | file | scheduled_task
     target: str
@@ -156,10 +171,33 @@ class BackupService:
             )
         self._conn.commit()
 
-    def backup_registry_key(self, key_path: str, restore_point_id: str) -> None:
+    def backup_registry_key(self, key_path: str,
+                            restore_point_id: str) -> "BackupOutcome":
+        """Export a key so there is a way back, and say what actually happened.
+
+        `reg export` answers rc=1 with an empty stdout for a key that is not
+        there AND for one it was refused — measured, on this machine — so the
+        return code alone cannot tell "nothing to back up" from "no way back".
+        Ask the registry which it is, the same way every other refusal in this
+        codebase is kept apart from an absent value.
+
+        Never raises: every caller today ignores the result.
+        """
         folder = self._get_restore_point_folder(restore_point_id)
         if folder is None:
-            return
+            return BackupOutcome(
+                False, False, "",
+                f"no restore point folder for {restore_point_id}")
+
+        exists = self._registry_key_exists(key_path)
+        if exists is False:
+            # Windows sitting at its default. The way back from creating a
+            # value here is deleting it again, which needs no .reg file.
+            return BackupOutcome(
+                True, False, "",
+                f"{key_path} does not exist yet, so there is nothing to "
+                "export; the way back is to remove what gets added")
+
         safe = key_path.replace("\\", "_").replace("/", "_")[:80]
         out = os.path.join(folder, "registry", f"{safe}.reg")
         result = subprocess.run(
@@ -168,7 +206,54 @@ class BackupService:
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if result.returncode != 0:
-            logger.warning("reg export failed (rc=%d) for %s", result.returncode, key_path)
+            # reg writes the reason to its own output; throwing it away is
+            # what made this a mystery in the round-trip log.
+            complaint = self._decode(result.stderr) or self._decode(result.stdout)
+            reason = (f"could not export {key_path} (exit "
+                      f"{result.returncode}): {complaint or 'no output'}")
+            logger.error("registry backup failed — no way back for %s: %s",
+                         key_path, complaint or f"exit {result.returncode}")
+            return BackupOutcome(False, False, out, reason)
+
+        return BackupOutcome(True, True, out, f"exported {key_path}")
+
+    @staticmethod
+    def _decode(raw) -> str:
+        if not raw:
+            return ""
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        return " ".join(raw.split())
+
+    @staticmethod
+    def _registry_key_exists(key_path: str) -> Optional[bool]:
+        """True / False / None when the question itself could not be answered."""
+        import winreg
+        hives = {
+            "HKLM": winreg.HKEY_LOCAL_MACHINE,
+            "HKEY_LOCAL_MACHINE": winreg.HKEY_LOCAL_MACHINE,
+            "HKCU": winreg.HKEY_CURRENT_USER,
+            "HKEY_CURRENT_USER": winreg.HKEY_CURRENT_USER,
+            "HKCR": winreg.HKEY_CLASSES_ROOT,
+            "HKEY_CLASSES_ROOT": winreg.HKEY_CLASSES_ROOT,
+            "HKU": winreg.HKEY_USERS,
+            "HKEY_USERS": winreg.HKEY_USERS,
+            "HKCC": winreg.HKEY_CURRENT_CONFIG,
+            "HKEY_CURRENT_CONFIG": winreg.HKEY_CURRENT_CONFIG,
+        }
+        hive_name, _, sub = key_path.partition("\\")
+        hive = hives.get(hive_name.upper())
+        if hive is None or not sub:
+            return None
+        try:
+            with winreg.OpenKey(hive, sub):
+                return True
+        except FileNotFoundError:
+            return False
+        except OSError:
+            # Access denied and friends: the key may well be there, and a
+            # refusal is not an absent value.
+            return None
 
     def backup_service_state(self, service_name: str, restore_point_id: str) -> None:
         folder = self._get_restore_point_folder(restore_point_id)

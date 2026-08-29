@@ -231,3 +231,69 @@ def test_record_steps_hex_encodes_binary_before_value(svc):
     svc.record_steps("t1", steps, rp_id)  # must not raise
     points = svc.list_restore_points()
     assert points[0].step_count == 1
+
+
+# --- a backup that did not happen must not look like one --------------------
+#
+# Seen in tools/_roundtrip_elevated.log, from the elevated LLMNR write:
+#
+#     reg export failed (rc=1) for
+#     HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
+#
+# ...and the apply carried straight on. `backup_registry_key` logged a warning
+# and returned None, so nothing upstream could tell these two apart:
+#
+#   * the key does not exist yet -- nothing to export, and the way back is
+#     "delete the value again". Perfectly fine.
+#   * the export was REFUSED -- there is no way back at all, and we are about
+#     to change the machine anyway.
+#
+# Measured here: `reg export` answers rc=1 with empty stdout for BOTH a
+# missing key and HKLM\SECURITY (denied), so the return code cannot tell them
+# apart either. Ask the registry whether the key is there.
+
+def test_backing_up_a_key_that_does_not_exist_is_not_a_failure(svc):
+    """Nothing to export, and that is a complete answer: the way back from
+    creating a value is deleting it again."""
+    rp_id = svc.create_restore_point("absent key", "Tweaks")
+    outcome = svc.backup_registry_key(
+        r"HKLM\SOFTWARE\NoSuchKeyAnywhere\Really", rp_id)
+    assert outcome.ok is True
+    assert outcome.exported is False
+    assert "does not exist" in outcome.reason.lower()
+
+
+def test_a_refused_export_is_reported_as_a_failure(svc):
+    """The key IS there and the export still failed -- so there is no way back
+    and it has to say so, not log a warning nobody reads."""
+    rp_id = svc.create_restore_point("denied key", "Tweaks")
+    with patch("core.backup_service.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout=b"", stderr=b"ERROR: Access is denied.")
+        outcome = svc.backup_registry_key(
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion", rp_id)
+    assert outcome.ok is False
+    assert outcome.exported is False
+    assert "access is denied" in outcome.reason.lower()
+
+
+def test_a_real_export_reports_the_file_it_wrote(svc):
+    """A key that exists and can be read: the .reg lands, and the outcome says
+    so. This is the only case that leaves a way back on disk."""
+    import os
+    rp_id = svc.create_restore_point("real key", "Tweaks")
+    outcome = svc.backup_registry_key(
+        r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+        rp_id)
+    assert outcome.ok is True
+    assert outcome.exported is True
+    assert os.path.exists(outcome.path), "it claimed an export with no file"
+    assert os.path.getsize(outcome.path) > 0
+
+
+def test_a_backup_never_raises_at_its_callers(svc):
+    """Every existing caller ignores the return value, so the old behaviour --
+    never raising, whatever happens -- has to hold."""
+    rp_id = svc.create_restore_point("ignored", "Tweaks")
+    svc.backup_registry_key(r"HKLM\SOFTWARE\NoSuchKeyAnywhere", rp_id)
+    svc.backup_registry_key(r"HKLM\SECURITY", rp_id)

@@ -283,7 +283,12 @@ class TweakEngine:
         except OSError:
             logger.debug("Ignored OSError", exc_info=True)
 
-        self._backup.backup_registry_key(full_key, rp_id)
+        outcome = self._backup.backup_registry_key(full_key, rp_id)
+        if not outcome.ok:
+            # Not fatal -- the step still applies -- but the log has to
+            # name the key we are changing with no way back to it.
+            logger.error("applying %s with NO registry backup: %s",
+                         full_key, outcome.reason)
 
         if kind == winreg.REG_BINARY and isinstance(data, str):
             text = data.strip()
@@ -323,7 +328,12 @@ class TweakEngine:
         except OSError:
             return None  # already gone — nothing to record, nothing to undo
 
-        self._backup.backup_registry_key(full_key, rp_id)
+        outcome = self._backup.backup_registry_key(full_key, rp_id)
+        if not outcome.ok:
+            # Not fatal -- the step still applies -- but the log has to
+            # name the key we are changing with no way back to it.
+            logger.error("applying %s with NO registry backup: %s",
+                         full_key, outcome.reason)
         with winreg.OpenKey(hive, sub, 0, winreg.KEY_SET_VALUE) as k:
             winreg.DeleteValue(k, value_name)
         return StepRecord("registry", full_key, before, None,
