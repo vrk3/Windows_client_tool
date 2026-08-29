@@ -6,15 +6,19 @@ to toggle Defender settings, firewall profiles, SmartScreen, and more.
 Each toggle stores its previous state for per-setting revert.
 """
 
+import ctypes
+import os
 import re
+import tempfile
+from ctypes import wintypes
 from datetime import datetime
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QMessageBox,
     QPushButton, QLabel, QFrame, QProgressBar, QCheckBox, QLineEdit,
-    QTabWidget, QTableWidget, QTableWidgetItem,
+    QPlainTextEdit, QTabWidget, QTableWidget, QTableWidgetItem,
     QGroupBox, QScrollArea, QSizePolicy, QStackedWidget,
 )
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
@@ -29,6 +33,7 @@ except ImportError:
 import logging
 logger = logging.getLogger(__name__)
 
+from core.admin_utils import is_admin
 from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
@@ -38,6 +43,10 @@ from ui.error_banner import ErrorBanner
 from modules.security_dashboard import snapshots
 from modules.security_dashboard.catalog import load_catalog
 from modules.security_dashboard.catalog.model import Category, ControlState
+from modules.security_dashboard.applier import apply_batch
+from modules.security_dashboard.elevated_helper import (
+    build_elevated_command, changes_of, read_result_file,
+    write_batch_file)
 from modules.security_dashboard.staging import ChangeSet
 from modules.security_dashboard.security_reader import (
     get_all_security_status,
@@ -386,6 +395,334 @@ class _StatusCard(QFrame):
 
 # ── Main Module ────────────────────────────────────────────────────────────
 
+
+
+# --- launching the elevated child ------------------------------------------
+
+class _ShellExecuteInfoW(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("fMask", ctypes.c_ulong),
+        ("hwnd", wintypes.HWND),
+        ("lpVerb", wintypes.LPCWSTR),
+        ("lpFile", wintypes.LPCWSTR),
+        ("lpParameters", wintypes.LPCWSTR),
+        ("lpDirectory", wintypes.LPCWSTR),
+        ("nShow", ctypes.c_int),
+        ("hInstApp", wintypes.HINSTANCE),
+        ("lpIDList", ctypes.c_void_p),
+        ("lpClass", wintypes.LPCWSTR),
+        ("hkeyClass", wintypes.HKEY),
+        ("dwHotKey", wintypes.DWORD),
+        ("hIcon", wintypes.HANDLE),
+        ("hProcess", wintypes.HANDLE),
+    ]
+
+
+_SEE_MASK_NOCLOSEPROCESS = 0x00000040
+_SEE_MASK_NOASYNC = 0x00000100
+_SW_HIDE = 0
+
+
+def run_elevated_batch(changes, timeout_ms: int = 15 * 60 * 1000):
+    """Run one batch through the elevated helper and read its report.
+
+    `ShellExecuteExW` rather than `ShellExecuteW`, for one reason:
+    SEE_MASK_NOCLOSEPROCESS hands back a process handle to wait on.
+    ShellExecuteW returns nothing waitable, so the only way to tell the child
+    had finished would be to poll for the result file -- which cannot
+    distinguish "still working" from "died before writing anything", and this
+    project has already been bitten by exactly that shape of guess.
+
+    Returns a BatchResult, or None when the helper reported nothing at all.
+    None means UNKNOWN: the caller re-reads and shows what the machine says.
+    """
+    folder = tempfile.mkdtemp(prefix="security-batch-")
+    batch_path = os.path.join(folder, "batch.json")
+    result_path = os.path.join(folder, "result.json")
+    write_batch_file(changes, batch_path)
+    executable, arguments = build_elevated_command(batch_path, result_path)
+
+    info = _ShellExecuteInfoW()
+    info.cbSize = ctypes.sizeof(info)
+    info.fMask = _SEE_MASK_NOCLOSEPROCESS | _SEE_MASK_NOASYNC
+    info.lpVerb = "runas"
+    info.lpFile = executable
+    info.lpParameters = arguments
+    info.nShow = _SW_HIDE
+
+    if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)):
+        # The commonest case by far is the user saying No to the prompt.
+        # Cancelling is not an error and must not be reported as one.
+        code = ctypes.get_last_error()
+        logger.info("the elevated helper was not started (error %s)", code)
+        return None
+
+    try:
+        ctypes.windll.kernel32.WaitForSingleObject(info.hProcess, timeout_ms)
+    finally:
+        ctypes.windll.kernel32.CloseHandle(info.hProcess)
+    return read_result_file(result_path)
+
+
+class PendingBar(QFrame):
+    """What is staged, and the two buttons that act on it.
+
+    Hidden until something is staged, so an untouched pane carries no chrome
+    it does not need.
+    """
+
+    apply_requested = pyqtSignal()
+    discard_requested = pyqtSignal()
+    review_requested = pyqtSignal()
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        # A bar added to a QVBoxLayout with no stretch factor and nothing
+        # Expanding takes an equal share of the surplus height -- the d57cdf2
+        # trap. Fixed vertically: it is a bar, not a pane.
+        self.setSizePolicy(QSizePolicy.Policy.Preferred,
+                           QSizePolicy.Policy.Fixed)
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(10, 6, 10, 6)
+        self.summary_label = QLabel("")
+        row.addWidget(self.summary_label, 1)
+
+        self.review_button = QPushButton("Review…")
+        self.review_button.clicked.connect(self.review_requested)
+        self.discard_button = QPushButton("Discard")
+        self.discard_button.clicked.connect(self.discard_requested)
+        self.apply_button = QPushButton("Apply")
+        self.apply_button.clicked.connect(self.apply_requested)
+        for button in (self.review_button, self.discard_button,
+                       self.apply_button):
+            row.addWidget(button)
+        self.hide()
+
+    def set_changeset(self, changeset) -> None:
+        count = len(changeset)
+        if not count:
+            self.hide()
+            return
+        parts = [f"{count} change{'s' if count != 1 else ''} staged"]
+        if changeset.unread_before:
+            parts.append(f"{len(changeset.unread_before)} could not be read "
+                         "beforehand")
+        if changeset.one_way_changes:
+            parts.append(f"{len(changeset.one_way_changes)} cannot be undone")
+        if changeset.needs_reboot:
+            parts.append("a restart is needed")
+        self.summary_label.setText(" — ".join(parts))
+        self.show()
+
+
+class ReviewDialog(QDialog):
+    """Exactly what will be written, before anything is.
+
+    The dialog shows the literal steps, because "apply 60 changes" is not
+    something anyone can consent to. It also separates three things that a
+    single count hides, all of which are real on this machine: changes that
+    differ from what you want (46 of a 60-change baseline) from ones whose
+    current value could not be read at all (the other 14); and the steps this
+    tool cannot undo (19 of the 60 -- the four threat actions plus fifteen
+    command steps, for which BackupService records nothing).
+    """
+
+    def __init__(self, changeset, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Review changes")
+        self.resize(760, 520)
+        self._changeset = changeset
+
+        layout = QVBoxLayout(self)
+        heading = QLabel(self._heading_text())
+        heading.setWordWrap(True)
+        layout.addWidget(heading)
+
+        self._details = QPlainTextEdit(self.details_text())
+        self._details.setReadOnly(True)
+        layout.addWidget(self._details, 1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        self.apply_button = QPushButton("Apply these changes")
+        self.apply_button.setDefault(True)
+        self.apply_button.clicked.connect(self.accept)
+        buttons.addWidget(cancel)
+        buttons.addWidget(self.apply_button)
+        layout.addLayout(buttons)
+
+    def _heading_text(self) -> str:
+        """The totals, at the TOP.
+
+        A full baseline here is sixty changes: whoever is about to approve it
+        should not have to scroll to the end of the list to find out that
+        nineteen of them cannot be undone and some need a restart. The
+        per-change lines below still say which.
+        """
+        count = len(self._changeset)
+        parts = [f"{count} change{'s' if count != 1 else ''} will be applied "
+                 "in one batch, with a restore point taken first."]
+        unread = len(self._changeset.unread_before)
+        one_way = len(self._changeset.one_way_changes)
+        if unread:
+            parts.append(f"{unread} of them could not be read beforehand, so "
+                         "there is no record of what they were.")
+        if one_way:
+            parts.append(f"{one_way} cannot be undone by this tool.")
+        if self._changeset.needs_reboot:
+            parts.append("Some need a restart before they take effect.")
+        return " ".join(parts)
+
+    def details_text(self) -> str:
+        lines: List[str] = []
+        unread = {c.control_id for c in self._changeset.unread_before}
+        one_way = {c.control_id for c in self._changeset.one_way_changes}
+        for change in self._changeset.changes:
+            control = change.control
+            lines.append(f"{control.title}  [{control.id}]")
+            lines.append(f"    {change.from_value!r}  ->  {change.to_value!r}")
+            if change.control_id in unread:
+                lines.append("    its current value could not be read, so "
+                             "this is applied without knowing what it was")
+            if change.control_id in one_way:
+                lines.append("    cannot be undone by this tool: nothing "
+                             "records what to put back")
+            if control.requires_reboot:
+                lines.append("    takes effect after a restart")
+            for step in change.resolved_steps():
+                lines.append(f"    {_step_text(step)}")
+            lines.append("")
+        if self._changeset.needs_reboot:
+            lines.append("Some of these only take effect once you restart the "
+                         "machine.")
+        return "\n".join(lines)
+
+
+#: What each state is called in front of a person. `applied_pending_reboot`
+#: is a value in an enum, not a sentence, and the report is read by whoever
+#: just pressed Apply.
+_STATE_LABELS = {
+    ControlState.APPLIED_VERIFIED: "applied, and the machine confirms it",
+    ControlState.APPLIED_PENDING_REBOOT: "applied, awaiting a restart",
+    ControlState.APPLIED_UNVERIFIED: "not confirmed",
+    ControlState.REFUSED: "refused",
+}
+
+
+class ResultDialog(QDialog):
+    """What the machine said afterwards -- which is not what was asked for.
+
+    A batch of twelve where nine landed is not a batch of twelve. The counts
+    lead with what was VERIFIED, and a refusal keeps its full text while
+    leading with one line: a refused Set-MpPreference is a dozen lines of
+    PowerShell error formatting, measured on this machine, and one of those
+    fills the dialog.
+    """
+
+    def __init__(self, result, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("What changed")
+        self.resize(760, 520)
+        self._result = result
+
+        layout = QVBoxLayout(self)
+        summary = QLabel(self.summary_text())
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+
+        self._details = QPlainTextEdit(self.details_text())
+        self._details.setReadOnly(True)
+        layout.addWidget(self._details, 1)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+        if self.reboot_prompts():
+            self.restart_note = QLabel(
+                f"{self._pending_reboot_count()} change(s) take effect after a "
+                "restart.")
+            row.insertWidget(0, self.restart_note)
+        close = QPushButton("Close")
+        close.clicked.connect(self.accept)
+        row.addWidget(close)
+        layout.addLayout(row)
+
+    def _pending_reboot_count(self) -> int:
+        return sum(1 for r in self._result.results
+                   if r.state is ControlState.APPLIED_PENDING_REBOOT)
+
+    def reboot_prompts(self) -> int:
+        """One prompt for the batch, never one per control."""
+        return 1 if self._pending_reboot_count() else 0
+
+    def summary_lines(self) -> List[str]:
+        results = self._result.results
+        verified = sum(1 for r in results
+                       if r.state is ControlState.APPLIED_VERIFIED)
+        lines = [f"{verified} of {len(results)} verified"]
+        if self._result.error:
+            lines.insert(0, f"The batch could not be run: {self._result.error}")
+        for state, label in (
+                (ControlState.APPLIED_PENDING_REBOOT, "awaiting a restart"),
+                (ControlState.APPLIED_UNVERIFIED, "not confirmed"),
+                (ControlState.REFUSED, "refused")):
+            count = sum(1 for r in results if r.state is state)
+            if count:
+                lines.append(f"{count} {label}")
+        for r in results:
+            if r.state is ControlState.REFUSED and r.reason:
+                lines.append(r.reason.strip().splitlines()[0])
+                break
+        return lines
+
+    def summary_text(self) -> str:
+        return "  •  ".join(self.summary_lines())
+
+    def details_text(self) -> str:
+        lines: List[str] = []
+        for r in self._result.results:
+            lines.append(f"{r.control_id}: {_STATE_LABELS[r.state]}")
+            lines.append(f"    asked for {r.requested!r}, "
+                         f"the machine reads {r.observed!r}")
+            if r.reason:
+                for line in r.reason.strip().splitlines():
+                    lines.append(f"    {line}")
+            lines.append("")
+        if self._result.rp_id:
+            lines.append(f"Restore point: {self._result.rp_id}")
+        if self._result.windows_restore_point:
+            lines.append("A Windows restore point was taken as well.")
+        return "\n".join(lines)
+
+
+def _step_text(step: Dict) -> str:
+    """One line naming what a step actually writes.
+
+    "Apply 60 changes" is not something anyone can consent to; the registry
+    value, the command, the service name is.
+    """
+    kind = step.get("type")
+    if kind in ("registry", "registry_delete"):
+        value = step.get("value") or "(default)"
+        data = step.get("data")
+        target = f"{step.get('key')}\\{value}"
+        return (f"delete {target}" if kind == "registry_delete"
+                else f"set {target} = {data!r}")
+    if kind == "service":
+        return f"service {step.get('name')} -> {step.get('start_type')}"
+    if kind in ("command", "script"):
+        return f"run {step.get('cmd') or step.get('command')}"
+    if kind == "scheduled_task":
+        return f"disable scheduled task {step.get('task_name')}"
+    if kind == "appx":
+        return f"remove package {step.get('package')}"
+    return f"{kind}: {step}"
+
+
 class _CategoryTab(QWidget):
     """One `Category`, drawn as a scrolling column of `ControlCard`s.
 
@@ -475,6 +812,8 @@ class SecurityDashboardModule(BaseModule):
         self._changeset = ChangeSet()
         self._category_tabs: Dict[str, Any] = {}
         self._tab_names: Dict[int, str] = {}
+        self._applying = False
+        self._widget: Optional[QWidget] = None
         self._events_progress: Optional[QProgressBar] = None
         self._events_table: Optional[QTableWidget] = None
 
@@ -555,6 +894,16 @@ class SecurityDashboardModule(BaseModule):
         self._tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._tabs, 1)
 
+        # No stretch factor: the bar is Fixed vertically, so the tabs above
+        # keep the surplus height (the d57cdf2 trap is a widget added here
+        # that quietly takes an equal share of it).
+        self._pending = PendingBar()
+        self._pending.review_requested.connect(self._on_review_requested)
+        self._pending.apply_requested.connect(self._on_apply_requested)
+        self._pending.discard_requested.connect(self._on_discard_requested)
+        layout.addWidget(self._pending)
+
+        self._widget = w
         return w
 
     # ── Tab 1: Overview ───────────────────────────────────────────────────
@@ -1145,9 +1494,104 @@ class SecurityDashboardModule(BaseModule):
         return None
 
     def _on_changeset_changed(self) -> None:
-        """Task 16 renders the pending bar here."""
+        if getattr(self, "_pending", None) is not None:
+            self._pending.set_changeset(self._changeset)
         if self._only_changed.isChecked():
             self._apply_filter()
+
+
+    # ── Applying ──────────────────────────────────────────────────────────
+
+    def _on_review_requested(self) -> None:
+        if self._ask_review(self._changeset):
+            self._on_apply_requested()
+
+    # The two modal moments are their own methods so a test can stand in for
+    # them. A .exec() called straight from a handler blocks the event loop
+    # forever under pytest -- it took a five-minute timeout to notice.
+    def _ask_review(self, changeset) -> bool:
+        return bool(ReviewDialog(changeset, self._widget).exec())
+
+    def _show_result_dialog(self, result) -> None:
+        ResultDialog(result, self._widget).exec()
+
+    def _on_discard_requested(self) -> None:
+        for change in self._changeset.changes:
+            card = self._card_for(change.control_id)
+            if card is not None:
+                card.clear_staged()
+        self._changeset.clear()
+        self._on_changeset_changed()
+
+    def _on_apply_requested(self) -> None:
+        """Apply the staged batch, elevated if it needs to be.
+
+        One UAC prompt for the batch, not one per control -- and when the app
+        is already elevated there is no prompt at all. Either way the work is
+        off the UI thread and the machine is re-read afterwards; a writer that
+        returned is not evidence anything changed.
+        """
+        if self._applying or not len(self._changeset):
+            return
+        self._applying = True
+        self._progress.show()
+        self._pending.apply_button.setEnabled(False)
+
+        changes = changes_of(self._changeset)
+        elevated = is_admin()
+
+        def job(_worker):
+            if elevated:
+                return self._apply_in_process()
+            return run_elevated_batch(changes)
+
+        worker = COMWorker(job)
+        worker.signals.result.connect(self._on_batch_result)
+        worker.signals.error.connect(self._on_batch_error)
+        worker.signals.finished.connect(self._on_batch_finished)
+        self._workers.append(worker)
+        self._dispatch(worker)
+
+    def _apply_in_process(self):
+        from core.system_restore import create_restore_point
+        from modules.tweaks.tweak_engine import TweakEngine
+        backup = self.app.backup if self.app is not None else None
+        if backup is None:
+            raise RuntimeError("no backup service: refusing to write without "
+                               "a way back")
+        return apply_batch(self._changeset, TweakEngine(backup), backup,
+                           create_windows_restore_point=create_restore_point)
+
+    def _on_batch_result(self, result) -> None:
+        if result is None:
+            # The elevated helper wrote no usable result. That is UNKNOWN, and
+            # the only honest thing to do is re-read and show what the machine
+            # says now -- never "applied", never "failed".
+            self._error_banner.set_error(
+                "The elevated helper did not report back. Nothing here knows "
+                "what it did; the tab has been re-read so the values below "
+                "are current.")
+            self._error_banner.show()
+            self._manual_refresh()
+            return
+        for control_result in result.results:
+            card = self._card_for(control_result.control_id)
+            if card is not None:
+                card.set_result(control_result)
+            self._readings[control_result.control_id] = control_result.observed
+        self._changeset.clear()
+        self._on_changeset_changed()
+        self._show_result_dialog(result)
+
+    def _on_batch_error(self, err) -> None:
+        logger.error("the batch failed: %s", err)
+        self._error_banner.set_error(f"The batch could not be run: {err}")
+        self._error_banner.show()
+
+    def _on_batch_finished(self) -> None:
+        self._applying = False
+        self._progress.hide()
+        self._pending.apply_button.setEnabled(True)
 
 
 def _on_label_error(label, message: str):
