@@ -1,0 +1,158 @@
+r"""Delivery Optimization is turned off by policy, not by killing the service.
+
+Both places that offer this shipped a step Windows refuses outright:
+
+    services.json  disable_delivery_optimization   {"type": "service",
+                                                    "name": "DoSvc",
+                                                    "start_type": "disabled"}
+    perf_checks.py disable_delivery_optimization   the same, plus a detector
+                                                   reading DoSvc\Start == 4
+
+Measured with tools/service_config_probe.py, which writes nothing
+(ChangeServiceConfig with SERVICE_NO_CHANGE for every field):
+
+    elevated    DoSvc REFUSED; RemoteRegistry, DiagTrack, SysMain, WSearch,
+                MapsBroker, RetailDemo, WMPNetworkSvc, lfsvc all ALLOWED
+    unelevated  every one refused at OpenService, a step earlier
+
+`sc sdshow DoSvc` grants Builtin Administrators DC (SERVICE_CHANGE_CONFIG), so
+the DACL is not the obstacle: Windows protects that service beyond its own
+permissions. The real 2026-08-29 run proves the consequence -- an elevated
+session logged the refusal and DoSvc\Start is still 2, so the row read
+"suboptimal" and applying it errored, every time, for everyone.
+
+Killing the service was also the wrong instrument. DoSvc downloads updates
+generally; peer-to-peer SHARING -- which is what both descriptions promise to
+stop -- is the DODownloadMode policy, and this repo already turns it off that
+way in three other tweaks (disable_peer_updates,
+wu_disable_delivery_optimization_p2p, wu_delivery_optimization_lan_only). The
+ids stay put: six built-in presets and the Performance Tuner reference them.
+"""
+import json
+import os
+
+_DEFS = os.path.join(os.path.dirname(__file__), "..", "src", "modules",
+                     "tweaks", "definitions")
+
+_DO_POLICY_KEY = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
+
+
+def _definitions(filename):
+    with open(os.path.join(_DEFS, filename), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _tweak(filename, tweak_id):
+    for entry in _definitions(filename):
+        if entry["id"] == tweak_id:
+            return entry
+    raise AssertionError(f"{tweak_id} is gone from {filename} -- six presets "
+                         "and the Performance Tuner still name it by id")
+
+
+def test_the_tweak_stops_sharing_by_policy_not_by_the_service():
+    tweak = _tweak("services.json", "disable_delivery_optimization")
+    kinds = {step["type"] for step in tweak["steps"]}
+    assert "service" not in kinds, (
+        "Windows refuses ChangeServiceConfig on DoSvc even to an elevated "
+        "administrator, so this step can never succeed")
+    targets = {(step.get("key"), step.get("value")) for step in tweak["steps"]}
+    assert (_DO_POLICY_KEY, "DODownloadMode") in targets
+
+
+def test_the_policy_value_actually_means_no_peering():
+    tweak = _tweak("services.json", "disable_delivery_optimization")
+    mode = next(step for step in tweak["steps"]
+                if step.get("value") == "DODownloadMode")
+    # 0 = HTTP only, no peering. 1 is LAN peering and 3 is internet peering,
+    # either of which would leave the sharing this tweak promises to stop.
+    assert mode["data"] == 0
+    assert mode["kind"] == "DWORD"
+
+
+def test_no_definition_still_tries_to_disable_dosvc():
+    """The whole class, not just the one that was reported."""
+    offenders = []
+    for filename in os.listdir(_DEFS):
+        if not filename.endswith(".json"):
+            continue
+        try:
+            entries = _definitions(filename)
+        except (ValueError, IsADirectoryError):
+            continue
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            for step in entry.get("steps", []):
+                if (step.get("type") == "service"
+                        and str(step.get("name", "")).lower() == "dosvc"):
+                    offenders.append(f"{filename}:{entry.get('id')}")
+    assert offenders == [], (
+        f"these can never succeed -- Windows refuses DoSvc: {offenders}")
+
+
+def test_the_performance_tuner_uses_the_policy_too():
+    """PerfTuner keeps its own copy of this check, and it is the one that
+    actually failed on 2026-08-29."""
+    from modules.performance_tuner.perf_checks import PERF_CHECKS
+
+    entry = next(c for c in PERF_CHECKS
+                 if c["id"] == "disable_delivery_optimization")
+    kinds = {step["type"] for step in entry["apply"]}
+    assert "service" not in kinds
+    targets = {(step.get("key"), step.get("value")) for step in entry["apply"]}
+    assert (_DO_POLICY_KEY, "DODownloadMode") in targets
+
+
+def test_the_performance_tuner_detector_reads_what_it_writes():
+    """It read DoSvc\\Start == 4 -- a value its own apply could never set, so
+    the row said "suboptimal" for ever."""
+    import winreg
+
+    from modules.performance_tuner import perf_checks
+
+    reads = []
+
+    def fake_reg_get(hive, path, name):
+        reads.append((hive, path, name))
+        return 0            # DODownloadMode = 0, peering off
+
+    original = perf_checks._reg_get
+    perf_checks._reg_get = fake_reg_get
+    try:
+        verdict = perf_checks._detect_delivery_opt()
+    finally:
+        perf_checks._reg_get = original
+
+    assert reads, "the detector read nothing at all"
+    hive, path, name = reads[0]
+    assert hive == winreg.HKEY_LOCAL_MACHINE
+    assert "DeliveryOptimization" in path
+    assert name == "DODownloadMode"
+    assert verdict == "optimal"
+
+
+def test_the_detector_calls_peering_suboptimal():
+    from modules.performance_tuner import perf_checks
+
+    original = perf_checks._reg_get
+    perf_checks._reg_get = lambda hive, path, name: 3   # internet peering
+    try:
+        assert perf_checks._detect_delivery_opt() == "suboptimal"
+    finally:
+        perf_checks._reg_get = original
+
+
+def test_an_unset_policy_is_suboptimal_not_unknown():
+    """Absent means Windows is at its default, which IS peer sharing --
+    a definite answer, not a failure to read."""
+    from modules.performance_tuner import perf_checks
+
+    original = perf_checks._reg_get
+    perf_checks._reg_get = lambda hive, path, name: None
+    try:
+        assert perf_checks._detect_delivery_opt() == "suboptimal"
+    finally:
+        perf_checks._reg_get = original

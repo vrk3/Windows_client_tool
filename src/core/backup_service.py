@@ -380,8 +380,13 @@ class BackupService:
         return [row["tweak_id"] for row in rows]
 
     def restore_point(self, restore_point_id: str) -> RestoreResult:
+        # Newest first. Undo is LIFO: two steps that wrote the same value must
+        # land back on the ORIGINAL, not on an intermediate one, and a key
+        # created by an early step is only empty again once the later writers
+        # into it have been undone.
         rows = self._conn.execute(
-            "SELECT id FROM tweak_steps WHERE restore_point_id=? AND reverted_at IS NULL",
+            "SELECT id FROM tweak_steps WHERE restore_point_id=? AND reverted_at IS NULL "
+            "ORDER BY rowid DESC",
             (restore_point_id,),
         ).fetchall()
         result = self._revert_steps([row["id"] for row in rows])
@@ -412,7 +417,7 @@ class BackupService:
                                  errors=["No applied (unreverted) steps found for this tweak."])
         rows = self._conn.execute(
             "SELECT id FROM tweak_steps WHERE tweak_id=? AND restore_point_id=? "
-            "AND reverted_at IS NULL",
+            "AND reverted_at IS NULL ORDER BY rowid DESC",
             (tweak_id, latest["restore_point_id"]),
         ).fetchall()
         return self._revert_steps([row["id"] for row in rows])

@@ -411,6 +411,67 @@ def test_a_key_holding_a_subkey_is_never_deleted(svc, reg_sandbox):
     assert _key_exists(path + r"\Child")
 
 
+def test_two_values_in_one_new_key_still_leave_no_key_behind(svc, reg_sandbox):
+    """Found on the real machine, by checking after the fix rather than
+    trusting it. "Disable Delivery Optimization" writes DODownloadMode and
+    DOPerMachineMode into the same policy key:
+
+        step 1  key absent      -> key_created=True
+        step 2  key now exists  -> key_created=False
+
+    Reverted in application order, step 1 finds the key still holding step
+    2's value and cannot remove it, and step 2 has no mandate to. The key
+    survived. Undo runs newest-first, so the last writer clears the way for
+    the one that created the key.
+    """
+    path = reg_sandbox + r"\TwoValues"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "First", 0, winreg.REG_DWORD, 1)
+        winreg.SetValueEx(k, "Second", 0, winreg.REG_DWORD, 1)
+
+    rp_id = svc.create_restore_point("two values", "Tweaks")
+    svc.record_steps(
+        "t1",
+        [StepRecord("registry", "HKCU\\" + path, None, 1, value_name="First",
+                    reg_kind=winreg.REG_DWORD, key_created=True),
+         StepRecord("registry", "HKCU\\" + path, None, 1, value_name="Second",
+                    reg_kind=winreg.REG_DWORD, key_created=False)],
+        rp_id,
+    )
+
+    outcome = svc.restore_point(rp_id)
+
+    assert outcome.success, outcome.errors
+    assert not _key_exists(path), (
+        "the key the first step created outlived the revert")
+
+
+def test_steps_are_reverted_newest_first(svc, reg_sandbox):
+    """Undo is LIFO. Two steps writing the same value must land back on the
+    ORIGINAL, which only happens if the later one is undone first."""
+    path = reg_sandbox + r"\Ordering"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 99)
+
+    rp_id = svc.create_restore_point("ordering", "Tweaks")
+    svc.record_steps(
+        "t1",
+        [StepRecord("registry", "HKCU\\" + path, 1, 2, value_name="Val",
+                    reg_kind=winreg.REG_DWORD),
+         StepRecord("registry", "HKCU\\" + path, 2, 3, value_name="Val",
+                    reg_kind=winreg.REG_DWORD)],
+        rp_id,
+    )
+
+    svc.restore_point(rp_id)
+
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as k:
+        assert winreg.QueryValueEx(k, "Val")[0] == 1, (
+            "reverted oldest-first, so the machine kept an intermediate value")
+
+
 def test_restoring_a_prior_value_never_removes_the_key(svc, reg_sandbox):
     """key_created only ever matters when the revert DELETES the value. With a
     prior value to write back, the key must obviously stay."""
