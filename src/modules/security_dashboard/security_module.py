@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QPushButton, QLabel, QFrame, QProgressBar,
+    QPushButton, QLabel, QFrame, QProgressBar, QCheckBox, QLineEdit,
     QTabWidget, QTableWidget, QTableWidgetItem,
     QGroupBox, QScrollArea, QSizePolicy, QStackedWidget,
 )
@@ -35,7 +35,10 @@ from core.module_groups import ModuleGroup
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
 from core.worker import Worker, COMWorker
 from ui.error_banner import ErrorBanner
-from modules.security_dashboard.catalog.model import ControlState
+from modules.security_dashboard import snapshots
+from modules.security_dashboard.catalog import load_catalog
+from modules.security_dashboard.catalog.model import Category, ControlState
+from modules.security_dashboard.staging import ChangeSet
 from modules.security_dashboard.security_reader import (
     get_all_security_status,
     get_overview_status,
@@ -324,287 +327,6 @@ class ControlCard(QFrame):
 
 # ── Reusable Toggle Card ───────────────────────────────────────────────────
 
-class _ToggleCard(QFrame):
-    """Interactive security card with toggle switch, revert, and status.
-
-    Lifecycle:
-      1. Card created with title/icon/description
-      2. set_state(enabled, status_text, color) — render current state
-      3. User clicks Toggle → _on_toggle() → card calls self._toggle_fn(enabled)
-      4. While toggling: show_action("Applying...")
-      5. On result: show_result(success, message) — shows Revert if changed
-      6. User clicks Revert → _on_revert() → card calls self._revert_fn()
-    """
-
-    action_requested = pyqtSignal(str, object)  # signal: (action_id, payload)
-
-    def __init__(self, title: str, icon: str, description: str = "",
-                 parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setMinimumHeight(100)
-
-        self._title = title
-        self._icon = icon
-        self._toggle_fn: Optional[Callable] = None
-        self._revert_fn: Optional[Callable] = None
-        self._action_id: str = ""
-        self._original_state: Optional[bool] = None
-        self._changed = False
-        self._current_enabled: Optional[bool] = None
-        self._worker = None
-
-        self._build_ui(description)
-
-    def _build_ui(self, description: str):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(10, 8, 10, 8)
-
-        # Top row: icon + title + status badge
-        top = QHBoxLayout()
-        self._title_lbl = QLabel(f"{self._icon}  {self._title}")
-        f = self._title_lbl.font()
-        f.setBold(True)
-        pt = f.pointSize()
-        if pt > 0:
-            f.setPointSize(pt + 1)
-        self._title_lbl.setFont(f)
-        top.addWidget(self._title_lbl, 1)
-
-        self._status_badge = QLabel("---")
-        self._status_badge.setStyleSheet(
-            "font-size: 12px; font-weight: bold; padding: 2px 8px; "
-            "border-radius: 3px; background: #3c3c3c;"
-        )
-        top.addWidget(self._status_badge)
-        root.addLayout(top)
-
-        # Description
-        if description:
-            desc = QLabel(description)
-            desc.setStyleSheet("color: #999; font-size: 11px;")
-            desc.setWordWrap(True)
-            root.addWidget(desc)
-
-        # Bottom row: toggle + revert + action status
-        bottom = QHBoxLayout()
-
-        self._toggle_btn = QPushButton("Enable")
-        self._toggle_btn.setFixedWidth(80)
-        self._toggle_btn.setStyleSheet("""
-            QPushButton {
-                background: #27AE60; color: white; border: none;
-                padding: 4px 12px; border-radius: 3px; font-weight: bold;
-            }
-            QPushButton:hover { background: #2ECC71; }
-            QPushButton:disabled { background: #555; color: #888; }
-        """)
-        self._toggle_btn.clicked.connect(self._on_toggle)
-        bottom.addWidget(self._toggle_btn)
-
-        self._revert_btn = QPushButton("Revert")
-        self._revert_btn.setFixedWidth(70)
-        self._revert_btn.setStyleSheet("""
-            QPushButton {
-                background: #E67E22; color: white; border: none;
-                padding: 4px 8px; border-radius: 3px;
-            }
-            QPushButton:hover { background: #F39C12; }
-            QPushButton:disabled { background: #555; color: #888; }
-        """)
-        self._revert_btn.clicked.connect(self._on_revert)
-        self._revert_btn.hide()
-        bottom.addWidget(self._revert_btn)
-
-        self._action_lbl = QLabel()
-        self._action_lbl.setStyleSheet("color: #999; font-size: 11px;")
-        bottom.addWidget(self._action_lbl, 1)
-
-        root.addLayout(bottom)
-
-    # ── Public API ────────────────────────────────────────────────────────
-
-    def configure(self, action_id: str,
-                  toggle_fn: Callable[[bool], Any],
-                  revert_fn: Optional[Callable] = None):
-        """Wire up the toggle/revert callbacks."""
-        self._action_id = action_id
-        self._toggle_fn = toggle_fn
-        self._revert_fn = revert_fn or toggle_fn
-
-    def set_state(self, enabled: Optional[bool], status_text: str, color: str):
-        """Render the current security state."""
-        self._current_enabled = enabled
-        self._changed = False
-        self._revert_btn.hide()
-
-        hex_color = COLOR_MAP.get(color, "#888")
-        self._status_badge.setText(status_text)
-        self._status_badge.setStyleSheet(
-            f"font-size: 12px; font-weight: bold; padding: 2px 8px; "
-            f"border-radius: 3px; background: {hex_color}; color: white;"
-        )
-        self.setStyleSheet(f"QFrame#toggle_card {{ border-left: 4px solid {hex_color}; }}")
-        self.setObjectName("toggle_card")
-
-        if enabled is None:
-            self._toggle_btn.setText("N/A")
-            self._toggle_btn.setEnabled(False)
-            self._toggle_btn.setStyleSheet("""
-                QPushButton { background: #555; color: #888; border: none;
-                padding: 4px 12px; border-radius: 3px; }
-            """)
-        elif enabled:
-            self._toggle_btn.setText("Disable")
-            self._toggle_btn.setEnabled(True)
-            self._toggle_btn.setStyleSheet("""
-                QPushButton { background: #E74C3C; color: white; border: none;
-                padding: 4px 12px; border-radius: 3px; font-weight: bold; }
-                QPushButton:hover { background: #C0392B; }
-                QPushButton:disabled { background: #555; color: #888; }
-            """)
-        else:
-            self._toggle_btn.setText("Enable")
-            self._toggle_btn.setEnabled(True)
-            self._toggle_btn.setStyleSheet("""
-                QPushButton { background: #27AE60; color: white; border: none;
-                padding: 4px 12px; border-radius: 3px; font-weight: bold; }
-                QPushButton:hover { background: #2ECC71; }
-                QPushButton:disabled { background: #555; color: #888; }
-            """)
-
-    def set_loading(self):
-        """Show loading/unknown state."""
-        self._toggle_btn.setText("...")
-        self._toggle_btn.setEnabled(False)
-        self._toggle_btn.setStyleSheet("""
-            QPushButton { background: #555; color: #888; border: none;
-            padding: 4px 12px; border-radius: 3px; }
-        """)
-        self._status_badge.setText("Loading...")
-        self._status_badge.setStyleSheet(
-            "font-size: 12px; font-weight: bold; padding: 2px 8px; "
-            "border-radius: 3px; background: #3c3c3c; color: #888;"
-        )
-
-    def show_action(self, message: str):
-        """Show a transient action status (applying, reverting, etc.)."""
-        self._action_lbl.setText(message)
-        self._action_lbl.setStyleSheet("color: #E67E22; font-size: 11px;")
-        self._toggle_btn.setEnabled(False)
-        self._revert_btn.setEnabled(False)
-
-    def show_result(self, success: bool, message: str, after_state: Optional[bool] = None):
-        """Show the result of a toggle/revert action."""
-        if success:
-            self._changed = not self._changed
-            color = "#27AE60"
-            if self._changed:
-                self._revert_btn.show()
-                self._revert_btn.setEnabled(True)
-                self._action_lbl.setText(f"Changed. {message}")
-            else:
-                self._revert_btn.hide()
-                self._action_lbl.setText(f"Reverted. {message}")
-            if after_state is not None:
-                self._current_enabled = after_state
-                self._refresh_button(after_state)
-        else:
-            color = "#E74C3C"
-            self._action_lbl.setText(f"Error: {message}")
-            self._toggle_btn.setEnabled(True)
-            self._revert_btn.setEnabled(True if self._changed else False)
-        self._action_lbl.setStyleSheet(f"color: {color}; font-size: 11px;")
-
-    def _on_toggle(self):
-        """User clicked Enable/Disable."""
-        if not self._toggle_fn:
-            return
-        if self._worker is not None:
-            return  # already toggling
-        new_state = not self._current_enabled
-        self.show_action("Applying...")
-
-        def do_toggle(worker):
-            return self._toggle_fn(new_state)
-
-        self._worker = Worker(do_toggle)
-        self._worker.signals.result.connect(
-            partial(self._on_toggle_result, new_state=new_state))
-        self._worker.signals.error.connect(
-            partial(self._on_toggle_error, new_state=new_state))
-
-        QThreadPool.globalInstance().start(self._worker)
-
-    def _on_toggle_result(self, result: dict, new_state: bool):
-        if not _widget_valid(self):
-            return
-        success = isinstance(result, dict) and result.get("success", False)
-        msg = result.get("message", "") if isinstance(result, dict) else str(result)
-        self.show_result(success, msg, new_state if success else None)
-        self._worker = None
-
-    def _on_toggle_error(self, err, new_state: bool):
-        if not _widget_valid(self):
-            return
-        err_msg = str(err[1]) if isinstance(err, tuple) else str(err)
-        self.show_result(False, err_msg)
-        self._toggle_btn.setEnabled(True)
-        self._worker = None
-
-    def _on_revert(self):
-        """User clicked Revert."""
-        if not self._revert_fn:
-            return
-        if self._worker is not None:
-            return  # already active
-        original = not self._current_enabled
-        self.show_action("Reverting...")
-
-        def do_revert(worker):
-            return self._revert_fn(original)
-
-        self._worker = Worker(do_revert)
-        self._worker.signals.result.connect(
-            partial(self._on_revert_result, revert_to=original))
-        self._worker.signals.error.connect(
-            partial(self._on_toggle_error, new_state=False))
-
-        QThreadPool.globalInstance().start(self._worker)
-
-    def _on_revert_result(self, result: dict, revert_to: bool):
-        if not _widget_valid(self):
-            return
-        success = isinstance(result, dict) and result.get("success", False)
-        msg = result.get("message", "") if isinstance(result, dict) else str(result)
-        self.show_result(success, msg, revert_to if success else None)
-        self._worker = None
-
-    def _refresh_button(self, enabled: bool):
-        """Refresh the toggle button appearance without triggering action."""
-        if enabled:
-            self._toggle_btn.setText("Disable")
-            self._toggle_btn.setEnabled(True)
-            self._toggle_btn.setStyleSheet("""
-                QPushButton { background: #E74C3C; color: white; border: none;
-                padding: 4px 12px; border-radius: 3px; font-weight: bold; }
-                QPushButton:hover { background: #C0392B; }
-                QPushButton:disabled { background: #555; color: #888; }
-            """)
-        else:
-            self._toggle_btn.setText("Enable")
-            self._toggle_btn.setEnabled(True)
-            self._toggle_btn.setStyleSheet("""
-                QPushButton { background: #27AE60; color: white; border: none;
-                padding: 4px 12px; border-radius: 3px; font-weight: bold; }
-                QPushButton:hover { background: #2ECC71; }
-                QPushButton:disabled { background: #555; color: #888; }
-            """)
-
-    def cancel(self):
-        if self._worker:
-            self._worker.cancel()
-            self._worker = None
 
 
 # ── Read-Only Status Card ──────────────────────────────────────────────────
@@ -664,6 +386,74 @@ class _StatusCard(QFrame):
 
 # ── Main Module ────────────────────────────────────────────────────────────
 
+class _CategoryTab(QWidget):
+    """One `Category`, drawn as a scrolling column of `ControlCard`s.
+
+    Holds no reading logic of its own -- the pane reads, and hands the values
+    down. What it does own is the "as of" line, because a pane that shows a
+    value without saying when it read it invites someone to trust a number
+    from twenty minutes ago.
+    """
+
+    def __init__(self, category, controls, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.category = category
+        self.controls = sorted(controls, key=lambda c: c.title.lower())
+        self.cards: Dict[str, ControlCard] = {}
+        self.built = False
+        self.loaded = False
+        self.reading = False
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        header = QHBoxLayout()
+        self._status = QLabel("Not read yet")
+        self._count = QLabel("")
+        header.addWidget(self._status, 1)
+        header.addWidget(self._count)
+        root.addLayout(header)
+
+        # The page is permanent and empty; the cards go into it on first show.
+        # Never removeTab/insertTab to swap in a lazily built widget -- doing
+        # that on the current index re-fires currentChanged and re-enters the
+        # handler that asked for the build.
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._inner = QWidget()
+        self._column = QVBoxLayout(self._inner)
+        self._column.setContentsMargins(0, 0, 0, 0)
+        self._scroll.setWidget(self._inner)
+        root.addWidget(self._scroll, 1)
+
+    def build_cards(self, on_staged) -> None:
+        """Create this tab's cards. Once, and only when it is shown.
+
+        Building all seven tabs up front costs **2.99s** on this machine for
+        149 cards -- a three-second freeze the moment someone clicks Security
+        Dashboard in the sidebar, before a single value has been read. Measured
+        with tools/security_pane_timing.py, not guessed.
+        """
+        if self.built:
+            return
+        self.built = True
+        for control in self.controls:
+            card = ControlCard(control)
+            card.staged.connect(on_staged)
+            self.cards[control.id] = card
+            self._column.addWidget(card)
+        # Without this the cards share the surplus height equally and every
+        # one of them stretches -- the d57cdf2 layout trap. The stretch takes
+        # the leftover space instead.
+        self._column.addStretch(1)
+
+    def set_status(self, text: str) -> None:
+        self._status.setText(text)
+
+    def set_match_count(self, shown: int, total: int) -> None:
+        self._count.setText("" if shown == total else f"{shown} of {total}")
+
+
 class SecurityDashboardModule(BaseModule):
     name = "Security Dashboard"
     icon = "\U0001f6e1\ufe0f"
@@ -676,27 +466,38 @@ class SecurityDashboardModule(BaseModule):
         self._workers: list = []
         self._overview_worker = None
         self._loaded_overview = False
-        self._loaded_controls = False
-        self._loaded_advanced = False
-        self._loaded_cves = False
         self._loaded_events = False
-        self._toggle_cards: List[_ToggleCard] = []
+        #: The catalog, and the pane's own copy of what it last read. Both
+        #: are what staging and the filters work off, so neither the machine
+        #: nor a snapshot is consulted again to answer "is this a problem".
+        self.catalog: Dict[str, Any] = {}
+        self._readings: Dict[str, Any] = {}
+        self._changeset = ChangeSet()
+        self._category_tabs: Dict[str, Any] = {}
+        self._tab_names: Dict[int, str] = {}
         self._events_progress: Optional[QProgressBar] = None
         self._events_table: Optional[QTableWidget] = None
 
     def get_refresh_interval(self) -> Optional[int]:
-        return 30_000
+        """No timer. Refresh is a button.
+
+        The Overview sweep took 37.3s against a 30s timer, so the timer
+        relaunched an unfinished sweep for as long as the tab stayed
+        open. Seven category tabs over 149 controls is that shape again,
+        with more ways to lose. Nothing here refreshes unless someone
+        asks it to.
+        """
+        return None
 
     def get_search_provider(self) -> Optional[SearchProvider]:
         return SecuritySearchProvider()
 
     def refresh_data(self) -> None:
         self._refresh_overview()
-        if self._loaded_controls:
-            self._refresh_controls()
 
     def on_start(self, app) -> None:
         self.app = app
+        self.catalog = load_catalog()
 
     # ── Widget Creation ───────────────────────────────────────────────────
 
@@ -730,13 +531,27 @@ class SecurityDashboardModule(BaseModule):
         layout.addLayout(header_row)
         layout.addWidget(self._progress)
 
-        # Tab widget
+        layout.addWidget(self._build_filter_bar())
+
+        # One tab per catalog category, plus Overview and the event log.
+        # "Controls" and "Advanced" are gone: they were a grab bag of twenty
+        # hand-wired cards, and which of the two a setting landed in was a
+        # matter of when it was added.
         self._tabs = QTabWidget()
         self._tabs.addTab(self._build_overview_tab(), "Overview")
-        self._tabs.addTab(self._build_controls_tab(), "Controls")
-        self._tabs.addTab(self._build_advanced_tab(), "Advanced")
-        self._tabs.addTab(self._build_cve_tab(), "CVEs")
+        for category in Category:
+            # "&" is a keyboard mnemonic to Qt, so "Device & Boot" renders as
+            # "Device  Boot" with the B underlined -- four of the seven tab
+            # names carry one. Escaped for display; the index-to-name map
+            # below is what the code looks names up by, because tabText()
+            # hands back the escaped string.
+            index = self._tabs.addTab(self._build_category_tab(category),
+                                      category.value.replace("&", "&&"))
+            self._tab_names[index] = category.value
         self._tabs.addTab(self._build_events_tab(), "Security Events")
+        # Connected AFTER the addTab loop: addTab fires currentChanged
+        # synchronously for the first tab added, which would kick off a read
+        # during create_widget.
         self._tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._tabs, 1)
 
@@ -883,532 +698,16 @@ class SecurityDashboardModule(BaseModule):
 
     # ── Tab 2: Controls ───────────────────────────────────────────────────
 
-    def _build_controls_tab(self) -> QWidget:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(4, 4, 4, 4)
 
-        # ── Defender group ────────────────────────────────────────────────
-        def_group = QGroupBox("Windows Defender Settings")
-        def_layout = QVBoxLayout(def_group)
-
-        self._ctrl_realtime = _ToggleCard(
-            "Real-Time Protection", "\U0001f6e1",
-            "Scans files and programs as they are accessed or run.")
-        self._ctrl_realtime.configure(
-            "defender_realtime", set_defender_realtime, set_defender_realtime)
-        def_layout.addWidget(self._ctrl_realtime)
-
-        self._ctrl_cloud = _ToggleCard(
-            "Cloud-Delivered Protection", "\u2601",
-            "Uses Microsoft cloud intelligence to provide faster threat detection.")
-        self._ctrl_cloud.configure(
-            "defender_cloud", lambda e: set_defender_cloud(e, 2),
-            lambda e: set_defender_cloud(e, 2))
-        def_layout.addWidget(self._ctrl_cloud)
-
-        self._ctrl_sample = _ToggleCard(
-            "Automatic Sample Submission", "\U0001f4e4",
-            "Sends suspicious files automatically to Microsoft for analysis.")
-        self._ctrl_sample.configure(
-            "defender_samples", set_defender_sample_submission,
-            set_defender_sample_submission)
-        def_layout.addWidget(self._ctrl_sample)
-
-        self._ctrl_pua = _ToggleCard(
-            "PUA Protection", "\U0001f6ab",
-            "Blocks Potentially Unwanted Applications (adware, bundleware, miners).")
-        self._ctrl_pua.configure(
-            "defender_pua", set_pua_protection, set_pua_protection)
-        def_layout.addWidget(self._ctrl_pua)
-
-        self._ctrl_cfa = _ToggleCard(
-            "Controlled Folder Access", "\U0001f4c1",
-            "Anti-ransomware: only trusted apps can modify protected folders.")
-        self._ctrl_cfa.configure(
-            "defender_cfa", set_controlled_folder_access,
-            set_controlled_folder_access)
-        def_layout.addWidget(self._ctrl_cfa)
-
-        self._ctrl_tamper = _ToggleCard(
-            "Tamper Protection", "\U0001f512",
-            "Prevents malware from changing Defender security settings.")
-        self._ctrl_tamper.configure(
-            "defender_tamper", set_tamper_protection, set_tamper_protection)
-        def_layout.addWidget(self._ctrl_tamper)
-
-        self._ctrl_netprot = _ToggleCard(
-            "Network Protection", "\U0001f310",
-            "Blocks outbound connections to known malicious IPs and domains.")
-        self._ctrl_netprot.configure(
-            "defender_netprot", set_network_protection_defender,
-            set_network_protection_defender)
-        def_layout.addWidget(self._ctrl_netprot)
-
-        layout.addWidget(def_group)
-
-        # ── Firewall group ────────────────────────────────────────────────
-        fw_group = QGroupBox("Windows Firewall Profiles")
-        fw_layout = QVBoxLayout(fw_group)
-
-        self._ctrl_fw_domain = _ToggleCard(
-            "Domain Profile", "\U0001f310",
-            "Firewall rules when connected to a corporate domain network.")
-        self._ctrl_fw_domain.configure(
-            "firewall_domain",
-            lambda e: set_firewall_profile("Domain", e),
-            lambda e: set_firewall_profile("Domain", e))
-        fw_layout.addWidget(self._ctrl_fw_domain)
-
-        self._ctrl_fw_private = _ToggleCard(
-            "Private Profile", "\U0001f3e0",
-            "Firewall rules for home or work private networks.")
-        self._ctrl_fw_private.configure(
-            "firewall_private",
-            lambda e: set_firewall_profile("Private", e),
-            lambda e: set_firewall_profile("Private", e))
-        fw_layout.addWidget(self._ctrl_fw_private)
-
-        self._ctrl_fw_public = _ToggleCard(
-            "Public Profile", "\U0001f30d",
-            "Firewall rules for public networks (airports, cafes).")
-        self._ctrl_fw_public.configure(
-            "firewall_public",
-            lambda e: set_firewall_profile("Public", e),
-            lambda e: set_firewall_profile("Public", e))
-        fw_layout.addWidget(self._ctrl_fw_public)
-
-        layout.addWidget(fw_group)
-
-        # ── System group ──────────────────────────────────────────────────
-        sys_group = QGroupBox("System Security")
-        sys_layout = QVBoxLayout(sys_group)
-
-        self._ctrl_smartscreen = _ToggleCard(
-            "SmartScreen", "\U0001f4e7",
-            "Checks downloaded files and apps against Microsoft reputation database.")
-        self._ctrl_smartscreen.configure(
-            "smartscreen", set_smartscreen, set_smartscreen)
-        sys_layout.addWidget(self._ctrl_smartscreen)
-
-        self._ctrl_lsass = _ToggleCard(
-            "LSASS Protection (RunAsPPL)", "\U0001f6e1",
-            "Runs LSASS as a protected process to prevent credential dumping. "
-            "REBOOT REQUIRED after toggle.")
-        self._ctrl_lsass.configure(
-            "lsass_ppl", set_lsass_protection, set_lsass_protection)
-        sys_layout.addWidget(self._ctrl_lsass)
-
-        layout.addWidget(sys_group)
-
-        # Quick actions
-        actions_group = QGroupBox("Quick Actions")
-        actions_layout = QHBoxLayout(actions_group)
-        scan_btn = QPushButton("Quick Scan")
-        scan_btn.setToolTip("Run Windows Defender Quick Scan")
-        scan_btn.clicked.connect(self._do_quick_scan)
-        update_btn = QPushButton("Update Definitions")
-        update_btn.setToolTip("Update Defender signature definitions")
-        update_btn.clicked.connect(self._do_update_defs)
-        self._action_status_lbl = QLabel()
-        self._action_status_lbl.setStyleSheet("color: gray; font-size: 12px;")
-        actions_layout.addWidget(scan_btn)
-        actions_layout.addWidget(update_btn)
-        actions_layout.addWidget(self._action_status_lbl)
-        actions_layout.addStretch()
-        layout.addWidget(actions_group)
-
-        layout.addStretch()
-        scroll.setWidget(tab)
-
-        # Collect toggle cards for lifecycle management
-        self._toggle_cards = [
-            self._ctrl_realtime, self._ctrl_cloud, self._ctrl_sample,
-            self._ctrl_pua, self._ctrl_cfa, self._ctrl_tamper,
-            self._ctrl_netprot,
-            self._ctrl_fw_domain, self._ctrl_fw_private, self._ctrl_fw_public,
-            self._ctrl_smartscreen, self._ctrl_lsass,
-        ]
-        return scroll
-
-    def _refresh_controls(self):
-        """Refresh all toggle card states from current system settings."""
-        from modules.security_dashboard.security_reader import (
-            check_pua_protection, check_controlled_folder_access,
-            check_tamper_protection, check_cloud_protection,
-            check_network_protection_defender, check_smartscreen,
-            check_lsass_protection, check_firewall,
-        )
-
-        worker = COMWorker(lambda _w: {
-            "pua": check_pua_protection(),
-            "cfa": check_controlled_folder_access(),
-            "tamper": check_tamper_protection(),
-            "cloud": check_cloud_protection(),
-            "netprot": check_network_protection_defender(),
-            "smartscreen": check_smartscreen(),
-            "lsass": check_lsass_protection(),
-            "firewall": check_firewall(),
-        })
-        self._workers.append(worker)
-
-        def on_result(data: dict):
-            if not _widget_valid(self._tabs):
-                return
-            self._apply_control_data(data)
-
-        def on_error(err):
-            if not _widget_valid(self._tabs):
-                return
-            emsg = str(err[1]) if isinstance(err, tuple) else str(err)
-            self._error_banner.set_error(f"Failed to load controls: {emsg}")
-            self._error_banner.show()
-
-        worker.signals.result.connect(on_result)
-        worker.signals.error.connect(on_error)
-
-        QThreadPool.globalInstance().start(worker)
-
-    def _apply_control_data(self, data: dict):
-        """Update toggle cards from a data dict."""
-        def _apply(card, check_data, label):
-            if not _widget_valid(card):
-                return
-            enabled = check_data.get("enabled")
-            color = check_data.get("color", "amber")
-            status = check_data.get("status", "Unknown")
-            card.set_state(enabled, status, color)
-
-        def _apply_fw(card, profile_name, fw_data):
-            if not _widget_valid(card):
-                return
-            profiles = fw_data.get("profiles", {})
-            enabled = profiles.get(profile_name, False)
-            card.set_state(enabled, "On" if enabled else "Off",
-                           "green" if enabled else "red")
-
-        _apply(self._ctrl_pua, data["pua"], "PUA")
-        _apply(self._ctrl_cfa, data["cfa"], "CFA")
-        _apply(self._ctrl_tamper, data["tamper"], "Tamper")
-        _apply(self._ctrl_netprot, data["netprot"], "NetworkProt")
-        _apply(self._ctrl_smartscreen, data["smartscreen"], "SmartScreen")
-        _apply(self._ctrl_lsass, data["lsass"], "LSASS")
-
-        # Cloud protection — extract MAPS level
-        cloud = data["cloud"]
-        if _widget_valid(self._ctrl_cloud):
-            c_enabled = cloud.get("enabled")
-            c_color = cloud.get("color", "amber")
-            c_status = cloud.get("status", "Unknown")
-            self._ctrl_cloud.set_state(c_enabled, c_status, c_color)
-
-        # Sample submission
-        if _widget_valid(self._ctrl_sample):
-            s_level = cloud.get("samples_level", 0)
-            s_enabled = s_level >= 1
-            s_labels = {0: "Never", 1: "Always prompt", 2: "Auto (safe)", 3: "Auto (all)"}
-            s_status = s_labels.get(s_level, str(s_level))
-            self._ctrl_sample.set_state(s_enabled, s_status,
-                                        "green" if s_enabled else "red")
-
-        # Real-time — derived from main defender check
-        if _widget_valid(self._ctrl_realtime):
-            from modules.security_dashboard.security_reader import check_defender
-            d = check_defender()
-            rt = d.get("real_time", False)
-            self._ctrl_realtime.set_state(rt,
-                                          "On" if rt else "Off",
-                                          "green" if rt else "red")
-
-        # Firewall profiles
-        fw = data["firewall"]
-        _apply_fw(self._ctrl_fw_domain, "Domain", fw)
-        _apply_fw(self._ctrl_fw_private, "Private", fw)
-        _apply_fw(self._ctrl_fw_public, "Public", fw)
 
     # ── Tab 3: Advanced ────────────────────────────────────────────────────
 
-    def _build_advanced_tab(self) -> QWidget:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(4, 4, 4, 4)
-
-        # ── Defender Deep Scan Settings ──────────────────────────────────
-        def_adv = QGroupBox("Defender — Deep Scan Settings")
-        da_layout = QVBoxLayout(def_adv)
-
-        self._ctrl_behav = _ToggleCard(
-            "Behavior Monitoring", "\U0001f4ca",
-            "Monitors program and system behaviors for suspicious activity patterns.")
-        self._ctrl_behav.configure(
-            "def_behav", set_defender_behavior_monitoring, set_defender_behavior_monitoring)
-        da_layout.addWidget(self._ctrl_behav)
-
-        self._ctrl_script = _ToggleCard(
-            "Script Scanning", "\U0001f4dc",
-            "Scans PowerShell, WSH, and other scripts before execution.")
-        self._ctrl_script.configure(
-            "def_script", set_defender_script_scanning, set_defender_script_scanning)
-        da_layout.addWidget(self._ctrl_script)
-
-        self._ctrl_ioav = _ToggleCard(
-            "Downloaded Files Scanning (IOAV)", "\U0001f4e5",
-            "Scans files as they are downloaded from the internet.")
-        self._ctrl_ioav.configure(
-            "def_ioav", set_defender_ioav, set_defender_ioav)
-        da_layout.addWidget(self._ctrl_ioav)
-
-        self._ctrl_archive = _ToggleCard(
-            "Archive Scanning", "\U0001f4e6",
-            "Scans inside compressed archives (ZIP, RAR, CAB).")
-        self._ctrl_archive.configure(
-            "def_archive", set_defender_archive_scanning, set_defender_archive_scanning)
-        da_layout.addWidget(self._ctrl_archive)
-
-        self._ctrl_removable = _ToggleCard(
-            "Removable Drive Scanning", "\U0001f4be",
-            "Scans files on USB drives and other removable media on access.")
-        self._ctrl_removable.configure(
-            "def_removable", set_defender_removable_drive_scanning,
-            set_defender_removable_drive_scanning)
-        da_layout.addWidget(self._ctrl_removable)
-
-        self._ctrl_catchup = _ToggleCard(
-            "Catch-Up Scans", "\U0001f504",
-            "Runs quick/full scans automatically if a scheduled scan was missed.")
-        self._ctrl_catchup.configure(
-            "def_catchup", set_defender_catchup_scans, set_defender_catchup_scans)
-        da_layout.addWidget(self._ctrl_catchup)
-
-        layout.addWidget(def_adv)
-
-        # ── Network Hardening ────────────────────────────────────────────
-        net_group = QGroupBox("Network Hardening")
-        net_layout = QVBoxLayout(net_group)
-
-        self._ctrl_llmnr = _ToggleCard(
-            "LLMNR (Multicast Name Resolution)", "\U0001f310",
-            "Disables Link-Local Multicast Name Resolution to prevent MitM attacks. "
-            "ON = enabled (insecure), OFF = disabled (secure).")
-        self._ctrl_llmnr.configure(
-            "llmnr", set_llmnr, set_llmnr)
-        net_layout.addWidget(self._ctrl_llmnr)
-
-        self._ctrl_wpad_toggle = _ToggleCard(
-            "WPAD Auto-Discovery", "\U0001f50d",
-            "Disables automatic proxy discovery to prevent proxy injection attacks.")
-        self._ctrl_wpad_toggle.configure(
-            "wpad", set_wpad, set_wpad)
-        net_layout.addWidget(self._ctrl_wpad_toggle)
-
-        layout.addWidget(net_group)
-
-        # ── System Hardening ─────────────────────────────────────────────
-        sys_hard = QGroupBox("System Hardening")
-        sh_layout = QVBoxLayout(sys_hard)
-
-        self._ctrl_wdigest = _ToggleCard(
-            "WDigest Credential Caching", "\U0001f512",
-            "Disables WDigest plaintext password caching in LSASS memory. "
-            "OFF = secure (credentials not cached).")
-        self._ctrl_wdigest.configure(
-            "wdigest", set_wdigest_credential_caching, set_wdigest_credential_caching)
-        sh_layout.addWidget(self._ctrl_wdigest)
-
-        self._ctrl_pagefile = _ToggleCard(
-            "Clear Pagefile at Shutdown", "\U0001f5d1",
-            "Wipes the pagefile during clean shutdown to prevent data recovery. "
-            "Adds ~30s to shutdown time.")
-        self._ctrl_pagefile.configure(
-            "pagefile", set_pagefile_clear, set_pagefile_clear)
-        sh_layout.addWidget(self._ctrl_pagefile)
-
-        self._ctrl_pslog = _ToggleCard(
-            "PowerShell Script Block Logging", "\U0001f4dd",
-            "Logs all PowerShell script blocks to the event log for forensic analysis.")
-        self._ctrl_pslog.configure(
-            "ps_log", set_ps_script_block_logging, set_ps_script_block_logging)
-        sh_layout.addWidget(self._ctrl_pslog)
-
-        layout.addWidget(sys_hard)
-        layout.addStretch()
-        scroll.setWidget(tab)
-
-        # Collect cards
-        self._advanced_cards = [
-            self._ctrl_behav, self._ctrl_script, self._ctrl_ioav,
-            self._ctrl_archive, self._ctrl_removable, self._ctrl_catchup,
-            self._ctrl_llmnr, self._ctrl_wpad_toggle,
-            self._ctrl_wdigest, self._ctrl_pagefile, self._ctrl_pslog,
-        ]
-        self._toggle_cards.extend(self._advanced_cards)
-        return scroll
-
-    def _refresh_advanced(self):
-        """Load advanced tab toggle states."""
-        from modules.security_dashboard.security_reader import (
-            check_defender_behavior_monitoring, check_defender_script_scanning,
-            check_defender_ioav, check_defender_archive_scanning,
-            check_defender_removable_drive, check_defender_catchup_scan,
-            check_llmnr, check_wpad, check_wdigest,
-            check_pagefile_clear, check_ps_script_block_logging,
-        )
-        worker = COMWorker(lambda _w: {
-            "behav": check_defender_behavior_monitoring(),
-            "script": check_defender_script_scanning(),
-            "ioav": check_defender_ioav(),
-            "archive": check_defender_archive_scanning(),
-            "removable": check_defender_removable_drive(),
-            "catchup": check_defender_catchup_scan(),
-            "llmnr": check_llmnr(),
-            "wpad": check_wpad(),
-            "wdigest": check_wdigest(),
-            "pagefile": check_pagefile_clear(),
-            "pslog": check_ps_script_block_logging(),
-        })
-        self._workers.append(worker)
-
-        def on_result(data):
-            if not _widget_valid(self._tabs):
-                return
-            def _apply(card, d):
-                if _widget_valid(card):
-                    card.set_state(d.get("enabled"), d.get("status", "?"), d.get("color", "amber"))
-            _apply(self._ctrl_behav, data["behav"])
-            _apply(self._ctrl_script, data["script"])
-            _apply(self._ctrl_ioav, data["ioav"])
-            _apply(self._ctrl_archive, data["archive"])
-            _apply(self._ctrl_removable, data["removable"])
-            _apply(self._ctrl_catchup, data["catchup"])
-            _apply(self._ctrl_llmnr, data["llmnr"])
-            _apply(self._ctrl_wpad_toggle, data["wpad"])
-            _apply(self._ctrl_wdigest, data["wdigest"])
-            _apply(self._ctrl_pagefile, data["pagefile"])
-            _apply(self._ctrl_pslog, data["pslog"])
-
-        worker.signals.result.connect(on_result)
-        worker.signals.error.connect(lambda e: None)
-        QThreadPool.globalInstance().start(worker)
 
     # ── Tab 4: CVEs ───────────────────────────────────────────────────────
 
-    def _build_cve_tab(self) -> QWidget:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(4, 4, 4, 4)
 
-        banner = QLabel("CVE Vulnerability Mitigations")
-        f = banner.font(); f.setBold(True); pt = f.pointSize()
-        if pt > 0: f.setPointSize(pt + 1)
-        banner.setFont(f)
-        layout.addWidget(banner)
-
-        note = QLabel("Checks known CPU and Windows vulnerability mitigations via SpeculationControl module and registry.")
-        note.setStyleSheet("color: #888; font-size: 11px;")
-        note.setWordWrap(True)
-        layout.addWidget(note)
-
-        self._cve_overall_lbl = QLabel("Loading...")
-        self._cve_overall_lbl.setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px;")
-        layout.addWidget(self._cve_overall_lbl)
-
-        self._cve_progress = QProgressBar()
-        self._cve_progress.setFixedHeight(3)
-        self._cve_progress.setRange(0, 0)
-        self._cve_progress.hide()
-        layout.addWidget(self._cve_progress)
-
-        # CVE grid
-        self._cve_grid = QGridLayout()
-        self._cve_grid.setSpacing(8)
-        self._cve_cards: dict = {}
-        cve_list = [
-            ("spectre_v2", "Spectre v2 (BTI)", "CVE-2017-5715"),
-            ("meltdown", "Meltdown", "CVE-2017-5754"),
-            ("ssbd", "Spectre v4 / SSBD", "CVE-2018-3639"),
-            ("l1tf", "L1TF / Foreshadow", "CVE-2018-3615"),
-            ("mds", "MDS / Zombieload", "CVE-2018-12126"),
-            ("printnightmare", "PrintNightmare", "CVE-2021-34527"),
-            ("zerologon", "Zerologon", "CVE-2020-1472"),
-            ("petitpotam", "PetitPotam", "CVE-2021-36942"),
-            ("follina", "Follina (MSDT)", "CVE-2022-30190"),
-            ("blacklotus", "BlackLotus", "CVE-2023-24932"),
-            ("kerberos", "Kerberos Armoring", "CVE-2022-33679"),
-            ("credential_guard", "Credential Guard VBS", "CVE-2022-22047"),
-            ("ntlm_relay", "NTLM Relay Protection", "Various"),
-            ("smb_ghost", "SMBGhost", "CVE-2020-0796"),
-        ]
-        for i, (key, name, cve) in enumerate(cve_list):
-            row, col = divmod(i, 2)
-            card = _StatusCard(f"{cve}\n{name}")
-            card.setMinimumHeight(80)
-            self._cve_grid.addWidget(card, row, col)
-            self._cve_cards[key] = card
-        layout.addLayout(self._cve_grid)
-        layout.addStretch()
-        scroll.setWidget(tab)
-        return scroll
-
-    def _refresh_cves(self):
-        self._cve_progress.show()
-        worker = COMWorker(lambda _w: {
-            "spectre_v2": check_spectre_v2(),
-            "meltdown": check_meltdown(),
-            "ssbd": check_ssbd(),
-            "l1tf": check_l1tf(),
-            "mds": check_mds(),
-            "printnightmare": check_printnightmare(),
-            "zerologon": check_zerologon(),
-            "petitpotam": check_petitpotam(),
-            "follina": check_follina(),
-            "blacklotus": check_blacklotus(),
-            "kerberos": check_kerberos_armoring(),
-            "credential_guard": check_credential_guard_vbs(),
-            "ntlm_relay": check_ntlm_relay_protection(),
-            "smb_ghost": check_smb_ghost(),
-        })
-        self._workers.append(worker)
-
-        def on_result(data):
-            if not _widget_valid(self._tabs): return
-            self._cve_progress.hide()
-            greens = ambers = reds = 0
-            for key, card in self._cve_cards.items():
-                d = data.get(key, {})
-                if _widget_valid(card):
-                    card.update_status(d)
-                    c = d.get("color", "amber")
-                    if c == "green": greens += 1
-                    elif c == "red": reds += 1
-                    else: ambers += 1
-            if reds > 0:
-                self._cve_overall_lbl.setText(f"{reds} vulnerable | {greens} mitigated | {ambers} unknown")
-                self._cve_overall_lbl.setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px; color: #E74C3C;")
-            elif ambers > 0:
-                self._cve_overall_lbl.setText(f"{greens} mitigated | {ambers} unknown — configure hardening policies")
-                self._cve_overall_lbl.setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px; color: #E67E22;")
-            else:
-                self._cve_overall_lbl.setText(f"All {greens} mitigations active")
-                self._cve_overall_lbl.setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px; color: #27AE60;")
-
-        def on_error(err):
-            if _widget_valid(self._tabs): return
-            self._cve_progress.hide()
-
-        worker.signals.result.connect(on_result)
-        worker.signals.error.connect(on_error)
-        QThreadPool.globalInstance().start(worker)
 
     # ── Tab 5: Security Events ────────────────────────────────────────────
 
@@ -1594,47 +893,261 @@ class SecurityDashboardModule(BaseModule):
             self._load_events()
 
     def _on_tab_changed(self, index: int):
-        """Lazy-load tabs when first selected."""
-        if index == 1 and not self._loaded_controls:
-            self._loaded_controls = True
-            self._refresh_controls()
-        elif index == 2 and not self._loaded_advanced:
-            self._loaded_advanced = True
-            self._refresh_advanced()
-        elif index == 3 and not self._loaded_cves:
-            self._loaded_cves = True
-            self._refresh_cves()
+        """Read a category tab the first time it is actually shown.
+
+        Not on build: seven tabs read at construction is the whole
+        catalog, 15.8s of it, to draw one visible pane.
+        """
+        tab = self._category_tabs.get(self._tab_names.get(index))
+        if tab is not None:
+            self._read_category(tab)
 
     def _manual_refresh(self):
-        """Called when user clicks Refresh button."""
+        """Refresh: drop the caches, then re-read what is on screen.
+
+        `snapshots.invalidate()` FIRST -- 135 of the 149 readers answer
+        out of that cache and it has no expiry, so a Refresh that
+        skipped this would redraw exactly the same numbers and look
+        broken. Only the visible tab is re-read; the others reread when
+        they are next shown.
+        """
         self._error_banner.clear()
         self._error_banner.hide()
-        self._cancel_all_running_toggles()
+        snapshots.invalidate()
         self._refresh_overview()
-        if self._loaded_controls:
-            self._refresh_controls()
-        if self._loaded_advanced:
-            self._refresh_advanced()
-        if self._loaded_cves:
-            self._refresh_cves()
+        for tab in self._category_tabs.values():
+            tab.loaded = False
+        current = self._category_tabs.get(
+            self._tab_names.get(self._tabs.currentIndex()))
+        if current is not None:
+            self._read_category(current, force=True)
         if self._loaded_events:
             self._load_events()
 
     def on_deactivate(self) -> None:
         self.cancel_all_workers()
-        self._cancel_all_running_toggles()
 
     def on_stop(self) -> None:
         self.cancel_all_workers()
-        self._cancel_all_running_toggles()
 
-    def _cancel_all_running_toggles(self):
-        """Cancel workers on individual toggle cards."""
-        for card in self._toggle_cards:
-            try:
-                card.cancel()
-            except Exception:
-                logger.warning("Error cancelling toggle card %s", card, exc_info=True)
+
+
+    # ── Catalog-driven category tabs ──────────────────────────────────────
+
+    def _build_filter_bar(self) -> QWidget:
+        bar = QWidget()
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(0, 0, 0, 0)
+
+        self._filter_box = QLineEdit()
+        self._filter_box.setPlaceholderText(
+            "Filter controls — matches the name, the description and why it "
+            "matters")
+        self._filter_box.setClearButtonEnabled(True)
+        self._filter_box.textChanged.connect(self._apply_filter)
+        row.addWidget(self._filter_box, 1)
+
+        self._only_problems = QCheckBox("Only problems")
+        self._only_problems.setToolTip(
+            "Controls whose reading differs from what the catalog recommends. "
+            "A control the catalog has no opinion about is never a problem, "
+            "and neither is one that could not be read.")
+        self._only_changed = QCheckBox("Only staged")
+        self._only_actionable = QCheckBox("Only changeable")
+        for box in (self._only_problems, self._only_changed,
+                    self._only_actionable):
+            box.stateChanged.connect(self._apply_filter)
+            row.addWidget(box)
+        return bar
+
+    def _build_category_tab(self, category) -> QWidget:
+        tab = _CategoryTab(category, [c for c in self.catalog.values()
+                                      if c.category is category])
+        self._category_tabs[category.value] = tab
+        return tab
+
+    def show_category_tab(self, name: str) -> None:
+        """Select a category tab and make sure it has been read."""
+        for index, tab_name in self._tab_names.items():
+            if tab_name == name:
+                self._tabs.setCurrentIndex(index)
+                break
+        tab = self._category_tabs.get(name)
+        if tab is not None:
+            self._read_category(tab)
+
+    def _dispatch(self, worker) -> None:
+        """Where a Worker goes. Overridden in tests, which have no pool."""
+        QThreadPool.globalInstance().start(worker)
+
+    def _read_category(self, tab, force: bool = False) -> None:
+        """Read this tab's controls, once, off the UI thread.
+
+        A tab reads only its OWN controls: the whole catalog is 15.8s warm
+        (31.4s elevated), and 135 of the 149 controls are free -- the cost is
+        twelve readers that each launch their own process. Reading everything
+        because one tab was opened is the Overview 37.3s defect at scale.
+
+        `tab.reading` is the same guard `test_security_overview_inflight.py`
+        pins for Overview: a click on a tab whose read is still in flight must
+        not start a second one.
+        """
+        tab.build_cards(self._on_card_staged)
+        if tab.reading or (tab.loaded and not force):
+            return
+        tab.reading = True
+        tab.set_status("Reading…")
+        controls = list(tab.controls)
+
+        def job(worker):
+            readings = {}
+            for control in controls:
+                if worker.is_cancelled:
+                    return readings
+                readings[control.id] = control.read()
+            return readings
+
+        # COMWorker, not Worker: these readers reach WMI (BitLocker, TPM,
+        # encryptable volumes) and COMWorker is what calls CoInitialize on the
+        # pool thread. Unelevated the two are indistinguishable -- every WMI
+        # call here is refused, so nothing exercises COM at all, which is
+        # exactly why the wrong one would survive testing on this machine.
+        worker = COMWorker(job)
+        worker.signals.result.connect(
+            lambda readings, t=tab: self._on_category_read(t, readings))
+        worker.signals.error.connect(
+            lambda err, t=tab: self._on_category_error(t, err))
+        worker.signals.finished.connect(
+            lambda t=tab: self._on_category_finished(t))
+        self._workers.append(worker)
+        self._dispatch(worker)
+
+    def _on_category_read(self, tab, readings: Dict[str, Any]) -> None:
+        if not _widget_valid(tab):
+            return
+        self._readings.update(readings)
+        for control_id, value in readings.items():
+            card = tab.cards.get(control_id)
+            if card is not None:
+                card.set_reading(value)
+        tab.loaded = True
+        unread = sum(1 for v in readings.values() if v is None)
+        stamp = datetime.now().strftime("%H:%M:%S")
+        tab.set_status(
+            f"Read at {stamp}"
+            + (f" — {unread} could not be read" if unread else ""))
+        self._apply_filter()
+
+    def _on_category_error(self, err, tab) -> None:
+        logger.error("category read failed: %s", err)
+        if _widget_valid(tab):
+            tab.set_status("The read failed — see the log")
+
+    def _on_category_finished(self, tab) -> None:
+        tab.reading = False
+        self._workers = [w for w in self._workers if not w.is_finished()] \
+            if hasattr(Worker, "is_finished") else self._workers[-1:]
+
+    # ── Filtering ─────────────────────────────────────────────────────────
+
+    def filter_controls(self, text: str = "", only_problems: bool = False,
+                        only_changed: bool = False,
+                        only_actionable: bool = False) -> List[Any]:
+        """The catalog entries a filter would leave visible.
+
+        `only_problems` keys off `desired`, NEVER off the reader's own colour
+        (Ruling 6): 14 controls have no `desired` and their readers
+        legitimately paint them amber or red, and a control that could not be
+        READ is not a control that is wrong.
+        """
+        needle = (text or "").strip().lower()
+        hits = []
+        for control in self.catalog.values():
+            if needle:
+                haystack = (f"{control.title} {control.description} "
+                            f"{control.why_it_matters} {control.id}").lower()
+                if needle not in haystack:
+                    continue
+            if only_actionable and not control.writable:
+                continue
+            if only_changed and control.id not in self._changeset:
+                continue
+            if only_problems:
+                reading = self._readings.get(control.id)
+                if (control.desired is None or reading is None
+                        or reading == control.desired):
+                    continue
+            hits.append(control)
+        return hits
+
+    def _apply_filter(self) -> None:
+        if not self._category_tabs:
+            return
+        visible = {c.id for c in self.filter_controls(
+            self._filter_box.text(),
+            only_problems=self._only_problems.isChecked(),
+            only_changed=self._only_changed.isChecked(),
+            only_actionable=self._only_actionable.isChecked())}
+        for tab in self._category_tabs.values():
+            shown = 0
+            for control_id, card in tab.cards.items():
+                on = control_id in visible
+                card.setVisible(on)
+                shown += 1 if on else 0
+            tab.set_match_count(shown, len(tab.cards))
+
+    # ── Staging ───────────────────────────────────────────────────────────
+
+    @property
+    def changeset(self):
+        return self._changeset
+
+    def _on_card_staged(self, control_id: str, to_value: Any) -> None:
+        """A card was clicked. Nothing is written; the change is staged.
+
+        The reading the pane already holds is passed as `from_value`, so
+        staging does not read the machine again -- a full baseline diff is
+        12.68s without it and 0.001s with it.
+        """
+        control = self.catalog.get(control_id)
+        if control is None:
+            return
+        try:
+            if control_id in self._readings:
+                self._changeset.add(control, to_value,
+                                    from_value=self._readings[control_id])
+            else:
+                # Never `add(control, to_value)` here: with no from_value
+                # ChangeSet reads the machine, and this runs on the UI
+                # thread -- bitlocker_encryption_detail alone is 5.4s of
+                # frozen window. A control the pane has not read is
+                # honestly staged as unread, which is what
+                # ChangeSet.unread_before exists to report.
+                logger.warning("staging %s with no reading of its own",
+                               control_id)
+                self._changeset.add(control, to_value, from_value=None)
+        except ValueError as exc:      # read-only, or staged to no value
+            logger.warning("cannot stage %s: %s", control_id, exc)
+            return
+        card = self._card_for(control_id)
+        if card is not None:
+            if control_id in self._changeset:
+                card.set_staged(to_value)
+            else:
+                card.clear_staged()     # staged back to what it already is
+        self._on_changeset_changed()
+
+    def _card_for(self, control_id: str):
+        for tab in self._category_tabs.values():
+            card = tab.cards.get(control_id)
+            if card is not None:
+                return card
+        return None
+
+    def _on_changeset_changed(self) -> None:
+        """Task 16 renders the pending bar here."""
+        if self._only_changed.isChecked():
+            self._apply_filter()
 
 
 def _on_label_error(label, message: str):
