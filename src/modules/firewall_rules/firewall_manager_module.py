@@ -255,44 +255,51 @@ def delete_rule(name: str) -> Tuple[bool, str]:
     return False, "netsh: %s\nPowerShell: %s" % (message, ps_message)
 
 
+def _netsh_or_raise(args: List[str], what: str) -> str:
+    """Run netsh, and raise with ITS words when it refuses.
+
+    check=True raises CalledProcessError, whose message is
+    "returned non-zero exit status 1" -- while netsh has already written the
+    reason ("The requested operation requires elevation.", "A rule with the
+    same name already exists.") to stdout, where check=True discards it. These
+    calls run inside a Worker whose error signal goes straight to the user, so
+    the number was all anybody saw.
+    """
+    ok, output = _run_netsh(args)
+    if ok:
+        return output
+    raise RuntimeError(f"{what}: {output}" if output else
+                       f"{what}: netsh gave no reason")
+
+
 def netsh_block_program(exe_path: str) -> None:
     rule_name = f"Block {Path(exe_path).stem}"
-    subprocess.run(
-        ["netsh", "advfirewall", "firewall", "add", "rule",
+    _netsh_or_raise(
+        ["advfirewall", "firewall", "add", "rule",
          f"name={rule_name}",
          "dir=out", "action=block",
          f"program={exe_path}", "enable=yes"],
-        check=True, capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+        f"could not block {Path(exe_path).name}")
 
 
 def netsh_open_port(port: int, direction: str = "in") -> None:
     name = f"Allow {direction.title()} Port {port}"
-    subprocess.run(
-        ["netsh", "advfirewall", "firewall", "add", "rule",
+    _netsh_or_raise(
+        ["advfirewall", "firewall", "add", "rule",
          f"name={name}",
          f"dir={direction}", "action=allow",
          f"localport={port}", "protocol=tcp", "enable=yes"],
-        check=True, capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+        f"could not open port {port}")
 
 
 def netsh_export_rules(path: str) -> None:
-    subprocess.run(
-        ["netsh", "advfirewall", "export", f'"{path}"'],
-        check=True, capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    _netsh_or_raise(["advfirewall", "export", f'"{path}"'],
+                    "could not export the firewall rules")
 
 
 def netsh_import_rules(path: str) -> None:
-    subprocess.run(
-        ["netsh", "advfirewall", "import", f'"{path}"'],
-        check=True, capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    _netsh_or_raise(["advfirewall", "import", f'"{path}"'],
+                    "could not import the firewall rules")
 
 
 # ------------------------------------------------------------------
