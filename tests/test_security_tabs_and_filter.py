@@ -167,9 +167,30 @@ def test_refresh_drops_the_snapshot_caches_first(module, monkeypatch):
     monkeypatch.setattr(
         "modules.security_dashboard.security_module.snapshots.invalidate",
         lambda: dropped.append(1))
-    module._dispatch = lambda worker: None
+    started = []
+    module._dispatch = lambda worker: started.append(worker)
+    module.show_category_tab("Services")
+    started[0].signals.finished.emit()   # the first read is done
+    started.clear()
     module._manual_refresh()
+    assert started, "refresh started no read"
+    assert dropped == [], "invalidate() must not run on the UI thread"
+    started[-1].run()
     assert dropped == [1]
+
+
+def test_refresh_never_invalidates_on_the_ui_thread(module, monkeypatch):
+    """invalidate() takes every per-name snapshot lock, so it waits for any
+    fetch already in flight -- up to a 30s timeout each. One suite run
+    measured 189s. Called from a click handler that is the window frozen."""
+    monkeypatch.setattr(
+        "modules.security_dashboard.security_module.snapshots.invalidate",
+        lambda: pytest.fail("invalidate() ran on the UI thread"))
+    started = []
+    module._dispatch = lambda worker: started.append(worker)
+    module.show_category_tab("Services")
+    started[0].signals.finished.emit()
+    module._manual_refresh()
 
 
 def test_a_card_exists_for_every_control_in_a_built_tab(module):

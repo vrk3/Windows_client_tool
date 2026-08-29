@@ -68,7 +68,7 @@ _UNVERIFIED_REASON = (
 
 def apply_batch(changeset: ChangeSet, engine, backup, *,
                 create_windows_restore_point: Optional[Callable] = None,
-                invalidate_reads: Callable[[], None] = snapshots.invalidate
+                invalidate_reads: Optional[Callable[[], None]] = None
                 ) -> BatchResult:
     """Apply every staged change, then re-read each control to check.
 
@@ -81,6 +81,12 @@ def apply_batch(changeset: ChangeSet, engine, backup, *,
     reads and `invalidate_reads` are blocking, so this belongs in a worker
     thread, never on the Qt main thread.
     """
+    # Resolved at CALL time, not bound as a default. A default argument is
+    # evaluated once, when the module is imported, so
+    # `invalidate_reads=snapshots.invalidate` captures THAT function object
+    # and any later swap of snapshots.invalidate -- a test's stub, or a
+    # future replacement -- silently does nothing.
+    invalidate = invalidate_reads or snapshots.invalidate
     rp_id = backup.create_restore_point(
         f"Security Dashboard: {len(changeset)} change(s)", "Security Dashboard")
 
@@ -133,7 +139,7 @@ def apply_batch(changeset: ChangeSet, engine, backup, *,
     # reader that raises is handled by SecurityControl.read(), which answers
     # None -- "could not look" -- and that is never equal to a target, so an
     # unreadable control is unverified rather than a crash mid-batch.
-    invalidate_reads()
+    invalidate()
     for index, change in to_verify:
         observed = change.control.read()
         if observed == change.to_value:

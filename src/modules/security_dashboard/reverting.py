@@ -91,7 +91,7 @@ def expected_or_none(expected: Any) -> Any:
 def revert_control(control_id: str, backup,
                    catalog: Dict[str, SecurityControl], *,
                    expected: Any = _UNKNOWN,
-                   invalidate_reads: Callable[[], None] = snapshots.invalidate
+                   invalidate_reads: Optional[Callable[[], None]] = None
                    ) -> ControlResult:
     """Undo one control's most recent applied steps, then check the machine.
 
@@ -101,11 +101,17 @@ def revert_control(control_id: str, backup,
     reading moved, which cannot tell a multi-valued control landing on the
     right value from landing on some other one.
     """
+    # Resolved at CALL time, not bound as a default. A default argument is
+    # evaluated once, when the module is imported, so
+    # `invalidate_reads=snapshots.invalidate` captures THAT function object
+    # and any later swap of snapshots.invalidate -- a test's stub, or a
+    # future replacement -- silently does nothing.
+    invalidate = invalidate_reads or snapshots.invalidate
     control = catalog.get(control_id)
     before = control.read() if control is not None else None
 
     outcome = backup.revert_tweak(control_id)
-    invalidate_reads()
+    invalidate()
 
     if not getattr(outcome, "success", False):
         observed = control.read() if control is not None else None
@@ -118,7 +124,7 @@ def revert_control(control_id: str, backup,
 
 def revert_batch(rp_id: str, backup, catalog: Dict[str, SecurityControl], *,
                  expected: Optional[Dict[str, Any]] = None,
-                 invalidate_reads: Callable[[], None] = snapshots.invalidate
+                 invalidate_reads: Optional[Callable[[], None]] = None
                  ) -> BatchResult:
     """Undo a whole restore point, then check every control it named.
 
@@ -130,6 +136,12 @@ def revert_batch(rp_id: str, backup, catalog: Dict[str, SecurityControl], *,
     `RestoreResult.reverted_ids` is what makes the check possible at all: a
     batch revert that cannot name what it reverted cannot verify anything.
     """
+    # Resolved at CALL time, not bound as a default. A default argument is
+    # evaluated once, when the module is imported, so
+    # `invalidate_reads=snapshots.invalidate` captures THAT function object
+    # and any later swap of snapshots.invalidate -- a test's stub, or a
+    # future replacement -- silently does nothing.
+    invalidate = invalidate_reads or snapshots.invalidate
     known = expected or {}
     before: Dict[str, Any] = {}
     ids = _ids_of(backup, rp_id)
@@ -138,7 +150,7 @@ def revert_batch(rp_id: str, backup, catalog: Dict[str, SecurityControl], *,
         before[control_id] = control.read() if control is not None else None
 
     outcome = backup.restore_point(rp_id)
-    invalidate_reads()
+    invalidate()
 
     result = BatchResult(rp_id=rp_id)
     reverted = list(getattr(outcome, "reverted_ids", None) or ids)

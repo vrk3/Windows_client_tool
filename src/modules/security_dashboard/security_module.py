@@ -16,7 +16,7 @@ from functools import partial
 from typing import Any, Callable, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QMessageBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QMessageBox, QHeaderView, QMenu, QFileDialog,
     QPushButton, QLabel, QFrame, QProgressBar, QCheckBox, QLineEdit,
     QPlainTextEdit, QTabWidget, QTableWidget, QTableWidgetItem,
     QGroupBox, QScrollArea, QSizePolicy, QStackedWidget,
@@ -47,6 +47,10 @@ from modules.security_dashboard.applier import apply_batch
 from modules.security_dashboard.elevated_helper import (
     build_elevated_command, changes_of, read_result_file,
     write_batch_file)
+from modules.security_dashboard.profile import (
+    available_baselines, export_profile, import_profile, plan_baseline,
+    read_profile, write_profile)
+from modules.security_dashboard.reverting import revert_batch
 from modules.security_dashboard.staging import ChangeSet
 from modules.security_dashboard.security_reader import (
     get_all_security_status,
@@ -814,6 +818,8 @@ class SecurityDashboardModule(BaseModule):
         self._tab_names: Dict[int, str] = {}
         self._applying = False
         self._widget: Optional[QWidget] = None
+        self._history_rows: List[Any] = []
+        self._last_baseline_plan: Optional[dict] = None
         self._events_progress: Optional[QProgressBar] = None
         self._events_table: Optional[QTableWidget] = None
 
@@ -859,6 +865,13 @@ class SecurityDashboardModule(BaseModule):
         if pt > 0:
             font.setPointSize(pt + 2)
         self._banner.setFont(font)
+        baseline_btn = QPushButton("Baselines…")
+        baseline_btn.setToolTip(
+            "Stage the difference between this machine and a baseline. "
+            "Nothing is written until you press Apply.")
+        baseline_btn.setMenu(self._build_baseline_menu())
+        profile_btn = QPushButton("Profile…")
+        profile_btn.setMenu(self._build_profile_menu())
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self._manual_refresh)
         self._progress = QProgressBar()
@@ -866,6 +879,8 @@ class SecurityDashboardModule(BaseModule):
         self._progress.setFixedHeight(4)
         self._progress.hide()
         header_row.addWidget(self._banner, 1)
+        header_row.addWidget(baseline_btn)
+        header_row.addWidget(profile_btn)
         header_row.addWidget(refresh_btn)
         layout.addLayout(header_row)
         layout.addWidget(self._progress)
@@ -887,6 +902,7 @@ class SecurityDashboardModule(BaseModule):
             index = self._tabs.addTab(self._build_category_tab(category),
                                       category.value.replace("&", "&&"))
             self._tab_names[index] = category.value
+        self._tabs.addTab(self._build_history_tab(), "History")
         self._tabs.addTab(self._build_events_tab(), "Security Events")
         # Connected AFTER the addTab loop: addTab fires currentChanged
         # synchronously for the first tab added, which would kick off a read
@@ -1247,6 +1263,9 @@ class SecurityDashboardModule(BaseModule):
         Not on build: seven tabs read at construction is the whole
         catalog, 15.8s of it, to draw one visible pane.
         """
+        if self._tabs.tabText(index) == "History":
+            self._load_history()
+            return
         tab = self._category_tabs.get(self._tab_names.get(index))
         if tab is not None:
             self._read_category(tab)
@@ -1254,22 +1273,23 @@ class SecurityDashboardModule(BaseModule):
     def _manual_refresh(self):
         """Refresh: drop the caches, then re-read what is on screen.
 
-        `snapshots.invalidate()` FIRST -- 135 of the 149 readers answer
-        out of that cache and it has no expiry, so a Refresh that
-        skipped this would redraw exactly the same numbers and look
-        broken. Only the visible tab is re-read; the others reread when
-        they are next shown.
+        The caches are dropped FIRST -- 135 of the 149 readers answer out
+        of them and they have no expiry, so a Refresh that skipped it would
+        redraw exactly the same numbers and look broken -- but that happens
+        inside the read job, not here. `snapshots.invalidate()` takes every
+        per-name lock and waits for any fetch already running, which is up to
+        30s per snapshot. Only the visible tab is re-read; the others reread
+        when they are next shown.
         """
         self._error_banner.clear()
         self._error_banner.hide()
-        snapshots.invalidate()
         self._refresh_overview()
         for tab in self._category_tabs.values():
             tab.loaded = False
         current = self._category_tabs.get(
             self._tab_names.get(self._tabs.currentIndex()))
         if current is not None:
-            self._read_category(current, force=True)
+            self._read_category(current, force=True, invalidate_first=True)
         if self._loaded_events:
             self._load_events()
 
@@ -1329,7 +1349,8 @@ class SecurityDashboardModule(BaseModule):
         """Where a Worker goes. Overridden in tests, which have no pool."""
         QThreadPool.globalInstance().start(worker)
 
-    def _read_category(self, tab, force: bool = False) -> None:
+    def _read_category(self, tab, force: bool = False,
+                       invalidate_first: bool = False) -> None:
         """Read this tab's controls, once, off the UI thread.
 
         A tab reads only its OWN controls: the whole catalog is 15.8s warm
@@ -1349,6 +1370,14 @@ class SecurityDashboardModule(BaseModule):
         controls = list(tab.controls)
 
         def job(worker):
+            if invalidate_first:
+                # Inside the job, never on the UI thread: invalidate() takes
+                # every per-name snapshot lock, so it blocks until any fetch
+                # already in flight has finished -- up to the 30s timeout, per
+                # snapshot. Measured at 189s in one suite run with several
+                # fetches outstanding. Refresh must not be able to freeze the
+                # window for that long.
+                snapshots.invalidate()
             readings = {}
             for control in controls:
                 if worker.is_cancelled:
@@ -1593,6 +1622,204 @@ class SecurityDashboardModule(BaseModule):
         self._progress.hide()
         self._pending.apply_button.setEnabled(True)
 
+
+    # ── History, baselines and profiles ───────────────────────────────────
+
+    def _build_baseline_menu(self) -> QMenu:
+        menu = QMenu()
+        self._baseline_menu = menu       # held: a QMenu with no parent is collected
+        for name in available_baselines():
+            action = menu.addAction(name.capitalize())
+            action.triggered.connect(
+                lambda _checked=False, n=name: self._on_baseline_requested(n))
+        if not available_baselines():
+            menu.addAction("No baselines are installed").setEnabled(False)
+        return menu
+
+    def _build_profile_menu(self) -> QMenu:
+        menu = QMenu()
+        self._profile_menu = menu
+        menu.addAction("Export this machine…").triggered.connect(
+            self._on_export_profile)
+        menu.addAction("Import and stage…").triggered.connect(
+            self._on_import_profile)
+        return menu
+
+    def _on_export_profile(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self._widget, "Export this machine's security profile",
+            "security-profile.json", "JSON (*.json)")
+        if path:
+            data = self.export_profile_to(path)
+            self._banner.setText(
+                f"Exported {len(data['controls'])} control(s); "
+                f"{len(data['unreadable'])} could not be read")
+
+    def _on_import_profile(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self._widget, "Import a security profile", "", "JSON (*.json)")
+        if path:
+            staged = self.import_profile_from(path)
+            if staged is not None:
+                self._banner.setText(f"{staged} change(s) staged from profile")
+
+
+    def _build_history_tab(self) -> QWidget:
+        page = QWidget()
+        column = QVBoxLayout(page)
+
+        row = QHBoxLayout()
+        self._history_status = QLabel("Not loaded yet")
+        reload_button = QPushButton("Reload")
+        reload_button.clicked.connect(self._load_history)
+        self._revert_button = QPushButton("Revert the selected batch")
+        self._revert_button.setEnabled(False)
+        self._revert_button.clicked.connect(self._on_revert_requested)
+        row.addWidget(self._history_status, 1)
+        row.addWidget(reload_button)
+        row.addWidget(self._revert_button)
+        column.addLayout(row)
+
+        self._history_table = QTableWidget(0, 4)
+        self._history_table.setHorizontalHeaderLabels(
+            ["When", "What", "Changes", "State"])
+        self._history_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows)
+        self._history_table.itemSelectionChanged.connect(
+            self._on_history_selection)
+        column.addWidget(self._history_table, 1)
+        return page
+
+    def history_rows(self) -> List[Any]:
+        """This module's own restore points, newest first.
+
+        Filtered by module: BackupService is shared with Tweaks, Debloat and
+        the performance tuner, and offering to revert one of THEIR batches
+        from this pane would be a surprise nobody asked for.
+        """
+        backup = getattr(self.app, "backup", None) if self.app else None
+        if backup is None:
+            return []
+        try:
+            points = backup.list_restore_points()
+        except Exception:
+            logger.warning("could not list restore points", exc_info=True)
+            return []
+        return [p for p in points if p.module == "Security Dashboard"]
+
+    def _load_history(self) -> None:
+        rows = self.history_rows()
+        self._history_table.setRowCount(len(rows))
+        for index, point in enumerate(rows):
+            for column, text in enumerate((point.created_at, point.label,
+                                           str(point.step_count),
+                                           point.status)):
+                self._history_table.setItem(index, column,
+                                            QTableWidgetItem(str(text)))
+        _fit_columns(self._history_table)
+        self._history_status.setText(
+            f"{len(rows)} batch(es) applied from this pane"
+            if rows else "This pane has not changed anything yet")
+        self._history_rows = rows
+        self._on_history_selection()
+
+    def _on_history_selection(self) -> None:
+        rows = getattr(self, "_history_rows", [])
+        index = self._history_table.currentRow()
+        self._revert_button.setEnabled(
+            0 <= index < len(rows)
+            and rows[index].status != "restored")
+
+    def _on_revert_requested(self) -> None:
+        rows = getattr(self, "_history_rows", [])
+        index = self._history_table.currentRow()
+        if not (0 <= index < len(rows)):
+            return
+        point = rows[index]
+        backup = getattr(self.app, "backup", None) if self.app else None
+        if backup is None:
+            return
+
+        def job(_worker):
+            return revert_batch(point.id, backup, self.catalog)
+
+        worker = COMWorker(job)
+        worker.signals.result.connect(self._on_batch_result)
+        worker.signals.error.connect(self._on_batch_error)
+        worker.signals.finished.connect(self._load_history)
+        self._workers.append(worker)
+        self._dispatch(worker)
+
+    # -- baselines ---------------------------------------------------------
+
+    def plan_for_baseline(self, name: str) -> dict:
+        """What a baseline would do, without doing any of it.
+
+        The pane's own readings are passed in: without them this reads all 149
+        controls, 12.7s, to answer a question about values it already has.
+        """
+        return plan_baseline(name, self.catalog, readings=self._readings)
+
+    def _on_baseline_requested(self, name: str) -> None:
+        plan = self.plan_for_baseline(name)
+        self._changeset.clear()
+        for change in plan["staged"].changes:
+            self._changeset.add(change.control, change.to_value,
+                                from_value=change.from_value)
+            card = self._card_for(change.control_id)
+            if card is not None:
+                card.set_staged(change.to_value)
+        self._on_changeset_changed()
+        self._last_baseline_plan = plan
+
+    def export_profile_to(self, path: str) -> dict:
+        data = export_profile(self.catalog, readings=self._readings)
+        write_profile(data, path)
+        return data
+
+    def import_profile_from(self, path: str) -> Optional[int]:
+        """Stage a profile from disk. None means the file was not one."""
+        data = read_profile(path)
+        if data is None:
+            self._error_banner.set_error(
+                f"{os.path.basename(path)} is not a profile this app wrote.")
+            self._error_banner.show()
+            return None
+        staged = import_profile(data, self.catalog, readings=self._readings)
+        self._changeset.clear()
+        for change in staged.changes:
+            self._changeset.add(change.control, change.to_value,
+                                from_value=change.from_value)
+            card = self._card_for(change.control_id)
+            if card is not None:
+                card.set_staged(change.to_value)
+        self._on_changeset_changed()
+        return len(self._changeset)
+
+
+
+def _fit_columns(table, padding: int = 24, cap: int = 520) -> None:
+    """Size every column to the widest thing actually in it.
+
+    A column's default width is a guess until it has met the real data: the
+    Firewall table's guessed defaults clipped 393 of 544 real rule names and
+    rendered every program path as the useless "C:...". Measured with
+    fontMetrics().horizontalAdvance, capped so one long label cannot push the
+    rest off the pane, and left Interactive -- QHeaderView.Fixed refuses a
+    user's drag SILENTLY.
+    """
+    metrics = table.fontMetrics()
+    for column in range(table.columnCount()):
+        header_item = table.horizontalHeaderItem(column)
+        widest = metrics.horizontalAdvance(
+            header_item.text() if header_item else "")
+        for row in range(table.rowCount()):
+            item = table.item(row, column)
+            if item is not None:
+                widest = max(widest, metrics.horizontalAdvance(item.text()))
+        table.setColumnWidth(column, min(widest + padding, cap))
+    table.horizontalHeader().setSectionResizeMode(
+        QHeaderView.ResizeMode.Interactive)
 
 def _on_label_error(label, message: str):
     """Helper: show error on a QLabel if it still exists."""
