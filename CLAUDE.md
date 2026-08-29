@@ -509,6 +509,46 @@ apps. The two removal queues are separate (`_remove_queue` vs
   `itemChanged`; `_populating` is what stops a refresh queueing every app on
   the machine for removal.
 
+### Security Dashboard (`src/modules/security_dashboard/`)
+
+149 actionable controls over 165 `check_*` readers, in seven category tabs.
+`security_reader.py` reads, `catalog/` describes each control (steps, risk,
+`read_value`), `staging.py` collects pending changes, `applier.py` writes via
+`TweakEngine`, `reverting.py` undoes, `profile.py`/baselines compare.
+
+**The rules here are all one rule: a refusal is not an answer.**
+
+- **`SecurityControl.read()` returns `None` for "we could not look", and it is
+  never collapsed into `False`.** A reader signals that with
+  `available: False`; without it, `read()` falls through to `read_value`, whose
+  tests are things like `"Protected" in status` — and "Requires administrator"
+  does not contain "Protected", so a refused BitLocker read answered `False`,
+  i.e. "your system drive is NOT encrypted". `read()` is what staging,
+  baselines and profiles compare, so this is not only a card label.
+  `tools/security_refusal_sweep.py` asks all 149 controls whether any of them
+  answers with a value after being refused — **run it unelevated after
+  touching a reader**; elevated there is nothing to refuse.
+- **Never treat `rc == 0` as success.** `snapshots._looks_refused(rc, out, err)`
+  exists because `Get-BitLockerVolume`, `Get-Tpm`, `dism` and `netsh` all
+  refuse while exiting 0, some writing the reason to *stdout*.
+- **Being refused costs real time, so do not buy a refusal twice — or once, if
+  it is certain.** The `MicrosoftVolumeEncryption` and `MicrosoftTpm`
+  namespaces take a fixed ~5s to deny an ordinary user;
+  `_wmi_namespace` caches a denial per namespace AND skips those two outright
+  when unelevated, since a process cannot gain elevation while it runs.
+  `root\Microsoft\Windows\Defender` answers unelevated and is deliberately not
+  in that set. This took Device & Boot from 16.79s to 1.26s.
+- **A write is verified by reading the control back, after dropping the
+  snapshot caches once per batch** — `BackupService` reporting success is not
+  evidence the machine moved.
+
+Tools (all real-machine, none of them press a button unless asked):
+`security_catalog_check.py` (+`--apply <id>` for one full round-trip,
+`--compare a.json b.json` to diff an elevated run against an unelevated one),
+`security_refusal_sweep.py`, `security_pane_timing.py`, `security_apply_dryrun.py`,
+and the `*_render.py` trio. `Start-Process -Verb RunAs` cannot redirect output,
+so anything elevated goes through a `.ps1` wrapper that writes its own log.
+
 ### UpdatesModule (`src/modules/updates/`)
 
 5-tab module in `ModuleGroup.TOOLS`, `requires_admin = True`. This installs updates — it is a different thing from `DiagnoseModule`'s embedded Windows Update *log* viewer.
