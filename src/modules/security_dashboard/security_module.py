@@ -30,10 +30,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 from core.base_module import BaseModule
+from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
 from core.worker import Worker, COMWorker
 from ui.error_banner import ErrorBanner
+from modules.security_dashboard.catalog.model import ControlState
 from modules.security_dashboard.security_reader import (
     get_all_security_status,
     get_overview_status,
@@ -76,6 +78,249 @@ COLOR_MAP = {
     "amber": "#E67E22",
     "red":   "#E74C3C",
 }
+
+# ── ControlCard: a catalog entry, rendered ─────────────────────────────────
+
+class ControlCard(QFrame):
+    """One `SecurityControl`, drawn. It stages; it never writes.
+
+    `_ToggleCard` below is the thing this replaces, and the differences are
+    the point:
+
+    * **It renders by VALUE, not by truthiness.** 12 of the 149 controls are
+      numeric -- NTLM level, cached logons, minimum password length, cloud
+      block level, the four threat actions. This machine's `ntlm_level` reads
+      3 and wants 5; drawn as a toggle that is a green "On".
+    * **A numeric control's action is "set it to what the catalog
+      recommends"**, never "the opposite of what it reads". `not 3` is False,
+      False resolves to `off_steps`, and `ntlm_level`'s off_steps write the 3
+      it already has -- while `defender_threat_severe`'s write
+      `-SevereThreatDefaultAction None`, turning the severe-threat action off.
+    * **Green means "at what the catalog wants"**, which is `desired`, not
+      whatever colour the reader felt like. 14 controls have `desired=None`
+      and are legitimately amber or red; those are not problems and are not
+      coloured as though they were (Ruling 6).
+    * **A reading of None is "Unknown"**, never "Off". A refused read is not
+      an unset value.
+    * **No hex literal anywhere.** Colours are resolved through
+      `semantic()` at every render, so a theme change is followed rather than
+      frozen at build time.
+    """
+
+    #: (control_id, target value). The pane stages it; nothing is written here.
+    staged = pyqtSignal(str, object)
+
+    _UNREAD = object()
+
+    def __init__(self, control, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self._control = control
+        self._reading: Any = self._UNREAD
+        self._staged_to: Any = self._UNREAD
+        self._build_ui()
+
+    # -- construction ------------------------------------------------------
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(10, 8, 10, 8)
+        root.setSpacing(4)
+
+        top = QHBoxLayout()
+        self.title_label = QLabel(self._control.title)
+        font = self.title_label.font()
+        font.setBold(True)
+        self.title_label.setFont(font)
+        top.addWidget(self.title_label, 1)
+
+        self.status_badge = QLabel("—")
+        self.status_badge.setObjectName("controlStatusBadge")
+        top.addWidget(self.status_badge)
+        root.addLayout(top)
+
+        self.description_label = QLabel(self._control.description)
+        self.description_label.setWordWrap(True)
+        self.description_label.setObjectName("controlDescription")
+        root.addWidget(self.description_label)
+
+        # Prefixed and italic, because a read-only card has no button either:
+        # rendered as plain body text this sentence is indistinguishable from
+        # the description above it, and the two say completely different
+        # things -- what the setting is, versus why nobody can change it.
+        reason = self._control.read_only_reason
+        self.reason_label = QLabel(f"Read-only — {reason}" if reason else "")
+        self.reason_label.setWordWrap(True)
+        self.reason_label.setObjectName("controlReason")
+        italic = self.reason_label.font()
+        italic.setItalic(True)
+        self.reason_label.setFont(italic)
+        self.reason_label.setVisible(bool(reason))
+        root.addWidget(self.reason_label)
+
+        self.staged_label = QLabel("")
+        self.staged_label.setWordWrap(True)
+        root.addWidget(self.staged_label)
+
+        self.result_label = QLabel("")
+        self.result_label.setWordWrap(True)
+        self.result_label.setVisible(False)
+        root.addWidget(self.result_label)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+        self.toggle_button = QPushButton(self._action_text())
+        self.toggle_button.clicked.connect(self._on_action)
+        self.toggle_button.setEnabled(self._control.writable)
+        self.toggle_button.setVisible(self._control.writable)
+        row.addWidget(self.toggle_button)
+        root.addLayout(row)
+
+        self._paint()
+
+    # -- the value this control would be staged to -------------------------
+
+    def _is_numeric(self) -> bool:
+        """A control whose value is a number, not an on/off.
+
+        Decided from the reading when there is one and from `desired`
+        otherwise, so a control that has not been read yet still offers the
+        right action.
+        """
+        for value in (self._reading, self._control.desired):
+            if value is self._UNREAD or value is None:
+                continue
+            return not isinstance(value, bool)
+        return False
+
+    def _target(self) -> Any:
+        """What a click would stage, or None if a click cannot mean anything.
+
+        A numeric control has exactly one sensible target: what the catalog
+        recommends. A boolean one flips -- and if it could not be read, it
+        goes to `desired`, or to True when the catalog has no opinion either.
+        """
+        if not self._control.writable:
+            return None
+        if self._is_numeric():
+            return self._control.desired
+        if isinstance(self._reading, bool):
+            return not self._reading
+        if isinstance(self._control.desired, bool):
+            return self._control.desired
+        return True
+
+    def _action_text(self) -> str:
+        target = self._target()
+        if target is None:
+            return "Not changeable"
+        if self._is_numeric():
+            return f"Set to {target}"
+        return "Turn off" if target is False else "Turn on"
+
+    # -- rendering ---------------------------------------------------------
+
+    def _reading_text(self) -> str:
+        if self._reading is self._UNREAD:
+            return "—"
+        if self._reading is None:
+            return "Unknown"
+        if isinstance(self._reading, bool):
+            return "On" if self._reading else "Off"
+        return str(self._reading)
+
+    def _reading_meaning(self) -> Optional[str]:
+        """Which semantic colour the badge takes, or None for no opinion.
+
+        Keyed off `desired`, never off the reader's own colour: a control the
+        catalog has no opinion about is not a problem whatever it reads, and
+        one that is away from what the catalog wants is not a success however
+        truthy its value.
+        """
+        if self._reading is self._UNREAD:
+            return None
+        if self._reading is None:
+            return "info"
+        if self._control.desired is None:
+            return None
+        return "success" if self._reading == self._control.desired else "warning"
+
+    def _paint(self) -> None:
+        self.status_badge.setText(self._reading_text())
+        meaning = self._reading_meaning()
+        self.status_badge.setStyleSheet(
+            f"font-weight: bold; padding: 2px 8px; color: {semantic(meaning)};"
+            if meaning else "font-weight: bold; padding: 2px 8px;")
+        if self._control.writable:
+            self.toggle_button.setText(self._action_text())
+            self.toggle_button.setEnabled(self._target() is not None)
+
+    # -- the pane's side of it ---------------------------------------------
+
+    def set_reading(self, value: Any) -> None:
+        self._reading = value
+        self._paint()
+
+    def set_staged(self, to_value: Any) -> None:
+        self._staged_to = to_value
+        shown = ("Unknown" if to_value is None else
+                 ("On" if to_value is True else
+                  "Off" if to_value is False else str(to_value)))
+        self.staged_label.setText(f"Staged: will be {shown}")
+        self.staged_label.setStyleSheet(f"color: {semantic('info')};")
+
+    def clear_staged(self) -> None:
+        self._staged_to = self._UNREAD
+        self.staged_label.setText("")
+        self.staged_label.setStyleSheet("")
+
+    def set_result(self, result) -> None:
+        """Render what came back from `apply_batch` or `revert_batch`.
+
+        The reason is a Windows command's own complaint and runs to a dozen
+        lines of PowerShell error formatting -- measured, on a refused
+        Set-MpPreference. The first line goes on the card; the whole thing is
+        the tooltip, because it is the evidence.
+        """
+        state = result.state
+        first_line = (result.reason or "").strip().splitlines()
+        first_line = first_line[0] if first_line else ""
+
+        if state is ControlState.APPLIED_VERIFIED:
+            text, meaning = "Applied, and the machine confirms it", "success"
+        elif state is ControlState.APPLIED_PENDING_REBOOT:
+            text, meaning = ("Applied — takes effect after a restart, so it "
+                             "cannot be checked yet"), "info"
+        elif state is ControlState.APPLIED_UNVERIFIED:
+            text = (f"Not confirmed: asked for {result.requested!r}, the "
+                    f"machine still reads {result.observed!r}")
+            meaning = "warning"
+        else:
+            text, meaning = f"Refused: {first_line}", "error"
+
+        self.result_label.setText(text)
+        self.result_label.setToolTip(result.reason or "")
+        self.result_label.setStyleSheet(f"color: {semantic(meaning)};")
+        self.result_label.setVisible(True)
+        self.clear_staged()
+        # `observed` is a reading taken after the write, so it is now the
+        # freshest thing anyone has about this control -- fresher than the
+        # badge, which still shows what the pane read before the batch ran.
+        # Rendered without it, a card that applied False sits there saying
+        # "On" beside "Applied, and the machine confirms it". Found by
+        # rendering the card and looking at it; no assertion here caught it.
+        self.set_reading(result.observed)
+
+    def clear_result(self) -> None:
+        self.result_label.setText("")
+        self.result_label.setVisible(False)
+
+    def _on_action(self) -> None:
+        target = self._target()
+        if target is None:
+            return
+        self.staged.emit(self._control.id, target)
+
 
 # ── Reusable Toggle Card ───────────────────────────────────────────────────
 
