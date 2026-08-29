@@ -21,8 +21,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 exit /b 0
 
 :run
-cd /d "%~dp0src"
-"%~dp0.venv\Scripts\python.exe" main.py 2> "%TEMP%\wtweaker_error.txt"
+rem Run from the REPO ROOT, not from src\. The app writes its session log
+rem beside the working directory, so cd-ing into src\ put VRK_*.log there --
+rem away from every other run's logs, and outside the 20-file rotation that
+rem keeps that directory tidy. CLAUDE.md's own instruction is
+rem `python src/main.py` from the project root.
+cd /d "%~dp0"
+"%~dp0.venv\Scripts\python.exe" src\main.py 2> "%TEMP%\wtweaker_error.txt"
 if errorlevel 1 (
     echo ERROR - see %TEMP%\wtweaker_error.txt
     type "%TEMP%\wtweaker_error.txt"
