@@ -184,7 +184,14 @@ class TweakEngine:
                 if record:
                     steps_applied.append(record)
             except Exception as e:
-                key_info = step.get("key", step.get("name", step.get("cmd", "")))
+                # A `script` step keeps its command under "command", not
+                # "cmd" -- looking only for the latter produced "Step failed
+                # (script ): ..." for every refused Set-MpPreference, which
+                # names nothing in a batch that runs eighteen of them.
+                key_info = (step.get("key") or step.get("name")
+                            or step.get("cmd") or step.get("command")
+                            or step.get("task_name") or step.get("package")
+                            or "")
                 msg = f"Step failed ({step.get('type')} {key_info}): {e}"
                 logger.error(msg)
                 if on_error:

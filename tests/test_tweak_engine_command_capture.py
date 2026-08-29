@@ -96,3 +96,20 @@ def test_a_command_that_succeeded_is_not_reported_as_refused(engine):
         {"id": "t", "steps": [{"type": "command", "cmd": "cmd /c echo done"}]},
         "rp-1")
     assert ok is True
+
+
+def test_a_refused_script_step_names_the_command_that_failed(engine):
+    """"Step failed (script ): ..." names nothing.
+
+    key_info looked for "cmd", and a script step keeps its command under
+    "command" -- so every refused Set-MpPreference in the Security Dashboard's
+    catalog (eighteen script steps in one batch) reported a failure that could
+    not be told from any other. Found by applying a real, refused
+    Set-MpPreference through apply_batch.
+    """
+    errors = []
+    engine.apply_tweak(
+        {"id": "t", "steps": [{"type": "script",
+                               "command": "cmd /c echo Access is denied.& exit /b 1"}]},
+        "rp-1", on_error=errors.append)
+    assert any("cmd /c echo Access is denied." in e for e in errors), errors
