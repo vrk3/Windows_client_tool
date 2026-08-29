@@ -471,6 +471,15 @@ Plus `debloat.json` (120+ `appx` removals) and `definitions/builtins/*.json` (pr
 names, DWORD-vs-SZ data types, absolute scheduled-task paths, known `applies_to` keys.
 Run it after touching any definition file; it is the only thing that reads them.
 
+`tools/tweak_refusal_sweep.py` is the behavioural counterpart, and the sibling
+of `tools/security_refusal_sweep.py`: it detects all ~700 tweaks against the
+real machine and asks which of them state a verdict on top of a read that was
+refused. Run it **unelevated** — elevated there is nothing to refuse. Audited
+2026-08-29: 696 tweaks, none. `_aggregate` may conclude "not in place" while
+one step is unreadable (a step that is definitely missing settles it), and it
+appends "(N step(s) could not be checked)" when it does — disclosed
+uncertainty is fine, a swallowed refusal is the bug.
+
 **Apps tab** (`AppManagerTab` + `app_catalog.py`) — three lists: installed AppX
 packages, installed programs (Win32/winget), and the catalog of installable
 apps. The two removal queues are separate (`_remove_queue` vs
