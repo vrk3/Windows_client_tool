@@ -455,6 +455,44 @@ Plus `debloat.json` (120+ `appx` removals) and `definitions/builtins/*.json` (pr
 names, DWORD-vs-SZ data types, absolute scheduled-task paths, known `applies_to` keys.
 Run it after touching any definition file; it is the only thing that reads them.
 
+**Apps tab** (`AppManagerTab` + `app_catalog.py`) — three lists: installed AppX
+packages, installed programs (Win32/winget), and the catalog of installable
+apps. The two removal queues are separate (`_remove_queue` vs
+`_remove_winget_queue`) because they are removed by different commands, and
+`queued_changes()` reports them under `remove` and `remove_winget`.
+
+- **A removal is verified, never assumed.** `Get-AppxPackage 'X' |
+  Remove-AppxPackage` and `winget uninstall` both exit 0 while removing
+  nothing, so `remove_appx`/`remove_app_winget` require positive evidence both
+  ways — listed before, not listed after — and a list that could not be *read*
+  is never read as "it is gone".
+- **"Still installed" does not mean the removal failed.**
+  `Microsoft-Windows-AppXDeploymentServer/Operational` records every deployment
+  attempt and is readable unelevated. `JAMSoftware.TreeSizeContextMenu` is
+  removed successfully and then re-added ~10s later from TreeSize's own
+  install directory, so `remove_appx` consults that log and reports the path
+  that put it back. Generalise it: when an API's answer is unsatisfying, read
+  the log or file Windows itself writes.
+- **`winget list` must be parsed by COLUMN, from the header offsets.** 24 of
+  139 rows here carry an id with spaces (`ARP\Machine\X64\AMD Catalyst Install
+  Manager`), and names carry their own dots ("7-Zip 26.02 (x64 edition)"). The
+  old "first whitespace token containing a dot" heuristic returned 66 junk ids
+  out of 126 — `.NET`, `Drv_3.00.0045`, bare version numbers — and those ids
+  are what marks a catalog entry already installed.
+- **`MSIX\…` rows are AppX packages under another name** and are excluded from
+  the desktop list, or the tab offers two different removals of one thing.
+  `ARP\…` and `MSIX\…` are both winget's internal handles, never real ids.
+- **Uninstall by `--id … --exact`**, never a bare positional query: a query
+  matches id, name *or* moniker, so it can hit several apps and refuse — and an
+  ARP id contains spaces.
+- Plenty of apps are installed under an ARP id rather than the id the catalog
+  knows (Chrome is `ARP\Machine\X86\Google Chrome`, with no `Google.Chrome` row
+  anywhere), so the catalog's "Installed" marker also matches on an **exact**
+  name. Prefixes would mark Notepad++ installed because Notepad is.
+- `populate_installed*` sets a check state on every row and each one fires
+  `itemChanged`; `_populating` is what stops a refresh queueing every app on
+  the machine for removal.
+
 ### UpdatesModule (`src/modules/updates/`)
 
 5-tab module in `ModuleGroup.TOOLS`, `requires_admin = True`. This installs updates — it is a different thing from `DiagnoseModule`'s embedded Windows Update *log* viewer.

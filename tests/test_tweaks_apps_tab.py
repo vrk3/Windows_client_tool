@@ -124,3 +124,103 @@ def test_clearing_the_queue_resets_the_button(tab):
     assert not tab.has_queued_changes()
     assert not tab._apply_btn.isEnabled()
     assert "No changes queued" in tab._apply_label.text()
+
+
+# --- desktop (Win32 / winget) apps ------------------------------------------
+#
+# The tab listed AppX packages only. TreeSize itself is a Win32 app with a
+# registry uninstall entry -- the AppX package that WAS listed is only its
+# shell context menu, so ticking it could never uninstall TreeSize, and there
+# was no way in this tab to uninstall an ordinary program at all.
+
+def _desktop_apps():
+    from modules.tweaks.app_catalog import WingetApp
+    return [
+        WingetApp("TreeSize V9.8.2", "JAMSoftware.TreeSize", "9.8.2", "winget"),
+        WingetApp("AMD Software",
+                  r"ARP\Machine\X64\AMD Catalyst Install Manager",
+                  "2026.04.15", ""),
+    ]
+
+
+def test_checking_a_desktop_app_queues_it_for_removal(tab):
+    tab.populate_installed_desktop(_desktop_apps())
+    _item_named(tab._desktop_list, "TreeSize").setCheckState(
+        Qt.CheckState.Checked)
+    assert tab.queued_changes()["remove_winget"] == ["JAMSoftware.TreeSize"]
+
+
+def test_a_desktop_app_is_queued_by_id_not_by_the_name_shown(tab):
+    """The row shows "AMD Software  2026.04.15  [installed program]"; what
+    winget needs is the id, spaces and backslashes and all."""
+    tab.populate_installed_desktop(_desktop_apps())
+    _item_named(tab._desktop_list, "AMD Software").setCheckState(
+        Qt.CheckState.Checked)
+    assert tab.queued_changes()["remove_winget"] == [
+        r"ARP\Machine\X64\AMD Catalyst Install Manager"]
+
+
+def test_the_desktop_queue_is_kept_apart_from_the_appx_one(tab):
+    """They are removed by different commands, so they cannot share a list."""
+    tab.populate_installed_desktop(_desktop_apps())
+    _item_named(tab._installed_list, "BingSearch").setCheckState(
+        Qt.CheckState.Checked)
+    _item_named(tab._desktop_list, "TreeSize").setCheckState(
+        Qt.CheckState.Checked)
+    changes = tab.queued_changes()
+    assert changes["remove"] == ["Microsoft.BingSearch"]
+    assert changes["remove_winget"] == ["JAMSoftware.TreeSize"]
+
+
+def test_repopulating_the_desktop_list_does_not_invent_a_queue(tab):
+    """Same trap as the AppX list: setCheckState fires itemChanged per row,
+    so an unguarded refresh queues every program on the machine."""
+    tab.populate_installed_desktop(_desktop_apps())
+    tab.populate_installed_desktop(_desktop_apps())
+    assert tab.queued_changes()["remove_winget"] == []
+    assert not tab.has_queued_changes()
+
+
+def test_a_queued_desktop_app_counts_towards_apply(tab):
+    tab.populate_installed_desktop(_desktop_apps())
+    _item_named(tab._desktop_list, "TreeSize").setCheckState(
+        Qt.CheckState.Checked)
+    assert tab.has_queued_changes()
+    assert tab._apply_btn.isEnabled()
+    assert "Remove 1" in tab._apply_label.text()
+
+
+def test_an_app_installed_outside_wingets_id_space_is_marked_installed(tab):
+    """Google Chrome is on this machine as `ARP\\Machine\\X86\\Google Chrome`;
+    there is no `Google.Chrome` row in `winget list` at all. An id-only check
+    offers to install a browser that is already sitting there."""
+    from modules.tweaks.app_catalog import WingetApp
+    tab.populate_installed_desktop(
+        [WingetApp("Google Chrome", r"ARP\Machine\X86\Google Chrome",
+                   "141.0.7390.123", "")])
+    tab.populate_installed_winget(set())
+    item = _item_named(tab._catalog_list, "Google Chrome")
+    assert "Installed" in item.text()
+    assert not (item.flags() & Qt.ItemFlag.ItemIsEnabled)
+
+
+def test_a_merely_similar_name_is_not_read_as_installed(tab):
+    """Matching on prefixes would mark Notepad++ installed because Notepad is
+    -- so the name match is exact, and anything else stays unmarked."""
+    from modules.tweaks.app_catalog import WingetApp
+    tab.populate_installed_desktop(
+        [WingetApp("Google Chrome Canary", r"ARP\Machine\X86\Chrome Canary",
+                   "1.0", "")])
+    tab.populate_installed_winget(set())
+    item = _item_named(tab._catalog_list, "Google Chrome")
+    assert "Installed" not in item.text()
+    assert item.flags() & Qt.ItemFlag.ItemIsEnabled
+
+
+def test_clearing_the_queue_forgets_desktop_apps_too(tab):
+    tab.populate_installed_desktop(_desktop_apps())
+    _item_named(tab._desktop_list, "TreeSize").setCheckState(
+        Qt.CheckState.Checked)
+    tab.clear_queues()
+    assert tab.queued_changes()["remove_winget"] == []
+    assert not tab.has_queued_changes()

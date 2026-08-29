@@ -186,3 +186,59 @@ def test_a_finished_run_lets_the_next_one_start(module):
     _queue_an_app_removal(module)
     module._on_apply()
     assert len(module.app.thread_pool.started) == before + 1
+
+
+# --- desktop apps go to winget, not to Remove-AppxPackage -------------------
+
+def _queue_a_desktop_removal(module, app_id="JAMSoftware.TreeSize"):
+    from modules.tweaks.app_catalog import WingetApp
+    from PyQt6.QtCore import Qt
+    module._app_tab.populate_installed_desktop(
+        [WingetApp("TreeSize V9.8.2", app_id, "9.8.2", "winget")])
+    module._app_tab._desktop_list.item(0).setCheckState(Qt.CheckState.Checked)
+    return app_id
+
+
+def test_a_desktop_app_is_uninstalled_through_winget(module):
+    """`remove_app_winget` was implemented and no UI path ever called it."""
+    winget_removals, appx_removals = [], []
+    module._catalog.remove_app_winget = (
+        lambda app_id, on_output=None: winget_removals.append(app_id) or True)
+    module._catalog.remove_appx = (
+        lambda pkg, on_output=None: appx_removals.append(pkg) or True)
+
+    _queue_a_desktop_removal(module)
+    module._on_apply()
+    module.app.thread_pool.started[0].run()
+
+    assert winget_removals == ["JAMSoftware.TreeSize"]
+    assert appx_removals == [], "a Win32 app was sent to Remove-AppxPackage"
+
+
+def test_a_desktop_removal_alone_is_enough_to_apply(module):
+    _queue_a_desktop_removal(module)
+    module._on_apply()
+    assert module._warned == []
+    assert len(module.app.thread_pool.started) == 1
+
+
+def test_a_failed_desktop_removal_is_reported(module):
+    module._catalog.remove_app_winget = lambda app_id, on_output=None: False
+    _queue_a_desktop_removal(module)
+    module._on_apply()
+    worker = module.app.thread_pool.started[0]
+    reported = []
+    worker.signals.result.connect(reported.append)
+    worker.run()
+    text = " ".join(str(e) for e in (reported[0] if reported else []))
+    assert "JAMSoftware.TreeSize" in text
+
+
+def test_the_confirmation_lists_the_desktop_apps_too(module):
+    """Uninstalling somebody's programs is not a thing to do unannounced."""
+    asked = []
+    module._confirm_app_changes = lambda changes: asked.append(changes) or False
+    _queue_a_desktop_removal(module)
+    module._on_apply()
+    assert asked and asked[0]["remove_winget"] == ["JAMSoftware.TreeSize"]
+    assert module.app.thread_pool.started == []
