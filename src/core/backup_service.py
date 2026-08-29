@@ -7,11 +7,26 @@ import shutil
 import sqlite3
 import subprocess
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BackupOutcome:
+    """What `backup_registry_key` actually managed to do.
+
+    `ok` answers "is there a way back", which is NOT the same as `exported`:
+    a key that does not exist yet needs no .reg file, because the way back
+    from creating a value is deleting it again.
+    """
+
+    ok: bool
+    exported: bool
+    path: str
+    reason: str
 
 
 @dataclass
@@ -23,6 +38,15 @@ class StepRecord:
     revert_command: Optional[str] = None
     value_name: str = ""        # registry only — the value name under `target` (the key path)
     reg_kind: Optional[int] = None  # registry only — winreg.REG_* type, needed to write before_value back
+    rc: Optional[int] = None    # command/script only — the process exit code
+    stdout: str = ""            # command/script only — netsh and dism put refusals HERE, not on stderr
+    stderr: str = ""            # command/script only
+    #: registry only — the KEY did not exist before this step made it, so
+    #: reverting means removing the key as well as the value. It cannot be
+    #: inferred at revert time: a key's mere existence can be the whole point
+    #: (gpresult/pol_parser meets key-only policy records), so an empty key we
+    #: did not create is never ours to delete.
+    key_created: bool = False
 
 
 @dataclass
@@ -31,6 +55,13 @@ class RestoreResult:
     partial: bool
     failed_steps: List[str]
     errors: List[str]
+    #: The tweak ids this revert touched, and the subset whose steps did not
+    #: come back. `failed_steps` names STEPS, which nothing above this layer
+    #: can map to a control -- so a batch revert could not say what it had
+    #: reverted, and therefore could not check any of it. Guessing which
+    #: controls a restore point covered is not an option.
+    reverted_ids: List[str] = field(default_factory=list)
+    failed_ids: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -90,6 +121,17 @@ class BackupService:
             self._conn.execute(
                 "ALTER TABLE tweak_steps ADD COLUMN reg_kind INTEGER")
             logger.info("added reg_kind column to tweak_steps")
+        for name in ("rc", "stdout", "stderr"):
+            if name not in cols:
+                self._conn.execute(f"ALTER TABLE tweak_steps ADD COLUMN {name} TEXT")
+                logger.info("added %s column to tweak_steps", name)
+        if "key_created" not in cols:
+            # Older rows default to 0: a step recorded before this existed
+            # never proved it created the key, and guessing would delete keys
+            # that were always there.
+            self._conn.execute(
+                "ALTER TABLE tweak_steps ADD COLUMN key_created INTEGER DEFAULT 0")
+            logger.info("added key_created column to tweak_steps")
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
@@ -127,22 +169,49 @@ class BackupService:
                 """INSERT INTO tweak_steps
                    (id, tweak_id, restore_point_id, applied_at,
                     step_type, target, before_value, after_value, revert_command,
-                    value_name, reg_kind)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    value_name, reg_kind, rc, stdout, stderr, key_created)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (uuid.uuid4().hex, tweak_id, restore_point_id, now,
                  step.step_type, step.target,
                  json.dumps(self._json_safe(step.before_value)),
                  json.dumps(self._json_safe(step.after_value)),
                  getattr(step, 'revert_command', None),
                  getattr(step, 'value_name', ""),
-                 getattr(step, 'reg_kind', None)),
+                 getattr(step, 'reg_kind', None),
+                 getattr(step, 'rc', None),
+                 getattr(step, 'stdout', ""),
+                 getattr(step, 'stderr', ""),
+                 1 if getattr(step, 'key_created', False) else 0),
             )
         self._conn.commit()
 
-    def backup_registry_key(self, key_path: str, restore_point_id: str) -> None:
+    def backup_registry_key(self, key_path: str,
+                            restore_point_id: str) -> "BackupOutcome":
+        """Export a key so there is a way back, and say what actually happened.
+
+        `reg export` answers rc=1 with an empty stdout for a key that is not
+        there AND for one it was refused — measured, on this machine — so the
+        return code alone cannot tell "nothing to back up" from "no way back".
+        Ask the registry which it is, the same way every other refusal in this
+        codebase is kept apart from an absent value.
+
+        Never raises: every caller today ignores the result.
+        """
         folder = self._get_restore_point_folder(restore_point_id)
         if folder is None:
-            return
+            return BackupOutcome(
+                False, False, "",
+                f"no restore point folder for {restore_point_id}")
+
+        exists = self._registry_key_exists(key_path)
+        if exists is False:
+            # Windows sitting at its default. The way back from creating a
+            # value here is deleting it again, which needs no .reg file.
+            return BackupOutcome(
+                True, False, "",
+                f"{key_path} does not exist yet, so there is nothing to "
+                "export; the way back is to remove what gets added")
+
         safe = key_path.replace("\\", "_").replace("/", "_")[:80]
         out = os.path.join(folder, "registry", f"{safe}.reg")
         result = subprocess.run(
@@ -151,7 +220,84 @@ class BackupService:
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if result.returncode != 0:
-            logger.warning("reg export failed (rc=%d) for %s", result.returncode, key_path)
+            # reg writes the reason to its own output; throwing it away is
+            # what made this a mystery in the round-trip log.
+            complaint = self._decode(result.stderr) or self._decode(result.stdout)
+            reason = (f"could not export {key_path} (exit "
+                      f"{result.returncode}): {complaint or 'no output'}")
+            logger.error("registry backup failed — no way back for %s: %s",
+                         key_path, complaint or f"exit {result.returncode}")
+            return BackupOutcome(False, False, out, reason)
+
+        return BackupOutcome(True, True, out, f"exported {key_path}")
+
+    @staticmethod
+    def _delete_key_if_empty(hive, sub: str) -> bool:
+        """Remove a key we created, but ONLY while it is genuinely empty.
+
+        Anything that arrived after the apply — another value, a subkey — is
+        somebody else's, and taking the key would take that with it. Only this
+        one key is ever removed; its parents stay, because we did not create
+        them.
+        """
+        import winreg
+        try:
+            with winreg.OpenKey(hive, sub) as k:
+                subkeys, values, _ = winreg.QueryInfoKey(k)
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            logger.warning("could not inspect %s before removing it: %s", sub, e)
+            return False
+        if subkeys or values:
+            logger.info("keeping %s: it still holds %d value(s) and %d subkey(s)",
+                        sub, values, subkeys)
+            return False
+        try:
+            winreg.DeleteKey(hive, sub)
+            logger.info("removed %s, the empty key this app created", sub)
+            return True
+        except OSError as e:
+            logger.warning("could not remove the empty key %s: %s", sub, e)
+            return False
+
+    @staticmethod
+    def _decode(raw) -> str:
+        if not raw:
+            return ""
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        return " ".join(raw.split())
+
+    @staticmethod
+    def _registry_key_exists(key_path: str) -> Optional[bool]:
+        """True / False / None when the question itself could not be answered."""
+        import winreg
+        hives = {
+            "HKLM": winreg.HKEY_LOCAL_MACHINE,
+            "HKEY_LOCAL_MACHINE": winreg.HKEY_LOCAL_MACHINE,
+            "HKCU": winreg.HKEY_CURRENT_USER,
+            "HKEY_CURRENT_USER": winreg.HKEY_CURRENT_USER,
+            "HKCR": winreg.HKEY_CLASSES_ROOT,
+            "HKEY_CLASSES_ROOT": winreg.HKEY_CLASSES_ROOT,
+            "HKU": winreg.HKEY_USERS,
+            "HKEY_USERS": winreg.HKEY_USERS,
+            "HKCC": winreg.HKEY_CURRENT_CONFIG,
+            "HKEY_CURRENT_CONFIG": winreg.HKEY_CURRENT_CONFIG,
+        }
+        hive_name, _, sub = key_path.partition("\\")
+        hive = hives.get(hive_name.upper())
+        if hive is None or not sub:
+            return None
+        try:
+            with winreg.OpenKey(hive, sub):
+                return True
+        except FileNotFoundError:
+            return False
+        except OSError:
+            # Access denied and friends: the key may well be there, and a
+            # refusal is not an absent value.
+            return None
 
     def backup_service_state(self, service_name: str, restore_point_id: str) -> None:
         folder = self._get_restore_point_folder(restore_point_id)
@@ -195,10 +341,17 @@ class BackupService:
     def _revert_steps(self, step_ids: List[str]) -> RestoreResult:
         failed: List[str] = []
         errors: List[str] = []
+        touched: List[str] = []
+        failed_ids: List[str] = []
         for step_id in step_ids:
+            tweak_id = self._tweak_id_of(step_id)
+            if tweak_id is not None and tweak_id not in touched:
+                touched.append(tweak_id)
             ok = self.revert_step(step_id)
             if not ok:
                 failed.append(step_id)
+                if tweak_id is not None and tweak_id not in failed_ids:
+                    failed_ids.append(tweak_id)
                 err_row = self._conn.execute(
                     "SELECT revert_error FROM tweak_steps WHERE id=?", (step_id,)
                 ).fetchone()
@@ -206,11 +359,34 @@ class BackupService:
         success = len(failed) == 0
         partial = bool(failed) and len(failed) < len(step_ids)
         return RestoreResult(success=success, partial=partial,
-                             failed_steps=failed, errors=errors)
+                             failed_steps=failed, errors=errors,
+                             reverted_ids=touched, failed_ids=failed_ids)
+
+    def _tweak_id_of(self, step_id: str) -> Optional[str]:
+        row = self._conn.execute(
+            "SELECT tweak_id FROM tweak_steps WHERE id=?", (step_id,)
+        ).fetchone()
+        return row["tweak_id"] if row else None
+
+    def control_ids_in(self, restore_point_id: str) -> List[str]:
+        """The still-applied tweak ids in a restore point, in the order they
+        were recorded. Asked BEFORE a revert, so the caller can read what the
+        machine says now and compare afterwards."""
+        rows = self._conn.execute(
+            "SELECT DISTINCT tweak_id FROM tweak_steps "
+            "WHERE restore_point_id=? AND reverted_at IS NULL ORDER BY rowid",
+            (restore_point_id,),
+        ).fetchall()
+        return [row["tweak_id"] for row in rows]
 
     def restore_point(self, restore_point_id: str) -> RestoreResult:
+        # Newest first. Undo is LIFO: two steps that wrote the same value must
+        # land back on the ORIGINAL, not on an intermediate one, and a key
+        # created by an early step is only empty again once the later writers
+        # into it have been undone.
         rows = self._conn.execute(
-            "SELECT id FROM tweak_steps WHERE restore_point_id=? AND reverted_at IS NULL",
+            "SELECT id FROM tweak_steps WHERE restore_point_id=? AND reverted_at IS NULL "
+            "ORDER BY rowid DESC",
             (restore_point_id,),
         ).fetchall()
         result = self._revert_steps([row["id"] for row in rows])
@@ -241,7 +417,7 @@ class BackupService:
                                  errors=["No applied (unreverted) steps found for this tweak."])
         rows = self._conn.execute(
             "SELECT id FROM tweak_steps WHERE tweak_id=? AND restore_point_id=? "
-            "AND reverted_at IS NULL",
+            "AND reverted_at IS NULL ORDER BY rowid DESC",
             (tweak_id, latest["restore_point_id"]),
         ).fetchall()
         return self._revert_steps([row["id"] for row in rows])
@@ -249,7 +425,7 @@ class BackupService:
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
             "SELECT step_type, target, before_value, revert_command, restore_point_id, "
-            "value_name, reg_kind FROM tweak_steps WHERE id=?",
+            "value_name, reg_kind, key_created FROM tweak_steps WHERE id=?",
             (step_id,),
         ).fetchone()
         if row is None:
@@ -285,6 +461,14 @@ class BackupService:
                             winreg.DeleteValue(k, value_name)
                     except FileNotFoundError:
                         pass  # already absent — fine
+                    if row["key_created"]:
+                        # The apply made this key too, so the value going away
+                        # is only half the way back. Measured: an elevated
+                        # LLMNR round-trip left
+                        # HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
+                        # behind with 0 values and 0 subkeys while reporting
+                        # "back to exactly what it was".
+                        self._delete_key_if_empty(hive, sub)
                 else:
                     kind = reg_kind if reg_kind is not None else winreg.REG_DWORD
                     if kind == winreg.REG_BINARY and isinstance(before, str):

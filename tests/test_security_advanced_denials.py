@@ -30,6 +30,19 @@ REAL_BL_DENIED = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _elevated(monkeypatch):
+    """These tests describe what the readers do with an ANSWER.
+
+    Unelevated, two of them are no longer asked at all: the
+    MicrosoftVolumeEncryption and MicrosoftTpm namespaces refuse an ordinary
+    user at a fixed ~5s, and Get-BitLockerVolume takes 5.41s to refuse by
+    exiting 0 with empty stdout, so all three are pre-empted (see
+    test_security_unelevated_reads.py). Feeding a reader canned output only
+    means anything in the state where it runs the command.
+    """
+    monkeypatch.setattr(security_reader, "is_admin", lambda: True)
+
 @pytest.fixture
 def ps(monkeypatch):
     """Pin what `_ps` returns for the check under test."""

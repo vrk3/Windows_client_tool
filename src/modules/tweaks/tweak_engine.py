@@ -52,6 +52,30 @@ STATUS_LABELS = {
 _ERROR_FILE_NOT_FOUND = 2
 _ERROR_ACCESS_DENIED = 5
 
+#: Phrases a Windows admin command uses to refuse while still exiting 0.
+#: netsh and dism both write their real complaint to STDOUT, not stderr, so a
+#: return code is never the deciding signal here.
+_REFUSAL_MARKERS = (
+    "access is denied", "elevated permissions are required",
+    "requires elevation", "you do not have permission",
+    "the requested operation requires elevation",
+    "no rules match the specified criteria",
+)
+
+
+class StepRefused(RuntimeError):
+    """A command step ran and Windows declined to do it.
+
+    Carries the StepRecord built from the evidence (rc/stdout/stderr) that was
+    captured just before this was raised — str(exc) is still just the payload
+    (blob or "exit code N"), so on_error() callers see the same message either
+    way; `.record` is there for a caller that wants the structured fields too.
+    """
+
+    def __init__(self, message: str, record: Optional[StepRecord] = None):
+        super().__init__(message)
+        self.record = record
+
 
 def _parse_key(full_key: str):
     parts = full_key.split("\\", 1)
@@ -160,7 +184,14 @@ class TweakEngine:
                 if record:
                     steps_applied.append(record)
             except Exception as e:
-                key_info = step.get("key", step.get("name", step.get("cmd", "")))
+                # A `script` step keeps its command under "command", not
+                # "cmd" -- looking only for the latter produced "Step failed
+                # (script ): ..." for every refused Set-MpPreference, which
+                # names nothing in a batch that runs eighteen of them.
+                key_info = (step.get("key") or step.get("name")
+                            or step.get("cmd") or step.get("command")
+                            or step.get("task_name") or step.get("package")
+                            or "")
                 msg = f"Step failed ({step.get('type')} {key_info}): {e}"
                 logger.error(msg)
                 if on_error:
@@ -252,7 +283,12 @@ class TweakEngine:
         except OSError:
             logger.debug("Ignored OSError", exc_info=True)
 
-        self._backup.backup_registry_key(full_key, rp_id)
+        outcome = self._backup.backup_registry_key(full_key, rp_id)
+        if not outcome.ok:
+            # Not fatal -- the step still applies -- but the log has to
+            # name the key we are changing with no way back to it.
+            logger.error("applying %s with NO registry backup: %s",
+                         full_key, outcome.reason)
 
         if kind == winreg.REG_BINARY and isinstance(data, str):
             text = data.strip()
@@ -275,7 +311,12 @@ class TweakEngine:
             ) from e
 
         return StepRecord("registry", full_key, before, data,
-                          value_name=value_name, reg_kind=kind)
+                          value_name=value_name, reg_kind=kind,
+                          # `ok` with nothing exported means the key was not
+                          # there to export -- so CreateKeyEx above made it,
+                          # and the revert has a key to remove as well as a
+                          # value. This is the only moment that knows.
+                          key_created=outcome.ok and not outcome.exported)
 
     def _apply_registry_delete(self, step: Dict, rp_id: str) -> Optional[StepRecord]:
         """Remove a value. Some Windows behaviour is only truly off when the
@@ -292,7 +333,12 @@ class TweakEngine:
         except OSError:
             return None  # already gone — nothing to record, nothing to undo
 
-        self._backup.backup_registry_key(full_key, rp_id)
+        outcome = self._backup.backup_registry_key(full_key, rp_id)
+        if not outcome.ok:
+            # Not fatal -- the step still applies -- but the log has to
+            # name the key we are changing with no way back to it.
+            logger.error("applying %s with NO registry backup: %s",
+                         full_key, outcome.reason)
         with winreg.OpenKey(hive, sub, 0, winreg.KEY_SET_VALUE) as k:
             winreg.DeleteValue(k, value_name)
         return StepRecord("registry", full_key, before, None,
@@ -319,10 +365,30 @@ class TweakEngine:
                 win32service.SERVICE_QUERY_CONFIG | win32service.SERVICE_CHANGE_CONFIG)
             config = win32service.QueryServiceConfig(hs)
             before = config[1]
-            win32service.ChangeServiceConfig(
-                hs, win32service.SERVICE_NO_CHANGE,
-                new_start, win32service.SERVICE_NO_CHANGE,
-                None, None, False, None, None, None, None)
+            try:
+                win32service.ChangeServiceConfig(
+                    hs, win32service.SERVICE_NO_CHANGE,
+                    new_start, win32service.SERVICE_NO_CHANGE,
+                    None, None, False, None, None, None, None)
+            except Exception as e:
+                # Windows protects a few services beyond their own ACL, and
+                # refuses an elevated Administrator here. Measured with
+                # tools/service_config_probe.py: DoSvc refuses while
+                # RemoteRegistry, DiagTrack, SysMain, WSearch, MapsBroker,
+                # RetailDemo, WMPNetworkSvc and lfsvc all accept the identical
+                # call — and `sc sdshow DoSvc` grants Builtin Administrators
+                # DC (SERVICE_CHANGE_CONFIG), so the DACL is not what stops it.
+                # The raw pywin32 tuple reads as a bug in this app; it is not.
+                if getattr(e, "winerror", None) == 5:
+                    raise PermissionError(
+                        f"Windows refused to change the start type of "
+                        f"'{name}' even with administrator rights — it "
+                        "protects this service beyond its own permissions. "
+                        "Nothing was changed. Where Windows offers the same "
+                        "setting (Settings, or Group Policy), that is the way "
+                        "to change it."
+                    ) from e
+                raise
         finally:
             if hs:
                 win32service.CloseServiceHandle(hs)
@@ -333,20 +399,42 @@ class TweakEngine:
 
     def _apply_command(self, step: Dict) -> StepRecord:
         cmd = step["cmd"]
-        subprocess.run(
-            cmd, shell=True, check=False, capture_output=True,
+        proc = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
-        return StepRecord("command", cmd, None, None)
+        record = StepRecord("command", cmd, None, None,
+                            rc=proc.returncode,
+                            stdout=(proc.stdout or "").strip(),
+                            stderr=(proc.stderr or "").strip())
+        self._raise_if_refused(record, proc.returncode)
+        return record
 
     def _apply_script(self, step: Dict) -> StepRecord:
         cmd = step.get("command", step.get("cmd", ""))
-        subprocess.run(
-            cmd, shell=True, check=False, capture_output=True,
+        proc = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         revert_cmd = step.get("revert_command")
-        return StepRecord("script", cmd, None, None, revert_command=revert_cmd)
+        record = StepRecord("script", cmd, None, None, revert_command=revert_cmd,
+                            rc=proc.returncode,
+                            stdout=(proc.stdout or "").strip(),
+                            stderr=(proc.stderr or "").strip())
+        self._raise_if_refused(record, proc.returncode)
+        return record
+
+    @staticmethod
+    def _raise_if_refused(record: StepRecord, returncode: int) -> None:
+        """Windows admin commands routinely exit 0 while refusing — netsh and
+        dism both write their real complaint to STDOUT. Build the StepRecord
+        first so the captured evidence exists, then raise: this is what turns
+        a refused command into a failed step instead of a silently "applied"
+        one."""
+        blob = f"{record.stdout}\n{record.stderr}".strip()
+        low = blob.lower()
+        if returncode != 0 or any(m in low for m in _REFUSAL_MARKERS):
+            raise StepRefused(blob or f"exit code {returncode}", record=record)
 
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]

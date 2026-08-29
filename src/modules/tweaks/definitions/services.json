@@ -2,15 +2,24 @@
   {
     "id": "disable_delivery_optimization",
     "name": "Disable Delivery Optimization",
-    "description": "Stops peer-to-peer Windows Update sharing with other PCs on your network/internet.",
+    "description": "Stops peer-to-peer Windows Update sharing with other PCs on your network/internet. Set by policy: Windows refuses to disable the DoSvc service itself, even to an administrator, and DoSvc also downloads ordinary updates.",
     "category": "Services",
     "risk": "low",
     "requires_admin": true,
     "steps": [
       {
-        "type": "service",
-        "name": "DoSvc",
-        "start_type": "disabled"
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "value": "DODownloadMode",
+        "data": 0,
+        "kind": "DWORD"
+      },
+      {
+        "type": "registry",
+        "key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "value": "DOPerMachineMode",
+        "data": 0,
+        "kind": "DWORD"
       }
     ]
   },

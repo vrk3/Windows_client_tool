@@ -703,16 +703,6 @@ class ServicesModule(BaseModule):
         self._refreshing = True
         self._do_refresh()
 
-    def _do_refresh(self):
-        self._refresh_btn.setEnabled(False)
-        self._status_label.setText("Loading...")
-        self._progress.show()
-        worker = COMWorker(lambda _w: get_services())
-        worker.signals.result.connect(self._on_result)
-        worker.signals.error.connect(self._on_error)
-        self._workers.append(worker)
-        QThreadPool.globalInstance().start(worker)
-
     def _on_result(self, services: List[Dict]):
         self._all_services = services
         self._refresh_btn.setEnabled(True)

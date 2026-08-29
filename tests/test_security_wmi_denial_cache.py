@@ -28,6 +28,20 @@ def clear_cache():
     security_reader._denied_namespaces.clear()
 
 
+@pytest.fixture(autouse=True)
+def elevated(monkeypatch):
+    """These tests are about what happens once a namespace IS dialled.
+
+    Unelevated, the two security namespaces are no longer dialled at all --
+    the refusal is certain in advance and cost 5s to confirm (see
+    test_security_unelevated_reads.py). The caching below still decides what
+    happens when an elevated process is refused anyway, and what happens to
+    every namespace outside that pair, so it is pinned here with the dial
+    reached.
+    """
+    monkeypatch.setattr(security_reader, "is_admin", lambda: True)
+
+
 @pytest.fixture
 def denying_wmi(monkeypatch):
     """Count how often the namespace is actually dialled."""

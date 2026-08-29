@@ -74,6 +74,17 @@ def _parse_args():
         "--stages", default="wu,winget,cleanup",
         help="Comma-separated stages for --unattended: wu,winget,store,cleanup,dism",
     )
+    parser.add_argument(
+        "--apply-security-batch", metavar="BATCH_JSON",
+        help="Apply one staged Security Dashboard batch and exit — this is "
+             "the elevated child the pane launches for its single UAC prompt. "
+             "No GUI: the parent cannot read this process's output, so the "
+             "outcome goes to the --result file.",
+    )
+    parser.add_argument(
+        "--result", metavar="RESULT_JSON",
+        help="Where --apply-security-batch writes its report.",
+    )
     # Ignore unknown args instead of erroring — PyInstaller/Qt may pass extras.
     args, _unknown = parser.parse_known_args()
     return args
@@ -171,6 +182,16 @@ def main():
         _s("=== unattended mode ===")
         from modules.updates.unattended_runner import run_unattended
         sys.exit(run_unattended(args.stages.split(",")))
+
+    if args.apply_security_batch:
+        # Before any Qt object exists: this is the elevated helper, it has no
+        # window, and it reports through --result rather than stdout.
+        _s("=== security batch (elevated helper) ===")
+        from modules.security_dashboard.elevated_helper import run_from_file
+        if not args.result:
+            print("--apply-security-batch requires --result", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(run_from_file(args.apply_security_batch, args.result))
 
     qt_app = QApplication(sys.argv)
 

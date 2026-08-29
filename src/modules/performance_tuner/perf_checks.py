@@ -273,16 +273,21 @@ def _detect_network_throttling():
 
 
 def _detect_delivery_opt():
+    """Peer-to-peer sharing is the DODownloadMode policy, not DoSvc\\Start.
+
+    This read DoSvc\\Start == 4 — a value its own apply step could never set,
+    because Windows refuses ChangeServiceConfig on DoSvc even to an elevated
+    administrator (measured; see tools/service_config_probe.py). So the row
+    said "suboptimal" however often it was applied.
+    """
     val = _reg_get(
         winreg.HKEY_LOCAL_MACHINE,
-        r"SYSTEM\CurrentControlSet\Services\DoSvc",
-        "Start",
+        r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization",
+        "DODownloadMode",
     )
-    if val == 4:
-        return "optimal"
-    if val is not None:
-        return "suboptimal"
-    return "unknown"
+    # 0 is HTTP only, no peering. Absent means Windows is at its default,
+    # which IS peer sharing — a definite answer, not a failure to read.
+    return "optimal" if val == 0 else "suboptimal"
 
 
 # ---------------------------------------------------------------------------
@@ -603,10 +608,19 @@ PERF_CHECKS = [
         "id": "disable_delivery_optimization",
         "name": "Disable Delivery Optimization",
         "category": "Network",
-        "description": "Stops Windows from using your bandwidth to distribute updates to other PCs.",
+        "description": "Stops Windows from using your bandwidth to distribute "
+                       "updates to other PCs. Set by policy: Windows refuses "
+                       "to disable the DoSvc service itself, even to an "
+                       "administrator, and DoSvc also downloads ordinary "
+                       "updates.",
         "reboot": False,
         "detect": _detect_delivery_opt,
-        "apply": [{"type": "service", "name": "DoSvc", "start_type": "disabled"}],
+        "apply": [{"type": "registry",
+                   "key": r"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization",
+                   "value": "DODownloadMode", "data": 0, "kind": "DWORD"},
+                  {"type": "registry",
+                   "key": r"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization",
+                   "value": "DOPerMachineMode", "data": 0, "kind": "DWORD"}],
     },
     # ── Gaming ────────────────────────────────────────────────────────────
     {

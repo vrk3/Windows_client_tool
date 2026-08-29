@@ -421,6 +421,22 @@ to prevent; `test_command_unknown_still_explains_itself` pins that.
   means not installed (→ `not_applicable`); `None` means the query itself failed
   (→ `unknown`). Collapsing the two tells the user a service is absent when it is
   merely unreadable.
+- **A revert undoes the KEY as well as the value.** `StepRecord.key_created`
+  records, at apply time, that `CreateKeyEx` made the key — `BackupOutcome.ok`
+  with `exported` False means there was no key to export. `revert_step` then
+  removes it, but only when it deleted the value, only when the key is empty
+  *right now*, and never a parent. It is not inferable at revert time: a key's
+  mere existence can be the whole point (`pol_parser` meets key-only policy
+  records on this machine), so deleting an empty key the app did not create
+  would be a change dressed up as an undo. Without this, an elevated LLMNR
+  round-trip reported "back to exactly what it was" while leaving
+  `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient` behind, empty.
+- **`backup_registry_key` returns a `BackupOutcome`, and `ok` is not
+  `exported`.** `reg export` answers rc=1 both for a key that is not there and
+  for one it was refused (measured: a missing key and `HKLM\SECURITY` are
+  indistinguishable by return code), so the key's existence is checked
+  separately. "Nothing to back up" is fine; "no way back" is logged at ERROR
+  naming the key about to change.
 
 **`applies_to`** (optional, per tweak) gates on the machine, evaluated by
 `os_context.py`: `min_build` / `max_build` (a build number or an alias like `"23H2"`,
@@ -454,6 +470,93 @@ Plus `debloat.json` (120+ `appx` removals) and `definitions/builtins/*.json` (pr
 `tests/test_tweak_definitions.py` validates every file structurally — unique ids, hive
 names, DWORD-vs-SZ data types, absolute scheduled-task paths, known `applies_to` keys.
 Run it after touching any definition file; it is the only thing that reads them.
+
+`tools/tweak_refusal_sweep.py` is the behavioural counterpart, and the sibling
+of `tools/security_refusal_sweep.py`: it detects all ~700 tweaks against the
+real machine and asks which of them state a verdict on top of a read that was
+refused. Run it **unelevated** — elevated there is nothing to refuse. Audited
+2026-08-29: 696 tweaks, none. `_aggregate` may conclude "not in place" while
+one step is unreadable (a step that is definitely missing settles it), and it
+appends "(N step(s) could not be checked)" when it does — disclosed
+uncertainty is fine, a swallowed refusal is the bug.
+
+**Apps tab** (`AppManagerTab` + `app_catalog.py`) — three lists: installed AppX
+packages, installed programs (Win32/winget), and the catalog of installable
+apps. The two removal queues are separate (`_remove_queue` vs
+`_remove_winget_queue`) because they are removed by different commands, and
+`queued_changes()` reports them under `remove` and `remove_winget`.
+
+- **A removal is verified, never assumed.** `Get-AppxPackage 'X' |
+  Remove-AppxPackage` and `winget uninstall` both exit 0 while removing
+  nothing, so `remove_appx`/`remove_app_winget` require positive evidence both
+  ways — listed before, not listed after — and a list that could not be *read*
+  is never read as "it is gone".
+- **"Still installed" does not mean the removal failed.**
+  `Microsoft-Windows-AppXDeploymentServer/Operational` records every deployment
+  attempt and is readable unelevated. `JAMSoftware.TreeSizeContextMenu` is
+  removed successfully and then re-added ~10s later from TreeSize's own
+  install directory, so `remove_appx` consults that log and reports the path
+  that put it back. Generalise it: when an API's answer is unsatisfying, read
+  the log or file Windows itself writes.
+- **`winget list` must be parsed by COLUMN, from the header offsets.** 24 of
+  139 rows here carry an id with spaces (`ARP\Machine\X64\AMD Catalyst Install
+  Manager`), and names carry their own dots ("7-Zip 26.02 (x64 edition)"). The
+  old "first whitespace token containing a dot" heuristic returned 66 junk ids
+  out of 126 — `.NET`, `Drv_3.00.0045`, bare version numbers — and those ids
+  are what marks a catalog entry already installed.
+- **`MSIX\…` rows are AppX packages under another name** and are excluded from
+  the desktop list, or the tab offers two different removals of one thing.
+  `ARP\…` and `MSIX\…` are both winget's internal handles, never real ids.
+- **Uninstall by `--id … --exact`**, never a bare positional query: a query
+  matches id, name *or* moniker, so it can hit several apps and refuse — and an
+  ARP id contains spaces.
+- Plenty of apps are installed under an ARP id rather than the id the catalog
+  knows (Chrome is `ARP\Machine\X86\Google Chrome`, with no `Google.Chrome` row
+  anywhere), so the catalog's "Installed" marker also matches on an **exact**
+  name. Prefixes would mark Notepad++ installed because Notepad is.
+- `populate_installed*` sets a check state on every row and each one fires
+  `itemChanged`; `_populating` is what stops a refresh queueing every app on
+  the machine for removal.
+
+### Security Dashboard (`src/modules/security_dashboard/`)
+
+149 actionable controls over 165 `check_*` readers, in seven category tabs.
+`security_reader.py` reads, `catalog/` describes each control (steps, risk,
+`read_value`), `staging.py` collects pending changes, `applier.py` writes via
+`TweakEngine`, `reverting.py` undoes, `profile.py`/baselines compare.
+
+**The rules here are all one rule: a refusal is not an answer.**
+
+- **`SecurityControl.read()` returns `None` for "we could not look", and it is
+  never collapsed into `False`.** A reader signals that with
+  `available: False`; without it, `read()` falls through to `read_value`, whose
+  tests are things like `"Protected" in status` — and "Requires administrator"
+  does not contain "Protected", so a refused BitLocker read answered `False`,
+  i.e. "your system drive is NOT encrypted". `read()` is what staging,
+  baselines and profiles compare, so this is not only a card label.
+  `tools/security_refusal_sweep.py` asks all 149 controls whether any of them
+  answers with a value after being refused — **run it unelevated after
+  touching a reader**; elevated there is nothing to refuse.
+- **Never treat `rc == 0` as success.** `snapshots._looks_refused(rc, out, err)`
+  exists because `Get-BitLockerVolume`, `Get-Tpm`, `dism` and `netsh` all
+  refuse while exiting 0, some writing the reason to *stdout*.
+- **Being refused costs real time, so do not buy a refusal twice — or once, if
+  it is certain.** The `MicrosoftVolumeEncryption` and `MicrosoftTpm`
+  namespaces take a fixed ~5s to deny an ordinary user;
+  `_wmi_namespace` caches a denial per namespace AND skips those two outright
+  when unelevated, since a process cannot gain elevation while it runs.
+  `root\Microsoft\Windows\Defender` answers unelevated and is deliberately not
+  in that set. This took Device & Boot from 16.79s to 1.26s.
+- **A write is verified by reading the control back, after dropping the
+  snapshot caches once per batch** — `BackupService` reporting success is not
+  evidence the machine moved.
+
+Tools (all real-machine, none of them press a button unless asked):
+`security_catalog_check.py` (+`--apply <id>` for one full round-trip,
+`--compare a.json b.json` to diff an elevated run against an unelevated one),
+`security_refusal_sweep.py`, `security_pane_timing.py`, `security_apply_dryrun.py`,
+and the `*_render.py` trio. `Start-Process -Verb RunAs` cannot redirect output,
+so anything elevated goes through a `.ps1` wrapper that writes its own log.
 
 ### UpdatesModule (`src/modules/updates/`)
 

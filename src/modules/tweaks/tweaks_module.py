@@ -84,7 +84,7 @@ _FILTER_TO_STATUS = {
 class _Signals(QObject):
     status_detected = pyqtSignal(str, str, str)  # tweak_id, status, reason
     apply_done      = pyqtSignal(bool, list) # success, errors
-    apps_detected   = pyqtSignal(set, set)   # installed_winget_ids, installed_appx
+    apps_detected   = pyqtSignal(set, set, list)  # winget_ids, appx, desktop
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +491,21 @@ class TweakTab(QWidget):
 # ---------------------------------------------------------------------------
 
 class AppManagerTab(QWidget):
+    """Remove installed packages, install catalogued ones.
+
+    Everything below the queues was already implemented and unreachable:
+    `AppCatalog.install_app`, `.remove_appx` and `.remove_app_winget`
+    all existed, and nothing in the UI ever called them. The Apply
+    Changes button was connected to nothing, the installed list's
+    itemChanged was connected to nothing, and the module's own Apply
+    Selected never looked at this tab -- so checking anything here and
+    pressing Apply answered "Check at least one tweak to apply."
+    """
+
+    #: Someone pressed Apply Changes. The module does the work: this tab
+    #: knows what is queued, not how to install anything.
+    apply_requested = pyqtSignal()
+
     def __init__(self, catalog: AppCatalog, config,
                  parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -501,7 +516,17 @@ class AppManagerTab(QWidget):
             if config is not None else list(PROTECTED_APPS_DEFAULT)
         )
         self._remove_queue: set = set()
+        #: Win32/desktop apps, queued by winget id. Kept apart from
+        #: `_remove_queue` because they are removed by a different command --
+        #: `winget uninstall`, not `Remove-AppxPackage`.
+        self._remove_winget_queue: set = set()
         self._install_queue: set = set()
+        #: True while a list is being rebuilt. setCheckState() fires
+        #: itemChanged for every row, so without this a refresh of the
+        #: installed list would queue every package on the machine for
+        #: removal.
+        self._populating = False
+        self._applying = False
 
         layout = QVBoxLayout(self)
 
@@ -523,8 +548,23 @@ class AppManagerTab(QWidget):
         installed_group = QGroupBox("Installed AppX Packages (check to remove)")
         ig_layout = QVBoxLayout(installed_group)
         self._installed_list = QListWidget()
+        self._installed_list.itemChanged.connect(
+            self._on_installed_item_changed)
         ig_layout.addWidget(self._installed_list)
         splitter.addWidget(installed_group)
+
+        # Desktop apps section. AppX packages are only half of what is
+        # installed on a Windows machine, and usually the less interesting
+        # half: TreeSize's AppX package is just its shell context menu, while
+        # TreeSize itself is an ordinary program with a registry uninstall
+        # entry, which this tab had no way to touch.
+        desktop_group = QGroupBox(
+            "Installed Programs — Win32 and winget (check to remove)")
+        dg_layout = QVBoxLayout(desktop_group)
+        self._desktop_list = QListWidget()
+        self._desktop_list.itemChanged.connect(self._on_desktop_item_changed)
+        dg_layout.addWidget(self._desktop_list)
+        splitter.addWidget(desktop_group)
 
         # Catalog section
         catalog_group = QGroupBox("Available to Install (via winget)")
@@ -543,6 +583,7 @@ class AppManagerTab(QWidget):
         apply_bar.addStretch()
         self._apply_btn = QPushButton("Apply Changes")
         self._apply_btn.setEnabled(False)
+        self._apply_btn.clicked.connect(self.apply_requested)
         apply_bar.addWidget(self._apply_btn)
         layout.addLayout(apply_bar)
 
@@ -550,6 +591,7 @@ class AppManagerTab(QWidget):
             self._refresh_catalog_list()
 
     def populate_installed(self, installed_appx: set) -> None:
+        self._populating = True
         self._installed_list.clear()
         for pkg in sorted(installed_appx):
             item = QListWidgetItem(pkg)
@@ -562,12 +604,65 @@ class AppManagerTab(QWidget):
                 item.setCheckState(Qt.CheckState.Unchecked)
             item.setData(Qt.ItemDataRole.UserRole, pkg)
             self._installed_list.addItem(item)
+        self._populating = False
+        # A package that has since been removed must not linger in the queue.
+        self._remove_queue &= set(installed_appx)
+        self._update_apply_label()
+
+    def populate_installed_desktop(self, apps: list) -> None:
+        """Fill the desktop-app list from `winget list` rows.
+
+        Same guard as the AppX list: setCheckState fires itemChanged for every
+        row, so without `_populating` a refresh queues every program on the
+        machine for removal.
+        """
+        self._populating = True
+        self._desktop_list.clear()
+        for app in sorted(apps, key=lambda a: a.name.lower()):
+            item = QListWidgetItem(app.display)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked
+                if app.app_id in self._remove_winget_queue
+                else Qt.CheckState.Unchecked)
+            if app.name in self._protected or app.app_id in self._protected:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                item.setText(f"{app.display}  🔒")
+            # The row shows a human name; what winget needs is the id.
+            item.setData(Qt.ItemDataRole.UserRole, app.app_id)
+            item.setToolTip(app.app_id)
+            self._desktop_list.addItem(item)
+        self._populating = False
+        self._remove_winget_queue &= {app.app_id for app in apps}
+        #: Names of what is installed, for the catalog list: plenty of apps
+        #: are installed under a registry id winget invented
+        #: (`ARP\Machine\X86\Google Chrome`) rather than under the id the
+        #: catalog knows them by, and an id-only check offers to install a
+        #: browser that is already on the machine.
+        self._desktop_names = {app.name.lower() for app in apps}
+        self._update_apply_label()
+
+    def _on_desktop_item_changed(self, item: QListWidgetItem) -> None:
+        if self._populating:
+            return
+        app_id = item.data(Qt.ItemDataRole.UserRole)
+        if app_id is None:
+            return
+        if item.checkState() == Qt.CheckState.Checked:
+            if app_id in self._protected:
+                logger.warning("refusing to queue protected app %s", app_id)
+                return
+            self._remove_winget_queue.add(app_id)
+        else:
+            self._remove_winget_queue.discard(app_id)
+        self._update_apply_label()
 
     def populate_installed_winget(self, installed_ids: set) -> None:
         self._installed_winget = installed_ids
         self._refresh_catalog_list()
 
     def _refresh_catalog_list(self) -> None:
+        self._populating = True
         cat = self._cat_combo.currentText()
         entries = self._catalog.filter_by_category(cat)
         installed = getattr(self, "_installed_winget", set())
@@ -576,7 +671,11 @@ class AppManagerTab(QWidget):
             item = QListWidgetItem(
                 f"{entry['name']}  ({entry['publisher']})")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            already = entry["winget_id"] in installed
+            # Exact name match only. Prefixes would mark Notepad++
+            # installed because Notepad is.
+            already = (entry["winget_id"] in installed
+                       or entry["name"].lower() in
+                       getattr(self, "_desktop_names", set()))
             item.setCheckState(
                 Qt.CheckState.Checked if entry["winget_id"] in self._install_queue
                 else Qt.CheckState.Unchecked
@@ -587,8 +686,64 @@ class AppManagerTab(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, entry["winget_id"])
             item.setToolTip(entry.get("description", ""))
             self._catalog_list.addItem(item)
+        self._populating = False
+        self._update_apply_label()
+
+    def _on_installed_item_changed(self, item: QListWidgetItem) -> None:
+        """A checked package is queued for removal.
+
+        Protected packages are refused here as well as being disabled in
+        the list: the flag stops a person clicking them, and this stops
+        anything else putting one in the queue.
+        """
+        if self._populating:
+            return
+        pkg = item.data(Qt.ItemDataRole.UserRole)
+        if pkg is None:
+            return
+        if item.checkState() == Qt.CheckState.Checked:
+            if pkg in self._protected:
+                logger.warning("refusing to queue protected package %s",
+                               pkg)
+                return
+            self._remove_queue.add(pkg)
+        else:
+            self._remove_queue.discard(pkg)
+        self._update_apply_label()
+
+    def queued_changes(self) -> Dict[str, List[str]]:
+        """What this tab would do, in a stable order."""
+        return {"remove": sorted(self._remove_queue),
+                "remove_winget": sorted(self._remove_winget_queue),
+                "install": sorted(self._install_queue)}
+
+    def has_queued_changes(self) -> bool:
+        return bool(self._remove_queue or self._remove_winget_queue
+                    or self._install_queue)
+
+    def clear_queues(self) -> None:
+        self._remove_queue.clear()
+        self._remove_winget_queue.clear()
+        self._install_queue.clear()
+        self._update_apply_label()
+
+    def set_applying(self, applying: bool) -> None:
+        """Grey out Apply Changes while a run is in flight.
+
+        Without this the tab's own button stayed live during an apply and a
+        second click started a second winget, which fails because the first
+        is still holding the installer -- and that failure was reported as
+        the result.
+        """
+        self._applying = applying
+        if applying:
+            self._apply_btn.setEnabled(False)
+        else:
+            self._update_apply_label()
 
     def _on_catalog_item_changed(self, item: QListWidgetItem) -> None:
+        if self._populating:
+            return
         wid = item.data(Qt.ItemDataRole.UserRole)
         if item.checkState() == Qt.CheckState.Checked:
             self._install_queue.add(wid)
@@ -597,7 +752,9 @@ class AppManagerTab(QWidget):
         self._update_apply_label()
 
     def _update_apply_label(self) -> None:
-        n_remove = len(self._remove_queue)
+        if getattr(self, "_applying", False):
+            return
+        n_remove = len(self._remove_queue) + len(self._remove_winget_queue)
         n_install = len(self._install_queue)
         if n_remove + n_install == 0:
             self._apply_label.setText("No changes queued")
@@ -624,6 +781,7 @@ class TweaksModule(BaseModule):
         self._widget: Optional[QWidget] = None
         self._tab_widgets: Dict[str, TweakTab] = {}
         self._app_tab: Optional[AppManagerTab] = None
+        self._applying = False
         self._engine: Optional[TweakEngine] = None
         self._preset_mgr: Optional[PresetManager] = None
         self._catalog: Optional[AppCatalog] = None
@@ -694,6 +852,9 @@ class TweaksModule(BaseModule):
 
         config = self.app.config if self.app else None
         self._app_tab = AppManagerTab(self._catalog, config)
+        # Its own Apply Changes button and the bottom bar's Apply Selected do
+        # the same thing, so whichever one is pressed, what is checked happens.
+        self._app_tab.apply_requested.connect(self._on_apply)
         self._tabs.addTab(self._app_tab, "Apps")
 
         main_splitter.addWidget(self._tabs)
@@ -1062,15 +1223,71 @@ class TweaksModule(BaseModule):
     # Apply
     # ------------------------------------------------------------------
 
+    def _warn_nothing_selected(self) -> None:
+        QMessageBox.information(
+            self._widget, "Nothing selected",
+            "Check at least one tweak, or an app to install or "
+            "remove in the Apps tab.")
+
+    def _confirm_app_changes(self, changes: Dict[str, list]) -> bool:
+        """Removing somebody's applications is not a one-click thing.
+
+        Installs are listed too, because winget will go and fetch
+        them; the question is the same one either way -- is this
+        actually what you meant to check.
+        """
+        lines = []
+        if changes["remove"]:
+            lines.append("Remove (Windows Store packages):")
+            lines += [f"    {pkg}" for pkg in changes["remove"]]
+        if changes.get("remove_winget"):
+            lines.append("Uninstall (installed programs):")
+            lines += [f"    {app}" for app in changes["remove_winget"]]
+        if changes["install"]:
+            lines.append("Install:")
+            lines += [f"    {wid}" for wid in changes["install"]]
+        answer = QMessageBox.question(
+            self._widget, "Apply app changes?",
+            "\n".join(lines),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        return answer == QMessageBox.StandardButton.Yes
+
     def _on_apply(self) -> None:
+        """Apply everything that is checked -- tweaks AND apps.
+
+        The Apps tab is a tab of `self._tabs` but was never in
+        `self._tab_widgets`, which is the only thing this used to
+        look at. So anything checked there was invisible here, and
+        the answer to pressing Apply Selected with two apps ticked
+        was "Check at least one tweak to apply."
+        """
+        if self._applying:
+            # Reported as "could not install Mozilla.Firefox" while Firefox
+            # was installing perfectly well: a second Apply started a second
+            # winget, winget will not run twice at once, and the second one's
+            # refusal was reported as the outcome. The bottom bar's button was
+            # disabled during a run and the Apps tab's own button was not, so
+            # that was the way back in.
+            logger.info("Tweaks: apply already running; ignoring the request")
+            return
+
         tweaks_to_apply = []
         for tab in self._tab_widgets.values():
             tweaks_to_apply.extend(tab.selected_tweaks())
 
-        if not tweaks_to_apply:
-            QMessageBox.information(
-                self._widget, "Nothing selected",
-                "Check at least one tweak to apply.")
+        app_changes = (self._app_tab.queued_changes() if self._app_tab
+                       else {"remove": [], "remove_winget": [],
+                             "install": []})
+        has_apps = bool(app_changes["remove"] or app_changes["remove_winget"]
+                        or app_changes["install"])
+
+        if not tweaks_to_apply and not has_apps:
+            self._warn_nothing_selected()
+            return
+
+        if has_apps and not self._confirm_app_changes(app_changes):
             return
 
         if not self.app:
@@ -1079,25 +1296,75 @@ class TweaksModule(BaseModule):
         rp_id = self.app.backup.create_restore_point(
             "Tweaks session", "Tweaks")
 
+        self._applying = True
         self._apply_btn.setEnabled(False)
-        self._progress.setMaximum(len(tweaks_to_apply))
+        if self._app_tab is not None:
+            self._app_tab.set_applying(True)
+        total = (len(tweaks_to_apply) + len(app_changes["remove"])
+                 + len(app_changes["remove_winget"])
+                 + len(app_changes["install"]))
+        self._progress.setMaximum(total)
         self._progress.setValue(0)
         self._progress.setVisible(True)
         self._log_output.clear()
         self._log_output.setVisible(True)
         errors = []
 
-        logger.info("Tweaks: applying %d tweak(s)", len(tweaks_to_apply))
+        logger.info("Tweaks: applying %d tweak(s), %d package removal(s), "
+                    "%d app uninstall(s), %d install(s)",
+                    len(tweaks_to_apply), len(app_changes["remove"]),
+                    len(app_changes["remove_winget"]),
+                    len(app_changes["install"]))
 
         def _worker_fn(worker):
-            for i, tweak in enumerate(tweaks_to_apply):
+            done = 0
+            for tweak in tweaks_to_apply:
                 if worker.is_cancelled:
-                    break
-                logger.info("Applying tweak: %s", tweak.get("name", tweak.get("id", "")))
+                    return errors
+                logger.info("Applying tweak: %s",
+                            tweak.get("name", tweak.get("id", "")))
                 self._engine.apply_tweak(
                     tweak, rp_id,
                     on_error=lambda e: errors.append(e))
-                worker.signals.progress.emit(i + 1)
+                done += 1
+                worker.signals.progress.emit(done)
+
+            # Apps. The catalog has done this work all along; what
+            # was missing was anything calling it.
+            for pkg in app_changes["remove"]:
+                if worker.is_cancelled:
+                    return errors
+                logger.info("Removing package: %s", pkg)
+                if not self._catalog.remove_appx(
+                        pkg, on_output=lambda line: logger.info(
+                            "  %s", line)):
+                    errors.append(f"Could not remove {pkg}")
+                done += 1
+                worker.signals.progress.emit(done)
+
+            # Desktop apps. A different command entirely: an ordinary
+            # program is not removable by Remove-AppxPackage.
+            for app_id in app_changes["remove_winget"]:
+                if worker.is_cancelled:
+                    return errors
+                logger.info("Uninstalling app: %s", app_id)
+                if not self._catalog.remove_app_winget(
+                        app_id, on_output=lambda line: logger.info(
+                            "  %s", line)):
+                    errors.append(f"Could not remove {app_id}")
+                done += 1
+                worker.signals.progress.emit(done)
+
+            for winget_id in app_changes["install"]:
+                if worker.is_cancelled:
+                    return errors
+                logger.info("Installing: %s", winget_id)
+                if not self._catalog.install_app(
+                        winget_id, on_output=lambda line: logger.info(
+                            "  %s", line)):
+                    errors.append(f"Could not install {winget_id}")
+                done += 1
+                worker.signals.progress.emit(done)
             return errors
 
         w = Worker(_worker_fn)
@@ -1109,13 +1376,18 @@ class TweaksModule(BaseModule):
         self.app.thread_pool.start(w)
 
     def _on_apply_result(self, errors: list) -> None:
+        self._applying = False
         self._apply_btn.setEnabled(True)
+        if self._app_tab is not None:
+            self._app_tab.set_applying(False)
         self._progress.setVisible(False)
         for e in errors:
             self._log_output.append(f"⚠ {e}")
         if not errors:
-            self._log_output.append("✅ All tweaks applied successfully.")
+            self._log_output.append("✅ Everything applied successfully.")
         logger.info("Tweaks apply complete: %d error(s)", len(errors))
+        if self._app_tab is not None:
+            self._app_tab.clear_queues()
         self._detect_statuses()
 
     # ------------------------------------------------------------------
@@ -1183,13 +1455,20 @@ class TweaksModule(BaseModule):
             return
 
         def _worker_fn(worker):
-            installed_ids = self._catalog.detect_installed_winget()
+            # One `winget list` answers both questions -- which catalog
+            # entries are installed, and which desktop apps can be removed.
+            output = self._catalog._winget_list_output()
+            installed_ids = (self._catalog._parse_winget_list(output)
+                             if output else set())
+            desktop = (self._catalog.desktop_apps_from(output)
+                       if output else [])
             installed_appx = self._catalog.detect_installed_appx()
-            return installed_ids, installed_appx
+            return installed_ids, installed_appx, desktop
 
         def _on_result(result):
-            installed_ids, installed_appx = result
-            self._signals.apps_detected.emit(installed_ids, installed_appx)
+            installed_ids, installed_appx, desktop = result
+            self._signals.apps_detected.emit(installed_ids, installed_appx,
+                                             desktop)
 
         w = Worker(_worker_fn)
         w.signals.result.connect(_on_result)
@@ -1197,7 +1476,9 @@ class TweaksModule(BaseModule):
         if self.app:
             self.app.thread_pool.start(w)
 
-    def _on_apps_detected(self, installed_ids: set, installed_appx: set) -> None:
+    def _on_apps_detected(self, installed_ids: set, installed_appx: set,
+                          desktop: list) -> None:
         if self._app_tab:
             self._app_tab.populate_installed(installed_appx)
+            self._app_tab.populate_installed_desktop(desktop)
             self._app_tab.populate_installed_winget(installed_ids)
