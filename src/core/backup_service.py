@@ -7,7 +7,7 @@ import shutil
 import sqlite3
 import subprocess
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -34,6 +34,13 @@ class RestoreResult:
     partial: bool
     failed_steps: List[str]
     errors: List[str]
+    #: The tweak ids this revert touched, and the subset whose steps did not
+    #: come back. `failed_steps` names STEPS, which nothing above this layer
+    #: can map to a control -- so a batch revert could not say what it had
+    #: reverted, and therefore could not check any of it. Guessing which
+    #: controls a restore point covered is not an option.
+    reverted_ids: List[str] = field(default_factory=list)
+    failed_ids: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -205,10 +212,17 @@ class BackupService:
     def _revert_steps(self, step_ids: List[str]) -> RestoreResult:
         failed: List[str] = []
         errors: List[str] = []
+        touched: List[str] = []
+        failed_ids: List[str] = []
         for step_id in step_ids:
+            tweak_id = self._tweak_id_of(step_id)
+            if tweak_id is not None and tweak_id not in touched:
+                touched.append(tweak_id)
             ok = self.revert_step(step_id)
             if not ok:
                 failed.append(step_id)
+                if tweak_id is not None and tweak_id not in failed_ids:
+                    failed_ids.append(tweak_id)
                 err_row = self._conn.execute(
                     "SELECT revert_error FROM tweak_steps WHERE id=?", (step_id,)
                 ).fetchone()
@@ -216,7 +230,25 @@ class BackupService:
         success = len(failed) == 0
         partial = bool(failed) and len(failed) < len(step_ids)
         return RestoreResult(success=success, partial=partial,
-                             failed_steps=failed, errors=errors)
+                             failed_steps=failed, errors=errors,
+                             reverted_ids=touched, failed_ids=failed_ids)
+
+    def _tweak_id_of(self, step_id: str) -> Optional[str]:
+        row = self._conn.execute(
+            "SELECT tweak_id FROM tweak_steps WHERE id=?", (step_id,)
+        ).fetchone()
+        return row["tweak_id"] if row else None
+
+    def control_ids_in(self, restore_point_id: str) -> List[str]:
+        """The still-applied tweak ids in a restore point, in the order they
+        were recorded. Asked BEFORE a revert, so the caller can read what the
+        machine says now and compare afterwards."""
+        rows = self._conn.execute(
+            "SELECT DISTINCT tweak_id FROM tweak_steps "
+            "WHERE restore_point_id=? AND reverted_at IS NULL ORDER BY rowid",
+            (restore_point_id,),
+        ).fetchall()
+        return [row["tweak_id"] for row in rows]
 
     def restore_point(self, restore_point_id: str) -> RestoreResult:
         rows = self._conn.execute(
