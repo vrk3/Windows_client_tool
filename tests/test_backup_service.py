@@ -297,3 +297,131 @@ def test_a_backup_never_raises_at_its_callers(svc):
     rp_id = svc.create_restore_point("ignored", "Tweaks")
     svc.backup_registry_key(r"HKLM\SOFTWARE\NoSuchKeyAnywhere", rp_id)
     svc.backup_registry_key(r"HKLM\SECURITY", rp_id)
+
+
+# --- a revert puts the KEY back too, not just the value ---------------------
+#
+# Measured after the elevated LLMNR round-trip:
+# HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient did not exist before
+# it (that is why the `reg export` failed) and exists now with 0 values and 0
+# subkeys. The apply created the key, the revert removed only the value, and
+# the run reported "back to exactly what it was".
+#
+# Inferring this at revert time is NOT safe: a key's mere existence can be the
+# whole point (see gpresult/pol_parser -- this machine carries a key-only
+# policy record). So whether the apply created the key is recorded when the
+# apply knows it, and only a key we created, left empty, is removed.
+
+_TEST_ROOT = r"Software\WinClientToolTest_RevertKey"
+
+
+@pytest.fixture
+def reg_sandbox():
+    """A real HKCU subtree, removed afterwards whatever the test did."""
+    import winreg
+
+    def _delete_tree(path):
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as k:
+                subs = [winreg.EnumKey(k, i)
+                        for i in range(winreg.QueryInfoKey(k)[0])]
+        except FileNotFoundError:
+            return
+        for sub in subs:
+            _delete_tree(path + "\\" + sub)
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+
+    _delete_tree(_TEST_ROOT)
+    yield _TEST_ROOT
+    _delete_tree(_TEST_ROOT)
+
+
+def _key_exists(path) -> bool:
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path):
+            return True
+    except FileNotFoundError:
+        return False
+
+
+def _record_registry_step(svc, target, *, key_created, before=None):
+    rp_id = svc.create_restore_point("revert key", "Tweaks")
+    svc.record_steps(
+        "t1",
+        [StepRecord("registry", target, before, 1, value_name="Val",
+                    reg_kind=winreg.REG_DWORD, key_created=key_created)],
+        rp_id,
+    )
+    return _first_step_id(svc)
+
+
+def test_a_key_the_apply_created_is_removed_by_the_revert(svc, reg_sandbox):
+    """The whole finding: the value goes back to absent AND the key does."""
+    path = reg_sandbox + r"\Created"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 1)
+    step_id = _record_registry_step(svc, "HKCU\\" + path, key_created=True)
+
+    assert svc.revert_step(step_id) is True
+    assert not _key_exists(path), "the key the apply created was left behind"
+
+
+def test_a_key_that_was_already_there_survives_the_revert(svc, reg_sandbox):
+    """Only a key we created is ours to remove. One that predates the tweak
+    stays, even once it is empty -- its existence was not ours to undo."""
+    path = reg_sandbox + r"\Preexisting"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 1)
+    step_id = _record_registry_step(svc, "HKCU\\" + path, key_created=False)
+
+    assert svc.revert_step(step_id) is True
+    assert _key_exists(path), "it deleted a key that was not ours"
+
+
+def test_a_key_still_holding_another_value_is_never_deleted(svc, reg_sandbox):
+    """Something else wrote into the key after we made it. Removing it now
+    would take that with it."""
+    path = reg_sandbox + r"\Shared"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 1)
+        winreg.SetValueEx(k, "SomebodyElse", 0, winreg.REG_SZ, "keep me")
+    step_id = _record_registry_step(svc, "HKCU\\" + path, key_created=True)
+
+    assert svc.revert_step(step_id) is True
+    assert _key_exists(path)
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as k:
+        assert winreg.QueryValueEx(k, "SomebodyElse")[0] == "keep me"
+
+
+def test_a_key_holding_a_subkey_is_never_deleted(svc, reg_sandbox):
+    """An empty key with children is not empty."""
+    path = reg_sandbox + r"\WithChild"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 1)
+    winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path + r"\Child").Close()
+    step_id = _record_registry_step(svc, "HKCU\\" + path, key_created=True)
+
+    assert svc.revert_step(step_id) is True
+    assert _key_exists(path)
+    assert _key_exists(path + r"\Child")
+
+
+def test_restoring_a_prior_value_never_removes_the_key(svc, reg_sandbox):
+    """key_created only ever matters when the revert DELETES the value. With a
+    prior value to write back, the key must obviously stay."""
+    path = reg_sandbox + r"\HadAValue"
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path,
+                            access=winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, "Val", 0, winreg.REG_DWORD, 1)
+    step_id = _record_registry_step(svc, "HKCU\\" + path,
+                                    key_created=True, before=7)
+
+    assert svc.revert_step(step_id) is True
+    assert _key_exists(path)
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as k:
+        assert winreg.QueryValueEx(k, "Val")[0] == 7

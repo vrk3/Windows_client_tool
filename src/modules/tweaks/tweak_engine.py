@@ -311,7 +311,12 @@ class TweakEngine:
             ) from e
 
         return StepRecord("registry", full_key, before, data,
-                          value_name=value_name, reg_kind=kind)
+                          value_name=value_name, reg_kind=kind,
+                          # `ok` with nothing exported means the key was not
+                          # there to export -- so CreateKeyEx above made it,
+                          # and the revert has a key to remove as well as a
+                          # value. This is the only moment that knows.
+                          key_created=outcome.ok and not outcome.exported)
 
     def _apply_registry_delete(self, step: Dict, rp_id: str) -> Optional[StepRecord]:
         """Remove a value. Some Windows behaviour is only truly off when the

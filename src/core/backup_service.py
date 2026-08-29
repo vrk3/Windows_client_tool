@@ -41,6 +41,12 @@ class StepRecord:
     rc: Optional[int] = None    # command/script only — the process exit code
     stdout: str = ""            # command/script only — netsh and dism put refusals HERE, not on stderr
     stderr: str = ""            # command/script only
+    #: registry only — the KEY did not exist before this step made it, so
+    #: reverting means removing the key as well as the value. It cannot be
+    #: inferred at revert time: a key's mere existence can be the whole point
+    #: (gpresult/pol_parser meets key-only policy records), so an empty key we
+    #: did not create is never ours to delete.
+    key_created: bool = False
 
 
 @dataclass
@@ -119,6 +125,13 @@ class BackupService:
             if name not in cols:
                 self._conn.execute(f"ALTER TABLE tweak_steps ADD COLUMN {name} TEXT")
                 logger.info("added %s column to tweak_steps", name)
+        if "key_created" not in cols:
+            # Older rows default to 0: a step recorded before this existed
+            # never proved it created the key, and guessing would delete keys
+            # that were always there.
+            self._conn.execute(
+                "ALTER TABLE tweak_steps ADD COLUMN key_created INTEGER DEFAULT 0")
+            logger.info("added key_created column to tweak_steps")
         self._conn.commit()
 
     def create_restore_point(self, label: str, module: str) -> str:
@@ -156,8 +169,8 @@ class BackupService:
                 """INSERT INTO tweak_steps
                    (id, tweak_id, restore_point_id, applied_at,
                     step_type, target, before_value, after_value, revert_command,
-                    value_name, reg_kind, rc, stdout, stderr)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    value_name, reg_kind, rc, stdout, stderr, key_created)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (uuid.uuid4().hex, tweak_id, restore_point_id, now,
                  step.step_type, step.target,
                  json.dumps(self._json_safe(step.before_value)),
@@ -167,7 +180,8 @@ class BackupService:
                  getattr(step, 'reg_kind', None),
                  getattr(step, 'rc', None),
                  getattr(step, 'stdout', ""),
-                 getattr(step, 'stderr', "")),
+                 getattr(step, 'stderr', ""),
+                 1 if getattr(step, 'key_created', False) else 0),
             )
         self._conn.commit()
 
@@ -216,6 +230,36 @@ class BackupService:
             return BackupOutcome(False, False, out, reason)
 
         return BackupOutcome(True, True, out, f"exported {key_path}")
+
+    @staticmethod
+    def _delete_key_if_empty(hive, sub: str) -> bool:
+        """Remove a key we created, but ONLY while it is genuinely empty.
+
+        Anything that arrived after the apply — another value, a subkey — is
+        somebody else's, and taking the key would take that with it. Only this
+        one key is ever removed; its parents stay, because we did not create
+        them.
+        """
+        import winreg
+        try:
+            with winreg.OpenKey(hive, sub) as k:
+                subkeys, values, _ = winreg.QueryInfoKey(k)
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            logger.warning("could not inspect %s before removing it: %s", sub, e)
+            return False
+        if subkeys or values:
+            logger.info("keeping %s: it still holds %d value(s) and %d subkey(s)",
+                        sub, values, subkeys)
+            return False
+        try:
+            winreg.DeleteKey(hive, sub)
+            logger.info("removed %s, the empty key this app created", sub)
+            return True
+        except OSError as e:
+            logger.warning("could not remove the empty key %s: %s", sub, e)
+            return False
 
     @staticmethod
     def _decode(raw) -> str:
@@ -376,7 +420,7 @@ class BackupService:
     def revert_step(self, step_id: str) -> bool:
         row = self._conn.execute(
             "SELECT step_type, target, before_value, revert_command, restore_point_id, "
-            "value_name, reg_kind FROM tweak_steps WHERE id=?",
+            "value_name, reg_kind, key_created FROM tweak_steps WHERE id=?",
             (step_id,),
         ).fetchone()
         if row is None:
@@ -412,6 +456,14 @@ class BackupService:
                             winreg.DeleteValue(k, value_name)
                     except FileNotFoundError:
                         pass  # already absent — fine
+                    if row["key_created"]:
+                        # The apply made this key too, so the value going away
+                        # is only half the way back. Measured: an elevated
+                        # LLMNR round-trip left
+                        # HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
+                        # behind with 0 values and 0 subkeys while reporting
+                        # "back to exactly what it was".
+                        self._delete_key_if_empty(hive, sub)
                 else:
                     kind = reg_kind if reg_kind is not None else winreg.REG_DWORD
                     if kind == winreg.REG_BINARY and isinstance(before, str):

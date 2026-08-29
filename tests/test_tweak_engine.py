@@ -244,3 +244,65 @@ def test_load_definitions_reads_json(tmp_path):
     f.write_text(json.dumps(data))
     result = TweakEngine.load_definitions(str(f))
     assert result == data
+
+
+# --- the apply is the only moment that knows whether it made the key --------
+#
+# A revert can delete the value it wrote, but it cannot tell whether the KEY
+# was there beforehand -- and a key's existence can be the whole point, so
+# guessing is not allowed. The apply knows, and now records it.
+
+def test_creating_a_key_is_recorded_so_the_revert_can_undo_it(engine, tmp_path):
+    """The elevated LLMNR round-trip left an empty policy key behind because
+    nothing recorded that the apply had created it."""
+    import winreg
+    from modules.tweaks.tweak_engine import TweakEngine
+
+    root = r"Software\WinClientToolTest_EngineKey"
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, root)
+    except FileNotFoundError:
+        pass
+
+    recorded = []
+    engine._backup.record_steps = (
+        lambda tweak_id, steps, rp_id: recorded.extend(steps))
+    rp_id = engine._backup.create_restore_point("engine key", "Tweaks")
+    tweak = {"id": "t", "name": "T", "requires_admin": False,
+             "steps": [{"type": "registry", "key": "HKCU\\" + root,
+                        "value": "Val", "data": 1, "kind": "DWORD"}]}
+    try:
+        engine.apply_tweak(tweak, rp_id)
+        assert recorded, "nothing was recorded at all"
+        assert recorded[0].key_created is True
+    finally:
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, root)
+        except OSError:
+            pass
+
+
+def test_writing_into_a_key_that_was_already_there_records_no_creation(
+        engine, tmp_path):
+    """Only a key we made is ours to remove later."""
+    import winreg
+
+    root = r"Software\WinClientToolTest_EngineExisting"
+    winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, root).Close()
+
+    recorded = []
+    engine._backup.record_steps = (
+        lambda tweak_id, steps, rp_id: recorded.extend(steps))
+    rp_id = engine._backup.create_restore_point("engine existing", "Tweaks")
+    tweak = {"id": "t", "name": "T", "requires_admin": False,
+             "steps": [{"type": "registry", "key": "HKCU\\" + root,
+                        "value": "Val", "data": 1, "kind": "DWORD"}]}
+    try:
+        engine.apply_tweak(tweak, rp_id)
+        assert recorded, "nothing was recorded at all"
+        assert recorded[0].key_created is False
+    finally:
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, root)
+        except OSError:
+            pass
