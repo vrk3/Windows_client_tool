@@ -150,3 +150,39 @@ def test_the_queue_is_cleared_once_the_work_is_done(module):
     module.app.thread_pool.started[0].run()
     module._on_apply_result([])
     assert not module._app_tab.has_queued_changes()
+
+
+# --- one apply at a time ----------------------------------------------------
+#
+# Reported: "could not install Mozilla.Firefox" -- while Firefox was in fact
+# installing, and did install. The log shows two overlapping runs 12 seconds
+# apart; winget will not run twice at once, so the second failed and reported
+# a failure for work the first was busy completing successfully.
+
+def test_a_second_apply_while_one_is_running_starts_nothing(module):
+    _queue_an_app_removal(module)
+    module._on_apply()
+    module._on_apply()
+    module._on_apply()
+    assert len(module.app.thread_pool.started) == 1
+
+
+def test_the_apps_tabs_button_is_disabled_while_applying_too(module):
+    """The bottom bar's button was disabled and this one was not, so it was
+    the way back in to a second run."""
+    _queue_an_app_removal(module)
+    module._on_apply()
+    assert not module._apply_btn.isEnabled()
+    assert not module._app_tab._apply_btn.isEnabled()
+
+
+def test_a_finished_run_lets_the_next_one_start(module):
+    """Counted as a delta: _on_apply_result also kicks off a status sweep, so
+    the absolute number of started workers is not just the applies."""
+    _queue_an_app_removal(module)
+    module._on_apply()
+    module._on_apply_result([])
+    before = len(module.app.thread_pool.started)
+    _queue_an_app_removal(module)
+    module._on_apply()
+    assert len(module.app.thread_pool.started) == before + 1

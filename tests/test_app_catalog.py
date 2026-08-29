@@ -86,30 +86,79 @@ class _Recorder:
 
 def test_a_removal_that_left_the_package_there_is_not_a_success(monkeypatch,
                                                                catalog_path):
+    """Reported from the running app: TreeSize's context-menu package was
+    selected, the app said "everything applied successfully", and the package
+    is still installed."""
     from modules.tweaks.app_catalog import AppCatalog
-    recorder = _Recorder([(0, "", ""),                    # the removal
-                          (0, "Microsoft.BingSearch", "")])  # still installed
+    recorder = _Recorder([
+        (0, "JAMSoftware.TreeSizeContextMenu\nOther.Package", ""),  # before
+        (0, "", ""),                                                # removal
+        (0, "JAMSoftware.TreeSizeContextMenu\nOther.Package", ""),  # after
+    ])
     monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
     c = AppCatalog(catalog_path=catalog_path)
-    assert c.remove_appx("Microsoft.BingSearch") is False
-    assert len(recorder.calls) == 2, "it never checked whether the package went"
+    lines = []
+    assert c.remove_appx("JAMSoftware.TreeSizeContextMenu",
+                         on_output=lines.append) is False
+    assert any("still installed" in line for line in lines)
 
 
 def test_a_removal_that_actually_removed_it_is_a_success(monkeypatch,
                                                          catalog_path):
     from modules.tweaks.app_catalog import AppCatalog
-    recorder = _Recorder([(0, "", ""), (0, "", "")])   # gone afterwards
+    recorder = _Recorder([
+        (0, "JAMSoftware.TreeSizeContextMenu\nOther.Package", ""),  # before
+        (0, "", ""),                                                # removal
+        (0, "Other.Package", ""),                                   # after
+    ])
     monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
     c = AppCatalog(catalog_path=catalog_path)
-    assert c.remove_appx("Microsoft.BingSearch") is True
+    assert c.remove_appx("JAMSoftware.TreeSizeContextMenu") is True
 
 
-def test_a_refusal_is_reported_with_its_reason(monkeypatch, catalog_path):
+def test_a_check_that_did_not_run_is_never_read_as_removed(monkeypatch,
+                                                           catalog_path):
+    """THE bug. Empty stdout was read as "the package is gone" without ever
+    looking at the return code or stderr -- so a package list that could not
+    be read at all reported a successful removal. A refused read is not an
+    absent value; that rule is all over this codebase and this call broke it.
+    """
     from modules.tweaks.app_catalog import AppCatalog
-    recorder = _Recorder([(0, "", "Access is denied."),
-                          (0, "Microsoft.BingSearch", "")])
+    recorder = _Recorder([
+        (0, "JAMSoftware.TreeSizeContextMenu", ""),   # before: it is there
+        (0, "", ""),                                   # removal: silent
+        (1, "", "Access is denied."),                  # after: the CHECK failed
+    ])
     monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
     c = AppCatalog(catalog_path=catalog_path)
     lines = []
-    assert c.remove_appx("Microsoft.BingSearch", on_output=lines.append) is False
-    assert any("Access is denied" in line for line in lines)
+    assert c.remove_appx("JAMSoftware.TreeSizeContextMenu",
+                         on_output=lines.append) is False
+    assert any("could not" in line.lower() for line in lines)
+
+
+def test_a_package_that_cannot_be_seen_beforehand_is_not_quietly_fine(
+        monkeypatch, catalog_path):
+    """If the package is not visible in the context doing the removing, the
+    pipeline removes nothing and says nothing -- which must not read as done.
+    """
+    from modules.tweaks.app_catalog import AppCatalog
+    recorder = _Recorder([(0, "Other.Package", "")])   # before: not listed
+    monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
+    c = AppCatalog(catalog_path=catalog_path)
+    lines = []
+    assert c.remove_appx("JAMSoftware.TreeSizeContextMenu",
+                         on_output=lines.append) is False
+    assert any("not visible" in line.lower() or "not installed" in line.lower()
+               for line in lines)
+    assert len(recorder.calls) == 1, "it tried to remove something it cannot see"
+
+
+def test_the_reason_a_check_failed_is_reported(monkeypatch, catalog_path):
+    from modules.tweaks.app_catalog import AppCatalog
+    recorder = _Recorder([(1, "", "the RPC server is unavailable")])
+    monkeypatch.setattr("modules.tweaks.app_catalog.subprocess.run", recorder)
+    c = AppCatalog(catalog_path=catalog_path)
+    lines = []
+    c.remove_appx("Whatever", on_output=lines.append)
+    assert any("RPC server" in line for line in lines)

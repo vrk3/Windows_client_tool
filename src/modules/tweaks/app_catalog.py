@@ -143,17 +143,65 @@ class AppCatalog:
             on_output,
         )
 
+    def _appx_present(self, package_name: str,
+                      on_output: Optional[callable] = None) -> Optional[bool]:
+        """Is this package installed? None means the question was not answered.
+
+        Asks for the WHOLE list and matches in Python, rather than
+        `Get-AppxPackage '<name>'`. The unfiltered form is the one that
+        populates the UI and is known to work in the app's own context; the
+        filtered form returned nothing there while the full list contained the
+        package, which is how a removal came to do nothing at all in silence.
+
+        The return code and stderr are checked, because **empty output from a
+        command that failed is not evidence of absence** — that rule is
+        everywhere in this codebase, and reading empty stdout as "the package
+        is gone" is exactly how a removal that never happened got reported as
+        a success.
+        """
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-AppxPackage | Select-Object -ExpandProperty Name"],
+            capture_output=True, text=True, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        complaint = (result.stderr or "").strip()
+        if result.returncode != 0 or complaint:
+            if on_output:
+                on_output(f"could not read the installed package list "
+                          f"(exit {result.returncode}): "
+                          f"{complaint or 'no output'}")
+            return None
+        names = {line.strip() for line in (result.stdout or "").splitlines()
+                 if line.strip()}
+        if not names:
+            if on_output:
+                on_output("could not read the installed package list: it came "
+                          "back empty, which no Windows install ever is")
+            return None
+        return package_name in names
+
     def remove_appx(self, package_name: str,
                     on_output: Optional[callable] = None) -> bool:
-        """Remove a package, then check that it is actually gone.
+        """Remove a package, and return whether it is actually gone.
 
-        `Get-AppxPackage 'Microsoft.NoSuchThing' | Remove-AppxPackage` exits
-        **0** and prints nothing — measured on this machine. So returning
-        `rc == 0` reported a removal that never happened, and the caller went
-        on to say "applied successfully". The package list is the only thing
-        that settles it: if the package is still there, the removal failed,
-        whatever PowerShell's exit code says.
+        True only on positive evidence: the package was listed before, and is
+        not listed afterwards. Everything else is False with a reason --
+        including "the list could not be read", because an unanswered question
+        is not a success.
         """
+        before = self._appx_present(package_name, on_output)
+        if before is None:
+            return False
+        if not before:
+            # `Get-AppxPackage 'X' | Remove-AppxPackage` with nothing matching
+            # removes nothing, prints nothing and exits 0. Saying so beats
+            # running it and reporting whatever silence comes back.
+            if on_output:
+                on_output(f"{package_name} is not visible as an installed "
+                          "package, so there is nothing here to remove")
+            return False
+
         cmd = f"Get-AppxPackage '{package_name}' | Remove-AppxPackage"
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", cmd],
@@ -164,17 +212,18 @@ class AppCatalog:
             for line in (result.stdout + result.stderr).splitlines():
                 on_output(line)
 
-        check = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             f"Get-AppxPackage '{package_name}' | "
-             "Select-Object -ExpandProperty Name"],
-            capture_output=True, text=True, check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        still_there = bool((check.stdout or "").strip())
-        if still_there and on_output:
-            on_output(f"{package_name} is still installed after the removal")
-        return not still_there
+        after = self._appx_present(package_name, on_output)
+        if after is None:
+            if on_output:
+                on_output(f"could not confirm whether {package_name} was "
+                          "removed")
+            return False
+        if after:
+            if on_output:
+                on_output(f"{package_name} is still installed after the "
+                          "removal")
+            return False
+        return True
 
     def _run_winget(self, args: List[str],
                     on_output: Optional[callable]) -> bool:

@@ -522,6 +522,7 @@ class AppManagerTab(QWidget):
         #: installed list would queue every package on the machine for
         #: removal.
         self._populating = False
+        self._applying = False
 
         layout = QVBoxLayout(self)
 
@@ -654,6 +655,20 @@ class AppManagerTab(QWidget):
         self._install_queue.clear()
         self._update_apply_label()
 
+    def set_applying(self, applying: bool) -> None:
+        """Grey out Apply Changes while a run is in flight.
+
+        Without this the tab's own button stayed live during an apply and a
+        second click started a second winget, which fails because the first
+        is still holding the installer -- and that failure was reported as
+        the result.
+        """
+        self._applying = applying
+        if applying:
+            self._apply_btn.setEnabled(False)
+        else:
+            self._update_apply_label()
+
     def _on_catalog_item_changed(self, item: QListWidgetItem) -> None:
         if self._populating:
             return
@@ -665,6 +680,8 @@ class AppManagerTab(QWidget):
         self._update_apply_label()
 
     def _update_apply_label(self) -> None:
+        if getattr(self, "_applying", False):
+            return
         n_remove = len(self._remove_queue)
         n_install = len(self._install_queue)
         if n_remove + n_install == 0:
@@ -692,6 +709,7 @@ class TweaksModule(BaseModule):
         self._widget: Optional[QWidget] = None
         self._tab_widgets: Dict[str, TweakTab] = {}
         self._app_tab: Optional[AppManagerTab] = None
+        self._applying = False
         self._engine: Optional[TweakEngine] = None
         self._preset_mgr: Optional[PresetManager] = None
         self._catalog: Optional[AppCatalog] = None
@@ -1170,6 +1188,16 @@ class TweaksModule(BaseModule):
         the answer to pressing Apply Selected with two apps ticked
         was "Check at least one tweak to apply."
         """
+        if self._applying:
+            # Reported as "could not install Mozilla.Firefox" while Firefox
+            # was installing perfectly well: a second Apply started a second
+            # winget, winget will not run twice at once, and the second one's
+            # refusal was reported as the outcome. The bottom bar's button was
+            # disabled during a run and the Apps tab's own button was not, so
+            # that was the way back in.
+            logger.info("Tweaks: apply already running; ignoring the request")
+            return
+
         tweaks_to_apply = []
         for tab in self._tab_widgets.values():
             tweaks_to_apply.extend(tab.selected_tweaks())
@@ -1191,7 +1219,10 @@ class TweaksModule(BaseModule):
         rp_id = self.app.backup.create_restore_point(
             "Tweaks session", "Tweaks")
 
+        self._applying = True
         self._apply_btn.setEnabled(False)
+        if self._app_tab is not None:
+            self._app_tab.set_applying(True)
         total = (len(tweaks_to_apply) + len(app_changes["remove"])
                  + len(app_changes["install"]))
         self._progress.setMaximum(total)
@@ -1253,7 +1284,10 @@ class TweaksModule(BaseModule):
         self.app.thread_pool.start(w)
 
     def _on_apply_result(self, errors: list) -> None:
+        self._applying = False
         self._apply_btn.setEnabled(True)
+        if self._app_tab is not None:
+            self._app_tab.set_applying(False)
         self._progress.setVisible(False)
         for e in errors:
             self._log_output.append(f"⚠ {e}")
