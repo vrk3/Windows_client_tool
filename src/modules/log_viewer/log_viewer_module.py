@@ -12,12 +12,13 @@ and cost the marshalling.
 """
 import logging
 import os
+from datetime import timedelta
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QDateTime
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
     QSplitter, QTableView, QToolButton, QVBoxLayout, QWidget,
 )
@@ -27,6 +28,7 @@ from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 
 from modules.log_viewer import cmtrace_parser
+from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
     COMPONENT, LogModel, MESSAGE, SEVERITY, THREAD, TIME,
 )
@@ -43,6 +45,11 @@ LEVELS = ("Error", "Warning", "Info")
 
 
 class LogViewerWidget(QWidget):
+    #: Offered on a row. Five minutes is the default because a servicing
+    #: operation's related lines land within seconds of each other; the
+    #: wider ones are for correlating across a reboot.
+    RANGE_MINUTES = (1, 5, 15, 60)
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.model = LogModel(self)
@@ -50,6 +57,18 @@ class LogViewerWidget(QWidget):
         self._reader: Optional[LogReader] = None
         self._path = ""
         self._last_found = -1
+        self._lookup = None
+        self._rules = []
+        self._config = None
+        # Whether the user has actually asked for a time range. The boxes
+        # always HOLD a value (the log's whole span, or whatever
+        # anchor_range/a manual edit set), but _apply_filters must not send
+        # it to the model unless this is True -- otherwise "Clear range"
+        # is undone by the next touch of any other control, and while
+        # following, the upper bound is frozen at the moment the log was
+        # opened, so new lines (later than that bound) silently stop
+        # appearing.
+        self._range_active = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -128,6 +147,59 @@ class LogViewerWidget(QWidget):
         find_row.addWidget(self.filter_box, 1)
         layout.addLayout(find_row)
 
+        range_row = QHBoxLayout()
+        range_row.addWidget(QLabel("Thread:", self))
+        # Editable with a completer, not a plain dropdown: DISM carries 329
+        # distinct thread ids, and an alphabetical list of 329 numbers is not
+        # a control anyone can use. Ordered by how common each one is.
+        self.thread = QComboBox(self)
+        self.thread.setEditable(True)
+        self.thread.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.thread.setMinimumWidth(140)
+        self.thread.addItem("All")
+        self.thread.currentIndexChanged.connect(lambda _i: self._apply_filters())
+        range_row.addWidget(self.thread)
+
+        range_row.addSpacing(12)
+        range_row.addWidget(QLabel("From:", self))
+        self.time_from = QDateTimeEdit(self)
+        self.time_from.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        # Only a genuine user edit reaches this slot: both programmatic
+        # writers (_reset_range, anchor_range) already blockSignals() around
+        # setDateTime(). A real edit is what turns the range on.
+        self.time_from.dateTimeChanged.connect(self._on_range_edited)
+        range_row.addWidget(self.time_from)
+        range_row.addWidget(QLabel("To:", self))
+        self.time_to = QDateTimeEdit(self)
+        self.time_to.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.time_to.dateTimeChanged.connect(self._on_range_edited)
+        range_row.addWidget(self.time_to)
+        self.clear_range_button = QPushButton("Clear range", self)
+        self.clear_range_button.clicked.connect(self._reset_range)
+        range_row.addWidget(self.clear_range_button)
+
+        self.export_button = QPushButton("Export…", self)
+        self.export_button.clicked.connect(self.choose_export)
+        range_row.addWidget(self.export_button)
+
+        self.error_lookup_button = QPushButton("Error lookup…", self)
+        self.error_lookup_button.clicked.connect(
+            lambda _c=False: self.open_error_lookup())
+        range_row.addWidget(self.error_lookup_button)
+
+        self.highlight_button = QPushButton("Highlight rules…", self)
+        self.highlight_button.clicked.connect(self.edit_highlight_rules)
+        range_row.addWidget(self.highlight_button)
+
+        range_row.addSpacing(12)
+        self.regex_box = QCheckBox("Regex", self)
+        self.regex_box.setToolTip("Treat Find and Filter as regular "
+                                  "expressions.")
+        self.regex_box.toggled.connect(lambda _c: self._apply_filters())
+        range_row.addWidget(self.regex_box)
+        range_row.addStretch(1)
+        layout.addLayout(range_row)
+
         self.table = QTableView(self)
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(
@@ -147,6 +219,10 @@ class LogViewerWidget(QWidget):
             header.setSectionResizeMode(column,
                                         QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(MESSAGE, QHeaderView.ResizeMode.Stretch)
+
+        from .log_delegate import LogMessageDelegate
+
+        self.table.setItemDelegateForColumn(MESSAGE, LogMessageDelegate(self))
 
         # Message is a Stretch section, so the table has no horizontal scroll
         # bar to reach a clipped line with -- measured on a real CBS archive,
@@ -178,6 +254,15 @@ class LogViewerWidget(QWidget):
 
         self.table.selectionModel().currentRowChanged.connect(
             self._on_row_selected)
+
+        self.table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._on_context_menu)
+
+        from PyQt6.QtGui import QKeySequence, QShortcut
+
+        QShortcut(QKeySequence.StandardKey.Copy, self.table,
+                  activated=self.copy_selection)
 
         self._timer = QTimer(self)
         self._timer.setInterval(FOLLOW_MS)
@@ -228,6 +313,18 @@ class LogViewerWidget(QWidget):
                                  include_rolled=self.rolled.isChecked())
         self._poll(scroll=True)
         self._refresh_components()
+        self._refresh_threads()
+        self._reset_range()
+        # The refreshes above blockSignals() around rebuilding the Component
+        # and Thread combos, so falling back to index 0 ("All") when the
+        # previous log's selection is not in the new one never told the
+        # model -- it kept filtering on a component/thread that belonged to
+        # the log that is no longer open. One unblocked call here is what
+        # guarantees the widgets and the model agree. Safe to combine with
+        # _reset_range just above: _range_active is False at this point, so
+        # this does not re-introduce the frozen-range bug that flag exists
+        # to prevent.
+        self._apply_filters()
 
     def _poll(self, scroll: bool = None) -> None:
         if self._reader is None:
@@ -290,6 +387,148 @@ class LogViewerWidget(QWidget):
             parts.extend(f"{code} — {meaning}" for code, meaning in found)
         self.detail.setPlainText("\n".join(parts))
 
+    # ---- context menu and actions -------------------------------------------
+
+    def anchor_range(self, row: int, minutes: int) -> None:
+        """Set the time range to ±minutes around the timestamp of the given row."""
+        entry = self.model.entry(row)
+        if entry is None or entry.timestamp == UNKNOWN_TIME:
+            return
+        span = timedelta(minutes=minutes)
+        self.time_from.blockSignals(True)
+        self.time_to.blockSignals(True)
+        self.time_from.setDateTime(QDateTime(entry.timestamp - span))
+        self.time_to.setDateTime(QDateTime(entry.timestamp + span))
+        self.time_from.blockSignals(False)
+        self.time_to.blockSignals(False)
+        self._range_active = True
+        self._apply_filters()
+
+    def _on_range_edited(self, _new_value) -> None:
+        """A genuine user edit of either box -- see the comment on the
+        connect() calls. This is what turns the range on."""
+        self._range_active = True
+        self._apply_filters()
+
+    def build_row_menu(self, row: int) -> QMenu:
+        """Build the context menu for a row."""
+        menu = QMenu(self)
+        for minutes in self.RANGE_MINUTES:
+            menu.addAction(
+                f"Show ±{minutes} minute{'s' if minutes > 1 else ''} "
+                f"around this row",
+                lambda _c=False, m=minutes: self.anchor_range(row, m))
+        menu.addSeparator()
+        menu.addAction("Look up the error codes on this row",
+                       lambda _c=False: self.open_error_lookup(row))
+        menu.addAction("Copy selected rows", self.copy_selection)
+        return menu
+
+    def _on_context_menu(self, point) -> None:
+        """Handle right-click on the table."""
+        index = self.table.indexAt(point)
+        if index.isValid():
+            self.build_row_menu(index.row()).exec(
+                self.table.viewport().mapToGlobal(point))
+
+    def open_error_lookup(self, row: int = -1) -> None:
+        from .error_lookup_dialog import ErrorLookupDialog
+
+        if self._lookup is None:
+            self._lookup = ErrorLookupDialog(self)
+        entry = self.model.entry(row) if row >= 0 else None
+        self._lookup.show_for(entry.message if entry is not None else "")
+
+    def edit_highlight_rules(self) -> None:
+        from .highlight import save_rules
+        from .highlight_dialog import HighlightDialog
+
+        dialog = HighlightDialog(self._rules, self)
+        if dialog.exec():
+            self._rules = dialog.rules()
+            self.model.set_highlight_rules(self._rules)
+            if self._config is not None:
+                save_rules(self._config, self._rules)
+
+    def visible_entries(self) -> list:
+        """Exactly what the filter left on screen, in view order."""
+        return [self.model.entry(row) for row in range(self.model.rowCount())]
+
+    def copy_selection(self) -> None:
+        """Copy selected rows to clipboard without provenance header."""
+        rows = sorted({index.row()
+                       for index in self.table.selectionModel().selectedRows()}
+                      or {self.table.currentIndex().row()})
+        entries = [self.model.entry(row) for row in rows
+                   if self.model.entry(row) is not None]
+        if not entries:
+            return
+        from .log_export import as_text
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(as_text(entries, header=False))
+        self.status.setText(f"{len(entries):,} row(s) copied.")
+
+    def export_to(self, path: str) -> None:
+        """Export the filtered view to a file (CSV or text).
+
+        Writes to a temporary file beside the target, then atomically replaces
+        the destination. This ensures the destination is never truncated or
+        left in a partial state if the write fails.
+        """
+        import tempfile
+        from .log_export import as_csv, as_text
+
+        entries = self.visible_entries()
+        text = (as_csv(entries) if path.lower().endswith(".csv")
+                else as_text(entries))
+
+        # Create a temporary file in the same directory as the target to ensure
+        # os.replace() stays on the same volume (atomic on Windows).
+        target_dir = os.path.dirname(path)
+        if not target_dir:
+            target_dir = "."
+
+        temp_fd = None
+        temp_path = None
+        try:
+            # Create temp file in the same directory as the target
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=target_dir,
+                prefix=".export_",
+                suffix=os.path.splitext(path)[1])
+
+            # Write to the temp file
+            with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as handle:
+                handle.write(text)
+
+            # Atomically replace the target with the temp file
+            os.replace(temp_path, path)
+        except OSError as exc:
+            logger.warning("Could not export to %s", path, exc_info=True)
+            self.status.setText(f"Could not write the export: {exc}")
+            # Clean up the temp file if it was created
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    # Best-effort cleanup; the original export failure above
+                    # is already reported, and this is not another one.
+                    logger.debug("Could not remove temp export file %s",
+                                temp_path, exc_info=True)
+            return
+
+        self.status.setText(f"{len(entries):,} row(s) written to "
+                            f"{os.path.basename(path)}")
+
+    def choose_export(self) -> None:
+        """Open a file dialog to choose where to export the filtered view."""
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Export the filtered view", "",
+            "Text (*.txt);;CSV (*.csv)")
+        if path:
+            self.export_to(path)
+
     # ---- filtering and find ---------------------------------------------
 
     def _refresh_components(self) -> None:
@@ -303,6 +542,30 @@ class LogViewerWidget(QWidget):
         self.component.setCurrentIndex(max(0, index))
         self.component.blockSignals(False)
 
+    def _refresh_threads(self) -> None:
+        current = self.thread.currentText()
+        self.thread.blockSignals(True)
+        self.thread.clear()
+        self.thread.addItem("All")
+        for thread, count in self.model.threads():
+            self.thread.addItem(f"{thread}  ({count:,})")
+        index = self.thread.findText(current)
+        self.thread.setCurrentIndex(max(0, index))
+        self.thread.blockSignals(False)
+
+    def _reset_range(self) -> None:
+        """Open the boxes on the whole log, and stop filtering by time."""
+        span = self.model.time_span()
+        for box, value in ((self.time_from, span[0] if span else None),
+                           (self.time_to, span[1] if span else None)):
+            box.blockSignals(True)
+            if value is not None:
+                box.setDateTime(QDateTime(value))
+            box.blockSignals(False)
+        self._range_active = False
+        self.model.set_filter(time_from=False, time_to=False)
+        self._update_status()
+
     def _apply_filters(self) -> None:
         checked = {level for level, box in self._level_boxes.items()
                    if box.isChecked()}
@@ -310,10 +573,39 @@ class LogViewerWidget(QWidget):
         # happens to list every level -- Debug records would vanish otherwise.
         levels = set() if checked == set(LEVELS) else checked
         component = self.component.currentText()
+        thread = self.thread.currentText()
+        thread = "" if thread == "All" else thread.split(" ")[0]
+        # The boxes always hold a value -- the log's whole span, or
+        # whatever anchor_range/a manual edit set -- but that must reach
+        # the model only once the user has actually asked for a range.
+        # Otherwise every OTHER control (Filter, a severity box, Component,
+        # Thread, Regex) re-sends time_from/time_to on every call, undoing
+        # "Clear range", and while following, the upper bound is frozen at
+        # the moment the log was opened so newer lines never appear.
+        time_from: object = False
+        time_to: object = False
+        if self._range_active:
+            # A backwards range would hide every row, and an empty table
+            # reads as "no such records" -- a lie about the log rather than
+            # a complaint about the range. Say so and filter nothing.
+            start = self.time_from.dateTime().toPyDateTime()
+            end = self.time_to.dateTime().toPyDateTime()
+            if start > end:
+                self.model.set_filter(time_from=False, time_to=False)
+                self.status.setText("That time range ends before it starts.")
+                return
+            time_from, time_to = start, end
         self.model.set_filter(
             levels=levels,
             needle=self.filter_box.text(),
-            component="" if component == "All" else component)
+            component="" if component == "All" else component,
+            thread=thread,
+            time_from=time_from,
+            time_to=time_to,
+            regex=self.regex_box.isChecked())
+        if self.model.filter_pattern_is_invalid():
+            self.status.setText("That pattern is not finished yet.")
+            return
         self._update_status()
 
     def find_next(self) -> None:
@@ -364,6 +656,13 @@ class LogViewerModule(BaseModule):
     def create_widget(self) -> QWidget:
         self._widget = LogViewerWidget()
         self._provider = self._widget.provider
+        config = getattr(self.app, "config", None) if self.app else None
+        if config is not None:
+            from .highlight import load_rules
+
+            self._widget._config = config
+            self._widget._rules = load_rules(config)
+            self._widget.model.set_highlight_rules(self._widget._rules)
         return self._widget
 
     def get_search_provider(self) -> Optional[SearchProvider]:

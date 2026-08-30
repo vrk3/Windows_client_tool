@@ -8,12 +8,17 @@ Filtering keeps a separate index list rather than copying entries, so turning
 "Errors only" on and off costs a pass over integers and never touches the
 records themselves.
 """
+import re
 from collections import deque
+from typing import Optional, Tuple
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from .cmtrace_parser import UNKNOWN_TIME
+from .highlight import haystack, matching_rule
+from .log_export import format_stamp
+from .palette import component_colour, readable_text_on, severity_row_colour
 
 COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
 TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
@@ -21,14 +26,6 @@ TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
 #: How many records are kept. Past this the oldest go, which is what CMTrace
 #: does in practice and what keeps a 300 MB log openable.
 DEFAULT_CAP = 200_000
-
-#: CMTrace's own scheme: red for errors, yellow for warnings. Chosen against
-#: the dark sheet this app uses rather than CMTrace's white background, so the
-#: text stays readable instead of being technically the same colour.
-ROW_COLOURS = {
-    "Error": (QColor(0x5C, 0x1A, 0x1A), QColor(0xFF, 0x99, 0x99)),
-    "Warning": (QColor(0x4A, 0x3C, 0x14), QColor(0xF5, 0xD5, 0x76)),
-}
 
 
 class LogModel(QAbstractTableModel):
@@ -38,7 +35,14 @@ class LogModel(QAbstractTableModel):
         self._visible: list = []
         self._levels = set()            # empty means "show everything"
         self._needle = ""
+        self._pattern = ""
         self._component = ""
+        self._thread = ""
+        self._time_from = None
+        self._time_to = None
+        self._regex = False
+        self._matcher = None            # compiled once per set_filter
+        self._rules = []                # highlight rules
         self.dropped = 0                # records aged out of the cap
 
     # ---- content --------------------------------------------------------
@@ -106,30 +110,115 @@ class LogModel(QAbstractTableModel):
     # ---- filtering ------------------------------------------------------
 
     def set_filter(self, levels=None, needle: str = None,
-                   component: str = None) -> None:
+                   component: str = None, thread: str = None,
+                   time_from=None, time_to=None, regex: bool = None) -> None:
+        """Each argument left as None keeps that axis unchanged.
+
+        `time_from`/`time_to` take the sentinel `False` to mean "clear this
+        bound", since None already means "leave it alone" and a range has to
+        be removable.
+        """
         if levels is not None:
             self._levels = set(levels)
         if needle is not None:
             self._needle = needle.lower()
+            self._pattern = needle
         if component is not None:
             self._component = component
+        if thread is not None:
+            self._thread = thread
+        if time_from is not None:
+            self._time_from = None if time_from is False else time_from
+        if time_to is not None:
+            self._time_to = None if time_to is False else time_to
+        if regex is not None:
+            self._regex = bool(regex)
+
+        # Compiled ONCE here, never inside _matches: at 134,527 records a
+        # per-row compile is 134,527 compiles per keystroke.
+        self._matcher = None
+        if self._regex and self._pattern:
+            try:
+                self._matcher = re.compile(self._pattern, re.IGNORECASE)
+            except re.error:
+                # A half-typed pattern is a typo. Nothing matches until it
+                # is finished; the pane says so in the status bar.
+                self._matcher = False
+
         self.beginResetModel()
         self._reindex()
         self.endResetModel()
+
+    def set_highlight_rules(self, rules) -> None:
+        """Colouring only -- which rows are VISIBLE does not change, so this
+        repaints rather than resetting. A reset would clear the selection,
+        the same trap `append` documents."""
+        self._rules = list(rules or [])
+        if self._visible:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._visible) - 1, len(COLUMNS) - 1)
+            self.dataChanged.emit(top, bottom,
+                                  [Qt.ItemDataRole.BackgroundRole,
+                                   Qt.ItemDataRole.ForegroundRole])
 
     def _matches(self, entry) -> bool:
         if self._levels and entry.level not in self._levels:
             return False
         if self._component and entry.source != self._component:
             return False
+        if self._thread and entry.raw.get("thread", "") != self._thread:
+            return False
+        # A record with no timestamp of its own -- a continuation line -- is
+        # never removed by a time filter. Losing a record is the one outcome
+        # a log viewer must not produce.
+        if entry.timestamp != UNKNOWN_TIME:
+            if self._time_from and entry.timestamp < self._time_from:
+                return False
+            if self._time_to and entry.timestamp > self._time_to:
+                return False
         if self._needle:
-            # The whole ROW as the user sees it, not just the message.
-            # Typing "warning" has to find the warning row of a CMTrace log,
-            # where the word lives in the type attribute rather than the text.
-            haystack = f"{entry.message} {entry.level} {entry.source}".lower()
-            if self._needle not in haystack:
+            # The whole ROW as the user sees it, not just the message --
+            # the same `haystack()` a highlight rule is matched against, so
+            # the filter and a rule can never quietly disagree on what
+            # "the row" means. Typing "warning" has to find the warning row
+            # of a CMTrace log, where the word lives in the type attribute
+            # rather than the text.
+            text = haystack(entry)
+            if self._matcher is False:
+                return False
+            if self._matcher is not None:
+                if not self._matcher.search(text):
+                    return False
+            elif self._needle not in text.lower():
                 return False
         return True
+
+    def threads(self) -> list:
+        """`(thread, count)` ordered by count descending.
+
+        DISM carries 329 distinct thread ids; an alphabetical list of 329
+        numbers is not a control anyone can use.
+        """
+        counts: dict = {}
+        for entry in self._entries:
+            thread = entry.raw.get("thread", "")
+            if thread:
+                counts[thread] = counts.get(thread, 0) + 1
+        return sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+
+    def time_span(self):
+        """`(first, last)` real timestamp, or None. Used to prefill the range
+        boxes so they open on the whole log rather than on the year 1752."""
+        stamps = [e.timestamp for e in self._entries
+                  if e.timestamp != UNKNOWN_TIME]
+        if not stamps:
+            return None
+        return min(stamps), max(stamps)
+
+    def filter_pattern_is_invalid(self) -> bool:
+        """The pane asks, so it can say so rather than showing an empty
+        table that reads as "no such records"."""
+        return self._matcher is False
 
     def _reindex(self) -> None:
         self._visible = [i for i, e in enumerate(self._entries)
@@ -150,6 +239,26 @@ class LogModel(QAbstractTableModel):
             return COLUMNS[section]
         return None
 
+    def _cell_colours(self, index, entry) -> Optional[Tuple[str, str]]:
+        """`(background, foreground)` for one cell, or None for no colour.
+
+        Background and Foreground used to duplicate this shape, differing
+        only by tuple index -- and that duplication is exactly what let a
+        malformed highlight colour raise out of one role (Foreground, via
+        `readable_text_on`) while the other (Background, a bare `QColor()`
+        construction) merely came back invalid. One helper both roles index
+        keeps the three-system territory rule in one place: the Component
+        column's tint wins its own cell over everything else, a highlight
+        rule beats severity, and severity applies when nothing else claims
+        the row.
+        """
+        if index.column() == COMPONENT and entry.source:
+            return component_colour(entry.source)
+        rule = matching_rule(self._rules, entry)
+        if rule is not None:
+            return rule.colour, readable_text_on(rule.colour)
+        return severity_row_colour(entry.level)
+
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         entry = self.entry(index.row()) if index.isValid() else None
         if entry is None:
@@ -157,18 +266,10 @@ class LogModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             column = index.column()
             if column == TIME:
-                # A record whose date could not be read still has a message;
-                # showing "0001-01-01" as though it were a real time would be
-                # worse than admitting we do not know.
-                if entry.timestamp == UNKNOWN_TIME:
-                    return ""
-                # Milliseconds only when the log actually wrote them. CBS
-                # writes whole seconds, so `%f` gave all 12,598 of its rows a
-                # `.000` that reads as a measurement rather than as padding.
-                if entry.raw.get("subsecond"):
-                    return entry.timestamp.strftime(
-                        "%Y-%m-%d %H:%M:%S.%f")[:-3]
-                return entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                # The same formatter log_export uses for the exported file,
+                # so what someone sees here and what they export can never
+                # quietly disagree.
+                return format_stamp(entry)
             if column == SEVERITY:
                 return entry.level
             if column == COMPONENT:
@@ -181,11 +282,11 @@ class LogModel(QAbstractTableModel):
                 # whole table.
                 return entry.message.replace("\n", " ↵ ")
         elif role == Qt.ItemDataRole.BackgroundRole:
-            colour = ROW_COLOURS.get(entry.level)
-            return colour[0] if colour else None
+            colours = self._cell_colours(index, entry)
+            return QColor(colours[0]) if colours else None
         elif role == Qt.ItemDataRole.ForegroundRole:
-            colour = ROW_COLOURS.get(entry.level)
-            return colour[1] if colour else None
+            colours = self._cell_colours(index, entry)
+            return QColor(colours[1]) if colours else None
         elif role == Qt.ItemDataRole.ToolTipRole:
             # The line as written, then what its error codes mean. This is
             # what people open CMTrace for: a line says 0x80070005 and they
@@ -201,16 +302,28 @@ class LogModel(QAbstractTableModel):
         """The next visible row containing `needle`, or -1.
 
         Wraps, because a search that stops at the end of a log makes the user
-        scroll back to the top to carry on.
+        scroll back to the top to carry on. Honours the same Regex flag the
+        filter does: one checkbox governs both.
         """
-        needle = (needle or "").lower()
         if not needle or not self._visible:
             return -1
+        matcher = None
+        if self._regex:
+            try:
+                matcher = re.compile(needle, re.IGNORECASE)
+            except re.error:
+                return -1
+        lowered = needle.lower()
         count = len(self._visible)
         step = 1 if forwards else -1
         for offset in range(1, count + 1):
             row = (start_row + offset * step) % count
             entry = self.entry(row)
-            if entry is not None and needle in entry.message.lower():
+            if entry is None:
+                continue
+            if matcher is not None:
+                if matcher.search(entry.message):
+                    return row
+            elif lowered in entry.message.lower():
                 return row
         return -1

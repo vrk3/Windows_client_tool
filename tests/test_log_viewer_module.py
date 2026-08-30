@@ -1,6 +1,7 @@
 """The log viewer module: opening, following, filtering and find, end to end
 against real files on disk."""
 import os
+from datetime import datetime
 
 import pytest
 
@@ -96,6 +97,30 @@ def test_following_does_not_re_add_what_is_already_shown(viewer):
     viewer._poll()
     viewer._poll()
     assert viewer.model.total == 3
+
+
+def test_a_followed_log_keeps_updating_after_typing_in_the_filter_box(viewer,
+                                                                       log):
+    """Regression: _apply_filters used to re-send time_from/time_to from the
+    QDateTimeEdit boxes on every call, even though "Clear range" had never
+    been touched and the user never asked for a range at all. Those boxes
+    are frozen at the moment the log was opened, so the upper bound sat at
+    13:45:14 -- the timestamp of the last of the three original records --
+    forever after. A followed log's whole point is that later lines have
+    LATER timestamps, so every one of them silently failed the frozen
+    time_to and never appeared, from the very next touch of any other
+    control onward. Typing in the Filter box is exactly such a touch."""
+    viewer.follow.setChecked(True)
+    viewer.filter_box.setText("Alpha")     # matches only the "Starting up" row
+    assert viewer.model.rowCount() == 1
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write('<![LOG[Later Alpha line]LOG]!><time="13:45:20.000+000" '
+                     'date="08-20-2026" component="Alpha" context="" '
+                     'type="1" thread="1" file="a.cpp:9">\n')
+    viewer._poll()
+    assert viewer.model.total == 4
+    assert viewer.model.rowCount() == 2, (
+        "the new line was silently dropped by a time range nobody asked for")
 
 
 def test_the_timer_only_runs_while_following(viewer):
@@ -511,5 +536,318 @@ def test_the_menu_is_rebuilt_rather_than_cached(qapp):
         before = len(widget.open_menu.actions())
         widget._build_open_menu()
         assert len(widget.open_menu.actions()) == before
+    finally:
+        widget.stop()
+
+
+# ---- the filter row -----------------------------------------------------
+
+@pytest.fixture
+def threaded_log(tmp_path):
+    path = tmp_path / "dism.log"
+    path.write_text(
+        "2026-08-24 21:45:46, Info                  DISM   API: PID=1 "
+        "TID=29016 first\n"
+        "2026-08-24 21:45:47, Info                  DISM   API: PID=1 "
+        "TID=29016 second\n"
+        "2026-08-24 22:00:00, Info                  DISM   API: PID=1 "
+        "TID=777 third\n", encoding="utf-8")
+    return path
+
+
+def test_the_thread_box_lists_threads_by_how_common_they_are(qapp,
+                                                             threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        entries = [widget.thread.itemText(i)
+                   for i in range(widget.thread.count())]
+        assert entries[0] == "All"
+        assert entries[1].startswith("29016")
+        assert "(2)" in entries[1]
+    finally:
+        widget.stop()
+
+
+def test_choosing_a_thread_filters_the_table(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("777  (1)"))
+        assert widget.model.rowCount() == 1
+    finally:
+        widget.stop()
+
+
+def test_opening_a_second_log_does_not_keep_the_first_logs_thread_filter(
+        qapp, threaded_log, tmp_path):
+    """Regression: _refresh_threads blockSignals() around rebuilding the
+    combo, so falling back to index 0 ("All") when the old thread is not in
+    the new log never fired _apply_filters -- the combo said "All" while
+    model._thread was still the first log's thread id, and the second log
+    showed 0 of its own rows. An empty table where every filter control
+    reads "All" is exactly the "reads as no such records, which is a lie
+    about the log" failure this branch guards against for a backwards range
+    or an invalid pattern."""
+    second = tmp_path / "second.log"
+    second.write_text(
+        "2026-08-25 09:00:00, Info                  DISM   API: PID=2 "
+        "TID=42 only line in the second log\n", encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("29016  (2)"))
+        assert widget.model.rowCount() == 2
+
+        widget.open(str(second))
+        assert widget.thread.currentText() == "All"
+        assert widget.model._thread == "", (
+            "the combo says All but the model kept the old log's thread id")
+        assert widget.model.rowCount() == 1
+        assert "only line in the second log" in \
+            widget.model.data(widget.model.index(0, 4))
+    finally:
+        widget.stop()
+
+
+def test_the_range_boxes_open_on_the_whole_log(qapp, threaded_log):
+    """Not on the year 1752, which is what an unset QDateTimeEdit shows."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        assert widget.time_from.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 21, 45, 46)
+        assert widget.time_to.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 22, 0, 0)
+    finally:
+        widget.stop()
+
+
+def test_narrowing_the_range_filters_the_table(qapp, threaded_log):
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_to.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 21, 46, 0)))
+        assert widget.model.rowCount() == 2
+    finally:
+        widget.stop()
+
+
+def test_clearing_the_range_brings_every_row_back(qapp, threaded_log):
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_to.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 21, 46, 0)))
+        widget.clear_range_button.click()
+        assert widget.model.rowCount() == 3
+    finally:
+        widget.stop()
+
+
+def test_the_regex_box_switches_the_filter_to_a_pattern(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.regex_box.setChecked(True)
+        widget.filter_box.setText(r"TID=29\d+")
+        assert widget.model.rowCount() == 2
+    finally:
+        widget.stop()
+
+
+def test_a_backwards_range_says_so_rather_than_emptying_the_table(qapp,
+                                                                  threaded_log):
+    """An empty table reads as "no such records", which is a lie about the
+    log rather than a complaint about the range."""
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_from.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 23, 0, 0)))
+        assert "range" in widget.status.text().lower()
+        assert widget.model.rowCount() == 3, "nothing was filtered away"
+    finally:
+        widget.stop()
+
+
+def test_an_invalid_pattern_says_so_instead_of_raising(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.regex_box.setChecked(True)
+        widget.filter_box.setText("[unclosed")
+        assert "pattern" in widget.status.text().lower()
+    finally:
+        widget.stop()
+
+
+# ---- Task 10: anchoring and context menu -----------------------------------
+
+def test_anchoring_the_range_on_a_row_shows_what_surrounded_it(qapp,
+                                                               threaded_log):
+    """You find an error, then ask what happened around it. That is the
+    primary way the range is meant to be used."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.anchor_range(0, minutes=5)
+        assert widget.model.rowCount() == 2      # 21:45:46 and 21:45:47
+        assert widget.time_from.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 21, 40, 46)
+    finally:
+        widget.stop()
+
+
+def test_anchoring_on_a_row_with_no_timestamp_does_nothing(qapp, log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(log))
+        before = widget.model.rowCount()
+        widget.anchor_range(-1, minutes=5)
+        assert widget.model.rowCount() == before
+    finally:
+        widget.stop()
+
+
+def test_the_context_menu_offers_the_range_and_the_lookup(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        menu = widget.build_row_menu(0)
+        labels = [a.text() for a in menu.actions() if not a.isSeparator()]
+        assert any("minute" in label for label in labels)
+        assert any("code" in label.lower() for label in labels)
+    finally:
+        widget.stop()
+
+
+# ---- Task 11: copy and export ----------------------------------------------
+
+def test_copying_the_selection_puts_the_rows_on_the_clipboard(qapp,
+                                                              threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.table.selectRow(0)
+        widget.copy_selection()
+        text = qapp.clipboard().text()
+        assert "first" in text
+        assert "second" not in text
+        assert not text.startswith("#"), "no provenance header on a copy"
+    finally:
+        widget.stop()
+
+
+def test_exporting_writes_only_what_the_filter_left_visible(qapp,
+                                                            threaded_log,
+                                                            tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("777  (1)"))
+        out = tmp_path / "slice.txt"
+        widget.export_to(str(out))
+        written = out.read_text(encoding="utf-8")
+        assert "third" in written and "first" not in written
+        assert written.startswith("#")
+    finally:
+        widget.stop()
+
+
+def test_exporting_csv_is_chosen_by_the_extension(qapp, threaded_log,
+                                                  tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "slice.csv"
+        widget.export_to(str(out))
+        assert out.read_text(encoding="utf-8").startswith("Time,Severity")
+    finally:
+        widget.stop()
+
+
+def test_an_export_that_cannot_be_written_says_why(qapp, threaded_log,
+                                                   tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.export_to(str(tmp_path / "no-such-dir" / "x.txt"))
+        assert "could not" in widget.status.text().lower()
+    finally:
+        widget.stop()
+
+
+def test_a_failed_export_leaves_a_previous_file_intact(qapp, threaded_log,
+                                                       tmp_path, monkeypatch):
+    """On a path that already held a previous export, truncation must not
+    destroy that export before write() fails."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "export.txt"
+        # First successful export
+        widget.export_to(str(out))
+        first_content = out.read_text(encoding="utf-8")
+        assert "first" in first_content
+
+        # Make the write fail by monkeypatching os.fdopen to return a failing file
+        original_fdopen = os.fdopen
+
+        def failing_fdopen(fd, *args, **kwargs):
+            result = original_fdopen(fd, *args, **kwargs)
+            original_write = result.write
+            def failing_write(text):
+                result.close()  # Close before raising to avoid resource leak
+                raise OSError("Simulated disk full")
+            result.write = failing_write
+            return result
+
+        monkeypatch.setattr("os.fdopen", failing_fdopen)
+
+        # Second export should fail
+        widget.export_to(str(out))
+        assert "could not" in widget.status.text().lower()
+
+        # File must still hold the first export's content
+        assert out.read_text(encoding="utf-8") == first_content
+    finally:
+        widget.stop()
+
+
+def test_a_failed_export_leaves_no_stray_file_at_target(qapp, threaded_log,
+                                                        tmp_path, monkeypatch):
+    """A failed export must leave nothing new behind when there was no file."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "never-created.txt"
+
+        # Make the write fail by monkeypatching os.fdopen to return a failing file
+        original_fdopen = os.fdopen
+
+        def failing_fdopen(fd, *args, **kwargs):
+            result = original_fdopen(fd, *args, **kwargs)
+            original_write = result.write
+            def failing_write(text):
+                result.close()  # Close before raising to avoid resource leak
+                raise OSError("Simulated disk full")
+            result.write = failing_write
+            return result
+
+        monkeypatch.setattr("os.fdopen", failing_fdopen)
+
+        widget.export_to(str(out))
+        assert "could not" in widget.status.text().lower()
+
+        # File must not exist
+        assert not out.exists()
     finally:
         widget.stop()

@@ -61,6 +61,17 @@ def find_codes(text: str) -> list:
     return seen
 
 
+def code_spans(text: str) -> list:
+    """`(start, end, code)` for every code occurrence, in order.
+
+    `find_codes` answers "which codes are here" and de-duplicates. The
+    delegate asks "where are they" and must colour both occurrences of a
+    code that appears twice, so this one does not.
+    """
+    return [(match.start(), match.end(), int(match.group(1), 16))
+            for match in _CODE.finditer(text or "")]
+
+
 def describe(code: int) -> str:
     """A sentence for `code`, or "" when nothing reliable is known.
 
