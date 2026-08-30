@@ -121,10 +121,24 @@ def check(label, path):
           f"{dict(components.most_common(6))}"
           + ("   *** dead column" if dead else ""))
     print(f"    threads          : {threads:,} records with a thread id")
+    threads_seen = collections.Counter(e.raw.get("thread", "")
+                                       for e in entries if e.raw.get("thread"))
+    print(f"    distinct threads : {len(threads_seen)} "
+          f"{dict(threads_seen.most_common(4))}")
     print(f"    continuations    : {continuations:,}")
     print(f"    blank timestamps : {no_time:,}")
     print(f"    prefix in message: {prefixed:,}"
           + ("" if not prefixed else "   *** the message repeats its own time"))
+
+    from modules.log_viewer.log_model import LogModel
+
+    model = LogModel()
+    model.append(entries)
+    total = model.rowCount()
+    model.set_filter(levels={"Error"})
+    errors = model.rowCount()
+    print(f"    filter sanity    : {errors:,} errors of {total:,}"
+          + ("" if errors <= total else "   *** FILTER GREW THE LOG"))
 
 
 def main():
