@@ -148,6 +148,55 @@ def test_a_plain_leading_timestamp_is_used_when_present():
     assert entry.timestamp == datetime(2026, 8, 20, 13, 45, 12)
 
 
+#: Verbatim from `C:\Windows\SoftwareDistribution\ReportingEvents.log` on
+#: this machine. Tab separated, and the timestamp is NOT at the start of the
+#: line -- the GUID is -- so an anchored match leaves all 1,692 of its
+#: records with a blank Time column. Note also `:086`, a COLON before the
+#: milliseconds, and a `+0300` offset with no separator.
+REPORTING_EVENT = (
+    "{75F9F452-3CBF-4F1B-AB9B-28B2F7D8D07C}\t2026-08-02 14:39:05:086+0300\t"
+    "1\t147 [AGENT_DETECTION_FINISHED]\t101\t"
+    "{9482F4B4-E343-43B6-B170-9A65BC822C77}\t0\t0\t"
+    "Device Driver Retrieval Client\tSuccess"
+)
+
+
+def test_a_timestamp_that_is_not_at_the_start_of_the_line_is_still_found():
+    entry = parser.parse(REPORTING_EVENT)[0]
+    assert entry.timestamp == datetime(2026, 8, 2, 14, 39, 5, 86_000)
+    assert entry.raw.get("subsecond"), "it really did write milliseconds"
+
+
+def test_padding_nuls_do_not_cost_a_record_its_timestamp():
+    r"""Windows Update leaves one 928-character run of NULs inside
+    `ReportingEvents.log`, and it is not a line of its own -- it sits in
+    FRONT of a real record. That pushed the timestamp out of reach and left
+    the pane's first row an empty band 928 characters wide.
+
+    Only LEADING NULs go. A NUL beside every character is the symptom of a
+    UTF-16 file read as UTF-8, and that must stay visible.
+    """
+    entry = parser.parse("\x00" * 928 + REPORTING_EVENT)[0]
+    assert entry.timestamp == datetime(2026, 8, 2, 14, 39, 5, 86_000)
+    assert entry.message.startswith("{75F9F452")
+
+
+def test_a_line_of_nothing_but_padding_is_not_a_record():
+    entries = parser.parse("one\n" + "\x00" * 40 + "\ntwo\n")
+    assert [e.message for e in entries] == ["one", "two"]
+
+
+def test_interleaved_nuls_are_left_alone_so_a_bad_decode_still_shows():
+    entry = parser.parse("h\x00e\x00l\x00l\x00o\x00")[0]
+    assert "\x00" in entry.message
+
+
+def test_a_timestamp_is_only_looked_for_near_the_front_of_a_line():
+    """Otherwise a date quoted deep inside a message becomes the row's time."""
+    entry = parser.parse("x" * 200 + " 2026-08-20 13:45:12 done")[0]
+    assert entry.timestamp == parser.UNKNOWN_TIME
+
+
 def test_blank_lines_are_not_entries():
     assert len(parser.parse("one\n\n\ntwo\n")) == 2
 

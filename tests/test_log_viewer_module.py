@@ -378,9 +378,9 @@ def test_the_tooltip_explains_an_error_code(qapp, tmp_path):
         widget.stop()
 
 
-def test_selecting_a_row_spells_the_code_out_in_the_status_bar(qapp, tmp_path):
-    """A tooltip has to be discovered; the status bar is already where this
-    widget talks."""
+def test_selecting_a_row_spells_the_code_out_in_the_detail_pane(qapp, tmp_path):
+    """The explanation used to overwrite the status line, which is where the
+    file name and the record counts live."""
     path = tmp_path / "codes.log"
     path.write_text('<![LOG[No DP found (0x87D00231)]LOG]!>'
                     '<time="10:00:00.000+000" date="08-20-2026" '
@@ -390,16 +390,80 @@ def test_selecting_a_row_spells_the_code_out_in_the_status_bar(qapp, tmp_path):
     try:
         widget.open(str(path))
         widget.table.setCurrentIndex(widget.model.index(0, 4))
-        assert "0x87D00231" in widget.status.text()
-        assert "distribution point" in widget.status.text().lower()
+        detail = widget.detail.toPlainText()
+        assert "0x87D00231" in detail
+        assert "distribution point" in detail.lower()
+        assert "codes.log" in widget.status.text()
     finally:
         widget.stop()
 
 
-def test_selecting_a_row_without_codes_restores_the_normal_status(viewer):
-    """It must not leave the last explanation stranded on screen."""
+def test_selecting_a_row_leaves_the_status_line_alone(viewer):
+    """The counts must not be replaced by whatever row was clicked last."""
     viewer.table.setCurrentIndex(viewer.model.index(0, 4))
     assert "ccmexec.log" in viewer.status.text()
+    assert "3" in viewer.status.text()
+
+
+# ---- the detail pane (defect 5: clipped messages were unreachable) -------
+
+#: Measured on this machine: on `CbsPersist_20260827190818.log`, 3,998 of
+#: 4,000 sampled rows are elided, and Message is a Stretch section so the
+#: horizontal scroll bar's range is 0..0. The tooltip was the only way to
+#: read a line, and CMTrace itself uses a detail pane.
+LONG = "Install failed: " + "C:\\Windows\\WinSxS\\amd64_a_very_long_path " * 40
+
+
+@pytest.fixture
+def long_log(tmp_path):
+    path = tmp_path / "long.log"
+    path.write_text(
+        f'<![LOG[{LONG}]LOG]!><time="10:00:00.000+000" date="08-20-2026" '
+        'component="Setup" context="" type="3" thread="4242" '
+        'file="f.cpp:1">\n', encoding="utf-8")
+    return path
+
+
+def test_the_detail_pane_shows_the_whole_message(qapp, long_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(long_log))
+        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        assert widget.detail.toPlainText().count("a_very_long_path") == 40
+    finally:
+        widget.stop()
+
+
+def test_the_detail_pane_names_the_fields_of_the_record(qapp, long_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(long_log))
+        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        detail = widget.detail.toPlainText()
+        assert "Setup" in detail and "4242" in detail and "Error" in detail
+    finally:
+        widget.stop()
+
+
+def test_the_detail_pane_is_visible_by_default(viewer):
+    assert viewer.splitter.sizes()[1] > 0
+
+
+def test_a_detail_pane_dragged_shut_stays_shut(viewer):
+    """No setting for it: the splitter position IS the setting."""
+    viewer.splitter.setSizes([100, 0])
+    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    viewer.table.setCurrentIndex(viewer.model.index(1, 4))
+    assert viewer.splitter.sizes()[1] == 0
+
+
+def test_opening_another_log_empties_the_detail_pane(viewer, tmp_path):
+    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    assert viewer.detail.toPlainText()
+    other = tmp_path / "other.log"
+    other.write_text("plain line\n", encoding="utf-8")
+    viewer.open(str(other))
+    assert viewer.detail.toPlainText() == ""
 
 
 # ---- the Open dropdown --------------------------------------------------
