@@ -31,8 +31,8 @@ class LogMessageDelegate(QStyledItemDelegate):
     def rich_text(text: str, base_colour: str) -> str:
         """`text` with every failing code wrapped in a coloured span.
 
-        Built by walking the spans backwards so the earlier offsets stay
-        valid, and escaped as it goes -- a CBS message can contain < and &.
+        Built by walking the spans forwards with a cursor, escaping each
+        plain-text segment as it goes -- a CBS message can contain < and &.
         Plain-text segments are wrapped with the base_colour to avoid
         relying on the ambient pen colour.
         """

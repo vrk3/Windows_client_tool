@@ -411,7 +411,7 @@ class LogViewerWidget(QWidget):
         self._lookup.show_for(entry.message if entry is not None else "")
 
     def edit_highlight_rules(self) -> None:
-        from .highlight import load_rules, save_rules
+        from .highlight import save_rules
         from .highlight_dialog import HighlightDialog
 
         dialog = HighlightDialog(self._rules, self)
@@ -483,7 +483,10 @@ class LogViewerWidget(QWidget):
                 try:
                     os.unlink(temp_path)
                 except OSError:
-                    pass  # Best effort cleanup
+                    # Best-effort cleanup; the original export failure above
+                    # is already reported, and this is not another one.
+                    logger.debug("Could not remove temp export file %s",
+                                temp_path, exc_info=True)
             return
 
         self.status.setText(f"{len(entries):,} row(s) written to "
