@@ -632,3 +632,99 @@ def test_an_invalid_pattern_says_so_instead_of_raising(qapp, threaded_log):
         assert "pattern" in widget.status.text().lower()
     finally:
         widget.stop()
+
+
+# ---- Task 10: anchoring and context menu -----------------------------------
+
+def test_anchoring_the_range_on_a_row_shows_what_surrounded_it(qapp,
+                                                               threaded_log):
+    """You find an error, then ask what happened around it. That is the
+    primary way the range is meant to be used."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.anchor_range(0, minutes=5)
+        assert widget.model.rowCount() == 2      # 21:45:46 and 21:45:47
+        assert widget.time_from.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 21, 40, 46)
+    finally:
+        widget.stop()
+
+
+def test_anchoring_on_a_row_with_no_timestamp_does_nothing(qapp, log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(log))
+        before = widget.model.rowCount()
+        widget.anchor_range(-1, minutes=5)
+        assert widget.model.rowCount() == before
+    finally:
+        widget.stop()
+
+
+def test_the_context_menu_offers_the_range_and_the_lookup(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        menu = widget.build_row_menu(0)
+        labels = [a.text() for a in menu.actions() if not a.isSeparator()]
+        assert any("minute" in label for label in labels)
+        assert any("code" in label.lower() for label in labels)
+    finally:
+        widget.stop()
+
+
+# ---- Task 11: copy and export ----------------------------------------------
+
+def test_copying_the_selection_puts_the_rows_on_the_clipboard(qapp,
+                                                              threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.table.selectRow(0)
+        widget.copy_selection()
+        text = qapp.clipboard().text()
+        assert "first" in text
+        assert "second" not in text
+        assert not text.startswith("#"), "no provenance header on a copy"
+    finally:
+        widget.stop()
+
+
+def test_exporting_writes_only_what_the_filter_left_visible(qapp,
+                                                            threaded_log,
+                                                            tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("777  (1)"))
+        out = tmp_path / "slice.txt"
+        widget.export_to(str(out))
+        written = out.read_text(encoding="utf-8")
+        assert "third" in written and "first" not in written
+        assert written.startswith("#")
+    finally:
+        widget.stop()
+
+
+def test_exporting_csv_is_chosen_by_the_extension(qapp, threaded_log,
+                                                  tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "slice.csv"
+        widget.export_to(str(out))
+        assert out.read_text(encoding="utf-8").startswith("Time,Severity")
+    finally:
+        widget.stop()
+
+
+def test_an_export_that_cannot_be_written_says_why(qapp, threaded_log,
+                                                   tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.export_to(str(tmp_path / "no-such-dir" / "x.txt"))
+        assert "could not" in widget.status.text().lower()
+    finally:
+        widget.stop()

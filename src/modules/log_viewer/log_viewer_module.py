@@ -12,6 +12,7 @@ and cost the marshalling.
 """
 import logging
 import os
+from datetime import timedelta
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer, QDateTime
@@ -27,6 +28,7 @@ from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
 
 from modules.log_viewer import cmtrace_parser
+from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
     COMPONENT, LogModel, MESSAGE, SEVERITY, THREAD, TIME,
 )
@@ -43,6 +45,11 @@ LEVELS = ("Error", "Warning", "Info")
 
 
 class LogViewerWidget(QWidget):
+    #: Offered on a row. Five minutes is the default because a servicing
+    #: operation's related lines land within seconds of each other; the
+    #: wider ones are for correlating across a reboot.
+    RANGE_MINUTES = (1, 5, 15, 60)
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.model = LogModel(self)
@@ -220,6 +227,10 @@ class LogViewerWidget(QWidget):
         self.table.selectionModel().currentRowChanged.connect(
             self._on_row_selected)
 
+        self.table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._on_context_menu)
+
         self._timer = QTimer(self)
         self._timer.setInterval(FOLLOW_MS)
         self._timer.timeout.connect(self._poll)
@@ -332,6 +343,91 @@ class LogViewerWidget(QWidget):
             parts.append("")
             parts.extend(f"{code} — {meaning}" for code, meaning in found)
         self.detail.setPlainText("\n".join(parts))
+
+    # ---- context menu and actions -------------------------------------------
+
+    def anchor_range(self, row: int, minutes: int) -> None:
+        """Set the time range to ±minutes around the timestamp of the given row."""
+        entry = self.model.entry(row)
+        if entry is None or entry.timestamp == UNKNOWN_TIME:
+            return
+        span = timedelta(minutes=minutes)
+        self.time_from.blockSignals(True)
+        self.time_to.blockSignals(True)
+        self.time_from.setDateTime(QDateTime(entry.timestamp - span))
+        self.time_to.setDateTime(QDateTime(entry.timestamp + span))
+        self.time_from.blockSignals(False)
+        self.time_to.blockSignals(False)
+        self._apply_filters()
+
+    def build_row_menu(self, row: int) -> QMenu:
+        """Build the context menu for a row."""
+        menu = QMenu(self)
+        for minutes in self.RANGE_MINUTES:
+            menu.addAction(
+                f"Show ±{minutes} minute{'s' if minutes > 1 else ''} "
+                f"around this row",
+                lambda _c=False, m=minutes: self.anchor_range(row, m))
+        menu.addSeparator()
+        menu.addAction("Look up the error codes on this row",
+                       lambda _c=False: self.open_error_lookup(row))
+        menu.addAction("Copy selected rows", self.copy_selection)
+        return menu
+
+    def _on_context_menu(self, point) -> None:
+        """Handle right-click on the table."""
+        index = self.table.indexAt(point)
+        if index.isValid():
+            self.build_row_menu(index.row()).exec(
+                self.table.viewport().mapToGlobal(point))
+
+    def open_error_lookup(self, row: int) -> None:
+        # Task 12
+        pass
+
+    def visible_entries(self) -> list:
+        """Exactly what the filter left on screen, in view order."""
+        return [self.model.entry(row) for row in range(self.model.rowCount())]
+
+    def copy_selection(self) -> None:
+        """Copy selected rows to clipboard without provenance header."""
+        rows = sorted({index.row()
+                       for index in self.table.selectionModel().selectedRows()}
+                      or {self.table.currentIndex().row()})
+        entries = [self.model.entry(row) for row in rows
+                   if self.model.entry(row) is not None]
+        if not entries:
+            return
+        from .log_export import as_text
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(as_text(entries, header=False))
+        self.status.setText(f"{len(entries):,} row(s) copied.")
+
+    def export_to(self, path: str) -> None:
+        """Export the filtered view to a file (CSV or text)."""
+        from .log_export import as_csv, as_text
+
+        entries = self.visible_entries()
+        text = (as_csv(entries) if path.lower().endswith(".csv")
+                else as_text(entries))
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(text)
+        except OSError as exc:
+            logger.warning("Could not export to %s", path, exc_info=True)
+            self.status.setText(f"Could not write the export: {exc}")
+            return
+        self.status.setText(f"{len(entries):,} row(s) written to "
+                            f"{os.path.basename(path)}")
+
+    def choose_export(self) -> None:
+        """Open a file dialog to choose where to export the filtered view."""
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Export the filtered view", "",
+            "Text (*.txt);;CSV (*.csv)")
+        if path:
+            self.export_to(path)
 
     # ---- filtering and find ---------------------------------------------
 
