@@ -148,6 +148,10 @@ class LogViewerWidget(QWidget):
                                         QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(MESSAGE, QHeaderView.ResizeMode.Stretch)
 
+        from .log_delegate import LogMessageDelegate
+
+        self.table.setItemDelegateForColumn(MESSAGE, LogMessageDelegate(self))
+
         # Message is a Stretch section, so the table has no horizontal scroll
         # bar to reach a clipped line with -- measured on a real CBS archive,
         # 3,998 of 4,000 sampled rows were elided and the tooltip was the
