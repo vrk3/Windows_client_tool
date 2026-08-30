@@ -343,3 +343,39 @@ def test_setting_rules_repaints_without_losing_the_selection(qapp):
     model.dataChanged.connect(lambda *a: seen.append(a))
     model.set_highlight_rules([])
     assert seen, "the view was never told to repaint"
+
+
+def test_a_highlight_rule_foreground_contrasts_with_its_background(qapp):
+    """A bright green rule (#00ff00) with an Error level must not return the
+    severity's Error foreground (#ff9999), which is chosen for legibility on
+    Error's dark red (#5c1a1a). Pink on green has poor contrast. The
+    foreground must instead be chosen to contrast with green."""
+    from modules.log_viewer.highlight import HighlightRule
+
+    model = _model([_entry("boom", level="Error")])
+    model.set_highlight_rules([HighlightRule("boom", "#00ff00")])
+
+    background = model.data(model.index(0, MESSAGE),
+                           Qt.ItemDataRole.BackgroundRole)
+    foreground = model.data(model.index(0, MESSAGE),
+                           Qt.ItemDataRole.ForegroundRole)
+
+    # Compute contrast using the same luminance formula as test_log_palette.py
+    def _luminance(hex_colour):
+        value = hex_colour.lstrip("#")
+        parts = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        def channel(v):
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        red, green, blue = (channel(p) for p in parts)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+    def _contrast(a, b):
+        first, second = _luminance(a), _luminance(b)
+        lighter, darker = max(first, second), min(first, second)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    # The rule's background is green (#00ff00), and foreground must contrast
+    ratio = _contrast(foreground.name(), background.name())
+    assert ratio >= 4.5, (
+        f"A rule with background {background.name()} must have foreground "
+        f"with 4.5:1 contrast; got {foreground.name()} at {ratio:.2f}:1")

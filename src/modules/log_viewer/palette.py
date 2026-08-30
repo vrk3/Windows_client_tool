@@ -99,3 +99,30 @@ def severity_row_colour(level: str, theme: str = None):
     colour of its own -- Info and Debug are deliberately plain, because a log
     where every row is coloured is a log with no colour."""
     return SEVERITY_ROW_COLOURS[_theme(theme)].get(level)
+
+
+def readable_text_on(background_hex: str) -> str:
+    """Return a text colour (#hex) that contrasts well with an arbitrary
+    background colour, using WCAG relative-luminance math to pick light or
+    dark ink. Guarantees 4.5:1 contrast or better.
+
+    The user picks highlight rule colours from a colour dialog, so this must
+    work on ANY hex colour, not a fixed set of known backgrounds.
+    """
+    def _luminance(hex_colour):
+        value = hex_colour.lstrip("#")
+        parts = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        def channel(v):
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        red, green, blue = (channel(p) for p in parts)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+    # Light and dark ink candidates that must clear 4.5:1 on any background
+    light_ink = "#ffffff"
+    dark_ink = "#000000"
+
+    # Threshold computed from the WCAG contrast formula. Both white (#ffffff)
+    # and black (#000000) achieve 4.5:1 contrast on backgrounds near 0.179;
+    # below that threshold white text works, above it black text works.
+    bg_luminance = _luminance(background_hex)
+    return light_ink if bg_luminance < 0.179 else dark_ink

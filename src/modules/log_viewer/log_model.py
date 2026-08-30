@@ -15,7 +15,7 @@ from PyQt6.QtGui import QColor
 
 from .cmtrace_parser import UNKNOWN_TIME
 from .highlight import matching_rule
-from .palette import component_colour, severity_row_colour
+from .palette import component_colour, readable_text_on, severity_row_colour
 
 COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
 TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
@@ -202,6 +202,9 @@ class LogModel(QAbstractTableModel):
         elif role == Qt.ItemDataRole.ForegroundRole:
             if index.column() == COMPONENT and entry.source:
                 return QColor(component_colour(entry.source)[1])
+            rule = matching_rule(self._rules, entry)
+            if rule is not None:
+                return QColor(readable_text_on(rule.colour))
             colour = severity_row_colour(entry.level)
             return QColor(colour[1]) if colour else None
         elif role == Qt.ItemDataRole.ToolTipRole:

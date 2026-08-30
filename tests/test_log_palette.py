@@ -78,3 +78,32 @@ def test_the_theme_defaults_to_whatever_is_in_force():
             palette.component_colour("CBS", "light")
     finally:
         semantic_colors.set_theme("dark")
+
+
+def test_readable_text_on_clears_4_5_to_1_on_black():
+    text = palette.readable_text_on("#000000")
+    ratio = _contrast(text, "#000000")
+    assert ratio >= 4.5, (
+        f"readable_text_on('#000000') = {text} "
+        f"has contrast {ratio:.2f}:1 (need 4.5:1)")
+
+
+def test_readable_text_on_clears_4_5_to_1_on_white():
+    text = palette.readable_text_on("#ffffff")
+    ratio = _contrast(text, "#ffffff")
+    assert ratio >= 4.5, (
+        f"readable_text_on('#ffffff') = {text} "
+        f"has contrast {ratio:.2f}:1 (need 4.5:1)")
+
+
+@pytest.mark.parametrize("background", [
+    "#00ff00",  # green
+    "#808080",  # mid-tone gray
+    "#5c1a1a",  # dark red (Error background in dark theme)
+])
+def test_readable_text_on_clears_4_5_to_1_on_varied_backgrounds(background):
+    text = palette.readable_text_on(background)
+    ratio = _contrast(text, background)
+    assert ratio >= 4.5, (
+        f"readable_text_on('{background}') = {text} "
+        f"has contrast {ratio:.2f}:1 (need 4.5:1)")
