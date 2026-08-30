@@ -21,7 +21,17 @@ _HEADER = ("# Parsed view exported from the Log Viewer -- not a byte-for-byte "
            "copy of the log file.")
 
 
-def _stamp(entry) -> str:
+def format_stamp(entry) -> str:
+    """The one implementation of "how a timestamp is written out" --
+    LogModel.data()'s TIME column calls this too, so the exported file and
+    the table someone actually looked at cannot quietly disagree.
+
+    UNKNOWN_TIME (a continuation line with no timestamp of its own) is
+    blank rather than a fabricated date; milliseconds are shown only when
+    the log actually wrote them, since a whole-second log like CBS would
+    otherwise get a `.000` on every row that reads as a measurement rather
+    than as padding.
+    """
     if entry.timestamp == UNKNOWN_TIME:
         return ""
     if entry.raw.get("subsecond"):
@@ -30,7 +40,7 @@ def _stamp(entry) -> str:
 
 
 def _row(entry):
-    return (_stamp(entry), entry.level, entry.source,
+    return (format_stamp(entry), entry.level, entry.source,
             entry.raw.get("thread", ""), entry.message)
 
 

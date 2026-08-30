@@ -29,8 +29,10 @@ class HighlightRule:
     enabled: bool = True
 
 
-def _haystack(entry) -> str:
-    """The row as the user sees it, which is what LogModel._matches uses.
+def haystack(entry) -> str:
+    """The row as the user sees it -- the one implementation LogModel._matches
+    also calls, so the filter and a highlight rule can never quietly search
+    different text.
 
     A rule that could only see the message could not target a component,
     and "colour every CSI row" is one of the obvious things to want.
@@ -39,7 +41,7 @@ def _haystack(entry) -> str:
 
 
 def matching_rule(rules, entry) -> Optional[HighlightRule]:
-    text = _haystack(entry)
+    text = haystack(entry)
     lowered = text.lower()
     for rule in rules or ():
         if not rule.enabled or not rule.pattern:

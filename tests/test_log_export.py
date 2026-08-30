@@ -11,7 +11,7 @@ import io
 from datetime import datetime
 
 from core.types import LogEntry
-from modules.log_viewer.log_export import as_csv, as_text
+from modules.log_viewer.log_export import as_csv, as_text, format_stamp
 
 
 def _entry(message, level="Info", source="CBS", thread="42"):
@@ -55,3 +55,28 @@ def test_an_unknown_timestamp_exports_blank_rather_than_year_one():
 def test_exporting_nothing_is_not_a_crash():
     assert as_csv([]).strip().startswith("Time")
     assert isinstance(as_text([], header=False), str)
+
+
+# ---- the public formatter LogModel's TIME column also calls -------------
+#
+# This used to be a private `_stamp`, duplicated (independently) in
+# log_model.data()'s TIME branch. Promoted to public so there is one
+# implementation of "UNKNOWN_TIME -> blank, subsecond -> milliseconds, else
+# whole seconds" rather than two that happen to agree today.
+
+def test_format_stamp_is_blank_for_an_unknown_timestamp():
+    from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
+
+    entry = LogEntry(timestamp=UNKNOWN_TIME, source="", level="Info",
+                     message="x", raw={})
+    assert format_stamp(entry) == ""
+
+
+def test_format_stamp_shows_milliseconds_only_when_the_log_wrote_them():
+    with_sub = LogEntry(timestamp=datetime(2026, 8, 30, 12, 0, 0, 123000),
+                        source="", level="Info", message="x",
+                        raw={"subsecond": True})
+    without_sub = LogEntry(timestamp=datetime(2026, 8, 30, 12, 0, 0, 123000),
+                           source="", level="Info", message="x", raw={})
+    assert format_stamp(with_sub) == "2026-08-30 12:00:00.123"
+    assert format_stamp(without_sub) == "2026-08-30 12:00:00"

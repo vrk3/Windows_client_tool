@@ -4,8 +4,8 @@ from datetime import datetime
 
 from core.types import LogEntry
 from modules.log_viewer.highlight import (CONFIG_KEY, HighlightRule,
-                                          load_rules, matching_rule,
-                                          save_rules)
+                                          haystack, load_rules,
+                                          matching_rule, save_rules)
 
 
 class _StubConfig:
@@ -92,6 +92,13 @@ def test_a_corrupt_rule_does_not_cost_the_user_the_others():
 
 def test_no_stored_rules_is_an_empty_list_not_a_crash():
     assert load_rules(_StubConfig()) == []
+
+
+def test_haystack_is_the_row_as_the_user_sees_it():
+    """Public because LogModel._matches uses this exact function too --
+    the two used to be independent copies of the same three-field string."""
+    entry = _entry("boom", level="Warning", source="CSI")
+    assert haystack(entry) == "boom Warning CSI"
 
 
 def test_a_malformed_colour_loses_only_its_own_rule():

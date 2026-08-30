@@ -10,12 +10,14 @@ records themselves.
 """
 import re
 from collections import deque
+from typing import Optional, Tuple
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from .cmtrace_parser import UNKNOWN_TIME
-from .highlight import matching_rule
+from .highlight import haystack, matching_rule
+from .log_export import format_stamp
 from .palette import component_colour, readable_text_on, severity_row_colour
 
 COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
@@ -175,16 +177,19 @@ class LogModel(QAbstractTableModel):
             if self._time_to and entry.timestamp > self._time_to:
                 return False
         if self._needle:
-            # The whole ROW as the user sees it, not just the message.
-            # Typing "warning" has to find the warning row of a CMTrace log,
-            # where the word lives in the type attribute rather than the text.
-            haystack = f"{entry.message} {entry.level} {entry.source}"
+            # The whole ROW as the user sees it, not just the message --
+            # the same `haystack()` a highlight rule is matched against, so
+            # the filter and a rule can never quietly disagree on what
+            # "the row" means. Typing "warning" has to find the warning row
+            # of a CMTrace log, where the word lives in the type attribute
+            # rather than the text.
+            text = haystack(entry)
             if self._matcher is False:
                 return False
             if self._matcher is not None:
-                if not self._matcher.search(haystack):
+                if not self._matcher.search(text):
                     return False
-            elif self._needle not in haystack.lower():
+            elif self._needle not in text.lower():
                 return False
         return True
 
@@ -234,6 +239,26 @@ class LogModel(QAbstractTableModel):
             return COLUMNS[section]
         return None
 
+    def _cell_colours(self, index, entry) -> Optional[Tuple[str, str]]:
+        """`(background, foreground)` for one cell, or None for no colour.
+
+        Background and Foreground used to duplicate this shape, differing
+        only by tuple index -- and that duplication is exactly what let a
+        malformed highlight colour raise out of one role (Foreground, via
+        `readable_text_on`) while the other (Background, a bare `QColor()`
+        construction) merely came back invalid. One helper both roles index
+        keeps the three-system territory rule in one place: the Component
+        column's tint wins its own cell over everything else, a highlight
+        rule beats severity, and severity applies when nothing else claims
+        the row.
+        """
+        if index.column() == COMPONENT and entry.source:
+            return component_colour(entry.source)
+        rule = matching_rule(self._rules, entry)
+        if rule is not None:
+            return rule.colour, readable_text_on(rule.colour)
+        return severity_row_colour(entry.level)
+
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         entry = self.entry(index.row()) if index.isValid() else None
         if entry is None:
@@ -241,18 +266,10 @@ class LogModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             column = index.column()
             if column == TIME:
-                # A record whose date could not be read still has a message;
-                # showing "0001-01-01" as though it were a real time would be
-                # worse than admitting we do not know.
-                if entry.timestamp == UNKNOWN_TIME:
-                    return ""
-                # Milliseconds only when the log actually wrote them. CBS
-                # writes whole seconds, so `%f` gave all 12,598 of its rows a
-                # `.000` that reads as a measurement rather than as padding.
-                if entry.raw.get("subsecond"):
-                    return entry.timestamp.strftime(
-                        "%Y-%m-%d %H:%M:%S.%f")[:-3]
-                return entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                # The same formatter log_export uses for the exported file,
+                # so what someone sees here and what they export can never
+                # quietly disagree.
+                return format_stamp(entry)
             if column == SEVERITY:
                 return entry.level
             if column == COMPONENT:
@@ -265,25 +282,11 @@ class LogModel(QAbstractTableModel):
                 # whole table.
                 return entry.message.replace("\n", " ↵ ")
         elif role == Qt.ItemDataRole.BackgroundRole:
-            # The Component column is the one place the row background does
-            # not apply: its tint wins there, over severity and over a
-            # highlight rule. Otherwise every Error row would lose the
-            # component colour, which is the whole point of the column.
-            if index.column() == COMPONENT and entry.source:
-                return QColor(component_colour(entry.source)[0])
-            rule = matching_rule(self._rules, entry)
-            if rule is not None:
-                return QColor(rule.colour)
-            colour = severity_row_colour(entry.level)
-            return QColor(colour[0]) if colour else None
+            colours = self._cell_colours(index, entry)
+            return QColor(colours[0]) if colours else None
         elif role == Qt.ItemDataRole.ForegroundRole:
-            if index.column() == COMPONENT and entry.source:
-                return QColor(component_colour(entry.source)[1])
-            rule = matching_rule(self._rules, entry)
-            if rule is not None:
-                return QColor(readable_text_on(rule.colour))
-            colour = severity_row_colour(entry.level)
-            return QColor(colour[1]) if colour else None
+            colours = self._cell_colours(index, entry)
+            return QColor(colours[1]) if colours else None
         elif role == Qt.ItemDataRole.ToolTipRole:
             # The line as written, then what its error codes mean. This is
             # what people open CMTrace for: a line says 0x80070005 and they

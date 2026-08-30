@@ -129,11 +129,53 @@ def test_the_component_column_keeps_its_tint_on_an_error_row(qapp):
 
 
 def test_a_blank_component_gets_no_tint(qapp):
-    from PyQt6.QtCore import Qt
+    """Regression: with the old default level="Info", severity_row_colour()
+    is already None for every row, so the assertion passed whether or not
+    the `and entry.source` guard was doing anything -- weakening the guard
+    to ignore entry.source (so it fires for ANY column) would still leave
+    this passing, because component_colour("")'s tint and "no colour" are
+    both just "not the component tint" from that assertion's point of view.
 
-    model = _model([_entry("x", source="")])
-    assert model.data(model.index(0, COMPONENT),
-                      Qt.ItemDataRole.BackgroundRole) is None
+    level="Error" makes the row genuinely coloured, by severity, so the
+    guard is the only thing standing between this cell and
+    component_colour("")'s tint instead of the row's real severity colour --
+    weakening it now changes what colour comes back, not just whether one
+    does.
+    """
+    from PyQt6.QtCore import Qt
+    from modules.log_viewer import palette
+
+    model = _model([_entry("x", level="Error", source="")])
+    cell = model.data(model.index(0, COMPONENT), Qt.ItemDataRole.BackgroundRole)
+    expected, _foreground = palette.severity_row_colour("Error")
+    assert cell.name() == expected
+
+
+def test_a_highlight_rule_still_colours_the_component_cell_when_blank(qapp):
+    """The flip side of the guard above: no component means no TINT to
+    protect, so a highlight rule the user typed is free to colour that cell
+    same as any other -- this is correct behaviour, not a gap."""
+    from PyQt6.QtCore import Qt
+    from modules.log_viewer.highlight import HighlightRule
+
+    model = _model([_entry("boom", level="Error", source="")])
+    model.set_highlight_rules([HighlightRule("boom", "#00ff00")])
+    cell = model.data(model.index(0, COMPONENT), Qt.ItemDataRole.BackgroundRole)
+    assert cell.name() == "#00ff00"
+
+
+def test_a_malformed_highlight_rule_colour_does_not_crash_the_model(qapp):
+    """readable_text_on used to raise ValueError out of this exact call --
+    a reimplemented Qt virtual, where PyQt cannot catch it. Palette now
+    answers with a safe ink instead, so this must not raise."""
+    from PyQt6.QtCore import Qt
+    from modules.log_viewer.highlight import HighlightRule
+
+    model = _model([_entry("boom", level="Error")])
+    model.set_highlight_rules([HighlightRule("boom", "red")])
+    foreground = model.data(model.index(0, MESSAGE),
+                            Qt.ItemDataRole.ForegroundRole)
+    assert foreground is not None
 
 
 # ---- filtering ----------------------------------------------------------
@@ -490,4 +532,38 @@ def test_the_filter_axes_combine(qapp):
                     _at(datetime(2026, 8, 30, 13, 0), "keep", thread="100")])
     model.set_filter(thread="100", needle="keep",
                      time_to=datetime(2026, 8, 30, 12, 30))
+    assert model.rowCount() == 1
+
+
+# ---- shared formatting/matching, not two copies that can drift ----------
+#
+# log_export._stamp/format_stamp and this TIME branch used to implement the
+# same three rules (UNKNOWN_TIME -> blank, subsecond -> milliseconds, else
+# whole seconds) independently. They agreed by luck; nothing enforced it.
+# Same story for the filter haystack vs highlight._haystack/haystack.
+
+def test_the_time_column_delegates_to_log_exports_format_stamp(qapp,
+                                                                monkeypatch):
+    from modules.log_viewer import log_model as log_model_module
+
+    monkeypatch.setattr(log_model_module, "format_stamp",
+                        lambda entry: "STAMP-SENTINEL", raising=False)
+    model = _model([_entry("x")])
+    assert model.data(model.index(0, TIME)) == "STAMP-SENTINEL"
+
+
+def test_filtering_delegates_to_the_shared_haystack(qapp, monkeypatch):
+    from modules.log_viewer import log_model as log_model_module
+
+    calls = []
+
+    def fake_haystack(entry):
+        calls.append(entry)
+        return "totally different text"
+
+    monkeypatch.setattr(log_model_module, "haystack", fake_haystack,
+                        raising=False)
+    model = _model([_entry("anything")])
+    model.set_filter(needle="different")
+    assert calls, "_matches must call the shared haystack(), not build its own"
     assert model.rowCount() == 1
