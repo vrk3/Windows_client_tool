@@ -14,6 +14,7 @@ from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from .cmtrace_parser import UNKNOWN_TIME
+from .palette import component_colour, severity_row_colour
 
 COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
 TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
@@ -21,14 +22,6 @@ TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
 #: How many records are kept. Past this the oldest go, which is what CMTrace
 #: does in practice and what keeps a 300 MB log openable.
 DEFAULT_CAP = 200_000
-
-#: CMTrace's own scheme: red for errors, yellow for warnings. Chosen against
-#: the dark sheet this app uses rather than CMTrace's white background, so the
-#: text stays readable instead of being technically the same colour.
-ROW_COLOURS = {
-    "Error": (QColor(0x5C, 0x1A, 0x1A), QColor(0xFF, 0x99, 0x99)),
-    "Warning": (QColor(0x4A, 0x3C, 0x14), QColor(0xF5, 0xD5, 0x76)),
-}
 
 
 class LogModel(QAbstractTableModel):
@@ -181,11 +174,19 @@ class LogModel(QAbstractTableModel):
                 # whole table.
                 return entry.message.replace("\n", " ↵ ")
         elif role == Qt.ItemDataRole.BackgroundRole:
-            colour = ROW_COLOURS.get(entry.level)
-            return colour[0] if colour else None
+            # The Component column is the one place the row background does
+            # not apply: its tint wins there, over severity and over a
+            # highlight rule. Otherwise every Error row would lose the
+            # component colour, which is the whole point of the column.
+            if index.column() == COMPONENT and entry.source:
+                return QColor(component_colour(entry.source)[0])
+            colour = severity_row_colour(entry.level)
+            return QColor(colour[0]) if colour else None
         elif role == Qt.ItemDataRole.ForegroundRole:
-            colour = ROW_COLOURS.get(entry.level)
-            return colour[1] if colour else None
+            if index.column() == COMPONENT and entry.source:
+                return QColor(component_colour(entry.source)[1])
+            colour = severity_row_colour(entry.level)
+            return QColor(colour[1]) if colour else None
         elif role == Qt.ItemDataRole.ToolTipRole:
             # The line as written, then what its error codes mean. This is
             # what people open CMTrace for: a line says 0x80070005 and they

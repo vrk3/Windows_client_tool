@@ -98,6 +98,44 @@ def test_coloured_rows_have_readable_text(qapp):
                       Qt.ItemDataRole.ForegroundRole) is not None
 
 
+def test_severity_colours_follow_the_theme(qapp):
+    """The old ROW_COLOURS were dark-sheet values by their own comment, and
+    this pane is not in THEME_EXEMPT."""
+    from core import semantic_colors
+    from PyQt6.QtCore import Qt
+
+    model = _model([_entry("boom", level="Error")])
+    index = model.index(0, MESSAGE)
+    semantic_colors.set_theme("dark")
+    dark = model.data(index, Qt.ItemDataRole.BackgroundRole)
+    semantic_colors.set_theme("light")
+    try:
+        light = model.data(index, Qt.ItemDataRole.BackgroundRole)
+    finally:
+        semantic_colors.set_theme("dark")
+    assert dark != light
+
+
+def test_the_component_column_keeps_its_tint_on_an_error_row(qapp):
+    """Territory, not priority: if severity won the whole row, every Error
+    row would lose its component colour."""
+    from PyQt6.QtCore import Qt
+    from modules.log_viewer import palette
+
+    model = _model([_entry("boom", level="Error", source="CBS")])
+    cell = model.data(model.index(0, COMPONENT), Qt.ItemDataRole.BackgroundRole)
+    expected, _foreground = palette.component_colour("CBS")
+    assert cell.name() == expected
+
+
+def test_a_blank_component_gets_no_tint(qapp):
+    from PyQt6.QtCore import Qt
+
+    model = _model([_entry("x", source="")])
+    assert model.data(model.index(0, COMPONENT),
+                      Qt.ItemDataRole.BackgroundRole) is None
+
+
 # ---- filtering ----------------------------------------------------------
 
 def test_filtering_by_level(qapp):
