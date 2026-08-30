@@ -728,3 +728,71 @@ def test_an_export_that_cannot_be_written_says_why(qapp, threaded_log,
         assert "could not" in widget.status.text().lower()
     finally:
         widget.stop()
+
+
+def test_a_failed_export_leaves_a_previous_file_intact(qapp, threaded_log,
+                                                       tmp_path, monkeypatch):
+    """On a path that already held a previous export, truncation must not
+    destroy that export before write() fails."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "export.txt"
+        # First successful export
+        widget.export_to(str(out))
+        first_content = out.read_text(encoding="utf-8")
+        assert "first" in first_content
+
+        # Make the write fail by monkeypatching os.fdopen to return a failing file
+        original_fdopen = os.fdopen
+
+        def failing_fdopen(fd, *args, **kwargs):
+            result = original_fdopen(fd, *args, **kwargs)
+            original_write = result.write
+            def failing_write(text):
+                result.close()  # Close before raising to avoid resource leak
+                raise OSError("Simulated disk full")
+            result.write = failing_write
+            return result
+
+        monkeypatch.setattr("os.fdopen", failing_fdopen)
+
+        # Second export should fail
+        widget.export_to(str(out))
+        assert "could not" in widget.status.text().lower()
+
+        # File must still hold the first export's content
+        assert out.read_text(encoding="utf-8") == first_content
+    finally:
+        widget.stop()
+
+
+def test_a_failed_export_leaves_no_stray_file_at_target(qapp, threaded_log,
+                                                        tmp_path, monkeypatch):
+    """A failed export must leave nothing new behind when there was no file."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        out = tmp_path / "never-created.txt"
+
+        # Make the write fail by monkeypatching os.fdopen to return a failing file
+        original_fdopen = os.fdopen
+
+        def failing_fdopen(fd, *args, **kwargs):
+            result = original_fdopen(fd, *args, **kwargs)
+            original_write = result.write
+            def failing_write(text):
+                result.close()  # Close before raising to avoid resource leak
+                raise OSError("Simulated disk full")
+            result.write = failing_write
+            return result
+
+        monkeypatch.setattr("os.fdopen", failing_fdopen)
+
+        widget.export_to(str(out))
+        assert "could not" in widget.status.text().lower()
+
+        # File must not exist
+        assert not out.exists()
+    finally:
+        widget.stop()

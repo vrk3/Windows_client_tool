@@ -414,19 +414,51 @@ class LogViewerWidget(QWidget):
         self.status.setText(f"{len(entries):,} row(s) copied.")
 
     def export_to(self, path: str) -> None:
-        """Export the filtered view to a file (CSV or text)."""
+        """Export the filtered view to a file (CSV or text).
+
+        Writes to a temporary file beside the target, then atomically replaces
+        the destination. This ensures the destination is never truncated or
+        left in a partial state if the write fails.
+        """
+        import tempfile
         from .log_export import as_csv, as_text
 
         entries = self.visible_entries()
         text = (as_csv(entries) if path.lower().endswith(".csv")
                 else as_text(entries))
+
+        # Create a temporary file in the same directory as the target to ensure
+        # os.replace() stays on the same volume (atomic on Windows).
+        target_dir = os.path.dirname(path)
+        if not target_dir:
+            target_dir = "."
+
+        temp_fd = None
+        temp_path = None
         try:
-            with open(path, "w", encoding="utf-8", newline="") as handle:
+            # Create temp file in the same directory as the target
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=target_dir,
+                prefix=".export_",
+                suffix=os.path.splitext(path)[1])
+
+            # Write to the temp file
+            with os.fdopen(temp_fd, "w", encoding="utf-8", newline="") as handle:
                 handle.write(text)
+
+            # Atomically replace the target with the temp file
+            os.replace(temp_path, path)
         except OSError as exc:
             logger.warning("Could not export to %s", path, exc_info=True)
             self.status.setText(f"Could not write the export: {exc}")
+            # Clean up the temp file if it was created
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass  # Best effort cleanup
             return
+
         self.status.setText(f"{len(entries):,} row(s) written to "
                             f"{os.path.basename(path)}")
 
