@@ -41,6 +41,21 @@ def test_each_column_shows_its_field(qapp):
     assert "2026-08-20 13:45:12" in model.data(model.index(0, TIME))
 
 
+def test_a_whole_second_timestamp_does_not_claim_milliseconds(qapp):
+    """CBS writes `22:08:03`. Every row of it showed `.000`, which reads as a
+    measured millisecond rather than as a field the log never had."""
+    model = _model([_entry("x")])
+    assert model.data(model.index(0, TIME)) == "2026-08-20 13:45:12"
+
+
+def test_a_sub_second_timestamp_keeps_its_milliseconds(qapp):
+    entry = LogEntry(timestamp=datetime(2026, 8, 20, 13, 45, 12, 345000),
+                     source="C", level="Info", message="x",
+                     raw={"subsecond": "1"})
+    model = _model([entry])
+    assert model.data(model.index(0, TIME)) == "2026-08-20 13:45:12.345"
+
+
 def test_an_unknown_time_shows_blank_not_year_one(qapp):
     """"0001-01-01" reads as a real timestamp and is not one."""
     model = _model([_entry("x", when=UNKNOWN_TIME)])

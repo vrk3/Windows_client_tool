@@ -160,8 +160,15 @@ class LogModel(QAbstractTableModel):
                 # A record whose date could not be read still has a message;
                 # showing "0001-01-01" as though it were a real time would be
                 # worse than admitting we do not know.
-                return ("" if entry.timestamp == UNKNOWN_TIME
-                        else entry.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
+                if entry.timestamp == UNKNOWN_TIME:
+                    return ""
+                # Milliseconds only when the log actually wrote them. CBS
+                # writes whole seconds, so `%f` gave all 12,598 of its rows a
+                # `.000` that reads as a measurement rather than as padding.
+                if entry.raw.get("subsecond"):
+                    return entry.timestamp.strftime(
+                        "%Y-%m-%d %H:%M:%S.%f")[:-3]
+                return entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
             if column == SEVERITY:
                 return entry.level
             if column == COMPONENT:

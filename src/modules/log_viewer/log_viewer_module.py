@@ -18,8 +18,8 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QTableView,
-    QToolButton, QVBoxLayout, QWidget,
+    QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
+    QSplitter, QTableView, QToolButton, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
@@ -147,7 +147,29 @@ class LogViewerWidget(QWidget):
             header.setSectionResizeMode(column,
                                         QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(MESSAGE, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.table, 1)
+
+        # Message is a Stretch section, so the table has no horizontal scroll
+        # bar to reach a clipped line with -- measured on a real CBS archive,
+        # 3,998 of 4,000 sampled rows were elided and the tooltip was the
+        # only way to read one. Scrolling would not have helped either: those
+        # rows are up to 2,751px wide. CMTrace uses a detail pane; so does
+        # this. Collapsible and visible by default, so dragging it shut is
+        # the setting rather than something to store.
+        self.detail = QPlainTextEdit(self)
+        self.detail.setReadOnly(True)
+        self.detail.setFont(QFont("Consolas", 9))
+        self.detail.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.detail.setPlaceholderText(
+            "Select a row to read the whole line here.")
+
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.splitter.addWidget(self.table)
+        self.splitter.addWidget(self.detail)
+        self.splitter.setChildrenCollapsible(True)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 0)
+        self.splitter.setSizes([600, 160])
+        layout.addWidget(self.splitter, 1)
 
         self.status = QLabel("No log open.", self)
         self.status.setTextInteractionFlags(
@@ -201,6 +223,7 @@ class LogViewerWidget(QWidget):
         if not self._path:
             return
         self.model.clear()
+        self.detail.clear()
         self._reader = LogReader(self._path,
                                  include_rolled=self.rolled.isChecked())
         self._poll(scroll=True)
@@ -238,22 +261,34 @@ class LogViewerWidget(QWidget):
         self.status.setText("  |  ".join(parts))
 
     def _on_row_selected(self, current, _previous) -> None:
-        """Spell out any error codes on the selected line.
+        """Show the whole selected record, and spell out its error codes.
 
-        The tooltip carries the same thing, but a tooltip has to be
-        discovered; the status bar is already where this widget talks.
+        This used to overwrite the status line, which is where the file name
+        and the record counts live -- so clicking a row threw away the one
+        piece of text saying how much of the log was on screen.
         """
         entry = self.model.entry(current.row()) if current.isValid() else None
         if entry is None:
+            self.detail.clear()
             return
         from .error_codes import explain
 
+        stamp = self.model.data(self.model.index(current.row(), TIME)) or "—"
+        head = [f"{stamp}   {entry.level}"]
+        if entry.source:
+            head.append(entry.source)
+        thread = entry.raw.get("thread", "")
+        if thread:
+            head.append(f"thread {thread}")
+        if entry.raw.get("continuation"):
+            head.append("(continuation of the record above)")
+
+        parts = ["   |   ".join(head), "", entry.message]
         found = explain(entry.message)
         if found:
-            self.status.setText("   ".join(f"{code} — {meaning}"
-                                           for code, meaning in found))
-        else:
-            self._update_status()
+            parts.append("")
+            parts.extend(f"{code} — {meaning}" for code, meaning in found)
+        self.detail.setPlainText("\n".join(parts))
 
     # ---- filtering and find ---------------------------------------------
 
