@@ -57,6 +57,9 @@ class LogViewerWidget(QWidget):
         self._reader: Optional[LogReader] = None
         self._path = ""
         self._last_found = -1
+        self._lookup = None
+        self._rules = []
+        self._config = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -166,6 +169,15 @@ class LogViewerWidget(QWidget):
         self.export_button = QPushButton("Export…", self)
         self.export_button.clicked.connect(self.choose_export)
         range_row.addWidget(self.export_button)
+
+        self.error_lookup_button = QPushButton("Error lookup…", self)
+        self.error_lookup_button.clicked.connect(
+            lambda _c=False: self.open_error_lookup())
+        range_row.addWidget(self.error_lookup_button)
+
+        self.highlight_button = QPushButton("Highlight rules…", self)
+        self.highlight_button.clicked.connect(self.edit_highlight_rules)
+        range_row.addWidget(self.highlight_button)
 
         range_row.addSpacing(12)
         self.regex_box = QCheckBox("Regex", self)
@@ -390,9 +402,24 @@ class LogViewerWidget(QWidget):
             self.build_row_menu(index.row()).exec(
                 self.table.viewport().mapToGlobal(point))
 
-    def open_error_lookup(self, row: int) -> None:
-        # Task 12
-        pass
+    def open_error_lookup(self, row: int = -1) -> None:
+        from .error_lookup_dialog import ErrorLookupDialog
+
+        if self._lookup is None:
+            self._lookup = ErrorLookupDialog(self)
+        entry = self.model.entry(row) if row >= 0 else None
+        self._lookup.show_for(entry.message if entry is not None else "")
+
+    def edit_highlight_rules(self) -> None:
+        from .highlight import load_rules, save_rules
+        from .highlight_dialog import HighlightDialog
+
+        dialog = HighlightDialog(self._rules, self)
+        if dialog.exec():
+            self._rules = dialog.rules()
+            self.model.set_highlight_rules(self._rules)
+            if self._config is not None:
+                save_rules(self._config, self._rules)
 
     def visible_entries(self) -> list:
         """Exactly what the filter left on screen, in view order."""
@@ -585,6 +612,13 @@ class LogViewerModule(BaseModule):
     def create_widget(self) -> QWidget:
         self._widget = LogViewerWidget()
         self._provider = self._widget.provider
+        config = getattr(self.app, "config", None) if self.app else None
+        if config is not None:
+            from .highlight import load_rules
+
+            self._widget._config = config
+            self._widget._rules = load_rules(config)
+            self._widget.model.set_highlight_rules(self._widget._rules)
         return self._widget
 
     def get_search_provider(self) -> Optional[SearchProvider]:

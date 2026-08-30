@@ -76,6 +76,13 @@ HIDDEN_IMPORTS = [
     "modules.gpresult.snapshot_dialog",
     "modules.gpresult.gpupdate",
     "modules.gpresult.gpupdate_dialog",
+    # Log Viewer. The module imports these two dialogs inside button handlers,
+    # so a log that is only being read does not drag the error lookup and
+    # highlight editor in. Without them the frozen build opens the log and
+    # filters it perfectly well, and Error Lookup and Highlight Rules raise
+    # ImportError the moment someone clicks them.
+    "modules.log_viewer.error_lookup_dialog",
+    "modules.log_viewer.highlight_dialog",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means
     # PyInstaller cannot see it. The trap here is worse than a missing tab:
