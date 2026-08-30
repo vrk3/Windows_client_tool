@@ -13,7 +13,7 @@ surface nine failures.
 from html import escape
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextDocument
+from PyQt6.QtGui import QTextDocument, QPalette
 from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
 
 from core.semantic_colors import semantic
@@ -28,23 +28,31 @@ class LogMessageDelegate(QStyledItemDelegate):
         return any(_is_failure(code) for _s, _e, code in code_spans(text))
 
     @staticmethod
-    def rich_text(text: str) -> str:
+    def rich_text(text: str, base_colour: str) -> str:
         """`text` with every failing code wrapped in a coloured span.
 
         Built by walking the spans backwards so the earlier offsets stay
         valid, and escaped as it goes -- a CBS message can contain < and &.
+        Plain-text segments are wrapped with the base_colour to avoid
+        relying on the ambient pen colour.
         """
-        colour = semantic("error")
+        error_colour = semantic("error")
         pieces = []
         cursor = 0
         for start, end, code in code_spans(text):
             if not _is_failure(code):
                 continue
-            pieces.append(escape(text[cursor:start]))
+            plain_segment = escape(text[cursor:start])
+            if plain_segment:
+                pieces.append(
+                    f'<span style="color:{base_colour}">{plain_segment}</span>')
             pieces.append(
-                f'<span style="color:{colour}">{escape(text[start:end])}</span>')
+                f'<span style="color:{error_colour}">{escape(text[start:end])}</span>')
             cursor = end
-        pieces.append(escape(text[cursor:]))
+        final_segment = escape(text[cursor:])
+        if final_segment:
+            pieces.append(
+                f'<span style="color:{base_colour}">{final_segment}</span>')
         return "".join(pieces)
 
     def paint(self, painter, option, index):
@@ -60,9 +68,18 @@ class LogMessageDelegate(QStyledItemDelegate):
             style.drawControl(QStyle.ControlElement.CE_ItemViewItem, option,
                               painter, option.widget)
 
+        # Derive the base colour from the palette, handling selected state
+        is_selected = option.state & QStyle.StateFlag.State_Selected
+        if is_selected:
+            base_colour = option.palette.color(
+                QPalette.ColorRole.HighlightedText).name()
+        else:
+            base_colour = option.palette.color(
+                QPalette.ColorRole.Text).name()
+
         document = QTextDocument()
         document.setDefaultFont(option.font)
-        document.setHtml(self.rich_text(text))
+        document.setHtml(self.rich_text(text, base_colour))
         painter.save()
         painter.translate(option.rect.left() + 4, option.rect.top())
         document.drawContents(painter)

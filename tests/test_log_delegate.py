@@ -24,7 +24,9 @@ def test_a_success_code_does_not_earn_rich_text(qapp):
 
 
 def test_the_delegate_produces_html_marking_the_code(qapp):
-    html = LogMessageDelegate.rich_text("Failed [HRESULT = 0x800f0805]")
+    base_colour = "#123456"
+    html = LogMessageDelegate.rich_text("Failed [HRESULT = 0x800f0805]",
+                                        base_colour)
     assert "0x800f0805" in html
     assert "<span" in html
 
@@ -32,5 +34,32 @@ def test_the_delegate_produces_html_marking_the_code(qapp):
 def test_html_special_characters_in_a_message_are_escaped(qapp):
     """A CBS line can contain <, > and & -- unescaped they would silently
     eat part of the message."""
-    html = LogMessageDelegate.rich_text("a <b> & 0x800f0805")
+    base_colour = "#123456"
+    html = LogMessageDelegate.rich_text("a <b> & 0x800f0805", base_colour)
     assert "&lt;b&gt;" in html and "&amp;" in html
+
+
+def test_rich_text_embeds_the_base_colour_in_plain_segments(qapp):
+    """The base colour is embedded in the HTML so plain text does not
+    inherit the ambient pen colour."""
+    base_colour = "#123456"
+    html = LogMessageDelegate.rich_text("Failed [HRESULT = 0x800f0805]",
+                                        base_colour)
+    assert base_colour in html
+    # Verify the plain text (not just the code) carries the colour
+    assert 'style="color:#123456"' in html
+
+
+def test_error_code_colour_differs_from_base_colour(qapp):
+    """The error code gets its own colour, not the base colour."""
+    base_colour = "#123456"
+    html = LogMessageDelegate.rich_text("Failed [HRESULT = 0x800f0805]",
+                                        base_colour)
+    # The base colour appears in the plain text
+    assert base_colour in html
+    # The error colour is different and also present
+    from core.semantic_colors import semantic
+    error_colour = semantic("error")
+    assert error_colour in html
+    # And they are different (not both the same colour)
+    assert base_colour != error_colour
