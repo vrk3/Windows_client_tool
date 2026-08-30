@@ -315,6 +315,16 @@ class LogViewerWidget(QWidget):
         self._refresh_components()
         self._refresh_threads()
         self._reset_range()
+        # The refreshes above blockSignals() around rebuilding the Component
+        # and Thread combos, so falling back to index 0 ("All") when the
+        # previous log's selection is not in the new one never told the
+        # model -- it kept filtering on a component/thread that belonged to
+        # the log that is no longer open. One unblocked call here is what
+        # guarantees the widgets and the model agree. Safe to combine with
+        # _reset_range just above: _range_active is False at this point, so
+        # this does not re-introduce the frozen-range bug that flag exists
+        # to prevent.
+        self._apply_filters()
 
     def _poll(self, scroll: bool = None) -> None:
         if self._reader is None:

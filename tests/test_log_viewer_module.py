@@ -579,6 +579,37 @@ def test_choosing_a_thread_filters_the_table(qapp, threaded_log):
         widget.stop()
 
 
+def test_opening_a_second_log_does_not_keep_the_first_logs_thread_filter(
+        qapp, threaded_log, tmp_path):
+    """Regression: _refresh_threads blockSignals() around rebuilding the
+    combo, so falling back to index 0 ("All") when the old thread is not in
+    the new log never fired _apply_filters -- the combo said "All" while
+    model._thread was still the first log's thread id, and the second log
+    showed 0 of its own rows. An empty table where every filter control
+    reads "All" is exactly the "reads as no such records, which is a lie
+    about the log" failure this branch guards against for a backwards range
+    or an invalid pattern."""
+    second = tmp_path / "second.log"
+    second.write_text(
+        "2026-08-25 09:00:00, Info                  DISM   API: PID=2 "
+        "TID=42 only line in the second log\n", encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("29016  (2)"))
+        assert widget.model.rowCount() == 2
+
+        widget.open(str(second))
+        assert widget.thread.currentText() == "All"
+        assert widget.model._thread == "", (
+            "the combo says All but the model kept the old log's thread id")
+        assert widget.model.rowCount() == 1
+        assert "only line in the second log" in \
+            widget.model.data(widget.model.index(0, 4))
+    finally:
+        widget.stop()
+
+
 def test_the_range_boxes_open_on_the_whole_log(qapp, threaded_log):
     """Not on the year 1752, which is what an unset QDateTimeEdit shows."""
     widget = LogViewerWidget()
