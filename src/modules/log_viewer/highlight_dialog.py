@@ -54,6 +54,12 @@ class HighlightDialog(QDialog):
         self.table.setItem(row, 0, QTableWidgetItem(rule.pattern))
         colour = QTableWidgetItem(rule.colour)
         colour.setBackground(QColor(rule.colour))
+        # Colour is chosen through QColorDialog (see _add_blank), never
+        # typed. QTableWidgetItem is editable by default and the table uses
+        # default edit triggers, so a double-click here would otherwise let
+        # someone type "red" -- which is not "#" + six hex digits and raises
+        # out of a reimplemented Qt virtual when the row is next painted.
+        colour.setFlags(colour.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.table.setItem(row, 1, colour)
         for column, value in ((2, rule.regex), (3, rule.enabled)):
             item = QTableWidgetItem()

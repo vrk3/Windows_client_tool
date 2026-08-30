@@ -107,3 +107,27 @@ def test_readable_text_on_clears_4_5_to_1_on_varied_backgrounds(background):
     assert ratio >= 4.5, (
         f"readable_text_on('{background}') = {text} "
         f"has contrast {ratio:.2f}:1 (need 4.5:1)")
+
+
+# ---- a malformed highlight colour must not crash the pane ----------------
+#
+# readable_text_on used to slice the hex string blind (`int(value[i:i+2],
+# 16)`), which raises ValueError on anything that is not "#" plus exactly six
+# hex digits. Called from LogModel.data()'s ForegroundRole, an exception out
+# of a reimplemented Qt virtual is not catchable -- PyQt routes it to
+# sys.excepthook and then qFatal(). A user can reach a bad colour two ways:
+# typing into the highlight-rules table, or a hand-edited config.
+
+@pytest.mark.parametrize("bad", ["red", "#f00", "#12345g", "", None, 12, "#gggggg"])
+def test_a_malformed_colour_does_not_raise(bad, caplog):
+    with caplog.at_level("WARNING"):
+        result = palette.readable_text_on(bad)
+    assert result.startswith("#")
+    assert caplog.records, "a malformed colour must be logged, not silent"
+
+
+def test_is_valid_hex_colour_accepts_only_hash_plus_six_hex_digits():
+    assert palette.is_valid_hex_colour("#00ff00")
+    assert palette.is_valid_hex_colour("#ABCDEF")
+    for bad in ("red", "#f00", "#12345g", "", None, 12, "#gggggg", "00ff00"):
+        assert not palette.is_valid_hex_colour(bad)

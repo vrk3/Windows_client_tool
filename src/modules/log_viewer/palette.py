@@ -25,9 +25,26 @@ No Qt here: the model wraps these in QColor. That is what lets the contrast
 be asserted with no display.
 """
 import colorsys
+import logging
+import re
 from typing import Optional, Tuple
 
 from core.semantic_colors import current_theme
+
+logger = logging.getLogger(__name__)
+
+#: The user picks highlight colours from a colour dialog and can also type
+#: one straight into the rules table or a hand-edited config, so anything
+#: reaching `readable_text_on` must be checked against this before the hex
+#: maths runs -- "red", "#f00" and "#12345g" are all real inputs that have
+#: been seen in practice, and none of them is "#" plus six hex digits.
+_HEX_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def is_valid_hex_colour(value) -> bool:
+    """True for exactly "#" + six hex digits -- the one shape the rest of
+    this module's hex maths is safe to run on."""
+    return isinstance(value, str) and bool(_HEX_COLOUR.match(value))
 
 #: Enough for the 15 distinct components measured across this machine's logs.
 COMPONENT_SLOTS = 16
@@ -108,7 +125,20 @@ def readable_text_on(background_hex: str) -> str:
 
     The user picks highlight rule colours from a colour dialog, so this must
     work on ANY hex colour, not a fixed set of known backgrounds.
+
+    A colour that is not "#" plus six hex digits ("red", "#f00", a hand-edited
+    config's typo) does NOT raise here -- an exception out of this function
+    can reach `LogModel.data()`'s ForegroundRole, a reimplemented Qt virtual,
+    where PyQt cannot catch it: it goes to `sys.excepthook` and then
+    `qFatal()`. A bad colour is logged and answered with a safe, fixed ink
+    instead.
     """
+    if not is_valid_hex_colour(background_hex):
+        logger.warning(
+            "readable_text_on: %r is not a valid #rrggbb colour; "
+            "falling back to black ink", background_hex)
+        return "#000000"
+
     def _luminance(hex_colour):
         value = hex_colour.lstrip("#")
         parts = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]

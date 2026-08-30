@@ -12,6 +12,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import List, Optional
 
+from .palette import is_valid_hex_colour
+
 logger = logging.getLogger(__name__)
 
 #: Global, not per file: "highlight my machine name" should apply to every
@@ -60,9 +62,15 @@ def load_rules(config) -> List[HighlightRule]:
     rules = []
     for item in stored:
         try:
+            colour = str(item["colour"])
+            if not is_valid_hex_colour(colour):
+                # Not a shape `readable_text_on` can safely paint with --
+                # that raises out of a reimplemented Qt virtual and is
+                # fatal, so a bad colour must not survive load.
+                raise ValueError(f"not a #rrggbb colour: {colour!r}")
             rules.append(HighlightRule(
                 pattern=str(item["pattern"]),
-                colour=str(item["colour"]),
+                colour=colour,
                 regex=bool(item.get("regex", False)),
                 enabled=bool(item.get("enabled", True)),
             ))

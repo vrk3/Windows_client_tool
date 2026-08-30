@@ -92,3 +92,16 @@ def test_a_corrupt_rule_does_not_cost_the_user_the_others():
 
 def test_no_stored_rules_is_an_empty_list_not_a_crash():
     assert load_rules(_StubConfig()) == []
+
+
+def test_a_malformed_colour_loses_only_its_own_rule():
+    """readable_text_on raises on anything that is not "#" + six hex digits,
+    and that exception reaches a Qt virtual where it is fatal -- so a
+    hand-edited config with a bad colour must be rejected here, at load
+    time, rather than crashing later when the row is painted."""
+    config = _StubConfig({CONFIG_KEY: [
+        {"pattern": "good", "colour": "#00ff00"},
+        {"pattern": "bad", "colour": "red"},
+        {"pattern": "also bad", "colour": "#12345g"},
+    ]})
+    assert [rule.pattern for rule in load_rules(config)] == ["good"]
