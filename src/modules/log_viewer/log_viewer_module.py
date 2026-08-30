@@ -94,6 +94,18 @@ class LogViewerWidget(QWidget):
         self.follow.toggled.connect(self._on_follow_toggled)
         top.addWidget(self.follow)
 
+        # CSI writes operation lists that run to 1,260 continuation lines
+        # under one record, and 9,185 of the big CBS archive's 90,714 rows
+        # are continuations. Folded by default, because a log you have to
+        # scroll past is a log you stop reading -- and the parent's
+        # "(+N lines)" suffix and the status bar both say what is hidden.
+        self.fold = QCheckBox("Fold continuations", self)
+        self.fold.setChecked(True)
+        self.fold.setToolTip("Tuck wrapped continuation lines under the "
+                             "record they belong to.")
+        self.fold.toggled.connect(self._on_fold_toggled)
+        top.addWidget(self.fold)
+
         self.rolled = QCheckBox("Include rolled (.lo_)", self)
         self.rolled.setToolTip("ConfigMgr rolls foo.log to foo.lo_ . Read the "
                                "pair as one timeline.")
@@ -353,6 +365,11 @@ class LogViewerWidget(QWidget):
             # Saying so matters: silently showing the last 200k lines of a
             # 900k-line log is how someone concludes the log is clean.
             parts.append(f"{self.model.dropped:,} older records dropped")
+        folded = self.model.folded_count()
+        if folded:
+            # Same reason. These records are one click away rather than gone,
+            # but the count still has to be visible.
+            parts.append(f"{folded:,} continuation lines folded")
         if self._reader is not None and self._reader.truncated:
             parts.append("opened at the tail of a large file")
         self.status.setText("  |  ".join(parts))
@@ -450,9 +467,26 @@ class LogViewerWidget(QWidget):
             if self._config is not None:
                 save_rules(self._config, self._rules)
 
+    def _on_fold_toggled(self, folded: bool) -> None:
+        self.model.set_folding(folded)
+        self._update_status()
+
+    def _sync_fold_box(self) -> None:
+        """Keep the checkbox honest: `find` unfolds to reach a match, and a
+        box that still read "folded" would be lying about the view."""
+        if self.fold.isChecked() != self.model.is_folding():
+            self.fold.blockSignals(True)
+            self.fold.setChecked(self.model.is_folding())
+            self.fold.blockSignals(False)
+
     def visible_entries(self) -> list:
-        """Exactly what the filter left on screen, in view order."""
-        return [self.model.entry(row) for row in range(self.model.rowCount())]
+        """What the filter left, in view order -- folding deliberately ignored.
+
+        A folded continuation is hidden for reading, not excluded by the
+        user, so an export that dropped it would lose a tenth of a real CBS
+        archive without saying so. Every other filter still applies.
+        """
+        return self.model.rows_for_export()
 
     def copy_selection(self) -> None:
         """Copy selected rows to clipboard without provenance header."""
@@ -622,6 +656,9 @@ class LogViewerWidget(QWidget):
         if start < 0:
             start = 0 if forwards else self.model.rowCount()
         row = self.model.find(needle, start_row=start, forwards=forwards)
+        # `find` unfolds to reach a match it would otherwise have missed, so
+        # the checkbox has to be told what happened to it.
+        self._sync_fold_box()
         if row < 0:
             self.status.setText(f"No match for {needle!r}.")
             return

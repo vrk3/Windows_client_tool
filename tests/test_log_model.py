@@ -567,3 +567,122 @@ def test_filtering_delegates_to_the_shared_haystack(qapp, monkeypatch):
     model.set_filter(needle="different")
     assert calls, "_matches must call the shared haystack(), not build its own"
     assert model.rowCount() == 1
+
+
+# ---- folding continuation lines -----------------------------------------
+
+#: A CSI block on the real CbsPersist archive runs to 1,260 continuation
+#: lines under one parent, and 9,185 of that log's 90,714 records are
+#: continuations. Folding is what stops one operation list swamping the view.
+def _cont(message, when=None):
+    return LogEntry(timestamp=when or UNKNOWN_TIME, source="CSI",
+                    level="Info", message=message,
+                    raw={"continuation": "1"})
+
+
+def _block(qapp=None):
+    """A parent, two continuations under it, then an unrelated parent."""
+    return _model([_entry("Performing 3 operations as follows:", source="CSI"),
+                   _cont("  (0)  Uninstall: alpha"),
+                   _cont("  (1)  Install: beta"),
+                   _entry("Ending TrustedInstaller", source="CBS")])
+
+
+def test_folding_is_on_by_default_and_hides_continuations(qapp):
+    model = _block()
+    assert model.rowCount() == 2
+    assert model.total == 4, "the records are still there, only the rows went"
+
+
+def test_unfolding_brings_the_continuations_back(qapp):
+    model = _block()
+    model.set_folding(False)
+    assert model.rowCount() == 4
+
+
+def test_a_folded_parent_says_how_many_lines_it_is_hiding(qapp):
+    model = _block()
+    assert "(+2 lines)" in model.data(model.index(0, MESSAGE))
+
+
+def test_a_parent_with_no_continuations_gets_no_suffix(qapp):
+    model = _block()
+    assert "lines)" not in model.data(model.index(1, MESSAGE))
+
+
+def test_the_suffix_is_gone_once_unfolded(qapp):
+    model = _block()
+    model.set_folding(False)
+    assert "lines)" not in model.data(model.index(0, MESSAGE))
+
+
+def test_the_suffix_never_reaches_the_record_itself(qapp):
+    """Export and copy read entry.message, so the display suffix must not
+    leak into the data they write."""
+    model = _block()
+    model.data(model.index(0, MESSAGE))
+    assert model.entry(0).message == "Performing 3 operations as follows:"
+
+
+def test_typing_a_filter_makes_folded_lines_eligible_again(qapp):
+    """Folding is for browsing. The moment the user searches, nothing may
+    hide a match from them."""
+    model = _block()
+    model.set_filter(needle="Uninstall")
+    assert model.rowCount() == 1
+    assert "Uninstall" in model.entry(0).message
+
+
+def test_clearing_the_filter_folds_again(qapp):
+    model = _block()
+    model.set_filter(needle="Uninstall")
+    model.set_filter(needle="")
+    assert model.rowCount() == 2
+
+
+def test_find_reaches_a_line_that_folding_was_hiding(qapp):
+    """A search result outranks a view convenience: find unfolds to reach it
+    rather than reporting no match."""
+    model = _block()
+    row = model.find("Install: beta", start_row=0)
+    assert row >= 0
+    assert "Install: beta" in model.entry(row).message
+    assert model.is_folding() is False, "it must unfold, not silently miss"
+
+
+def test_find_that_matches_nothing_leaves_folding_alone(qapp):
+    model = _block()
+    assert model.find("no such text anywhere", start_row=0) == -1
+    assert model.is_folding() is True
+
+
+def test_the_folded_count_is_reported_for_the_status_bar(qapp):
+    model = _block()
+    assert model.folded_count() == 2
+    model.set_folding(False)
+    assert model.folded_count() == 0
+
+
+def test_export_rows_include_the_lines_folding_hides(qapp):
+    """An exported file that silently drops a tenth of the log is the exact
+    failure this module exists to prevent."""
+    model = _block()
+    exported = [e.message for e in model.rows_for_export()]
+    assert len(exported) == 4
+    assert "  (0)  Uninstall: alpha" in exported
+
+
+def test_export_rows_still_respect_a_real_filter(qapp):
+    """Folding is ignored by export; an actual filter is not."""
+    model = _block()
+    model.set_filter(component="CBS")
+    assert [e.message for e in model.rows_for_export()] == [
+        "Ending TrustedInstaller"]
+
+
+def test_an_orphan_continuation_is_never_dropped(qapp):
+    """A tail slice can open inside a 1,260-line block, so the first records
+    can be continuations with no parent above them."""
+    model = _model([_cont("  (0)  Uninstall: alpha"),
+                    _entry("Ending TrustedInstaller")])
+    assert model.rowCount() == 2, "an orphan has no parent to fold under"

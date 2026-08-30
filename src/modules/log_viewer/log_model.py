@@ -43,6 +43,9 @@ class LogModel(QAbstractTableModel):
         self._regex = False
         self._matcher = None            # compiled once per set_filter
         self._rules = []                # highlight rules
+        self._fold = True               # continuations folded under parents
+        self._fold_counts = {}          # entry index -> continuations under it
+        self._folded = set()            # entry indices folded under a parent
         self.dropped = 0                # records aged out of the cap
 
     # ---- content --------------------------------------------------------
@@ -75,23 +78,31 @@ class LogModel(QAbstractTableModel):
             return
 
         first = len(self._entries)
+        # Extend BEFORE deciding which rows appear: folding is decided per
+        # index, and a new continuation raises the count on a parent that is
+        # already on screen, which can only be recomputed once it is in.
+        self._entries.extend(entries)
+        self._recount_folds()
         fresh = [first + offset for offset, entry in enumerate(entries)
-                 if self._matches(entry)]
+                 if self._shows(first + offset, entry)]
         if not fresh:
             # Everything new is hidden by the current filter: the records go
-            # in, but no row appears and the view need not be told.
-            self._entries.extend(entries)
+            # in and no row appears -- but a folded parent's count may have
+            # risen, so the rows already on screen still need repainting.
+            self._repaint_visible()
             return
         start = len(self._visible)
         self.beginInsertRows(QModelIndex(), start, start + len(fresh) - 1)
-        self._entries.extend(entries)
         self._visible.extend(fresh)
         self.endInsertRows()
+        self._repaint_visible()
 
     def clear(self) -> None:
         self.beginResetModel()
         self._entries.clear()
         self._visible = []
+        self._fold_counts = {}
+        self._folded = set()
         self.dropped = 0
         self.endResetModel()
 
@@ -221,8 +232,99 @@ class LogModel(QAbstractTableModel):
         return self._matcher is False
 
     def _reindex(self) -> None:
+        self._recount_folds()
         self._visible = [i for i, e in enumerate(self._entries)
-                         if self._matches(e)]
+                         if self._shows(i, e)]
+
+    def _recount_folds(self) -> None:
+        """How many continuation lines sit under each parent record.
+
+        Built in one pass and cached because a deque is O(n) to index in the
+        middle: counting on demand inside `data()` would be quadratic on a
+        200,000-record log. An orphan continuation -- the first records of a
+        tail slice that opened inside a 1,260-line block -- has no parent to
+        fold under and is left visible.
+        """
+        counts = {}
+        folded = set()
+        parent = None
+        for index, entry in enumerate(self._entries):
+            if entry.raw.get("continuation"):
+                # An orphan has nothing to fold under, so it stays a row of
+                # its own rather than vanishing with no parent to reveal it.
+                if parent is not None:
+                    counts[parent] = counts.get(parent, 0) + 1
+                    folded.add(index)
+            else:
+                parent = index
+        self._fold_counts = counts
+        self._folded = folded
+
+    def _shows(self, index: int, entry) -> bool:
+        """Whether the record at `index` earns a row right now."""
+        if self._folding_now() and index in self._folded:
+            return False
+        return self._matches(entry)
+
+    def _repaint_visible(self) -> None:
+        """Ask the view to repaint what is on screen, without a reset.
+
+        A reset clears the selection, which `append` documents as the trap
+        it exists to avoid -- but a parent's folded count can change under a
+        row that is already displayed, so the text does need refreshing.
+        """
+        if not self._visible:
+            return
+        self.dataChanged.emit(self.index(0, MESSAGE),
+                              self.index(len(self._visible) - 1, MESSAGE),
+                              [Qt.ItemDataRole.DisplayRole])
+
+    def _folding_now(self) -> bool:
+        """Whether folding is actually hiding anything at this moment.
+
+        Folding is a browsing convenience, so it yields the moment the user
+        searches: with a needle typed, every continuation is eligible again
+        and nothing can hide a match from them.
+        """
+        return self._fold and not self._needle
+
+    def is_folding(self) -> bool:
+        """The checkbox's state, which `find` may have turned off."""
+        return self._fold
+
+    def set_folding(self, enabled: bool) -> None:
+        self._fold = bool(enabled)
+        self.beginResetModel()
+        self._reindex()
+        self.endResetModel()
+
+    def folded_count(self) -> int:
+        """How many records are hidden right now, for the status bar.
+
+        Silently showing fewer records than the log holds is how someone
+        concludes the log is clean, so the pane says this out loud.
+        """
+        if not self._folding_now():
+            return 0
+        return sum(self._fold_counts.values())
+
+    def rows_for_export(self) -> list:
+        """Every visible record, plus the continuations folding is hiding.
+
+        Folding is a view convenience; an actual filter is not. An exported
+        file that silently dropped a tenth of the log would be the exact
+        failure this module exists to prevent, so folding is ignored here
+        and every other filter still applies.
+        """
+        out = []
+        folding = self._folding_now()
+        for index in self._visible:
+            out.append(self._entries[index])
+            if not folding:
+                continue
+            for offset in range(1, self._fold_counts.get(index, 0) + 1):
+                out.append(self._entries[index + offset])
+        return out
 
     # ---- Qt -------------------------------------------------------------
 
@@ -280,7 +382,15 @@ class LogModel(QAbstractTableModel):
                 # One row per record: a stack trace is one entry, and letting
                 # its newlines through would break the row height for the
                 # whole table.
-                return entry.message.replace("\n", " ↵ ")
+                text = entry.message.replace("\n", " ↵ ")
+                # Display only. Export and copy read `entry.message`, so the
+                # suffix can never leak into what they write.
+                if self._folding_now():
+                    hidden = self._fold_counts.get(
+                        self._visible[index.row()], 0)
+                    if hidden:
+                        text = f"{text}   (+{hidden:,} lines)"
+                return text
         elif role == Qt.ItemDataRole.BackgroundRole:
             colours = self._cell_colours(index, entry)
             return QColor(colours[0]) if colours else None
@@ -299,7 +409,28 @@ class LogModel(QAbstractTableModel):
     # ---- find -----------------------------------------------------------
 
     def find(self, needle: str, start_row: int = 0, forwards: bool = True) -> int:
-        """The next visible row containing `needle`, or -1.
+        """The next row containing `needle`, or -1, unfolding to reach it.
+
+        A search result outranks a view convenience: if the only match is a
+        line folding is hiding, folding is turned off and the search run
+        again, rather than reporting no match for text that is in the log.
+        The pane re-reads `is_folding()` afterwards so the checkbox shows
+        what happened.
+        """
+        row = self._find_visible(needle, start_row, forwards)
+        if row >= 0 or not self._folding_now():
+            return row
+        self.set_folding(False)
+        row = self._find_visible(needle, start_row, forwards)
+        if row < 0:
+            # Nothing anywhere. Searching for text that is not in the log
+            # should not silently rearrange the view, so put folding back.
+            self.set_folding(True)
+        return row
+
+    def _find_visible(self, needle: str, start_row: int = 0,
+                      forwards: bool = True) -> int:
+        """The next VISIBLE row containing `needle`, or -1.
 
         Wraps, because a search that stops at the end of a log makes the user
         scroll back to the top to carry on. Honours the same Regex flag the

@@ -851,3 +851,94 @@ def test_a_failed_export_leaves_no_stray_file_at_target(qapp, threaded_log,
         assert not out.exists()
     finally:
         widget.stop()
+
+
+# ---- folding continuation lines -----------------------------------------
+
+@pytest.fixture
+def folded_log(tmp_path):
+    """A CSI operation list, the shape that swamps a real CbsPersist log."""
+    path = tmp_path / "cbs.log"
+    path.write_text(
+        "2026-08-27 22:08:36, Info                  CSI    00000287 "
+        "Performing 2 operations as follows:\n"
+        "  (0)  Uninstall: alpha\n"
+        "  (1)  Install: beta\n"
+        "2026-08-27 22:08:37, Info                  CBS    Ending "
+        "TrustedInstaller\n", encoding="utf-8")
+    return path
+
+
+def test_the_pane_folds_continuations_by_default(qapp, folded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        assert widget.fold.isChecked()
+        assert widget.model.rowCount() == 2
+        assert widget.model.total == 4
+    finally:
+        widget.stop()
+
+
+def test_the_status_line_says_how_many_lines_are_folded(qapp, folded_log):
+    """Silently showing fewer records than the log holds is how someone
+    concludes the log is clean."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        assert "folded" in widget.status.text().lower()
+        assert "2" in widget.status.text()
+    finally:
+        widget.stop()
+
+
+def test_unticking_the_box_shows_every_line(qapp, folded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        widget.fold.setChecked(False)
+        assert widget.model.rowCount() == 4
+    finally:
+        widget.stop()
+
+
+def test_find_unfolds_and_the_box_shows_it(qapp, folded_log):
+    """The checkbox must not lie about the state of the view."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        widget.find_box.setText("Install: beta")
+        widget.find_next()
+        assert not widget.fold.isChecked()
+        assert "Install: beta" in widget.model.entry(
+            widget.table.currentIndex().row()).message
+    finally:
+        widget.stop()
+
+
+def test_export_while_folded_still_writes_every_line(qapp, folded_log,
+                                                     tmp_path):
+    """An exported file that silently drops folded lines is the failure this
+    module exists to prevent."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        out = tmp_path / "folded.txt"
+        widget.export_to(str(out))
+        written = out.read_text(encoding="utf-8")
+        assert "Uninstall: alpha" in written
+        assert "Install: beta" in written
+    finally:
+        widget.stop()
+
+
+def test_the_display_suffix_never_reaches_the_export(qapp, folded_log,
+                                                     tmp_path):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(folded_log))
+        out = tmp_path / "folded.txt"
+        widget.export_to(str(out))
+        assert "lines)" not in out.read_text(encoding="utf-8")
+    finally:
+        widget.stop()
