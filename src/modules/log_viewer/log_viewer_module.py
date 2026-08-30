@@ -163,6 +163,10 @@ class LogViewerWidget(QWidget):
         self.clear_range_button.clicked.connect(self._reset_range)
         range_row.addWidget(self.clear_range_button)
 
+        self.export_button = QPushButton("Export…", self)
+        self.export_button.clicked.connect(self.choose_export)
+        range_row.addWidget(self.export_button)
+
         range_row.addSpacing(12)
         self.regex_box = QCheckBox("Regex", self)
         self.regex_box.setToolTip("Treat Find and Filter as regular "
@@ -230,6 +234,11 @@ class LogViewerWidget(QWidget):
         self.table.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._on_context_menu)
+
+        from PyQt6.QtGui import QKeySequence, QShortcut
+
+        QShortcut(QKeySequence.StandardKey.Copy, self.table,
+                  activated=self.copy_selection)
 
         self._timer = QTimer(self)
         self._timer.setInterval(FOLLOW_MS)
