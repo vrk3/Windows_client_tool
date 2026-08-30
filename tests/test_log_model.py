@@ -310,3 +310,36 @@ def test_appending_keeps_the_rows_in_order(qapp):
     model.append([_entry("two"), _entry("three")])
     assert [model.data(model.index(r, MESSAGE)) for r in range(3)] == [
         "one", "two", "three"]
+
+
+# ---- highlight rules --------------------------------------------------------
+
+def test_a_highlight_rule_beats_severity_on_the_row(qapp):
+    from modules.log_viewer.highlight import HighlightRule
+
+    model = _model([_entry("boom", level="Error")])
+    model.set_highlight_rules([HighlightRule("boom", "#00ff00")])
+    colour = model.data(model.index(0, MESSAGE),
+                        Qt.ItemDataRole.BackgroundRole)
+    assert colour.name() == "#00ff00"
+
+
+def test_a_highlight_rule_does_not_take_the_component_column(qapp):
+    from modules.log_viewer import palette
+    from modules.log_viewer.highlight import HighlightRule
+
+    model = _model([_entry("boom", source="CBS")])
+    model.set_highlight_rules([HighlightRule("boom", "#00ff00")])
+    cell = model.data(model.index(0, COMPONENT),
+                      Qt.ItemDataRole.BackgroundRole)
+    assert cell.name() == palette.component_colour("CBS")[0]
+
+
+def test_setting_rules_repaints_without_losing_the_selection(qapp):
+    """A reset clears the view's selection, and this pane already learned
+    that lesson once with append()."""
+    model = _model([_entry("one"), _entry("two")])
+    seen = []
+    model.dataChanged.connect(lambda *a: seen.append(a))
+    model.set_highlight_rules([])
+    assert seen, "the view was never told to repaint"

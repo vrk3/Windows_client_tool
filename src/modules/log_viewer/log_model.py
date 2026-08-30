@@ -14,6 +14,7 @@ from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from .cmtrace_parser import UNKNOWN_TIME
+from .highlight import matching_rule
 from .palette import component_colour, severity_row_colour
 
 COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
@@ -32,6 +33,7 @@ class LogModel(QAbstractTableModel):
         self._levels = set()            # empty means "show everything"
         self._needle = ""
         self._component = ""
+        self._rules = []                # highlight rules
         self.dropped = 0                # records aged out of the cap
 
     # ---- content --------------------------------------------------------
@@ -110,6 +112,18 @@ class LogModel(QAbstractTableModel):
         self._reindex()
         self.endResetModel()
 
+    def set_highlight_rules(self, rules) -> None:
+        """Colouring only -- which rows are VISIBLE does not change, so this
+        repaints rather than resetting. A reset would clear the selection,
+        the same trap `append` documents."""
+        self._rules = list(rules or [])
+        if self._visible:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._visible) - 1, len(COLUMNS) - 1)
+            self.dataChanged.emit(top, bottom,
+                                  [Qt.ItemDataRole.BackgroundRole,
+                                   Qt.ItemDataRole.ForegroundRole])
+
     def _matches(self, entry) -> bool:
         if self._levels and entry.level not in self._levels:
             return False
@@ -180,6 +194,9 @@ class LogModel(QAbstractTableModel):
             # component colour, which is the whole point of the column.
             if index.column() == COMPONENT and entry.source:
                 return QColor(component_colour(entry.source)[0])
+            rule = matching_rule(self._rules, entry)
+            if rule is not None:
+                return QColor(rule.colour)
             colour = severity_row_colour(entry.level)
             return QColor(colour[0]) if colour else None
         elif role == Qt.ItemDataRole.ForegroundRole:
