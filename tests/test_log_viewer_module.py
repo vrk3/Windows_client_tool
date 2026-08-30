@@ -1,6 +1,7 @@
 """The log viewer module: opening, following, filtering and find, end to end
 against real files on disk."""
 import os
+from datetime import datetime
 
 import pytest
 
@@ -511,5 +512,123 @@ def test_the_menu_is_rebuilt_rather_than_cached(qapp):
         before = len(widget.open_menu.actions())
         widget._build_open_menu()
         assert len(widget.open_menu.actions()) == before
+    finally:
+        widget.stop()
+
+
+# ---- the filter row -----------------------------------------------------
+
+@pytest.fixture
+def threaded_log(tmp_path):
+    path = tmp_path / "dism.log"
+    path.write_text(
+        "2026-08-24 21:45:46, Info                  DISM   API: PID=1 "
+        "TID=29016 first\n"
+        "2026-08-24 21:45:47, Info                  DISM   API: PID=1 "
+        "TID=29016 second\n"
+        "2026-08-24 22:00:00, Info                  DISM   API: PID=1 "
+        "TID=777 third\n", encoding="utf-8")
+    return path
+
+
+def test_the_thread_box_lists_threads_by_how_common_they_are(qapp,
+                                                             threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        entries = [widget.thread.itemText(i)
+                   for i in range(widget.thread.count())]
+        assert entries[0] == "All"
+        assert entries[1].startswith("29016")
+        assert "(2)" in entries[1]
+    finally:
+        widget.stop()
+
+
+def test_choosing_a_thread_filters_the_table(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.thread.setCurrentIndex(widget.thread.findText("777  (1)"))
+        assert widget.model.rowCount() == 1
+    finally:
+        widget.stop()
+
+
+def test_the_range_boxes_open_on_the_whole_log(qapp, threaded_log):
+    """Not on the year 1752, which is what an unset QDateTimeEdit shows."""
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        assert widget.time_from.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 21, 45, 46)
+        assert widget.time_to.dateTime().toPyDateTime() == \
+            datetime(2026, 8, 24, 22, 0, 0)
+    finally:
+        widget.stop()
+
+
+def test_narrowing_the_range_filters_the_table(qapp, threaded_log):
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_to.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 21, 46, 0)))
+        assert widget.model.rowCount() == 2
+    finally:
+        widget.stop()
+
+
+def test_clearing_the_range_brings_every_row_back(qapp, threaded_log):
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_to.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 21, 46, 0)))
+        widget.clear_range_button.click()
+        assert widget.model.rowCount() == 3
+    finally:
+        widget.stop()
+
+
+def test_the_regex_box_switches_the_filter_to_a_pattern(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.regex_box.setChecked(True)
+        widget.filter_box.setText(r"TID=29\d+")
+        assert widget.model.rowCount() == 2
+    finally:
+        widget.stop()
+
+
+def test_a_backwards_range_says_so_rather_than_emptying_the_table(qapp,
+                                                                  threaded_log):
+    """An empty table reads as "no such records", which is a lie about the
+    log rather than a complaint about the range."""
+    from PyQt6.QtCore import QDateTime
+
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.time_from.setDateTime(
+            QDateTime(datetime(2026, 8, 24, 23, 0, 0)))
+        assert "range" in widget.status.text().lower()
+        assert widget.model.rowCount() == 3, "nothing was filtered away"
+    finally:
+        widget.stop()
+
+
+def test_an_invalid_pattern_says_so_instead_of_raising(qapp, threaded_log):
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(threaded_log))
+        widget.regex_box.setChecked(True)
+        widget.filter_box.setText("[unclosed")
+        assert "pattern" in widget.status.text().lower()
     finally:
         widget.stop()

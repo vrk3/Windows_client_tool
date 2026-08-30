@@ -210,6 +210,11 @@ class LogModel(QAbstractTableModel):
             return None
         return min(stamps), max(stamps)
 
+    def filter_pattern_is_invalid(self) -> bool:
+        """The pane asks, so it can say so rather than showing an empty
+        table that reads as "no such records"."""
+        return self._matcher is False
+
     def _reindex(self) -> None:
         self._visible = [i for i, e in enumerate(self._entries)
                          if self._matches(e)]
@@ -294,36 +299,28 @@ class LogModel(QAbstractTableModel):
         """The next visible row containing `needle`, or -1.
 
         Wraps, because a search that stops at the end of a log makes the user
-        scroll back to the top to carry on.
-
-        Honours the same Regex flag as the filter -- one checkbox governs
-        both, so this cannot stay substring-only while set_filter understands
-        patterns.
+        scroll back to the top to carry on. Honours the same Regex flag the
+        filter does: one checkbox governs both.
         """
         if not needle or not self._visible:
             return -1
-
+        matcher = None
         if self._regex:
             try:
                 matcher = re.compile(needle, re.IGNORECASE)
             except re.error:
-                # An invalid pattern is a typo, not a failure: it finds
-                # nothing rather than raising or falling back to substring.
                 return -1
-
-            def hit(message: str) -> bool:
-                return matcher.search(message) is not None
-        else:
-            needle_lower = needle.lower()
-
-            def hit(message: str) -> bool:
-                return needle_lower in message.lower()
-
+        lowered = needle.lower()
         count = len(self._visible)
         step = 1 if forwards else -1
         for offset in range(1, count + 1):
             row = (start_row + offset * step) % count
             entry = self.entry(row)
-            if entry is not None and hit(entry.message):
+            if entry is None:
+                continue
+            if matcher is not None:
+                if matcher.search(entry.message):
+                    return row
+            elif lowered in entry.message.lower():
                 return row
         return -1

@@ -14,10 +14,10 @@ import logging
 import os
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QDateTime
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
     QSplitter, QTableView, QToolButton, QVBoxLayout, QWidget,
 )
@@ -128,6 +128,43 @@ class LogViewerWidget(QWidget):
         find_row.addWidget(self.filter_box, 1)
         layout.addLayout(find_row)
 
+        range_row = QHBoxLayout()
+        range_row.addWidget(QLabel("Thread:", self))
+        # Editable with a completer, not a plain dropdown: DISM carries 329
+        # distinct thread ids, and an alphabetical list of 329 numbers is not
+        # a control anyone can use. Ordered by how common each one is.
+        self.thread = QComboBox(self)
+        self.thread.setEditable(True)
+        self.thread.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.thread.setMinimumWidth(140)
+        self.thread.addItem("All")
+        self.thread.currentIndexChanged.connect(lambda _i: self._apply_filters())
+        range_row.addWidget(self.thread)
+
+        range_row.addSpacing(12)
+        range_row.addWidget(QLabel("From:", self))
+        self.time_from = QDateTimeEdit(self)
+        self.time_from.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.time_from.dateTimeChanged.connect(lambda _d: self._apply_filters())
+        range_row.addWidget(self.time_from)
+        range_row.addWidget(QLabel("To:", self))
+        self.time_to = QDateTimeEdit(self)
+        self.time_to.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.time_to.dateTimeChanged.connect(lambda _d: self._apply_filters())
+        range_row.addWidget(self.time_to)
+        self.clear_range_button = QPushButton("Clear range", self)
+        self.clear_range_button.clicked.connect(self._reset_range)
+        range_row.addWidget(self.clear_range_button)
+
+        range_row.addSpacing(12)
+        self.regex_box = QCheckBox("Regex", self)
+        self.regex_box.setToolTip("Treat Find and Filter as regular "
+                                  "expressions.")
+        self.regex_box.toggled.connect(lambda _c: self._apply_filters())
+        range_row.addWidget(self.regex_box)
+        range_row.addStretch(1)
+        layout.addLayout(range_row)
+
         self.table = QTableView(self)
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(
@@ -232,6 +269,8 @@ class LogViewerWidget(QWidget):
                                  include_rolled=self.rolled.isChecked())
         self._poll(scroll=True)
         self._refresh_components()
+        self._refresh_threads()
+        self._reset_range()
 
     def _poll(self, scroll: bool = None) -> None:
         if self._reader is None:
@@ -307,6 +346,29 @@ class LogViewerWidget(QWidget):
         self.component.setCurrentIndex(max(0, index))
         self.component.blockSignals(False)
 
+    def _refresh_threads(self) -> None:
+        current = self.thread.currentText()
+        self.thread.blockSignals(True)
+        self.thread.clear()
+        self.thread.addItem("All")
+        for thread, count in self.model.threads():
+            self.thread.addItem(f"{thread}  ({count:,})")
+        index = self.thread.findText(current)
+        self.thread.setCurrentIndex(max(0, index))
+        self.thread.blockSignals(False)
+
+    def _reset_range(self) -> None:
+        """Open the boxes on the whole log, and stop filtering by time."""
+        span = self.model.time_span()
+        for box, value in ((self.time_from, span[0] if span else None),
+                           (self.time_to, span[1] if span else None)):
+            box.blockSignals(True)
+            if value is not None:
+                box.setDateTime(QDateTime(value))
+            box.blockSignals(False)
+        self.model.set_filter(time_from=False, time_to=False)
+        self._update_status()
+
     def _apply_filters(self) -> None:
         checked = {level for level, box in self._level_boxes.items()
                    if box.isChecked()}
@@ -314,10 +376,28 @@ class LogViewerWidget(QWidget):
         # happens to list every level -- Debug records would vanish otherwise.
         levels = set() if checked == set(LEVELS) else checked
         component = self.component.currentText()
+        thread = self.thread.currentText()
+        thread = "" if thread == "All" else thread.split(" ")[0]
+        # A backwards range would hide every row, and an empty table reads
+        # as "no such records" -- a lie about the log rather than a
+        # complaint about the range. Say so and filter nothing.
+        start = self.time_from.dateTime().toPyDateTime()
+        end = self.time_to.dateTime().toPyDateTime()
+        if start > end:
+            self.model.set_filter(time_from=False, time_to=False)
+            self.status.setText("That time range ends before it starts.")
+            return
         self.model.set_filter(
             levels=levels,
             needle=self.filter_box.text(),
-            component="" if component == "All" else component)
+            component="" if component == "All" else component,
+            thread=thread,
+            time_from=start,
+            time_to=end,
+            regex=self.regex_box.isChecked())
+        if self.model.filter_pattern_is_invalid():
+            self.status.setText("That pattern is not finished yet.")
+            return
         self._update_status()
 
     def find_next(self) -> None:
