@@ -60,6 +60,15 @@ class LogViewerWidget(QWidget):
         self._lookup = None
         self._rules = []
         self._config = None
+        # Whether the user has actually asked for a time range. The boxes
+        # always HOLD a value (the log's whole span, or whatever
+        # anchor_range/a manual edit set), but _apply_filters must not send
+        # it to the model unless this is True -- otherwise "Clear range"
+        # is undone by the next touch of any other control, and while
+        # following, the upper bound is frozen at the moment the log was
+        # opened, so new lines (later than that bound) silently stop
+        # appearing.
+        self._range_active = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -155,12 +164,15 @@ class LogViewerWidget(QWidget):
         range_row.addWidget(QLabel("From:", self))
         self.time_from = QDateTimeEdit(self)
         self.time_from.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.time_from.dateTimeChanged.connect(lambda _d: self._apply_filters())
+        # Only a genuine user edit reaches this slot: both programmatic
+        # writers (_reset_range, anchor_range) already blockSignals() around
+        # setDateTime(). A real edit is what turns the range on.
+        self.time_from.dateTimeChanged.connect(self._on_range_edited)
         range_row.addWidget(self.time_from)
         range_row.addWidget(QLabel("To:", self))
         self.time_to = QDateTimeEdit(self)
         self.time_to.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.time_to.dateTimeChanged.connect(lambda _d: self._apply_filters())
+        self.time_to.dateTimeChanged.connect(self._on_range_edited)
         range_row.addWidget(self.time_to)
         self.clear_range_button = QPushButton("Clear range", self)
         self.clear_range_button.clicked.connect(self._reset_range)
@@ -379,6 +391,13 @@ class LogViewerWidget(QWidget):
         self.time_to.setDateTime(QDateTime(entry.timestamp + span))
         self.time_from.blockSignals(False)
         self.time_to.blockSignals(False)
+        self._range_active = True
+        self._apply_filters()
+
+    def _on_range_edited(self, _new_value) -> None:
+        """A genuine user edit of either box -- see the comment on the
+        connect() calls. This is what turns the range on."""
+        self._range_active = True
         self._apply_filters()
 
     def build_row_menu(self, row: int) -> QMenu:
@@ -533,6 +552,7 @@ class LogViewerWidget(QWidget):
             if value is not None:
                 box.setDateTime(QDateTime(value))
             box.blockSignals(False)
+        self._range_active = False
         self.model.set_filter(time_from=False, time_to=False)
         self._update_status()
 
@@ -545,22 +565,33 @@ class LogViewerWidget(QWidget):
         component = self.component.currentText()
         thread = self.thread.currentText()
         thread = "" if thread == "All" else thread.split(" ")[0]
-        # A backwards range would hide every row, and an empty table reads
-        # as "no such records" -- a lie about the log rather than a
-        # complaint about the range. Say so and filter nothing.
-        start = self.time_from.dateTime().toPyDateTime()
-        end = self.time_to.dateTime().toPyDateTime()
-        if start > end:
-            self.model.set_filter(time_from=False, time_to=False)
-            self.status.setText("That time range ends before it starts.")
-            return
+        # The boxes always hold a value -- the log's whole span, or
+        # whatever anchor_range/a manual edit set -- but that must reach
+        # the model only once the user has actually asked for a range.
+        # Otherwise every OTHER control (Filter, a severity box, Component,
+        # Thread, Regex) re-sends time_from/time_to on every call, undoing
+        # "Clear range", and while following, the upper bound is frozen at
+        # the moment the log was opened so newer lines never appear.
+        time_from: object = False
+        time_to: object = False
+        if self._range_active:
+            # A backwards range would hide every row, and an empty table
+            # reads as "no such records" -- a lie about the log rather than
+            # a complaint about the range. Say so and filter nothing.
+            start = self.time_from.dateTime().toPyDateTime()
+            end = self.time_to.dateTime().toPyDateTime()
+            if start > end:
+                self.model.set_filter(time_from=False, time_to=False)
+                self.status.setText("That time range ends before it starts.")
+                return
+            time_from, time_to = start, end
         self.model.set_filter(
             levels=levels,
             needle=self.filter_box.text(),
             component="" if component == "All" else component,
             thread=thread,
-            time_from=start,
-            time_to=end,
+            time_from=time_from,
+            time_to=time_to,
             regex=self.regex_box.isChecked())
         if self.model.filter_pattern_is_invalid():
             self.status.setText("That pattern is not finished yet.")

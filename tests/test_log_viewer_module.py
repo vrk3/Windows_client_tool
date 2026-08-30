@@ -99,6 +99,30 @@ def test_following_does_not_re_add_what_is_already_shown(viewer):
     assert viewer.model.total == 3
 
 
+def test_a_followed_log_keeps_updating_after_typing_in_the_filter_box(viewer,
+                                                                       log):
+    """Regression: _apply_filters used to re-send time_from/time_to from the
+    QDateTimeEdit boxes on every call, even though "Clear range" had never
+    been touched and the user never asked for a range at all. Those boxes
+    are frozen at the moment the log was opened, so the upper bound sat at
+    13:45:14 -- the timestamp of the last of the three original records --
+    forever after. A followed log's whole point is that later lines have
+    LATER timestamps, so every one of them silently failed the frozen
+    time_to and never appeared, from the very next touch of any other
+    control onward. Typing in the Filter box is exactly such a touch."""
+    viewer.follow.setChecked(True)
+    viewer.filter_box.setText("Alpha")     # matches only the "Starting up" row
+    assert viewer.model.rowCount() == 1
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write('<![LOG[Later Alpha line]LOG]!><time="13:45:20.000+000" '
+                     'date="08-20-2026" component="Alpha" context="" '
+                     'type="1" thread="1" file="a.cpp:9">\n')
+    viewer._poll()
+    assert viewer.model.total == 4
+    assert viewer.model.rowCount() == 2, (
+        "the new line was silently dropped by a time range nobody asked for")
+
+
 def test_the_timer_only_runs_while_following(viewer):
     assert not viewer._timer.isActive()
     viewer.follow.setChecked(True)
