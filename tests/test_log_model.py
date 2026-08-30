@@ -379,3 +379,115 @@ def test_a_highlight_rule_foreground_contrasts_with_its_background(qapp):
     assert ratio >= 4.5, (
         f"A rule with background {background.name()} must have foreground "
         f"with 4.5:1 contrast; got {foreground.name()} at {ratio:.2f}:1")
+
+
+# ---- thread / time-range / regex filtering -------------------------------
+
+def _at(when, message="x", thread="1"):
+    return LogEntry(timestamp=when, source="CBS", level="Info",
+                    message=message, raw={"thread": thread})
+
+
+def test_filtering_by_thread(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), thread="100"),
+                    _at(datetime(2026, 8, 30, 12, 1), thread="200")])
+    model.set_filter(thread="200")
+    assert model.rowCount() == 1
+
+
+def test_threads_are_offered_by_how_common_they_are(qapp):
+    """DISM has 329 distinct thread ids, so the combo has to be ordered by
+    something useful -- an alphabetical list of 329 numbers is not."""
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), thread="100"),
+                    _at(datetime(2026, 8, 30, 12, 1), thread="200"),
+                    _at(datetime(2026, 8, 30, 12, 2), thread="200")])
+    assert model.threads() == [("200", 2), ("100", 1)]
+
+
+def test_filtering_by_a_time_range_includes_both_ends(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0)),
+                    _at(datetime(2026, 8, 30, 12, 5)),
+                    _at(datetime(2026, 8, 30, 12, 9))])
+    model.set_filter(time_from=datetime(2026, 8, 30, 12, 0),
+                     time_to=datetime(2026, 8, 30, 12, 5))
+    assert model.rowCount() == 2
+
+
+def test_a_record_with_no_timestamp_survives_a_time_filter(qapp):
+    """Losing a record is the one outcome a log viewer must never produce,
+    and a continuation line has no timestamp of its own."""
+    from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
+
+    model = _model([_at(UNKNOWN_TIME)])
+    model.set_filter(time_from=datetime(2026, 8, 30, 12, 0))
+    assert model.rowCount() == 1
+
+
+def test_the_time_span_is_the_first_and_last_real_timestamp(qapp):
+    from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
+
+    model = _model([_at(UNKNOWN_TIME),
+                    _at(datetime(2026, 8, 30, 12, 0)),
+                    _at(datetime(2026, 8, 30, 12, 9))])
+    assert model.time_span() == (datetime(2026, 8, 30, 12, 0),
+                                 datetime(2026, 8, 30, 12, 9))
+
+
+def test_the_time_span_of_an_empty_log_is_none(qapp):
+    assert _model([]).time_span() is None
+
+
+def test_filtering_by_a_regular_expression(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), "HRESULT = 0x80070005"),
+                    _at(datetime(2026, 8, 30, 12, 1), "all fine")])
+    model.set_filter(needle=r"0x8007[0-9a-f]{4}", regex=True)
+    assert model.rowCount() == 1
+
+
+def test_an_invalid_regex_matches_nothing_and_does_not_raise(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), "anything")])
+    model.set_filter(needle="[unclosed", regex=True)
+    assert model.rowCount() == 0
+
+
+def test_the_regex_is_compiled_once_per_filter_not_once_per_row(qapp):
+    import re
+
+    calls = []
+    original = re.compile
+
+    def counting(pattern, *args, **kwargs):
+        calls.append(pattern)
+        return original(pattern, *args, **kwargs)
+
+    model = _model([_at(datetime(2026, 8, 30, 12, i)) for i in range(20)])
+    re.compile = counting
+    try:
+        model.set_filter(needle="x", regex=True)
+    finally:
+        re.compile = original
+    assert len(calls) == 1, f"compiled {len(calls)} times for 20 rows"
+
+
+def test_find_honours_the_regex_flag_too(qapp):
+    """One checkbox governs Find AND Filter, so find() cannot stay
+    substring-only while the filter understands patterns."""
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), "all fine"),
+                    _at(datetime(2026, 8, 30, 12, 1), "HRESULT = 0x80070005")])
+    model.set_filter(regex=True)
+    assert model.find(r"0x8007[0-9a-f]{4}", start_row=0) == 1
+
+
+def test_find_with_an_invalid_pattern_finds_nothing(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), "anything")])
+    model.set_filter(regex=True)
+    assert model.find("[unclosed", start_row=0) == -1
+
+
+def test_the_filter_axes_combine(qapp):
+    model = _model([_at(datetime(2026, 8, 30, 12, 0), "keep", thread="100"),
+                    _at(datetime(2026, 8, 30, 12, 1), "keep", thread="200"),
+                    _at(datetime(2026, 8, 30, 13, 0), "keep", thread="100")])
+    model.set_filter(thread="100", needle="keep",
+                     time_to=datetime(2026, 8, 30, 12, 30))
+    assert model.rowCount() == 1

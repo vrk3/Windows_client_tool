@@ -8,6 +8,7 @@ Filtering keeps a separate index list rather than copying entries, so turning
 "Errors only" on and off costs a pass over integers and never touches the
 records themselves.
 """
+import re
 from collections import deque
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
@@ -32,7 +33,13 @@ class LogModel(QAbstractTableModel):
         self._visible: list = []
         self._levels = set()            # empty means "show everything"
         self._needle = ""
+        self._pattern = ""
         self._component = ""
+        self._thread = ""
+        self._time_from = None
+        self._time_to = None
+        self._regex = False
+        self._matcher = None            # compiled once per set_filter
         self._rules = []                # highlight rules
         self.dropped = 0                # records aged out of the cap
 
@@ -101,13 +108,41 @@ class LogModel(QAbstractTableModel):
     # ---- filtering ------------------------------------------------------
 
     def set_filter(self, levels=None, needle: str = None,
-                   component: str = None) -> None:
+                   component: str = None, thread: str = None,
+                   time_from=None, time_to=None, regex: bool = None) -> None:
+        """Each argument left as None keeps that axis unchanged.
+
+        `time_from`/`time_to` take the sentinel `False` to mean "clear this
+        bound", since None already means "leave it alone" and a range has to
+        be removable.
+        """
         if levels is not None:
             self._levels = set(levels)
         if needle is not None:
             self._needle = needle.lower()
+            self._pattern = needle
         if component is not None:
             self._component = component
+        if thread is not None:
+            self._thread = thread
+        if time_from is not None:
+            self._time_from = None if time_from is False else time_from
+        if time_to is not None:
+            self._time_to = None if time_to is False else time_to
+        if regex is not None:
+            self._regex = bool(regex)
+
+        # Compiled ONCE here, never inside _matches: at 134,527 records a
+        # per-row compile is 134,527 compiles per keystroke.
+        self._matcher = None
+        if self._regex and self._pattern:
+            try:
+                self._matcher = re.compile(self._pattern, re.IGNORECASE)
+            except re.error:
+                # A half-typed pattern is a typo. Nothing matches until it
+                # is finished; the pane says so in the status bar.
+                self._matcher = False
+
         self.beginResetModel()
         self._reindex()
         self.endResetModel()
@@ -129,14 +164,51 @@ class LogModel(QAbstractTableModel):
             return False
         if self._component and entry.source != self._component:
             return False
+        if self._thread and entry.raw.get("thread", "") != self._thread:
+            return False
+        # A record with no timestamp of its own -- a continuation line -- is
+        # never removed by a time filter. Losing a record is the one outcome
+        # a log viewer must not produce.
+        if entry.timestamp != UNKNOWN_TIME:
+            if self._time_from and entry.timestamp < self._time_from:
+                return False
+            if self._time_to and entry.timestamp > self._time_to:
+                return False
         if self._needle:
             # The whole ROW as the user sees it, not just the message.
             # Typing "warning" has to find the warning row of a CMTrace log,
             # where the word lives in the type attribute rather than the text.
-            haystack = f"{entry.message} {entry.level} {entry.source}".lower()
-            if self._needle not in haystack:
+            haystack = f"{entry.message} {entry.level} {entry.source}"
+            if self._matcher is False:
+                return False
+            if self._matcher is not None:
+                if not self._matcher.search(haystack):
+                    return False
+            elif self._needle not in haystack.lower():
                 return False
         return True
+
+    def threads(self) -> list:
+        """`(thread, count)` ordered by count descending.
+
+        DISM carries 329 distinct thread ids; an alphabetical list of 329
+        numbers is not a control anyone can use.
+        """
+        counts: dict = {}
+        for entry in self._entries:
+            thread = entry.raw.get("thread", "")
+            if thread:
+                counts[thread] = counts.get(thread, 0) + 1
+        return sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+
+    def time_span(self):
+        """`(first, last)` real timestamp, or None. Used to prefill the range
+        boxes so they open on the whole log rather than on the year 1752."""
+        stamps = [e.timestamp for e in self._entries
+                  if e.timestamp != UNKNOWN_TIME]
+        if not stamps:
+            return None
+        return min(stamps), max(stamps)
 
     def _reindex(self) -> None:
         self._visible = [i for i, e in enumerate(self._entries)
@@ -223,15 +295,35 @@ class LogModel(QAbstractTableModel):
 
         Wraps, because a search that stops at the end of a log makes the user
         scroll back to the top to carry on.
+
+        Honours the same Regex flag as the filter -- one checkbox governs
+        both, so this cannot stay substring-only while set_filter understands
+        patterns.
         """
-        needle = (needle or "").lower()
         if not needle or not self._visible:
             return -1
+
+        if self._regex:
+            try:
+                matcher = re.compile(needle, re.IGNORECASE)
+            except re.error:
+                # An invalid pattern is a typo, not a failure: it finds
+                # nothing rather than raising or falling back to substring.
+                return -1
+
+            def hit(message: str) -> bool:
+                return matcher.search(message) is not None
+        else:
+            needle_lower = needle.lower()
+
+            def hit(message: str) -> bool:
+                return needle_lower in message.lower()
+
         count = len(self._visible)
         step = 1 if forwards else -1
         for offset in range(1, count + 1):
             row = (start_row + offset * step) % count
             entry = self.entry(row)
-            if entry is not None and needle in entry.message.lower():
+            if entry is not None and hit(entry.message):
                 return row
         return -1
