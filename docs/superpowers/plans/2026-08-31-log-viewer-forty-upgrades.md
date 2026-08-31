@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 4 |
+| 2 | Analysis — what the tool is *for* | 7 | 5 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-05 (error-density strip).
+**Next task:** W2-06 (servicing sessions).
 
 ---
 
@@ -518,15 +518,30 @@ a small `QWidget` painter in the pane; tests for the bucketing
 
 **Interfaces:** `buckets(entries, count) -> [(start_time, total, errors)]`.
 
-- [ ] Test: `test_buckets_span_the_whole_range`
-- [ ] Test: `test_every_record_lands_in_exactly_one_bucket`
-- [ ] Test: `test_a_single_instant_log_does_not_divide_by_zero`
-- [ ] Test: `test_records_with_no_timestamp_are_excluded_not_bucketed_at_epoch`
-- [ ] Painter: `QPainter`, int coordinates only (PyQt6 is strict — see
+- [x] Test: `test_buckets_span_the_whole_range`
+- [x] Test: `test_every_record_lands_in_exactly_one_bucket`
+- [x] Test: `test_a_single_instant_log_does_not_divide_by_zero`
+- [x] Test: `test_records_with_no_timestamp_are_excluded_not_bucketed_at_epoch`
+- [x] Painter: `QPainter`, int coordinates only (PyQt6 is strict — see
       `perfmon_charts.py`), theme colours from `semantic_colors`
-- [ ] Click maps x → time → `row_at_or_after` from W1-06 (depends on it)
-- [ ] **Look at it in both themes on the real archive**
-- [ ] Commit
+- [x] Click maps x → time → `row_at_or_after` from W1-06 (depends on it)
+- [x] **Look at it in both themes on the real archive**
+- [x] Commit
+- **Found by rendering: linear scaling made the strip useless.** CBS
+  writes in bursts, so one bucket held the overwhelming majority of
+  138,683 records and every other bar rounded to zero pixels -- the
+  strip read as a single block with nothing around it. `bar_height()`
+  uses a SQUARE ROOT: ordering survives, and a bucket a thousandth the
+  size of the busiest stays visible. An error bar is never under two
+  pixels, because a single failure is the thing worth seeing.
+- **It also caught a bug I had shipped in W1-08.** A clock-less source
+  is sorted last by giving its records `APPENDIX_TIME` (datetime.max),
+  and both the density strip AND the gap finder were reading that as a
+  real timestamp -- year 9999. `log_set.effective_time()` is now the one
+  place that says what `merge_time` means, and both go through it.
+- Refreshed inline rather than debounced: one pass, no regex, unlike
+  the Summary counts. Hidden entirely for a log with no timestamps --
+  there is nothing to place on a timeline.
 
 ### W2-06 (idea 17): Servicing sessions
 

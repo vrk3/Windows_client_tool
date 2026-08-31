@@ -42,6 +42,8 @@ from modules.log_viewer.history import (RECENT_CAP, load_history,
 from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
+from modules.log_viewer.density import buckets
+from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
 from modules.log_viewer.log_stats import (first_error, gaps,
                                           last_success_before,
@@ -347,6 +349,14 @@ class LogViewerWidget(QWidget):
         range_row.addWidget(self.regex_box)
         range_row.addStretch(1)
         layout.addLayout(range_row)
+
+        # Above the table: where the records and the failures fall across the
+        # loaded span. On a 1.5-million-record archive this is the difference
+        # between reading a log and hunting through one.
+        self.density = DensityStrip(self)
+        self.density.moment_picked.connect(self.go_to_time)
+        self.density.setVisible(False)
+        layout.addWidget(self.density)
 
         self.table = QTableView(self)
         self.table.setModel(self.model)
@@ -909,6 +919,18 @@ class LogViewerWidget(QWidget):
     def _on_summary_message(self, item) -> None:
         self.filter_box.setText(item.text().split("   ", 1)[1])
 
+    def _refresh_density(self) -> None:
+        """Re-bucket over what the filter left.
+
+        Cheap enough to run inline -- one pass, no regex -- unlike the
+        Summary panel's counts, which is why this is not behind the debounce.
+        A log with no timestamps anywhere gets no strip rather than an empty
+        box: there is nothing to place on a timeline.
+        """
+        made = buckets(self.visible_entries())
+        self.density.set_buckets(made)
+        self.density.setVisible(bool(made))
+
     def _refresh_match_colours(self) -> None:
         """Tell the Message delegate what to pick out inside each line.
 
@@ -1436,6 +1458,7 @@ class LogViewerWidget(QWidget):
             self.status.setText("That Hide pattern is not finished yet.")
             return
         self._refresh_match_colours()
+        self._refresh_density()
         self._schedule_summary()
         self._update_status()
 

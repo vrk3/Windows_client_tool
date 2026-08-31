@@ -40,15 +40,33 @@ from .log_reader import DEFAULT_MAX_BYTES, LogReader
 #: with them.
 LOG_SUFFIXES = (".log", ".lo_")
 
-#: The sort key a source with no clock at all is given, so it lands at
-#: the end of the timeline rather than at the epoch in front of it.
-_APPENDIX = datetime.max
+#: The sort key a source with no clock at all is given, so it lands at the
+#: end of the timeline rather than at the epoch in front of it.
+#:
+#: It is a SORT key, never a moment. Anything reading `merge_time` as a real
+#: timestamp has to reject it -- `effective_time()` below is how, and both
+#: the gap finder and the density strip go through it.
+APPENDIX_TIME = datetime.max
 
 #: Deliberately duplicated from `log_model` rather than imported: that module
 #: imports PyQt6, and importing it here would drag Qt into the merge engine
 #: and cost the headless testability this file's docstring claims.
 #: `test_log_set.py` pins the two to the same number.
 DEFAULT_CAP = 200_000
+
+
+def effective_time(entry):
+    """The moment a record happened, or None if it has no real one.
+
+    Prefers the merged timeline's own key, since that is what the view was
+    built on -- but rejects `APPENDIX_TIME`, which is a sort position for a
+    source with no clock rather than a time anything happened. Reading that
+    as a timestamp puts the record in the year 9999.
+    """
+    when = entry.raw.get("merge_time") or entry.timestamp
+    if when in (UNKNOWN_TIME, APPENDIX_TIME):
+        return None
+    return when
 
 
 class LogSet:
@@ -185,7 +203,7 @@ class LogSet:
             # at the end of the timeline.
             dateless = all(entry.timestamp == UNKNOWN_TIME
                            for entry in source)
-            carried = _APPENDIX if dateless else UNKNOWN_TIME
+            carried = APPENDIX_TIME if dateless else UNKNOWN_TIME
             for entry in source:
                 if entry.timestamp != UNKNOWN_TIME:
                     carried = entry.timestamp

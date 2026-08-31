@@ -13,8 +13,8 @@ No Qt, like the reader, the parser and the merge engine it sits beside.
 """
 from collections import Counter
 
-from .cmtrace_parser import UNKNOWN_TIME
 from .error_codes import _is_failure, find_codes
+from .log_set import effective_time as _clock
 
 #: How many rows a panel shows before it stops being scannable.
 DEFAULT_TOP_N = 10
@@ -78,16 +78,6 @@ def top_messages(entries, limit: int = DEFAULT_TOP_N, key=None) -> list:
 #: A silence shorter than this is just a log being a log.
 DEFAULT_GAP_SECONDS = 30
 
-
-def _clock(entry):
-    """The moment a record happened, or None if it does not carry one.
-
-    Prefers the effective timestamp a merged set assigns, because that is
-    what the timeline was actually built on -- measuring a gap against
-    anything else would describe an order the view is not in.
-    """
-    when = entry.raw.get("merge_time") or entry.timestamp
-    return None if when == UNKNOWN_TIME else when
 
 
 def gaps(entries, threshold_seconds: float = DEFAULT_GAP_SECONDS) -> list:
