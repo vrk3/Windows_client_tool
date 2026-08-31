@@ -53,7 +53,7 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 5 |
+| 1 | Quick wins that change daily use | 13 | 7 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
@@ -238,25 +238,37 @@ the epoch and lead any merged view of `C:\Windows\Logs\CBS`.
 
 **Files:** `log_viewer_module.py`, `tests/test_log_viewer_module.py`
 
-- [ ] Test: `test_opening_a_log_adds_it_to_the_recent_list`
-- [ ] Test: `test_opening_a_folder_is_recorded_as_a_folder`
-- [ ] Test: `test_the_recent_list_is_capped_and_deduplicated`
-- [ ] Test: `test_a_recent_entry_that_no_longer_exists_is_dropped_on_build`
-- [ ] Render in `_build_open_menu` under the known logs; persist via
+- [x] Test: `test_opening_a_log_adds_it_to_the_recent_list`
+- [x] Test: `test_opening_a_folder_is_recorded_as_a_folder`
+- [x] Test: `test_the_recent_list_is_capped_and_deduplicated`
+- [x] Test: `test_a_recent_entry_that_no_longer_exists_is_dropped_on_build`
+- [x] Render in `_build_open_menu` under the known logs; persist via
       `self._config`
-- [ ] Commit
+- [x] Commit
+- **Done.** Reuses `history.remember` with its own cap (10) and config
+  key. A folder is remembered AS the folder, not as the dozen files it
+  happened to contain. Entries that no longer exist are dropped when
+  the menu is built -- a log can be rolled away between sessions, and
+  offering a path that is gone is offering an error message.
 
 ### W1-10 (idea 27): Drag and drop
 
 **Files:** `log_viewer_module.py`, `tests/test_log_viewer_module.py`
 
-- [ ] Test: `test_dropping_a_file_opens_it`
-- [ ] Test: `test_dropping_a_folder_opens_every_log_in_it`
-- [ ] Test: `test_dropping_several_files_opens_them_as_one_timeline`
-- [ ] Test: `test_dropping_something_that_is_not_a_log_is_refused_politely`
-- [ ] `setAcceptDrops(True)`, `dragEnterEvent`, `dropEvent`; build the
+- [x] Test: `test_dropping_a_file_opens_it`
+- [x] Test: `test_dropping_a_folder_opens_every_log_in_it`
+- [x] Test: `test_dropping_several_files_opens_them_as_one_timeline`
+- [x] Test: `test_dropping_something_that_is_not_a_log_is_refused_politely`
+- [x] `setAcceptDrops(True)`, `dragEnterEvent`, `dropEvent`; build the
       events in the test with `QMimeData().setUrls([...])`
-- [ ] Commit
+- [x] Commit
+- **Done.** Dropped paths are `normpath`ed: `QUrl.toLocalFile()` hands
+  back forward slashes on Windows, and the recent list deduplicates by
+  string, so without it one file would sit there twice under two
+  spellings.
+- A drop containing nothing openable leaves the current log alone and
+  says so. Replacing it with an empty pane would lose what the person
+  was reading in order to report their mistake.
 
 ### W1-11 (idea 34): Copy rows as Markdown
 

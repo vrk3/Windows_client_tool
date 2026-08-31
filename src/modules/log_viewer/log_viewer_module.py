@@ -34,11 +34,12 @@ from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
     COMPONENT, LogModel, MESSAGE, SEVERITY, SOURCE, THREAD, TIME,
 )
-from modules.log_viewer.history import (load_history, remember,
-                                        save_history)
+from modules.log_viewer.history import (RECENT_CAP, load_history,
+                                        load_recent, remember,
+                                        save_history, save_recent)
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
-from modules.log_viewer.log_set import LogSet
+from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
 from modules.log_viewer.log_search_provider import LogSearchProvider
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,12 @@ class LogViewerWidget(QWidget):
         #: path chains loads and walks the window back several steps from one
         #: flick of the wheel.
         self._loading_earlier = False
+        #: Logs and folders opened recently, most recent first.
+        self._recent: list = []
         self._path = ""
+        # Dropping a file or a folder on the pane opens it. The folder path
+        # is already a first-class input, so this costs almost nothing.
+        self.setAcceptDrops(True)
         self._last_found = -1
         self._lookup = None
         self._rules = []
@@ -423,6 +429,20 @@ class LogViewerWidget(QWidget):
             self.open_menu.addAction(
                 "CBS — largest archive on disk",
                 lambda _c=False, p=largest: self.open(p))
+        recent = [path for path in getattr(self, "_recent", [])
+                  if os.path.exists(path)]
+        if recent:
+            # A log can be rolled away between sessions; offering a path that
+            # is gone is offering an error message.
+            self.open_menu.addSeparator()
+            for path in recent:
+                # A folder path can end in a separator, and basename() of
+                # "C:\\Logs\\CBS\\" is the empty string.
+                label = os.path.basename(path.rstrip(os.sep + "/")) or path
+                if os.path.isdir(path):
+                    label = f"{label}  (folder)"
+                self.open_menu.addAction(
+                    label, lambda _c=False, p=path: self.open_recent(p))
         self.open_menu.addSeparator()
         self.open_menu.addAction("Browse…", self.choose_file)
         self.open_menu.addAction("Open every log in a folder…",
@@ -438,9 +458,18 @@ class LogViewerWidget(QWidget):
     def open(self, path: str) -> None:
         self.open_paths([path])
 
-    def open_paths(self, paths) -> None:
-        """Open one log, or several read as a single timeline."""
+    def open_paths(self, paths, remember_as: str = None) -> None:
+        """Open one log, or several read as a single timeline.
+
+        `remember_as` is what goes in the recent list: a folder is remembered
+        as the folder, not as the dozen files it happened to contain.
+        """
         self._paths = list(paths)
+        entry = remember_as or (self._paths[0] if self._paths else "")
+        if entry:
+            self._recent = remember(self._recent, entry, cap=RECENT_CAP)
+            save_recent(self._config, self._recent)
+            self._build_open_menu()
         self._path = self._paths[0] if self._paths else ""
         self.reload()
 
@@ -456,7 +485,51 @@ class LogViewerWidget(QWidget):
             self.status.setText(
                 f"No logs (*.log, *.lo_) directly in {folder}")
             return
-        self.open_paths(found)
+        self.open_paths(found, remember_as=folder)
+
+    def open_recent(self, path: str) -> None:
+        """Reopen something from the recent list, file or folder."""
+        if os.path.isdir(path):
+            self.open_folder(path)
+        else:
+            self.open(path)
+
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:
+        """Open whatever was dropped: a log, several logs, or a folder.
+
+        A drop that contains nothing openable leaves the current log alone
+        and says so. Replacing it with an empty pane would lose the thing
+        the person was reading in order to report a mistake.
+        """
+        # normpath because QUrl hands back forward slashes on Windows. The
+        # recent list deduplicates by string, so without this one file would
+        # sit in it twice under two spellings.
+        paths = [os.path.normpath(url.toLocalFile())
+                 for url in event.mimeData().urls() if url.isLocalFile()]
+        if not paths:
+            return
+        event.acceptProposedAction()
+
+        if len(paths) == 1 and os.path.isdir(paths[0]):
+            self.open_folder(paths[0])
+            return
+
+        logs = [path for path in paths
+                if os.path.isfile(path)
+                and path.lower().endswith(LOG_SUFFIXES)]
+        if not logs:
+            self.status.setText(
+                "Dropped no log files (*.log, *.lo_ are what this opens).")
+            return
+        self.open_paths(logs)
 
     def choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Open every log in a folder")

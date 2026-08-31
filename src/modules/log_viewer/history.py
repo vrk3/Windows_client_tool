@@ -14,12 +14,20 @@ logger = logging.getLogger(__name__)
 #: Where it lives in the app config.
 CONFIG_KEY = "log_viewer.filter_history"
 
+#: The logs and folders opened recently. Same ordering rules, different list:
+#: you reopen the same handful of paths for the length of an investigation.
+CONFIG_RECENT = "log_viewer.recent"
+
 #: Long enough to cover a session's worth of patterns, short enough that the
 #: completer's dropdown is still something you can read at a glance.
 HISTORY_CAP = 20
 
+#: Shorter than the filter history: a menu of paths is scanned, not read, and
+#: ten is already more than an investigation touches.
+RECENT_CAP = 10
 
-def remember(history, text: str) -> list:
+
+def remember(history, text: str, cap: int = None) -> list:
     """`history` with `text` at the front, deduplicated and capped.
 
     Returns a new list rather than mutating: the caller holds the old one
@@ -33,11 +41,12 @@ def remember(history, text: str) -> list:
         return list(history)
     # Moved rather than duplicated: repeating yesterday's pattern should
     # bring it back to the top, not give it two rows in the dropdown.
+    limit = HISTORY_CAP if cap is None else cap
     kept = [entry for entry in history if entry != text]
-    return [text] + kept[:HISTORY_CAP - 1]
+    return [text] + kept[:limit - 1]
 
 
-def load_history(config) -> list:
+def _load_list(config, key, cap) -> list:
     """The stored history, or an empty list.
 
     Anything that is not a list of strings is discarded rather than trusted:
@@ -47,25 +56,43 @@ def load_history(config) -> list:
     if config is None:
         return []
     try:
-        stored = config.get(CONFIG_KEY, [])
+        stored = config.get(key, [])
     except Exception:                                       # noqa: BLE001
-        logger.warning("Could not read %s", CONFIG_KEY, exc_info=True)
+        logger.warning("Could not read %s", key, exc_info=True)
         return []
     if not isinstance(stored, list):
         logger.warning("%s is %s, not a list; ignoring it",
-                       CONFIG_KEY, type(stored).__name__)
+                       key, type(stored).__name__)
         return []
     if not all(isinstance(entry, str) for entry in stored):
-        logger.warning("%s holds non-string entries; ignoring it", CONFIG_KEY)
+        logger.warning("%s holds non-string entries; ignoring it", key)
         return []
-    return stored[:HISTORY_CAP]
+    return stored[:cap]
 
 
-def save_history(config, history) -> None:
+def _save_list(config, key, values, cap) -> None:
     if config is None:
         return
     try:
-        config.set(CONFIG_KEY, list(history)[:HISTORY_CAP])
+        config.set(key, list(values)[:cap])
         config.save()
     except Exception:                                       # noqa: BLE001
-        logger.warning("Could not save %s", CONFIG_KEY, exc_info=True)
+        logger.warning("Could not save %s", key, exc_info=True)
+
+
+def load_history(config) -> list:
+    """Filter patterns, most recent first."""
+    return _load_list(config, CONFIG_KEY, HISTORY_CAP)
+
+
+def load_recent(config) -> list:
+    """Logs and folders opened recently, most recent first."""
+    return _load_list(config, CONFIG_RECENT, RECENT_CAP)
+
+
+def save_recent(config, entries) -> None:
+    _save_list(config, CONFIG_RECENT, entries, RECENT_CAP)
+
+
+def save_history(config, history) -> None:
+    _save_list(config, CONFIG_KEY, history, HISTORY_CAP)
