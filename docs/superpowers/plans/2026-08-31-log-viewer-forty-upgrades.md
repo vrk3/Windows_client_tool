@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 3 |
+| 3 | Reading and filtering | 8 | 4 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-04 (several filter terms).
+**Next task:** W3-05 (saved filter presets).
 
 ---
 
@@ -693,10 +693,23 @@ version numbers and package names with placeholders; `cluster(entries)`.
 
 **Files:** `log_model.py`, pane, tests
 
-- [ ] Test: `test_space_separated_terms_are_ANDed`
-- [ ] Test: `test_a_quoted_phrase_is_one_term`
-- [ ] Test: `test_regex_mode_treats_the_whole_box_as_one_pattern`
-- [ ] Commit
+- [x] Test: `test_space_separated_terms_are_ANDed`
+- [x] Test: `test_a_quoted_phrase_is_one_term`
+- [x] Test: `test_regex_mode_treats_the_whole_box_as_one_pattern`
+- [x] Commit
+- **The colouring had to follow the same split, and nothing in the
+  suite would have caught it.** With terms ANDed, `package install`
+  matches rows that never contain that string as typed, so the delegate
+  compiled a needle nothing could match and the highlighting silently
+  stopped working while the filter kept working.
+- `split_terms` preserves CASE: the delegate colours what it is given
+  and the model lowercases when it compares, so lowercasing in the
+  split would make the highlight disagree with the box.
+- An unmatched quote is a half-typed phrase, not a syntax error -- the
+  rest is taken as ordinary terms. Empty terms are dropped, since one
+  would match every row and silently widen the filter back out.
+- Regex mode passes the box through whole: a pattern contains spaces of
+  its own and splitting it would break it.
 
 ### W3-05 (idea 11): Saved filter presets
 

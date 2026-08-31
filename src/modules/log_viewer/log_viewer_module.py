@@ -32,7 +32,8 @@ from core.search_provider import SearchProvider
 
 from modules.log_viewer import cmtrace_parser
 from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
-from modules.log_viewer.log_model import (
+from modules.log_viewer.log_model import (  # noqa: I001
+    split_terms,
     COMPONENT, LogModel, MESSAGE, PACKAGE, SEVERITY, SOURCE, THREAD,
     TIME,
 )
@@ -1007,9 +1008,17 @@ class LogViewerWidget(QWidget):
         A repaint, not a reset: which rows are VISIBLE has not changed, and a
         reset would clear the selection -- the trap `append` documents.
         """
+        # Split the same way the filter does, or a multi-term filter would
+        # match rows and highlight nothing in them: "package install" is
+        # never present as typed. In regex mode the box IS one pattern,
+        # spaces and all, so it goes through whole.
+        if self.regex_box.isChecked():
+            needles = [self.filter_box.text(), self.find_box.text()]
+        else:
+            needles = (split_terms(self.filter_box.text())
+                       + split_terms(self.find_box.text()))
         self.message_delegate.set_needles(
-            [self.filter_box.text(), self.find_box.text()],
-            regex=self.regex_box.isChecked())
+            needles, regex=self.regex_box.isChecked())
         self.table.viewport().update()
 
     def _refresh_range_bounds(self) -> None:

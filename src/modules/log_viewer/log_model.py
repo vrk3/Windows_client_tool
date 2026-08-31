@@ -37,6 +37,34 @@ TIME, SOURCE, SEVERITY, COMPONENT, PACKAGE, THREAD, MESSAGE = range(
 DEFAULT_CAP = 200_000
 
 
+def split_terms(text: str) -> list:
+    """A filter box's text as the terms it means, AS TYPED.
+
+    Case is preserved because the delegate colours what it is given and the
+    model lowercases when it compares; lowercasing here would make the
+    highlighting disagree with the box.
+
+    Space separated and ANDed, because "these two words, either order" is the
+    everyday case and a regex is the wrong tool for it. A quoted phrase is
+    one term, so a phrase with a space in it is still expressible.
+
+    An unmatched quote is a half-typed phrase, not a syntax error: the rest
+    of the text is taken as ordinary terms rather than the filter refusing.
+    Empty terms are dropped -- one would match every row and silently widen
+    the filter back out.
+    """
+    terms = []
+    for index, chunk in enumerate((text or "").split('"')):
+        if index % 2:
+            # Inside quotes: one term, spaces and all.
+            phrase = chunk.strip()
+            if phrase:
+                terms.append(phrase)
+        else:
+            terms.extend(word for word in chunk.split() if word)
+    return terms
+
+
 def _as_selection(value) -> frozenset:
     """A filter axis as a set of accepted values.
 
@@ -61,10 +89,12 @@ class LogModel(QAbstractTableModel):
         self._levels = set()            # empty means "show everything"
         self._needle = ""
         self._pattern = ""
+        self._terms: list = []
         #: The inverse of the needle: rows matching this are REMOVED. A real
         #: CBS.log is mostly `Appl: detectParent` and `Plan: Package`, and no
         #: positive filter drops that boilerplate without dropping the rest.
         self._exclude = ""
+        self._exclude_terms: list = []
         self._exclude_matcher = None
         self._component = frozenset()
         self._thread = frozenset()
@@ -352,6 +382,8 @@ class LogModel(QAbstractTableModel):
         if needle is not None:
             self._needle = needle.lower()
             self._pattern = needle
+            self._terms = [term.lower()
+                           for term in split_terms(needle)]
         if component is not None:
             self._component = _as_selection(component)
         if thread is not None:
@@ -360,6 +392,8 @@ class LogModel(QAbstractTableModel):
             self._log = log
         if exclude is not None:
             self._exclude = exclude
+            self._exclude_terms = [term.lower()
+                                   for term in split_terms(exclude)]
         if time_from is not None:
             self._time_from = None if time_from is False else time_from
         if time_to is not None:
@@ -438,7 +472,7 @@ class LogModel(QAbstractTableModel):
             if self._matcher is not None:
                 if not self._matcher.search(text):
                     return False
-            elif self._needle not in text.lower():
+            elif not all(term in text.lower() for term in self._terms):
                 return False
         if self._exclude and self._excluded_by(entry):
             return False
@@ -459,7 +493,9 @@ class LogModel(QAbstractTableModel):
         text = haystack(entry)
         if self._exclude_matcher is not None:
             return bool(self._exclude_matcher.search(text))
-        return self._exclude.lower() in text.lower()
+        lowered = text.lower()
+        return bool(self._exclude_terms) and all(
+            term in lowered for term in self._exclude_terms)
 
     def has_packages(self) -> bool:
         """Whether any loaded record names a package.
