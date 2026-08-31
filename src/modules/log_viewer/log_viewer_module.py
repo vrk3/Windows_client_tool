@@ -1238,6 +1238,18 @@ class LogViewerWidget(QWidget):
             return 0
         return self._set.earlier_bytes()
 
+    def _expand_row(self, row: int) -> None:
+        """Let the selected row wrap, and let the previous one collapse.
+
+        Both rows are resized explicitly: Qt only re-asks for a size hint
+        when told to, and resizing the whole table would measure every row.
+        """
+        previous = self.message_delegate.expanded_row
+        self.message_delegate.expanded_row = row
+        for changed in {previous, row}:
+            if 0 <= changed < self.model.rowCount():
+                self.table.resizeRowToContents(changed)
+
     def _on_row_selected(self, current, _previous) -> None:
         """Show the whole selected record, and spell out its error codes.
 
@@ -1245,6 +1257,7 @@ class LogViewerWidget(QWidget):
         and the record counts live -- so clicking a row threw away the one
         piece of text saying how much of the log was on screen.
         """
+        self._expand_row(current.row() if current.isValid() else -1)
         entry = self.model.entry(current.row()) if current.isValid() else None
         if entry is None:
             self.detail.clear()

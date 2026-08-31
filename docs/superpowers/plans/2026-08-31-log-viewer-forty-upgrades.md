@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 6 |
+| 3 | Reading and filtering | 8 | 7 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-07 (wrap the selected row).
+**Next task:** W3-08 (pin rows), then Wave 4.
 
 ---
 
@@ -778,12 +778,26 @@ pane; tests
 
 **Files:** `log_delegate.py`, pane, tests
 
-- [ ] Test: `test_the_selected_row_reports_a_taller_size_hint`
-- [ ] Test: `test_only_one_row_is_ever_expanded`
-- [ ] Test: `test_expanding_does_not_break_the_rich_text_painting`
-- [ ] `sizeHint` on the delegate plus `resizeRowToContents`; beware the
+- [x] Test: `test_the_selected_row_reports_a_taller_size_hint`
+- [x] Test: `test_only_one_row_is_ever_expanded`
+- [x] Test: `test_expanding_does_not_break_the_rich_text_painting`
+- [x] `sizeHint` on the delegate plus `resizeRowToContents`; beware the
       200k-row cost — only the selected row may be measured
-- [ ] Commit
+- [x] Commit
+- **The tests all passed while the feature did nothing**, and only the
+  real archive showed it. Qt hands `sizeHint` an EMPTY rect when it asks
+  during `resizeRowToContents`, and a text width of zero disables
+  wrapping -- so the row came back one line tall. Every test here built
+  an option rect with a real width and so never met the case. Measured
+  on the archive: a 331-character message in an 817px column went
+  24px -> 28px when it should have been 24px -> 60px. There is now a
+  test that passes an empty rect.
+- Only the SELECTED row is ever measured, and the two affected rows are
+  resized explicitly rather than resizing the table -- measuring every
+  row would lay out 200,000 messages to show one. Cost on the real
+  archive: 15 ms on selection, 0 ms moving on.
+- The expanded row always takes the rich-text path, because that is
+  where wrapping lives; the plain path elides.
 
 ### W3-08 (idea 06): Pin rows
 
