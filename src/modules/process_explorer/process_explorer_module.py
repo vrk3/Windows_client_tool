@@ -59,14 +59,26 @@ class ProcessExplorerModule(BaseModule):
     def on_start(self, app) -> None:
         self.app = app
         self._collector = ProcessCollector(interval_ms=1000)
-        self._collector.set_thread_pool(app.thread_pool)
+        pool = getattr(app, "thread_pool", None)
+        self._collector.set_thread_pool(pool)
+
+        if pool is None:
+            # No pool to hand it to. This is reachable: CLAUDE.md records
+            # that QThreadPool.globalInstance() has come back None in this
+            # codebase's import graph, and as a composite CHILD this module
+            # is started by whatever app the host was given. Falling over
+            # here disabled the whole tab; the service names are only used
+            # to mark rows, so read them inline instead.
+            self._collector.set_service_names(self._fetch_service_names(None))
+            return
+
         # Fetch service names once in background
         w = Worker(self._fetch_service_names)
         w.signals.result.connect(
             lambda names: self._collector.set_service_names(names) if self._collector else None
         )
         self._workers.append(w)
-        app.thread_pool.start(w)
+        pool.start(w)
 
     @staticmethod
     def _fetch_service_names(worker) -> set:

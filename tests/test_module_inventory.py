@@ -166,8 +166,18 @@ def test_the_filter_panel_offers_no_source_that_cannot_answer(registered):
     assert set(_ALL_SOURCES) <= reachable
 
 
-def test_the_sidebar_is_34_entries(registered):
-    assert len(registered) == 34
+def test_the_sidebar_is_33_entries(registered):
+    """33, not 34: Process Explorer stopped being its own sidebar entry when
+    the Dashboard absorbed it. Two doors to the same room is two places to
+    kill a process from. It is still reachable -- as a Dashboard tab, which
+    `_all_composite_children` covers."""
+    assert len(registered) == 33
+
+
+def test_process_explorer_is_reachable_as_a_dashboard_tab(registered):
+    """Absorbed, not deleted."""
+    dashboard = next(m for m in registered if m.name == "Dashboard")
+    assert "Process Explorer" in [c.name for c in dashboard.children]
 
 
 def _all_composite_children():

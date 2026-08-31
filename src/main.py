@@ -99,7 +99,6 @@ def register_all_modules(app) -> None:
     # Register all data modules
     from modules.dashboard.dashboard_module import DashboardModule
     from modules.perfmon.perfmon_module import PerfMonModule
-    from modules.process_explorer.process_explorer_module import ProcessExplorerModule
     from modules.tweaks.tweaks_module import TweaksModule
     from modules.cleanup.cleanup_module import CleanupModule
     from modules.cleanup.quick_cleanup_module import QuickCleanupModule
@@ -141,7 +140,9 @@ def register_all_modules(app) -> None:
     app.module_registry.register(LogViewerModule())
     # EventViewer, CBS, DISM, WU, Reliability, CrashDumps — embedded in DiagnoseModule
     app.module_registry.register(PerfMonModule())
-    app.module_registry.register(ProcessExplorerModule())
+    # Process Explorer is hosted by the Dashboard rather than registered
+    # here: one place to kill a process from, one process engine to keep
+    # honest. See modules/dashboard/dashboard_module.py.
     app.module_registry.register(TweaksModule())
     app.module_registry.register(CleanupModule())
     app.module_registry.register(QuickCleanupModule())
