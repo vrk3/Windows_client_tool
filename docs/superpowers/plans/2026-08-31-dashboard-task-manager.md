@@ -155,10 +155,10 @@ and the wall time between them.
 
 ## Wave 2 -- Performance
 
-- [ ] W2-01 CPU: per-core graphs, utilisation, speed, processes/threads/handles,
+- [x] W2-01 CPU: per-core graphs, utilisation, speed, processes/threads/handles,
       uptime, base speed, sockets, cores, logical processors, virtualisation,
       L1/L2/L3 cache.
-- [ ] W2-02 Memory: in use, available, committed, cached, paged and non-paged
+- [x] W2-02 Memory: in use, available, committed, cached, paged and non-paged
       pool, speed, slots used, form factor, hardware reserved.
 - [ ] W2-03 Disk: active time, average response time, read/write speed,
       capacity, system disk, page file.
@@ -266,3 +266,16 @@ Recorded as they are learned, the way the Log Viewer plan did.
   it: `on_start` does `app.thread_pool.start(w)` unguarded, and as a
   composite CHILD it is started with whatever app the host was given. It now
   reads service names inline when there is no pool.
+- **2026-08-31, W2-01:** `KernelTime` from
+  `SystemProcessorPerformanceInformation` ALREADY INCLUDES `IdleTime`, and
+  nothing in the API says so. Treat them as separate and an idle machine
+  reads as 100% busy on every core -- a graph pinned forever, which is worse
+  than no graph. Busy time is `(kernel - idle) + user`.
+- **2026-08-31, W2-02:** every figure `GetPerformanceInfo` returns is in
+  PAGES except `PageSize`. Raw, the numbers are 4096x too small and still
+  look plausible -- 8 GB of commit reads as 2 MB, not as an obvious error.
+- **2026-08-31, W2-02 (caught by rendering, not by a test):** the CPU speed
+  formatter promotes anything over 1000 MHz to GHz, which is right for a
+  processor and wrong for memory: the DDR5 speed rendered as "4.80 GHz",
+  a figure nobody quotes and easily misread as the CPU's clock. Memory speed
+  has its own formatter now.

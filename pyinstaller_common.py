@@ -91,6 +91,11 @@ HIDDEN_IMPORTS = [
     # analysis can miss them and the tabs would be silently absent.
     "modules.dashboard.details_module",
     "modules.dashboard.processes_module",
+    "modules.dashboard.performance_module",
+    "modules.dashboard.performance_tab",
+    "modules.dashboard.perf_graph",
+    "modules.dashboard.procengine.cpuinfo",
+    "modules.dashboard.procengine.meminfo",
     "modules.dashboard.processes_tab",
     "modules.dashboard.procengine.grouping",
     "modules.dashboard.details_tab",
