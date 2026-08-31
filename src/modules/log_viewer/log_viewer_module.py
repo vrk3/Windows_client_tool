@@ -885,6 +885,8 @@ class LogViewerWidget(QWidget):
         menu.addAction("Look up the error codes on this row",
                        lambda _c=False: self.open_error_lookup(row))
         menu.addAction("Copy selected rows", self.copy_selection)
+        menu.addAction("Copy selected rows as Markdown",
+                       self.copy_selection_as_markdown)
         return menu
 
     def _on_context_menu(self, point) -> None:
@@ -934,13 +936,21 @@ class LogViewerWidget(QWidget):
         """
         return self.model.rows_for_export()
 
-    def copy_selection(self) -> None:
-        """Copy selected rows to clipboard without provenance header."""
+    def _selected_entries(self) -> list:
+        """The records under the selection, falling back to the current row.
+
+        Shared by both copy actions so they can never disagree about what
+        "the selection" is.
+        """
         rows = sorted({index.row()
                        for index in self.table.selectionModel().selectedRows()}
                       or {self.table.currentIndex().row()})
-        entries = [self.model.entry(row) for row in rows
-                   if self.model.entry(row) is not None]
+        return [self.model.entry(row) for row in rows
+                if self.model.entry(row) is not None]
+
+    def copy_selection(self) -> None:
+        """Copy selected rows to clipboard without provenance header."""
+        entries = self._selected_entries()
         if not entries:
             return
         from .log_export import as_text
@@ -948,6 +958,17 @@ class LogViewerWidget(QWidget):
 
         QApplication.clipboard().setText(as_text(entries, header=False))
         self.status.setText(f"{len(entries):,} row(s) copied.")
+
+    def copy_selection_as_markdown(self) -> None:
+        """The selected rows as a table that pastes into a ticket."""
+        from .log_export import as_markdown
+        from PyQt6.QtWidgets import QApplication
+
+        entries = self._selected_entries()
+        if not entries:
+            return
+        QApplication.clipboard().setText(as_markdown(entries))
+        self.status.setText(f"{len(entries):,} row(s) copied as Markdown.")
 
     def export_to(self, path: str) -> None:
         """Export the filtered view to a file (CSV or text).
@@ -957,11 +978,18 @@ class LogViewerWidget(QWidget):
         left in a partial state if the write fails.
         """
         import tempfile
-        from .log_export import as_csv, as_text
+        from .log_export import as_csv, as_html, as_markdown, as_text
 
         entries = self.visible_entries()
-        text = (as_csv(entries) if path.lower().endswith(".csv")
-                else as_text(entries))
+        lowered = path.lower()
+        if lowered.endswith(".csv"):
+            text = as_csv(entries)
+        elif lowered.endswith((".html", ".htm")):
+            text = as_html(entries)
+        elif lowered.endswith(".md"):
+            text = as_markdown(entries)
+        else:
+            text = as_text(entries)
 
         # Create a temporary file in the same directory as the target to ensure
         # os.replace() stays on the same volume (atomic on Windows).
@@ -1005,7 +1033,7 @@ class LogViewerWidget(QWidget):
         """Open a file dialog to choose where to export the filtered view."""
         path, _filter = QFileDialog.getSaveFileName(
             self, "Export the filtered view", "",
-            "Text (*.txt);;CSV (*.csv)")
+            "Text (*.txt);;CSV (*.csv);;HTML (*.html);;Markdown (*.md)")
         if path:
             self.export_to(path)
 

@@ -53,7 +53,7 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 7 |
+| 1 | Quick wins that change daily use | 13 | 9 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
@@ -275,25 +275,37 @@ the epoch and lead any merged view of `C:\Windows\Logs\CBS`.
 **Files:** `src/modules/log_viewer/log_export.py`,
 `log_viewer_module.py`, `tests/test_log_export.py`
 
-- [ ] Test: `test_markdown_rows_carry_every_visible_column`
-- [ ] Test: `test_a_pipe_in_a_message_is_escaped` — CBS messages contain `|`
-- [ ] Test: `test_the_fold_suffix_never_reaches_the_markdown` (the display
+- [x] Test: `test_markdown_rows_carry_every_visible_column`
+- [x] Test: `test_a_pipe_in_a_message_is_escaped` — CBS messages contain `|`
+- [x] Test: `test_the_fold_suffix_never_reaches_the_markdown` (the display
       suffix is display-only; the existing export tests pin the same rule)
-- [ ] Add to the row context menu beside the existing Copy
-- [ ] Commit
+- [x] Add to the row context menu beside the existing Copy
+- [x] Commit
+- **Done.** Pipes escaped and newlines folded: a CBS message contains
+  both, and either one unescaped turns a row into a broken table for
+  every row after it. `_selected_entries()` was extracted so the two
+  copy actions cannot disagree about what the selection is.
 
 ### W1-12 (idea 33): Export the view as HTML
 
 **Files:** `log_export.py`, `log_viewer_module.py`, `tests/test_log_export.py`
 
-- [ ] Test: `test_html_export_carries_the_severity_colour_per_row`
-- [ ] Test: `test_html_export_escapes_angle_brackets` — CMTrace records are
+- [x] Test: `test_html_export_carries_the_severity_colour_per_row`
+- [x] Test: `test_html_export_escapes_angle_brackets` — CMTrace records are
       literally `<![LOG[...]]>`
-- [ ] Test: `test_html_export_ignores_folding_like_every_other_export`
-- [ ] Test: `test_html_export_is_written_atomically` — match the existing
+- [x] Test: `test_html_export_ignores_folding_like_every_other_export`
+- [x] Test: `test_html_export_is_written_atomically` — match the existing
       temp-file-then-replace path, which has its own tests
-- [ ] Chosen by the `.html` extension in `choose_export`, like `.csv`
-- [ ] Commit
+- [x] Chosen by the `.html` extension in `choose_export`, like `.csv`
+- [x] Commit
+- **Done.** Chosen by the `.html`/`.htm` extension, `.md` for
+  Markdown, alongside the existing `.csv`. Severity colours are
+  HARDCODED rather than taken from `semantic_colors`: an exported file
+  has one appearance and is read on someone else's machine, in a theme
+  this process knows nothing about.
+- Escaping matters more here than anywhere: a CMTrace record is
+  literally `<![LOG[...]]>`, which unescaped eats the rest of the
+  document.
 
 ### W1-13 (idea 39): Remember the layout
 
