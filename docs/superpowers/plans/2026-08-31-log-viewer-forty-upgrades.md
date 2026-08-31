@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 0 |
+| 2 | Analysis — what the tool is *for* | 7 | 1 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-01 (Top-N panel). Wave 1 is complete.
+**Next task:** W2-02 (stall detection).
 
 ---
 
@@ -400,13 +400,31 @@ Qt-free module beside `log_set.py`, with the pane only rendering the result.
 **Interfaces:** `top_codes(entries, n)`, `top_components(entries, n)`,
 `top_messages(entries, n)` → `[(value, count)]`.
 
-- [ ] Test each returns counts descending, ties broken by value
-- [ ] Test: `test_counting_ignores_folded_state` (it counts records, not rows)
-- [ ] Test: `test_an_empty_log_yields_empty_lists_rather_than_raising`
-- [ ] Pane: a collapsible panel; clicking a row applies it as a filter
-- [ ] **Time it on the real 380 MB archive's 200k records** — if a refresh
+- [x] Test each returns counts descending, ties broken by value
+- [x] Test: `test_counting_ignores_folded_state` (it counts records, not rows)
+- [x] Test: `test_an_empty_log_yields_empty_lists_rather_than_raising`
+- [x] Pane: a collapsible panel; clicking a row applies it as a filter
+- [x] **Time it on the real 380 MB archive's 200k records** — if a refresh
       costs more than ~200 ms it must not run on every keystroke
-- [ ] Commit
+- [x] Commit
+- **The timing check mattered: `top_codes` costs 297 ms over the real
+  archive's 138,683 records**, well past the 200 ms this task set as the
+  line. So the panel is debounced -- a single-shot 400 ms timer restarted
+  on each change -- and computes NOTHING while it is hidden. Running it
+  inline would have made the Filter box unusable on exactly the logs the
+  panel exists for.
+- It counts `visible_entries()`, so it answers "what is in what I am
+  looking at" and moves with the filter. Folding is ignored, as it is for
+  export: a reading convenience is no business of a count.
+- Ties break on the value itself. Without that, two equal-count codes
+  swap places between refreshes and the panel reorders under the cursor.
+- **`top_messages` takes an optional `key`**, which is the seam W2-07's
+  normaliser plugs into. Verbatim on the real archive the top line
+  repeats 589 times out of 138,683, so it is useful but thin until then.
+- Real archive, panel open: 0.52 s over 134,499 shown rows.
+  `0x80004005` x522 -- the same 522 rows the corruption markers flag.
+  Rendered in both themes; the lists took the table's monospace font so
+  the counts line up and more than three rows fit.
 
 ### W2-02 (idea 18): Stall detection
 

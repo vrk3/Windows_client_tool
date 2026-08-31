@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
     QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
-    QCompleter, QSplitter, QTableView, QToolButton, QVBoxLayout,
-    QWidget,
+    QCompleter, QListWidget, QSplitter, QTableView, QToolButton,
+    QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
@@ -41,6 +41,9 @@ from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
+from modules.log_viewer.log_stats import (top_codes,
+                                          top_components,
+                                          top_messages)
 from modules.log_viewer.log_search_provider import LogSearchProvider
 
 logger = logging.getLogger(__name__)
@@ -314,6 +317,13 @@ class LogViewerWidget(QWidget):
             lambda _c=False: self.open_error_lookup())
         range_row.addWidget(self.error_lookup_button)
 
+        self.summary_button = QPushButton("Summary", self)
+        self.summary_button.setCheckable(True)
+        self.summary_button.setToolTip(
+            "What is failing most often in what is currently shown.")
+        self.summary_button.toggled.connect(self._on_summary_toggled)
+        range_row.addWidget(self.summary_button)
+
         self.highlight_button = QPushButton("Highlight rules…", self)
         self.highlight_button.clicked.connect(self.edit_highlight_rules)
         range_row.addWidget(self.highlight_button)
@@ -380,6 +390,44 @@ class LogViewerWidget(QWidget):
         self.splitter.setStretchFactor(1, 0)
         self.splitter.setSizes([600, 160])
         layout.addWidget(self.splitter, 1)
+
+        # Counts of what is failing, over whatever the filter has left.
+        # Hidden until asked for: top_codes costs 297 ms over the real
+        # archive's 138,683 records, which is not a per-keystroke expense.
+        self.summary_panel = QWidget(self)
+        summary_row = QHBoxLayout(self.summary_panel)
+        summary_row.setContentsMargins(0, 0, 0, 0)
+        self.summary_codes = QListWidget(self.summary_panel)
+        self.summary_components = QListWidget(self.summary_panel)
+        self.summary_messages = QListWidget(self.summary_panel)
+        for title, listing in (("Failing codes", self.summary_codes),
+                               ("Components", self.summary_components),
+                               ("Repeated lines", self.summary_messages)):
+            column = QVBoxLayout()
+            column.setContentsMargins(0, 0, 0, 0)
+            column.addWidget(QLabel(title, self.summary_panel))
+            listing.setMaximumHeight(160)
+            # The table's font: it tightens the rows enough to see most of
+            # the ten, and being monospace it lines the counts up into a
+            # column you can compare down.
+            listing.setFont(QFont("Consolas", 9))
+            listing.setUniformItemSizes(True)
+            listing.setToolTip("Click a row to filter by it.")
+            column.addWidget(listing)
+            summary_row.addLayout(column)
+        self.summary_codes.itemClicked.connect(self._on_summary_code)
+        self.summary_components.itemClicked.connect(
+            self._on_summary_component)
+        self.summary_messages.itemClicked.connect(self._on_summary_message)
+        self.summary_panel.setVisible(False)
+        layout.addWidget(self.summary_panel)
+
+        # Restarted on every change and fired once it goes quiet, so typing
+        # a filter costs one recount rather than one per character.
+        self._summary_timer = QTimer(self)
+        self._summary_timer.setSingleShot(True)
+        self._summary_timer.setInterval(400)
+        self._summary_timer.timeout.connect(self._refresh_summary)
 
         self.status = QLabel("No log open.", self)
         self.status.setTextInteractionFlags(
@@ -746,6 +794,53 @@ class LogViewerWidget(QWidget):
                                         self.filter_box.text())
         self._history_model.setStringList(self._filter_history)
         save_history(self._config, self._filter_history)
+
+    # ---- the summary panel ----------------------------------------------
+
+    def _on_summary_toggled(self, shown: bool) -> None:
+        self.summary_panel.setVisible(shown)
+        if shown:
+            self._refresh_summary()
+
+    def _schedule_summary(self) -> None:
+        """Recount once the filtering goes quiet.
+
+        Only while the panel is open: `top_codes` costs 297 ms over the real
+        archive's 138,683 records, and a panel nobody is looking at must not
+        charge that to every keystroke.
+        """
+        if self.summary_button.isChecked():
+            self._summary_timer.start()
+
+    def _refresh_summary(self) -> None:
+        """Recount over what the filter left.
+
+        `visible_entries()` rather than everything loaded, so the panel
+        answers "what is in what I am looking at" and moves with the filter.
+        It ignores folding, which is a reading convenience and no business of
+        a count.
+        """
+        if not self.summary_button.isChecked():
+            return
+        entries = self.visible_entries()
+        self.summary_codes.clear()
+        for code, count in top_codes(entries):
+            self.summary_codes.addItem(f"0x{code:08x}   {count:,}")
+        self.summary_components.clear()
+        for name, count in top_components(entries):
+            self.summary_components.addItem(f"{name}   {count:,}")
+        self.summary_messages.clear()
+        for message, count in top_messages(entries):
+            self.summary_messages.addItem(f"{count:,}   {message[:120]}")
+
+    def _on_summary_code(self, item) -> None:
+        self.filter_box.setText(item.text().split(" ")[0])
+
+    def _on_summary_component(self, item) -> None:
+        self.set_components({item.text().rsplit("   ", 1)[0]})
+
+    def _on_summary_message(self, item) -> None:
+        self.filter_box.setText(item.text().split("   ", 1)[1])
 
     def _refresh_match_colours(self) -> None:
         """Tell the Message delegate what to pick out inside each line.
@@ -1259,6 +1354,7 @@ class LogViewerWidget(QWidget):
             self.status.setText("That Hide pattern is not finished yet.")
             return
         self._refresh_match_colours()
+        self._schedule_summary()
         self._update_status()
 
     def find_next(self) -> None:
