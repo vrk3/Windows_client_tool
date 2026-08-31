@@ -42,6 +42,11 @@ class LogModel(QAbstractTableModel):
         self._levels = set()            # empty means "show everything"
         self._needle = ""
         self._pattern = ""
+        #: The inverse of the needle: rows matching this are REMOVED. A real
+        #: CBS.log is mostly `Appl: detectParent` and `Plan: Package`, and no
+        #: positive filter drops that boilerplate without dropping the rest.
+        self._exclude = ""
+        self._exclude_matcher = None
         self._component = ""
         self._thread = ""
         self._log = ""
@@ -232,7 +237,7 @@ class LogModel(QAbstractTableModel):
     def set_filter(self, levels=None, needle: str = None,
                    component: str = None, thread: str = None,
                    time_from=None, time_to=None, regex: bool = None,
-                   log: str = None) -> None:
+                   log: str = None, exclude: str = None) -> None:
         """Each argument left as None keeps that axis unchanged.
 
         `time_from`/`time_to` take the sentinel `False` to mean "clear this
@@ -250,6 +255,8 @@ class LogModel(QAbstractTableModel):
             self._thread = thread
         if log is not None:
             self._log = log
+        if exclude is not None:
+            self._exclude = exclude
         if time_from is not None:
             self._time_from = None if time_from is False else time_from
         if time_to is not None:
@@ -267,6 +274,20 @@ class LogModel(QAbstractTableModel):
                 # A half-typed pattern is a typo. Nothing matches until it
                 # is finished; the pane says so in the status bar.
                 self._matcher = False
+
+        # Compiled here for the same reason the include filter is: at
+        # 134,527 records a per-row compile is 134,527 compiles per keystroke.
+        self._exclude_matcher = None
+        if self._regex and self._exclude:
+            try:
+                self._exclude_matcher = re.compile(self._exclude,
+                                                   re.IGNORECASE)
+            except re.error:
+                # An unfinished exclude removes NOTHING. False here would
+                # mean "hide everything", which empties the table over a
+                # keystroke -- the opposite of what the include filter's
+                # False does, and the reason the two are not shared.
+                self._exclude_matcher = False
 
         self.beginResetModel()
         self._reindex()
@@ -316,7 +337,26 @@ class LogModel(QAbstractTableModel):
                     return False
             elif self._needle not in text.lower():
                 return False
+        if self._exclude and self._excluded_by(entry):
+            return False
         return True
+
+    def _excluded_by(self, entry) -> bool:
+        """Whether the exclude pattern removes this row.
+
+        Applied AFTER every include test, so exclude narrows what the filter
+        left rather than being able to resurrect a row the filter dropped.
+        Matched against the same `haystack()` the include filter and the
+        highlight rules use, so the three can never disagree about what "the
+        row" means.
+        """
+        if self._exclude_matcher is False:
+            # Unfinished pattern: remove nothing.
+            return False
+        text = haystack(entry)
+        if self._exclude_matcher is not None:
+            return bool(self._exclude_matcher.search(text))
+        return self._exclude.lower() in text.lower()
 
     def logs(self) -> list:
         """The files currently represented, for the Source combo."""
@@ -344,6 +384,11 @@ class LogModel(QAbstractTableModel):
         if not stamps:
             return None
         return min(stamps), max(stamps)
+
+    def exclude_pattern_is_invalid(self) -> bool:
+        """The pane asks, so it can say so rather than leaving someone to
+        wonder why nothing is being hidden."""
+        return self._exclude_matcher is False
 
     def filter_pattern_is_invalid(self) -> bool:
         """The pane asks, so it can say so rather than showing an empty

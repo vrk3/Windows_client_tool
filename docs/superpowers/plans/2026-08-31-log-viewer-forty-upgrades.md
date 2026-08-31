@@ -53,13 +53,13 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 0 |
+| 1 | Quick wins that change daily use | 13 | 1 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-01.
+**Next task:** W1-02.
 
 ---
 
@@ -77,16 +77,20 @@ Small, self-contained, each one visible the moment it lands. All live in
 **Interfaces:** `LogModel.set_filter(exclude: str = None)`; pane gains
 `self.exclude_box` (a `QLineEdit` beside Filter).
 
-- [ ] Test: `test_an_exclude_pattern_hides_matching_rows`
-- [ ] Test: `test_exclude_combines_with_the_include_filter`
-- [ ] Test: `test_exclude_honours_the_regex_box`
-- [ ] Test: `test_a_half_typed_exclude_pattern_hides_nothing` — an invalid
+- [x] Test: `test_an_exclude_pattern_hides_matching_rows`
+- [x] Test: `test_exclude_combines_with_the_include_filter`
+- [x] Test: `test_exclude_honours_the_regex_box`
+- [x] Test: `test_a_half_typed_exclude_pattern_hides_nothing` — an invalid
       pattern must not empty the table, the same rule `_matcher is False`
       already follows for the include filter
-- [ ] Implement `_exclude` / `_exclude_matcher` in `_matches`, mirroring the
+- [x] Implement `_exclude` / `_exclude_matcher` in `_matches`, mirroring the
       existing needle handling; exclude is applied AFTER include
-- [ ] Wire `exclude_box` into `_apply_filters` and `_refresh_match_colours`
-- [ ] Real check + look at it; commit
+- [x] Wire `exclude_box` into `_apply_filters` and `_refresh_match_colours`
+- [x] Real check + look at it; commit
+- **Measured on the live CBS.log (11,277 rows):** hiding `Appl: detect`
+  removes 9.7%, `detectParent` 4.8%. Include and exclude both survive a
+  reopen, deliberately -- one text box clearing while its neighbour did
+  not would be the surprising behaviour.
 
 ### W1-02 (idea 14): Live match count while typing
 

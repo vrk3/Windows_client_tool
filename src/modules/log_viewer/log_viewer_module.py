@@ -224,6 +224,16 @@ class LogViewerWidget(QWidget):
         self.filter_box.setClearButtonEnabled(True)
         self.filter_box.textChanged.connect(lambda _t: self._apply_filters())
         find_row.addWidget(self.filter_box, 1)
+
+        # The inverse box. A real CBS.log is mostly `Appl: detectParent` and
+        # `Plan: Package`; no positive filter drops that boilerplate without
+        # dropping the rest with it.
+        find_row.addWidget(QLabel("Hide:", self))
+        self.exclude_box = QLineEdit(self)
+        self.exclude_box.setPlaceholderText("hide lines containing…")
+        self.exclude_box.setClearButtonEnabled(True)
+        self.exclude_box.textChanged.connect(lambda _t: self._apply_filters())
+        find_row.addWidget(self.exclude_box, 1)
         layout.addLayout(find_row)
 
         range_row = QHBoxLayout()
@@ -932,6 +942,7 @@ class LogViewerWidget(QWidget):
         self.model.set_filter(
             levels=levels,
             needle=self.filter_box.text(),
+            exclude=self.exclude_box.text(),
             component="" if component == "All" else component,
             thread=thread,
             log="" if self.source.currentText() == "All"
@@ -941,6 +952,13 @@ class LogViewerWidget(QWidget):
             regex=self.regex_box.isChecked())
         if self.model.filter_pattern_is_invalid():
             self.status.setText("That pattern is not finished yet.")
+            self._refresh_match_colours()
+            return
+        if self.model.exclude_pattern_is_invalid():
+            # Nothing is hidden until the pattern is finished, which is the
+            # opposite of what an unfinished INCLUDE pattern does -- so say
+            # which box is unfinished rather than just "that pattern".
+            self.status.setText("That Hide pattern is not finished yet.")
             return
         self._refresh_match_colours()
         self._update_status()
