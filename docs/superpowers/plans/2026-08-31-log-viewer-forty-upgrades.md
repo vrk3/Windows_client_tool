@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 3 |
+| 2 | Analysis — what the tool is *for* | 7 | 4 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-04 (first error, last success).
+**Next task:** W2-05 (error-density strip).
 
 ---
 
@@ -493,11 +493,23 @@ Qt-free module beside `log_set.py`, with the pane only rendering the result.
 
 **Interfaces:** `first_error(entries)`, `last_before(entries, index)`.
 
-- [ ] Test: `test_the_first_error_is_the_earliest_error_row`
-- [ ] Test: `test_the_last_success_is_the_record_before_it`
-- [ ] Test: `test_a_log_with_no_errors_says_so_rather_than_returning_none`
-- [ ] Render as a summary strip with two clickable rows
-- [ ] Commit
+- [x] Test: `test_the_first_error_is_the_earliest_error_row`
+- [x] Test: `test_the_last_success_is_the_record_before_it`
+- [x] Test: `test_a_log_with_no_errors_says_so_rather_than_returning_none`
+- [x] Render as a summary strip with two clickable rows
+- [x] Commit
+- **Done, as the first Summary column** -- it is the answer you want
+  before any of the counts.
+- **`last_success_before` skips over other errors on purpose.** When a
+  failure cascades, the error immediately above the one you found is
+  usually the same failure again; the row worth reading is the last
+  thing that WORKED. A Warning counts as a success for this, because
+  the question is what did not fail.
+- A clean log says "No errors in what is shown" rather than leaving an
+  empty column, which reads as a broken panel.
+- `_add_record()` now backs every clickable summary row and stores the
+  RECORD rather than its index -- the W2-02 trap, applied once instead
+  of repeated per column.
 
 ### W2-05 (idea 16): Error-density strip
 

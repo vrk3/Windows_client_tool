@@ -43,7 +43,9 @@ from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
-from modules.log_viewer.log_stats import (gaps, top_codes,
+from modules.log_viewer.log_stats import (first_error, gaps,
+                                          last_success_before,
+                                          top_codes,
                                           top_components,
                                           top_messages)
 from modules.log_viewer.log_search_provider import LogSearchProvider
@@ -411,7 +413,9 @@ class LogViewerWidget(QWidget):
         self.summary_components = QListWidget(self.summary_panel)
         self.summary_messages = QListWidget(self.summary_panel)
         self.summary_gaps = QListWidget(self.summary_panel)
-        for title, listing in (("Failing codes", self.summary_codes),
+        self.summary_failure = QListWidget(self.summary_panel)
+        for title, listing in (("The failure", self.summary_failure),
+                               ("Failing codes", self.summary_codes),
                                ("Components", self.summary_components),
                                ("Silences", self.summary_gaps),
                                ("Repeated lines", self.summary_messages)):
@@ -432,6 +436,7 @@ class LogViewerWidget(QWidget):
             self._on_summary_component)
         self.summary_messages.itemClicked.connect(self._on_summary_message)
         self.summary_gaps.itemClicked.connect(self._on_summary_gap)
+        self.summary_failure.itemClicked.connect(self._on_summary_gap)
         self.summary_panel.setVisible(False)
         layout.addWidget(self.summary_panel)
 
@@ -849,15 +854,27 @@ class LogViewerWidget(QWidget):
         self.summary_messages.clear()
         for message, count in top_messages(entries):
             self.summary_messages.addItem(f"{count:,}   {message[:120]}")
+        self.summary_failure.clear()
+        failed = first_error(entries)
+        if failed is None:
+            self.summary_failure.addItem("No errors in what is shown")
+        else:
+            self._add_record(self.summary_failure, "first error",
+                             entries[failed])
+            worked = last_success_before(entries, failed)
+            if worked is None:
+                self.summary_failure.addItem(
+                    "last success: nothing before it")
+            else:
+                self._add_record(self.summary_failure, "last success",
+                                 entries[worked])
         self.summary_gaps.clear()
         for index, seconds in gaps(entries):
             # The RECORD is kept, not the index: gaps are counted over
             # `visible_entries()`, which ignores folding, so those positions
             # are not row numbers and clicking one would land anywhere.
-            item = QListWidgetItem(
-                f"{seconds:,.0f}s   {entries[index].message[:100]}")
-            item.setData(Qt.ItemDataRole.UserRole, entries[index])
-            self.summary_gaps.addItem(item)
+            self._add_record(self.summary_gaps, f"{seconds:,.0f}s",
+                             entries[index])
 
     def _on_summary_code(self, item) -> None:
         self.filter_box.setText(item.text().split(" ")[0])
@@ -865,9 +882,22 @@ class LogViewerWidget(QWidget):
     def _on_summary_component(self, item) -> None:
         self.set_components({item.text().rsplit("   ", 1)[0]})
 
+    def _add_record(self, listing, label: str, entry) -> None:
+        """A summary row that remembers WHICH RECORD it is about.
+
+        The record, never its position: these lists are built over
+        `visible_entries()`, which ignores folding, so an index from it is
+        not a row number and clicking one would land anywhere.
+        """
+        item = QListWidgetItem(f"{label}: {entry.message[:110]}")
+        item.setData(Qt.ItemDataRole.UserRole, entry)
+        listing.addItem(item)
+
     def _on_summary_gap(self, item) -> None:
         """Go to the first record after the silence."""
         entry = item.data(Qt.ItemDataRole.UserRole)
+        if entry is None:
+            return
         row = self.model.row_for_record(entry)
         if row < 0:
             return

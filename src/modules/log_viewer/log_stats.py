@@ -121,3 +121,30 @@ def gaps(entries, threshold_seconds: float = DEFAULT_GAP_SECONDS) -> list:
                 found.append((index, seconds))
         previous = when
     return sorted(found, key=lambda pair: (-pair[1], pair[0]))
+
+
+def first_error(entries):
+    """Index of the earliest Error record, or None.
+
+    A Warning is not an error: servicing warns constantly while succeeding,
+    and treating one as the failure would point at the wrong row.
+    """
+    for index, entry in enumerate(entries or ()):
+        if entry.level == "Error":
+            return index
+    return None
+
+
+def last_success_before(entries, index: int):
+    """Index of the last record before `index` that did NOT fail, or None.
+
+    Skips over other errors on purpose. When a failure cascades, the row
+    worth reading is the last thing that WORKED -- the error immediately
+    above the one you found is usually just the same failure again.
+
+    A Warning counts as a success here: the question is what did not fail.
+    """
+    for candidate in range(min(index, len(entries or ())) - 1, -1, -1):
+        if entries[candidate].level != "Error":
+            return candidate
+    return None

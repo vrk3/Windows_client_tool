@@ -209,3 +209,120 @@ def test_hiding_the_panel_again_leaves_the_filters_alone(viewer):
     viewer.summary_button.setChecked(True)
     viewer.summary_button.setChecked(False)
     assert viewer.model.rowCount() == 3
+
+
+# ---- the two rows that usually explain a failure ------------------------
+
+from modules.log_viewer.log_stats import (  # noqa: E402
+    first_error, last_success_before,
+)
+
+
+def _lvl(message, level):
+    return _entry(message, level=level)
+
+
+def test_the_first_error_is_the_earliest_error_row():
+    entries = [_lvl("fine", "Info"), _lvl("bad", "Error"),
+               _lvl("worse", "Error")]
+    assert first_error(entries) == 1
+
+
+def test_a_warning_is_not_an_error():
+    entries = [_lvl("careful", "Warning"), _lvl("bad", "Error")]
+    assert first_error(entries) == 1
+
+
+def test_a_log_with_no_errors_has_no_first_error():
+    assert first_error([_lvl("fine", "Info")]) is None
+    assert first_error([]) is None
+
+
+def test_the_last_success_is_the_record_before_the_error():
+    entries = [_lvl("step one", "Info"), _lvl("step two", "Info"),
+               _lvl("bad", "Error")]
+    assert last_success_before(entries, 2) == 1
+
+
+def test_the_last_success_skips_over_other_errors():
+    """When a failure cascades, the interesting row is the last thing that
+    WORKED, not the error immediately above."""
+    entries = [_lvl("step one", "Info"), _lvl("bad", "Error"),
+               _lvl("worse", "Error")]
+    assert last_success_before(entries, 2) == 0
+
+
+def test_an_error_on_the_very_first_row_has_no_last_success():
+    assert last_success_before([_lvl("bad", "Error")], 0) is None
+
+
+def test_a_warning_counts_as_a_success_for_this_purpose():
+    """It is the last thing that did not fail, which is the question."""
+    entries = [_lvl("careful", "Warning"), _lvl("bad", "Error")]
+    assert last_success_before(entries, 1) == 0
+
+
+# ---- the Failure column -------------------------------------------------
+
+FAILING = (
+    '<![LOG[step one]LOG]!><time="13:45:10.000+000" date="08-20-2026" '
+    'component="CBS" context="" type="1" thread="1" file="a.cpp:1">\n'
+    '<![LOG[step two worked]LOG]!><time="13:45:11.000+000" '
+    'date="08-20-2026" component="CBS" context="" type="1" thread="1" '
+    'file="a.cpp:2">\n'
+    '<![LOG[it broke]LOG]!><time="13:45:12.000+000" date="08-20-2026" '
+    'component="CBS" context="" type="3" thread="1" file="a.cpp:3">\n'
+    '<![LOG[broke again]LOG]!><time="13:45:13.000+000" date="08-20-2026" '
+    'component="CBS" context="" type="3" thread="1" file="a.cpp:4">\n'
+)
+
+
+@pytest.fixture
+def failing(qapp, tmp_path):
+    path = tmp_path / "cbs.log"
+    path.write_text(FAILING, encoding="utf-8")
+    widget = LogViewerWidget()
+    widget.open(str(path))
+    yield widget
+    widget.stop()
+
+
+def test_the_failure_column_names_both_rows(failing):
+    failing.summary_button.setChecked(True)
+    rows = _rows(failing.summary_failure)
+    assert any("it broke" in text for text in rows)
+    assert any("step two worked" in text for text in rows)
+
+
+def test_the_failure_column_labels_which_is_which(failing):
+    failing.summary_button.setChecked(True)
+    rows = _rows(failing.summary_failure)
+    assert rows[0].lower().startswith("first error")
+    assert rows[1].lower().startswith("last success")
+
+
+def test_clicking_the_first_error_goes_to_it(failing):
+    failing.summary_button.setChecked(True)
+
+    failing.summary_failure.itemClicked.emit(failing.summary_failure.item(0))
+
+    entry = failing.model.entry(failing.table.currentIndex().row())
+    assert entry.message == "it broke"
+
+
+def test_a_clean_log_says_so_rather_than_showing_nothing(qapp, tmp_path):
+    """An empty column reads as "the panel is broken". Saying "no errors" is
+    an answer."""
+    path = tmp_path / "clean.log"
+    path.write_text(
+        '<![LOG[all well]LOG]!><time="13:45:10.000+000" date="08-20-2026" '
+        'component="CBS" context="" type="1" thread="1" file="a.cpp:1">\n',
+        encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(path))
+        widget.summary_button.setChecked(True)
+        rows = _rows(widget.summary_failure)
+        assert rows and "no errors" in rows[0].lower()
+    finally:
+        widget.stop()
