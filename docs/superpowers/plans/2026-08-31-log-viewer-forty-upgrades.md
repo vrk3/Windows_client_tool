@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 5 |
+| 3 | Reading and filtering | 8 | 6 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-06 (column chooser).
+**Next task:** W3-07 (wrap the selected row).
 
 ---
 
@@ -753,11 +753,26 @@ pane; tests
 
 **Files:** pane, tests
 
-- [ ] Test: `test_hiding_a_column_persists`
-- [ ] Test: `test_the_message_column_cannot_be_hidden`
-- [ ] Test: `test_a_saved_choice_from_an_older_column_set_is_ignored`
-- [ ] Header context menu
-- [ ] Commit
+- [x] Test: `test_hiding_a_column_persists`
+- [x] Test: `test_the_message_column_cannot_be_hidden`
+- [x] Test: `test_a_saved_choice_from_an_older_column_set_is_ignored`
+- [x] Header context menu
+- [x] Commit
+- **Stored by NAME, never by index** -- which makes "a saved choice
+  from an older column set is ignored" true by construction rather than
+  by a version check. COLUMNS has already changed three times (Source,
+  then Package); a saved list of positions would be applied to a
+  different set and hide the wrong ones. A name that no longer exists is
+  simply not found.
+- **Visibility is computed from the whole truth in one place**, not by
+  adding hiding on top of what `reload` decided. A column is hidden if
+  the reader turned it off OR it would be blank (Source with one log,
+  Package in a log naming none). An add-only pass could hide but never
+  reveal -- which is exactly the test that failed first.
+- The auto rules are cached per load: `has_packages()` scans records and
+  this runs on every menu toggle.
+- Message cannot be hidden: without it the table is metadata about lines
+  you cannot read.
 
 ### W3-07 (idea 05): Wrap the selected row
 

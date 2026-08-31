@@ -48,6 +48,17 @@ def load_layout(config) -> dict:
         if isinstance(stored.get(key), bool):
             layout[key] = stored[key]
 
+    hidden = stored.get("hidden_columns")
+    if isinstance(hidden, list) and all(isinstance(n, str) for n in hidden):
+        # By NAME, never by index. COLUMNS has changed three times already,
+        # and a saved list of positions would be applied to a different set
+        # of columns and hide the wrong ones. A name that no longer exists
+        # is simply not found, which is harmless.
+        layout["hidden_columns"] = list(hidden)
+    elif hidden is not None:
+        logger.warning("%s.hidden_columns is not a list of names; ignoring",
+                       CONFIG_KEY)
+
     sizes = stored.get("splitter")
     if (isinstance(sizes, list)
             and len(sizes) == _SPLITTER_PANES

@@ -33,7 +33,7 @@ from core.search_provider import SearchProvider
 from modules.log_viewer import cmtrace_parser
 from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (  # noqa: I001
-    split_terms,
+    COLUMNS, split_terms,
     COMPONENT, LogModel, MESSAGE, PACKAGE, SEVERITY, SOURCE, THREAD,
     TIME,
 )
@@ -133,6 +133,11 @@ class LogViewerWidget(QWidget):
         # opened, so new lines (later than that bound) silently stop
         # appearing.
         self._range_active = False
+        #: Columns the reader has turned off, by NAME. Thread is dead weight
+        #: on CBS and essential on DISM's 329 threads.
+        self._hidden_columns: set = set()
+        #: Columns hidden because they would be blank, recomputed per load.
+        self._auto_hidden: set = set()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -498,6 +503,9 @@ class LogViewerWidget(QWidget):
         # Reaching the top is a request for what comes before it. Connected
         # after the table exists, and guarded by _loading_earlier, since
         # prepending rows moves the bar and would otherwise re-enter here.
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._on_header_menu)
+
         self.table.verticalScrollBar().valueChanged.connect(self._on_scrolled)
 
         self._build_shortcuts()
@@ -670,11 +678,15 @@ class LogViewerWidget(QWidget):
         self._refresh_sources()
         self._reset_range()
         self._sync_paging_buttons()
-        # Only worth a column when there is more than one file to tell apart.
-        self.table.setColumnHidden(SOURCE, len(self._paths) < 2)
-        # Same rule: a log that names no packages gets no Package column
-        # rather than a column of blanks.
-        self.table.setColumnHidden(PACKAGE, not self.model.has_packages())
+        # Columns that would be blank: Source with one log open, Package in
+        # a log that names none. Cached because has_packages() scans records
+        # and _apply_column_choice runs on every menu toggle.
+        self._auto_hidden = set()
+        if len(self._paths) < 2:
+            self._auto_hidden.add("Source")
+        if not self.model.has_packages():
+            self._auto_hidden.add("Package")
+        self._apply_column_choice()
         self._cap_package_width()
         # The refreshes above blockSignals() around rebuilding the Component
         # and Thread combos, so falling back to index 0 ("All") when the
@@ -814,12 +826,18 @@ class LogViewerWidget(QWidget):
             self.regex_box.setChecked(layout["regex"])
         if "splitter" in layout:
             self.splitter.setSizes(layout["splitter"])
+        if "hidden_columns" in layout:
+            self._hidden_columns = {name for name in layout["hidden_columns"]
+                                    if name in COLUMNS
+                                    and name not in self.ALWAYS_SHOWN}
+            self._apply_column_choice()
 
     def current_layout(self) -> dict:
         return {
             "fold": self.fold.isChecked(),
             "regex": self.regex_box.isChecked(),
             "splitter": list(self.splitter.sizes()),
+            "hidden_columns": sorted(self._hidden_columns),
         }
 
     def save_layout_now(self) -> None:
@@ -961,6 +979,53 @@ class LogViewerWidget(QWidget):
             return
         self.model.peek(entry, self.CONTEXT_LINES)
         self._update_status()
+
+    # ---- columns ---------------------------------------------------------
+
+    #: Without it the table is metadata about lines you cannot read.
+    ALWAYS_SHOWN = ("Message",)
+
+    def set_column_hidden(self, name: str, hidden: bool) -> None:
+        if name in self.ALWAYS_SHOWN or name not in COLUMNS:
+            return
+        if hidden:
+            self._hidden_columns.add(name)
+        else:
+            self._hidden_columns.discard(name)
+        self._apply_column_choice()
+
+    def _apply_column_choice(self) -> None:
+        """Set every column's visibility from the whole truth, in one place.
+
+        A column is hidden if the reader turned it off OR if it would be a
+        column of blanks -- Source with one log open, Package in a log that
+        names none. Computing it here rather than only ever ADDING hiding is
+        what lets a column be turned back ON: an add-only pass could hide but
+        never reveal.
+
+        The auto rules are cached by `reload`, because `has_packages()` scans
+        the records and this runs on every menu toggle.
+        """
+        for index, name in enumerate(COLUMNS):
+            hidden = (name in self._hidden_columns
+                      or name in self._auto_hidden)
+            self.table.setColumnHidden(index, hidden)
+
+    def build_column_menu(self) -> QMenu:
+        menu = QMenu(self)
+        for name in COLUMNS:
+            if name in self.ALWAYS_SHOWN:
+                continue
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(name not in self._hidden_columns)
+            action.toggled.connect(
+                lambda shown, n=name: self.set_column_hidden(n, not shown))
+        return menu
+
+    def _on_header_menu(self, point) -> None:
+        header = self.table.horizontalHeader()
+        self.build_column_menu().exec(header.mapToGlobal(point))
 
     # ---- presets ---------------------------------------------------------
 
