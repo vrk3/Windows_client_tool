@@ -282,6 +282,93 @@ def page_back(label, path):
     print(f"    first line       : {first_line[:90]}")
 
 
+def merge_check():
+    """Read this machine's real logs as ONE timeline and check the result.
+
+    Four files, four independently sniffed encodings, one of them UTF-16 --
+    which is the thing no synthetic fixture reproduces.
+
+    What a bad answer looks like:
+
+      records        -- the merged total must equal the sum of the parts. Any
+                        other number means the merge dropped or duplicated.
+      ordering       -- effective timestamps must be non-decreasing. A merge
+                        that is not sorted is not a timeline.
+      continuations  -- every continuation must sit directly under a record
+                        from the SAME file. One that does not means another
+                        log's records were interleaved into the middle of a
+                        CSI block, which is the failure the design exists to
+                        prevent.
+    """
+    from modules.log_viewer.log_set import LogSet
+    from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME as _UNSET
+
+    paths = [path for _label, path in _files()
+             if os.path.getsize(path) > 0][:6]
+    if len(paths) < 2:
+        print("\nFewer than two logs on this machine; nothing to merge.")
+        return
+
+    print(f"\n=== merging {len(paths)} real logs")
+    started = time.monotonic()
+    log_set = LogSet(paths)
+    merged = log_set.read_new()
+    elapsed = time.monotonic() - started
+
+    separate = 0
+    for path in paths:
+        reader = LogReader(path, max_bytes=log_set.per_source_bytes)
+        separate += len(cmtrace_parser.parse(reader.read_new()))
+
+    print(f"    opened in {elapsed:.2f}s, "
+          f"{log_set.per_source_bytes // (1024 * 1024)} MB per source")
+    for name in log_set.sources():
+        count = sum(1 for e in merged if e.raw.get("log") == name)
+        print(f"      {name:<28} {count:>8,} records")
+    verdict = ("OK" if len(merged) == separate
+               else f"*** {abs(separate - len(merged)):,} "
+                    + ("LOST" if len(merged) < separate else "INVENTED"))
+    print(f"    records          : {len(merged):,} merged / {separate:,} "
+          f"read separately   {verdict}")
+
+    # A backward step WITHIN one file is not a defect and must not be
+    # flagged as one: real logs do it. setupact.log and setuperr.log on this
+    # machine both jump ten hours backwards at a setup phase boundary
+    # (`Ended phase [Pre OOBE]` at 10:44:47, then 00:44:49), and file order
+    # is authoritative within a log precisely so that those records are not
+    # rearranged against what the file says. A backward step ACROSS files is
+    # the real defect: it means the interleave is wrong.
+    backwards = [index for index in range(1, len(merged))
+                 if merged[index].raw.get("merge_time", _UNSET)
+                 < merged[index - 1].raw.get("merge_time", _UNSET)]
+    across = [index for index in backwards
+              if merged[index].raw.get("log")
+              != merged[index - 1].raw.get("log")]
+    print(f"    ordering         : {len(backwards)} backward step(s), "
+          f"{len(across)} of them between different files   "
+          + ("OK" if not across
+             else f"*** the interleave is wrong at row {across[0]:,}"))
+    for index in backwards[:2]:
+        previous, current = merged[index - 1], merged[index]
+        print(f"      row {index:,}: {previous.raw.get('log')} "
+              f"{previous.raw.get('merge_time')} -> "
+              f"{current.raw.get('merge_time')} (same file: "
+              f"{previous.raw.get('log') == current.raw.get('log')})")
+
+    # A continuation belongs to the record above it. After a merge that row
+    # must still be from the same file, or a CSI block has been cut open.
+    stranded = 0
+    for index, entry in enumerate(merged):
+        if not entry.raw.get("continuation") or index == 0:
+            continue
+        if merged[index - 1].raw.get("log") != entry.raw.get("log"):
+            stranded += 1
+    total_cont = sum(1 for e in merged if e.raw.get("continuation"))
+    print(f"    continuations    : {total_cont:,}, {stranded:,} separated "
+          f"from their own file   "
+          + ("OK" if not stranded else "*** a block was cut open"))
+
+
 def main():
     files = _files()
     if not files:
@@ -303,6 +390,10 @@ def main():
             page_back(label, path)
         except Exception as exc:                            # noqa: BLE001
             print(f"\n=== {label} — paging\n    *** RAISED: {exc!r}")
+    try:
+        merge_check()
+    except Exception as exc:                                # noqa: BLE001
+        print(f"\n=== merging\n    *** RAISED: {exc!r}")
     print("\nNote: `severity` is expected to be non-zero on CBS and DISM -- "
           "it counts\nthe rows the word-match used to colour wrongly.")
     return 0

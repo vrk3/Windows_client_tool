@@ -28,7 +28,10 @@ def _model(entries=(), cap=None):
 def test_rows_and_columns(qapp):
     model = _model([_entry("one"), _entry("two")])
     assert model.rowCount() == 2
-    assert model.columnCount() == 5
+    # Time, Source, Severity, Component, Thread, Message. Source is the FILE
+    # a record came from and is always defined, hidden by the pane while a
+    # single log is open.
+    assert model.columnCount() == 6
 
 
 def test_each_column_shows_its_field(qapp):

@@ -13,6 +13,7 @@ this works, they are the evidence that it keeps working.
 """
 import pytest
 
+from modules.log_viewer.log_model import MESSAGE
 from modules.log_viewer.log_viewer_module import LogViewerWidget
 
 #: Small enough for a fixture, large enough that the window lands mid-record.
@@ -54,7 +55,8 @@ def viewer(qapp, big_log):
 
 def _messages(widget):
     model = widget.model
-    return [model.data(model.index(row, 4)) for row in range(model.rowCount())]
+    return [model.data(model.index(row, MESSAGE))
+            for row in range(model.rowCount())]
 
 
 # ---- the button ---------------------------------------------------------
