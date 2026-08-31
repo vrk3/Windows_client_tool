@@ -83,6 +83,10 @@ HIDDEN_IMPORTS = [
     # ImportError the moment someone clicks them.
     "modules.log_viewer.error_lookup_dialog",
     "modules.log_viewer.highlight_dialog",
+    # Both reached only from the "Message colours..." button handler, so
+    # the frozen build runs fine until someone clicks it.
+    "modules.log_viewer.match_colour_dialog",
+    "modules.log_viewer.match_colours",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means
     # PyInstaller cannot see it. The trap here is worse than a missing tab:
