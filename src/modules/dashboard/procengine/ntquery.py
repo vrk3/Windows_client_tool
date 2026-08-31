@@ -128,7 +128,14 @@ class ProcessRaw:
     session: int
     base_priority: int
     working_set: int
+    #: Task Manager's "Memory (private working set)" column -- the one it
+    #: labels simply "Memory". NOT the working set, which counts shared
+    #: pages every process mapping a DLL is charged for.
+    working_set_private: int
+    peak_working_set: int
     private_bytes: int
+    peak_pagefile: int
+    peak_virtual_size: int
     paged_pool: int
     nonpaged_pool: int
     pagefile: int
@@ -210,7 +217,11 @@ def _row(entry) -> ProcessRaw:
         session=entry.SessionId,
         base_priority=entry.BasePriority,
         working_set=entry.WorkingSetSize,
+        working_set_private=entry.WorkingSetPrivateSize,
+        peak_working_set=entry.PeakWorkingSetSize,
         private_bytes=entry.PrivatePageCount,
+        peak_pagefile=entry.PeakPagefileUsage,
+        peak_virtual_size=entry.PeakVirtualSize,
         paged_pool=entry.QuotaPagedPoolUsage,
         nonpaged_pool=entry.QuotaNonPagedPoolUsage,
         pagefile=entry.PagefileUsage,

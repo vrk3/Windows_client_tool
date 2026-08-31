@@ -115,11 +115,11 @@ and the wall time between them.
 ### W1-05: The Details table
 **Files:** Create `src/modules/dashboard/details_tab.py`, tests
 
-- [ ] Task Manager's full column set (~40), each toggleable via a header
+- [x] Task Manager's full column set (~40), each toggleable via a header
       right-click menu, widths and choice persisted.
-- [ ] Sorts on the VALUE, not the formatted text (the TreeSize rule: "9 B"
+- [x] Sorts on the VALUE, not the formatted text (the TreeSize rule: "9 B"
       must not land above "10 GB").
-- [ ] Tests: every column renders for a real snapshot; a refused value shows
+- [x] Tests: every column renders for a real snapshot; a refused value shows
       its reason, not "0".
 
 ### W1-06: The context menu
