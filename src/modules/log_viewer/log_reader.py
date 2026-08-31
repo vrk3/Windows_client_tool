@@ -89,6 +89,12 @@ class LogReader:
         #: the whole thing.
         self.truncated = False
         self._offset = 0
+        #: Where the loaded slice BEGINS, as a byte offset, and always on a
+        #: real line boundary. `_offset` says how far forward the reader has
+        #: got; this says how far back it has been, which is what "load
+        #: earlier" walks. Zero means the head of the file is loaded and
+        #: there is nothing behind it.
+        self._start = 0
         self._identity = None
         self._pending = ""
         self._rolled_done = False
@@ -130,8 +136,27 @@ class LogReader:
 
     def _reset_position(self) -> None:
         self._offset = 0
+        self._start = 0
         self._pending = ""
         self._start_decoder()
+
+    def _first_newline(self, data: bytes) -> int:
+        """Index just PAST the first newline in `data`, or -1.
+
+        In BYTES, not characters, because the answer becomes `_start` and
+        `_start` has to be a byte offset that can be seeked to.
+
+        The newline is whatever the file's encoding makes of it -- `b"\\n"`
+        under UTF-8, `b"\\n\\x00"` under UTF-16 LE, `b"\\x00\\n"` under
+        UTF-16 BE. Those last two can also occur straddling two characters,
+        which is why a match at an unaligned position is skipped rather than
+        believed: taking it would put every character after it out of phase.
+        """
+        newline = "\n".encode(self._encoding)
+        position = data.find(newline)
+        while position != -1 and position % self._char_width:
+            position = data.find(newline, position + 1)
+        return -1 if position == -1 else position + len(newline)
 
     # ---- reading --------------------------------------------------------
 
@@ -206,16 +231,30 @@ class LogReader:
             return self._strip_bom("".join(chunks))
         self._offset = size
 
-        text = self._pending + self._decoder.decode(data)
-        self._pending = ""
-
         if skipped_head:
             # Seeking into the middle of a file lands mid-line, so the first
             # partial line goes. Only on the read that actually seeked:
             # `truncated` is sticky for the UI's benefit, and trimming on
             # every later read would eat each appended line as it arrived.
-            newline = text.find("\n")
-            text = text[newline + 1:] if newline != -1 else ""
+            #
+            # Trimmed in BYTES rather than in decoded text, so that `_start`
+            # can record where the kept text really begins. Trimming after
+            # the decode leaves `_start` pointing into the middle of the
+            # discarded line, and a backward read ending there would stop
+            # mid-line too -- costing that line from BOTH halves, one line
+            # per step, silently.
+            cut = self._first_newline(data)
+            if cut == -1:
+                # The whole slice is one unterminated line. Nothing to show;
+                # the window is empty and sits at the end of the file.
+                self._start = size
+                data = b""
+            else:
+                self._start = start + cut
+                data = data[cut:]
+
+        text = self._pending + self._decoder.decode(data)
+        self._pending = ""
 
         # Hold back an unterminated final line. Split characters need no
         # handling here -- the incremental decoder keeps those bytes itself
@@ -230,6 +269,64 @@ class LogReader:
 
         chunks.append(text)
         return self._strip_bom("".join(chunks))
+
+    # ---- reading backwards ----------------------------------------------
+
+    def has_earlier(self) -> bool:
+        """Whether any of the file sits before the loaded slice."""
+        return self._start > 0
+
+    def read_earlier(self) -> str:
+        """The chunk immediately BEFORE the loaded slice, oldest data last.
+
+        The counterpart to `read_new`, and deliberately not built on it: this
+        decodes one bounded chunk in a single call rather than feeding
+        `_decoder`, which holds the forward stream's incremental state. A
+        followed log and a "load earlier" click share one reader, so touching
+        that decoder here would make the next `read_new` replay the file or
+        return nothing -- a followed log going silent, which is exactly the
+        defect shape the real-log pass found three of.
+
+        The returned text always begins on a line boundary, and ends on the
+        one `_start` already sits on, so a caller can concatenate the pieces
+        and get the file back.
+        """
+        if not self.has_earlier():
+            return ""
+
+        end = self._start
+        start = end
+        data = b""
+        cut = -1
+        # Normally one pass. The loop is for the pathological case of a chunk
+        # containing no newline at all: rather than discard those bytes (they
+        # would be skipped by the next step and lost for good), reach further
+        # back in the same call until a line boundary or the head turns up.
+        while cut == -1 and start > 0:
+            previous = max(0, start - self.max_bytes)
+            previous -= previous % self._char_width
+            try:
+                with open(self.path, "rb") as handle:
+                    handle.seek(previous)
+                    chunk = handle.read(start - previous)
+            except OSError:
+                return ""
+            data = chunk + data
+            start = previous
+            if start == 0:
+                break
+            cut = self._first_newline(data)
+
+        if start == 0:
+            self._start = 0
+            # The head of the file carries the BOM, which decodes to an
+            # invisible U+FEFF that `\s` does not match -- it would cost the
+            # first record of the file its timestamp.
+            return data.decode(self._encoding, errors="replace").lstrip(
+                "﻿")
+
+        self._start = start + cut
+        return data[cut:].decode(self._encoding, errors="replace")
 
     def _strip_bom(self, text: str) -> str:
         r"""Drop a leading BOM, once, at the very start of the stream.
