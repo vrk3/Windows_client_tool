@@ -163,6 +163,9 @@ class LogViewerWidget(QWidget):
         self._last_found = -1
         self._lookup = None
         self._rules = []
+        #: Overrides for the two colours painted inside a message. Empty
+        #: means "follow the theme"; see match_colours.
+        self._match_colours = {}
         self._config = None
         # Whether the user has actually asked for a time range. The boxes
         # always HOLD a value (the log's whole span, or whatever
@@ -418,6 +421,13 @@ class LogViewerWidget(QWidget):
         self.highlight_button = QPushButton("Highlight rules…", self)
         self.highlight_button.clicked.connect(self.edit_highlight_rules)
         range_row.addWidget(self.highlight_button)
+
+        self.colour_button = QPushButton("Message colours…", self)
+        self.colour_button.setToolTip(
+            "Choose the colours the Filter and Find matches and the failing "
+            "error codes are painted in.")
+        self.colour_button.clicked.connect(self.edit_match_colours)
+        range_row.addWidget(self.colour_button)
 
         range_row.addSpacing(12)
         self.regex_box = QCheckBox("Regex", self)
@@ -1857,6 +1867,27 @@ class LogViewerWidget(QWidget):
             if self._config is not None:
                 save_rules(self._config, self._rules)
 
+    def edit_match_colours(self) -> None:
+        from .match_colour_dialog import MatchColourDialog
+        from .match_colours import save_colours
+
+        dialog = MatchColourDialog(self._match_colours, self)
+        if dialog.exec():
+            self.set_match_colours(dialog.chosen())
+            if self._config is not None:
+                save_colours(self._config, self._match_colours)
+
+    def set_match_colours(self, colours) -> None:
+        """Repaint in `colours`. The table is told to redraw because the
+        colour lives in the delegate, not in the model -- nothing the model
+        holds changed, so it emits nothing and the view would keep the old
+        paint until something else moved."""
+        from .match_colours import _clean
+
+        self._match_colours = _clean(colours)
+        self.message_delegate.set_colours(self._match_colours)
+        self.table.viewport().update()
+
     def _on_fold_toggled(self, folded: bool) -> None:
         self.model.set_folding(folded)
         self._update_status()
@@ -2223,10 +2254,12 @@ class LogViewerModule(BaseModule):
         config = getattr(self.app, "config", None) if self.app else None
         if config is not None:
             from .highlight import load_rules
+            from .match_colours import load_colours
 
             self._widget._config = config
             self._widget._rules = load_rules(config)
             self._widget.model.set_highlight_rules(self._widget._rules)
+            self._widget.set_match_colours(load_colours(config))
             # The filter history is only worth saving if it is read back.
             self._widget._filter_history = load_history(config)
             self._widget._history_model.setStringList(

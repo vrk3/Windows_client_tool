@@ -38,24 +38,54 @@ class LogMessageDelegate(QStyledItemDelegate):
         #: out, and building a QTextDocument per row would lay out 200,000
         #: messages to show one.
         self.expanded_row = -1
+        #: The user's chosen colours, by meaning. Empty means "follow the
+        #: theme", which is not the same as storing the theme's current
+        #: values -- see match_colours.
+        self._colours: dict = {}
 
-    def set_needles(self, patterns, regex: bool = False) -> None:
-        """What the Filter and Find boxes are looking for, ready to paint.
+    def set_colours(self, colours) -> None:
+        """Which colours to paint matches and failing codes in.
+
+        Cleaned on the way in even though `load_colours` already cleaned what
+        it read: this is public, and what it accepts is painted inside a Qt
+        virtual, where a bad value is fatal rather than catchable.
+        """
+        from .match_colours import _clean
+
+        self._colours = _clean(colours)
+
+    def message_html(self, text: str, base_colour: str) -> str:
+        """`text` marked up with this delegate's needles and colours.
+
+        The seam `paint` and `sizeHint` both go through, so what is measured
+        can never disagree with what is drawn.
+        """
+        return self.rich_text(text, base_colour, self.needles,
+                              match_colour=self._colours.get("match"),
+                              error_colour=self._colours.get("error"))
+
+    @staticmethod
+    def compiled(patterns, regex: bool = False) -> list:
+        """`patterns` ready to paint with.
 
         An unfinished pattern colours nothing until it is finished, which is
         the same thing the Filter itself does with one.
         """
-        compiled = []
+        out = []
         for pattern in patterns or ():
             if not pattern:
                 # An empty box is not a match on every character.
                 continue
             try:
-                compiled.append(re.compile(
+                out.append(re.compile(
                     pattern if regex else re.escape(pattern), re.IGNORECASE))
             except re.error:
                 continue
-        self.needles = compiled
+        return out
+
+    def set_needles(self, patterns, regex: bool = False) -> None:
+        """What the Filter and Find boxes are looking for, ready to paint."""
+        self.needles = self.compiled(patterns, regex)
 
     @staticmethod
     def match_spans(text: str, needles) -> list:
@@ -136,7 +166,8 @@ class LogMessageDelegate(QStyledItemDelegate):
         return bool(cls.match_spans(text, needles))
 
     @classmethod
-    def rich_text(cls, text: str, base_colour: str, needles=()) -> str:
+    def rich_text(cls, text: str, base_colour: str, needles=(),
+                  match_colour=None, error_colour=None) -> str:
         """`text` with failing codes and search matches wrapped in spans.
 
         Built by walking the spans forwards with a cursor, escaping each
@@ -146,9 +177,13 @@ class LogMessageDelegate(QStyledItemDelegate):
 
         Colour only, never a background: the row already carries a severity
         tint, and a highlight behind the match would fight it.
+
+        `match_colour` and `error_colour` default to the themed values, so a
+        caller that passes neither follows the theme -- which is what an
+        unset override means.
         """
-        error_colour = semantic("error")
-        match_colour = semantic("match")
+        error_colour = error_colour or semantic("error")
+        match_colour = match_colour or semantic("match")
 
         errors = cls.failure_spans(text)
         spans = [(start, end, error_colour) for start, end in errors]
@@ -176,7 +211,7 @@ class LogMessageDelegate(QStyledItemDelegate):
     def _document(self, text: str, base_colour: str, width: int):
         """A laid-out document for `text`, wrapped to `width`."""
         document = QTextDocument()
-        document.setHtml(self.rich_text(text, base_colour, self.needles))
+        document.setHtml(self.message_html(text, base_colour))
         if width > 0:
             document.setTextWidth(width)
         return document
