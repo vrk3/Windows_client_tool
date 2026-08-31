@@ -78,30 +78,30 @@ and the wall time between them.
 **Files:** Create `src/modules/dashboard/procengine/ntquery.py`,
 `tests/test_procengine_ntquery.py`
 
-- [ ] `SYSTEM_PROCESS_INFORMATION` for x64, `system_processes()` returning
+- [x] `SYSTEM_PROCESS_INFORMATION` for x64, `system_processes()` returning
       one dict per process, `STATUS_INFO_LENGTH_MISMATCH` retry loop.
-- [ ] Tests: every running pid appears; our own pid's name matches; the
+- [x] Tests: every running pid appears; our own pid's name matches; the
       buffer grows rather than truncating; a torn/short buffer raises rather
       than returning half a list.
 
 ### W1-02: Rates from two samples
 **Files:** Create `procengine/rates.py`, `tests/test_procengine_rates.py`
 
-- [ ] CPU% from kernel+user time delta over wall time delta over core count;
+- [x] CPU% from kernel+user time delta over wall time delta over core count;
       disk read/write B/s; the first sample of any process reports `None`,
       not `0.0` -- there is no rate yet and zero is a claim.
-- [ ] Tests: a synthetic two-sample pair yields the arithmetic; a pid that
+- [x] Tests: a synthetic two-sample pair yields the arithmetic; a pid that
       vanished between samples is dropped; a counter that went backwards
       (pid reuse) restarts rather than reporting a negative rate.
 
 ### W1-03: The cold cache
 **Files:** Create `procengine/details.py`, `tests/test_procengine_details.py`
 
-- [ ] Per-pid lazy resolution of path, command line, user, integrity,
+- [x] Per-pid lazy resolution of path, command line, user, integrity,
       elevation, description, company, architecture; cached by
       `(pid, create_time)` so pid reuse cannot serve a stale answer.
-- [ ] Refusals recorded as `None` + reason, never as "".
-- [ ] Tests: our own process resolves; pid 4 (System) is refused and says so;
+- [x] Refusals recorded as `None` + reason, never as "".
+- [x] Tests: our own process resolves; pid 4 (System) is refused and says so;
       the cache is not consulted across a create_time change.
 
 ### W1-04: The snapshot the UI reads
@@ -209,3 +209,21 @@ Recorded as they are learned, the way the Log Viewer plan did.
 - **2026-08-31:** `ProcessNode.disk_read_bps` is fed
   `float(io_counters.read_bytes)` -- a cumulative total under a per-second
   name. Every rate in the new engine is computed from two samples.
+- **2026-08-31, W1-03:** the cold sweep costs **141 ms for 275 processes**
+  (0.5 ms each) and the cached sweep **0.05 ms** -- so the two-tier split
+  holds: a new process pays half a millisecond, the rest pay nothing.
+- **2026-08-31, W1-03 (the one that shapes the UI):** unelevated, only
+  **142 of 275 processes (52%)** will give up their path, command line, user
+  or integrity -- 132 refuse with "Access is denied". Half the Details tab is
+  unreadable to a normal user. That is why every unknown here is `None` with
+  a reason rather than `""`: as an empty string the pane would show 133 blank
+  rows, which reads as "these processes have no path" instead of "you are not
+  allowed to look". The pane must offer to relaunch elevated rather than
+  quietly showing half a machine.
+- **2026-08-31, W1-03 (a crash, not a bug report):** ctypes assumes an
+  undeclared function returns `c_int`, so on x64 a **pointer return is
+  truncated to 32 bits**. `GetSidSubAuthority` handed back half a pointer and
+  the test run died with an access violation -- no exception, no traceback in
+  the usual place, just a dead process. Every Win32 prototype in `details.py`
+  now declares `restype`/`argtypes`; the pointer-returning ones are the
+  reason.
