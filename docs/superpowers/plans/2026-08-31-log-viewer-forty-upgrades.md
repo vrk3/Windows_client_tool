@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 6 |
+| 5 | Output and performance | 7 | **7 — DONE** |
 
-**Next task:** W5-07 (search the part that is not loaded) — the last one. W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**ALL 39 BUILDABLE TASKS ARE DONE.** Only W4-05 remains, and it is BLOCKED on a real ConfigMgr/Intune log this machine does not have. W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -1090,14 +1090,33 @@ range, fold state and column layout.
 
 **Files:** `log_reader.py`, pane, tests
 
-- [ ] Test: `test_a_scan_finds_a_match_outside_the_loaded_window`
-- [ ] Test: `test_the_scan_reports_the_byte_offset_so_it_can_be_paged_to`
-- [ ] Test: `test_the_scan_can_be_cancelled`
-- [ ] Test: `test_a_match_split_across_a_read_boundary_is_still_found` —
+- [x] Test: `test_a_scan_finds_a_match_outside_the_loaded_window`
+- [x] Test: `test_the_scan_reports_the_byte_offset_so_it_can_be_paged_to`
+- [x] Test: `test_the_scan_can_be_cancelled`
+- [x] Test: `test_a_match_split_across_a_read_boundary_is_still_found` —
       overlap the reads by the needle length, or long needles are missed
-- [ ] Commit
+- [x] Commit
 
 ---
+- **Proven on the real archive, and it justifies the whole feature:**
+  `Initializing Trusted Installer` is **not in the loaded window** but
+  has **14 hits in the 52.5 MB that was never loaded**. Without this the
+  viewer answers "No match" about a file containing it fourteen times —
+  and that answer is believed. 52.5 MB scanned in 0.33 s.
+- **Reads overlap**, or a needle straddling a block boundary is
+  invisible — and it fails SILENTLY, reporting one fewer hit than there
+  is. The overlap is carried as decoded TEXT so a multi-byte character
+  split across the seam is not mangled either.
+- **Deduplicated on the absolute LINE offset, never on "did this match
+  start inside the carried text".** That second test is wrong: a needle
+  straddling the boundary also starts inside the overlap and has never
+  been reported, so the guard would eat exactly the match the overlap
+  exists to catch. My first version had that bug and passed its tests
+  only because it was written `if hits and ...`, leaving it inert until
+  something had already matched.
+- "No match" now says "in what is loaded" and names how much is not.
+- Offsets are LINE starts, and the file's BOM is stripped from a hit on
+  the first line — `LogReader` strips it, so this must too.
 
 ## Self-review notes
 

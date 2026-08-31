@@ -50,6 +50,7 @@ from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.archives import (extract_cab, extract_zip,
                                          is_cab, is_zip)
+from modules.log_viewer.filescan import scan_file
 from modules.log_viewer.folder_dialog import FolderPickDialog
 from modules.log_viewer.log_set import (LOG_SUFFIXES, LogSet,
                                         preselected)
@@ -298,6 +299,12 @@ class LogViewerWidget(QWidget):
         self.previous_button = QPushButton("Previous", self)
         self.previous_button.clicked.connect(self.find_previous)
         find_row.addWidget(self.previous_button)
+        self.scan_button = QPushButton("Search earlier", self)
+        self.scan_button.setToolTip(
+            "Search the part of the file that has not been loaded.")
+        self.scan_button.clicked.connect(self.search_unloaded)
+        find_row.addWidget(self.scan_button)
+
         self.next_button = QPushButton("Next", self)
         self.next_button.clicked.connect(self.find_next)
         find_row.addWidget(self.next_button)
@@ -1360,6 +1367,38 @@ class LogViewerWidget(QWidget):
         layout.addWidget(buttons)
         dialog.exec()
 
+    def search_unloaded(self) -> list:
+        """Scan the part of the file the window never covered.
+
+        "No match" over a 32 MB window on a 380 MB archive is a statement
+        about memory, not about the log -- and it is believed. This searches
+        the rest, and reports where the hits are so they can be reached.
+        """
+        needle = self.find_box.text().strip()
+        if not needle or self._set is None or not self._paths:
+            return []
+        window_start = self._set.earlier_bytes()
+        if not window_start:
+            self.status.setText(
+                "The whole file is loaded — there is nothing else to search.")
+            return []
+
+        self.status.setText(f"Searching the {_size(window_start)} before the "
+                            "loaded window…")
+        hits = scan_file(self._paths[0], needle,
+                         regex=self.regex_box.isChecked(),
+                         end=window_start)
+        if not hits:
+            self.status.setText(
+                f"{needle!r} is not in the {_size(window_start)} earlier in "
+                "the file either.")
+            return []
+        first = hits[0]
+        self.status.setText(
+            f"{len(hits):,} match(es) earlier in the file, not loaded. "
+            f"First at byte {first.offset:,}: {first.line[:80]}")
+        return hits
+
     # ---- columns ---------------------------------------------------------
 
     #: Without it the table is metadata about lines you cannot read.
@@ -2136,7 +2175,15 @@ class LogViewerWidget(QWidget):
         # the checkbox has to be told what happened to it.
         self._sync_fold_box()
         if row < 0:
-            self.status.setText(f"No match for {needle!r}.")
+            # Only about what is LOADED. If more of the file is behind the
+            # window, say so rather than letting "No match" be read as a
+            # statement about the file.
+            extra = ""
+            if self._set is not None and self._set.has_earlier():
+                extra = (f" {_size(self._set.earlier_bytes())} earlier in "
+                         "the file is not loaded — press Search earlier.")
+            self.status.setText(f"No match for {needle!r} in what is "
+                                f"loaded.{extra}")
             return
         index = self.model.index(row, MESSAGE)
         self.table.setCurrentIndex(index)
