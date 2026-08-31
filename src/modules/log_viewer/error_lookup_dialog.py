@@ -8,7 +8,7 @@ you over the phone.
 from PyQt6.QtWidgets import (QDialog, QLabel, QLineEdit, QPlainTextEdit,
                              QPushButton, QVBoxLayout)
 
-from .error_codes import describe, find_codes
+from .error_codes import advice, describe, find_codes
 
 
 class ErrorLookupDialog(QDialog):
@@ -41,7 +41,17 @@ class ErrorLookupDialog(QDialog):
             # than showing them a blank box.
             lines.append(f"0x{code:08X}  —  "
                          f"{meaning or 'not a code this tool knows.'}")
-        return "\n".join(lines)
+            # Only for the few codes with a documented cause. Every other
+            # code keeps the name-only answer: a plausible-sounding fix for
+            # the wrong error costs more than no fix at all, because it is
+            # acted on.
+            note = advice(code)
+            if note is not None:
+                lines.append(f"    Why : {note.cause}")
+                lines.append(f"    Try : {note.remedy}")
+                lines.append(f"    Ref : {note.reference}")
+            lines.append("")
+        return "\n".join(lines).rstrip()
 
     def _look_up_input(self) -> None:
         self.output.setPlainText(self.look_up(self.input.text()))

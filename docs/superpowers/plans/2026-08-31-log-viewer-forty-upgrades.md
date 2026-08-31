@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 2 |
+| 5 | Output and performance | 7 | 3 |
 
-**Next task:** W5-03 (error codes that explain themselves). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-04 (compare two logs). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -988,11 +988,25 @@ range, fold state and column layout.
 
 **Files:** `error_codes.py` + a data file; `tests/test_log_error_codes.py`
 
-- [ ] Test: `test_a_known_servicing_code_carries_a_cause_and_a_fix`
-- [ ] Test: `test_an_unknown_code_still_decodes_its_name_without_inventing`
-- [ ] **Never invent a fix.** Only codes with a documented, checkable cause
+- [x] Test: `test_a_known_servicing_code_carries_a_cause_and_a_fix`
+- [x] Test: `test_an_unknown_code_still_decodes_its_name_without_inventing`
+- [x] **Never invent a fix.** Only codes with a documented, checkable cause
       go in the table; everything else keeps the name-only behaviour.
-- [ ] Commit
+- [x] Commit
+- **The table is deliberately SHORT — five codes — and nothing in it is
+  invented.** Each entry carries a cause, a remedy someone can actually
+  run, and a reference; a test enforces all three. Every other code
+  keeps the name-only answer `describe()` already gives, because a
+  plausible-sounding fix for the wrong error costs more than no fix at
+  all: it gets acted on.
+- **The entries are the codes this machine's logs actually produce** —
+  0x80004005 (522 times in the archive) and 0x80070490 (five). A
+  knowledge base that skips the codes actually present is decoration,
+  and there is a test pinning those two.
+- **0x80004005 deliberately offers no repair command.** It is E_FAIL and
+  carries no detail of its own, so its entry says to read the
+  surrounding lines instead. Giving it a DISM command would be inventing
+  a fix for an error that does not say what went wrong.
 
 ### W5-04 (idea 25): Compare two logs
 
