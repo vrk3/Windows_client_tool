@@ -133,3 +133,72 @@ def as_csv(entries) -> str:
     for entry in entries or ():
         writer.writerow(_row(entry))
     return buffer.getvalue()
+
+
+def _mb(count) -> str:
+    step = float(count or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if step < 1024:
+            return f"{step:.1f} {unit}"
+        step /= 1024
+    return f"{step:.1f} TB"
+
+
+def as_evidence(entries, sources, filters, shown: int, total: int) -> str:
+    """The rows, with everything needed to judge what they are.
+
+    Rows pasted into a ticket are not evidence on their own. Which files they
+    came from, how big those files are, what span they cover, **how much of
+    each was actually loaded**, and what was being filtered at the time is
+    what makes the excerpt mean something.
+
+    The loaded-fraction line is the one that matters most: a 32 MB window
+    over a 381 MB archive that does not say so implies the whole file was
+    searched, and an absence of hits then reads as "this did not happen".
+    """
+    lines = [_HEADER.lstrip("# "), ""]
+
+    lines.append("Sources")
+    for source in sources or ():
+        name = source.get("name") or source.get("path") or "?"
+        size = source.get("size") or 0
+        loaded = source.get("loaded") or 0
+        first, last = source.get("first"), source.get("last")
+        lines.append(f"  {name}")
+        lines.append(f"    path      : {source.get('path', '')}")
+        if not size:
+            # Windows re-compacts an extracted CbsPersist back into its .cab
+            # while you are reading it, so a source really can vanish
+            # mid-session. "0.0 B of 0.0 B (0%)" reads as a fact about the
+            # file rather than as "it is not there any more".
+            lines.append("    size      : could not be read "
+                         "(the file may no longer be there)")
+            if first and last:
+                lines.append(f"    span      : {first} .. {last}")
+            continue
+        lines.append(f"    size      : {_mb(size)}")
+        if loaded >= size:
+            lines.append("    loaded    : the whole file")
+        else:
+            share = (100.0 * loaded / size) if size else 0.0
+            lines.append(f"    loaded    : {_mb(loaded)} of {_mb(size)} "
+                         f"({share:.0f}%)")
+        if first and last:
+            lines.append(f"    span      : {first} .. {last}")
+    if not sources:
+        lines.append("  (none recorded)")
+    lines.append("")
+
+    lines.append("Filters in force")
+    if filters:
+        for name, value in filters.items():
+            lines.append(f"  {name}: {value}")
+    else:
+        # A blank section reads as "the filters were not recorded".
+        lines.append("  No filters — every loaded record was in view.")
+    lines.append("")
+
+    lines.append(f"Rows: {shown:,} shown of {total:,} loaded")
+    lines.append("")
+    lines.append(as_text(entries, header=False))
+    return "\n".join(lines)

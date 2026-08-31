@@ -1178,6 +1178,84 @@ class LogViewerWidget(QWidget):
         if path:
             self.load_view_from(path)
 
+    def _provenance(self) -> list:
+        """What each open log is, and how much of it was actually read."""
+        sources = []
+        for index, path in enumerate(self._paths):
+            shown = self._extracted.get(path, path)
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                size = 0
+            loaded = size
+            if self._set is not None and index < len(self._set._readers):
+                reader = self._set._readers[index]
+                # window_start() is how much sits BEFORE what was read, so
+                # anything non-zero means the file was opened at its tail.
+                loaded = max(size - reader.window_start(), 0)
+            name = os.path.basename(shown)
+            stamps = [e.timestamp for e in self.model._entries
+                      if e.raw.get("log", name) == name
+                      and e.timestamp != UNKNOWN_TIME]
+            sources.append({
+                "name": name, "path": shown, "size": size, "loaded": loaded,
+                "first": min(stamps) if stamps else None,
+                "last": max(stamps) if stamps else None,
+            })
+        return sources
+
+    def _filters_in_force(self) -> dict:
+        """Only the axes actually narrowing the view, named as the UI names
+        them."""
+        active = {}
+        if self.filter_box.text():
+            active["Filter"] = self.filter_box.text()
+        if self.exclude_box.text():
+            active["Hide"] = self.exclude_box.text()
+        off = [level for level, box in self._level_boxes.items()
+               if not box.isChecked()]
+        if off:
+            active["Severity"] = "hiding " + ", ".join(sorted(off))
+        chosen = self.selected_components()
+        if chosen:
+            active["Component"] = ", ".join(sorted(chosen))
+        if self.thread.currentText() not in ("", "All"):
+            active["Thread"] = self.thread.currentText()
+        if self.source.currentText() not in ("", "All"):
+            active["Source"] = self.source.currentText()
+        if self._range_active:
+            active["Time range"] = (
+                f"{self.time_from.dateTime().toString('yyyy-MM-dd HH:mm:ss')}"
+                f" .. "
+                f"{self.time_to.dateTime().toString('yyyy-MM-dd HH:mm:ss')}")
+        if self.context_box.isChecked():
+            active["Showing"] = "errors and their surrounding lines"
+        return active
+
+    def evidence_bundle(self) -> str:
+        """The visible rows with everything needed to judge what they are."""
+        from .log_export import as_evidence
+
+        return as_evidence(self.visible_entries(), self._provenance(),
+                           self._filters_in_force(),
+                           self.model.rowCount(), self.model.total)
+
+    def write_evidence_to(self, path: str) -> str:
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(self.evidence_bundle())
+        except OSError as problem:
+            self.status.setText(f"Could not write the bundle: {problem}")
+            return str(problem)
+        self.status.setText(f"Evidence written to {os.path.basename(path)}.")
+        return ""
+
+    def choose_evidence(self) -> None:
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Save an evidence bundle", "", "Text (*.txt)")
+        if path:
+            self.write_evidence_to(path)
+
     # ---- columns ---------------------------------------------------------
 
     #: Without it the table is metadata about lines you cannot read.
@@ -1241,6 +1319,8 @@ class LogViewerWidget(QWidget):
                                    self.choose_save_view)
         self.preset_menu.addAction("Open an investigation…",
                                    self.choose_load_view)
+        self.preset_menu.addAction("Save an evidence bundle…",
+                                   self.choose_evidence)
 
     def apply_preset(self, preset) -> None:
         """Set every axis the preset names, and CLEAR the ones it does not.

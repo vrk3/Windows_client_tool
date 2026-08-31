@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 1 |
+| 5 | Output and performance | 7 | 2 |
 
-**Next task:** W5-02 (evidence bundle). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-03 (error codes that explain themselves). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -965,12 +965,24 @@ range, fold state and column layout.
 
 **Files:** `log_export.py`, pane, tests
 
-- [ ] Test: `test_the_bundle_names_every_source_with_its_size_and_span`
-- [ ] Test: `test_the_bundle_states_how_much_of_each_file_was_loaded` — a
+- [x] Test: `test_the_bundle_names_every_source_with_its_size_and_span`
+- [x] Test: `test_the_bundle_states_how_much_of_each_file_was_loaded` — a
       32 MB window over a 381 MB file must say so, or the excerpt implies
       the whole file was searched
-- [ ] Test: `test_the_bundle_states_the_filters_in_force`
-- [ ] Commit
+- [x] Test: `test_the_bundle_states_the_filters_in_force`
+- [x] Commit
+- **Verified on the real archive**, which is where the point lands:
+  `loaded : 32.0 MB of 84.5 MB (38%)` beside the source's span. Without
+  that line an excerpt implies the whole file was searched, and an
+  absence of hits then reads as "this did not happen".
+- **Found while running it: a source can vanish MID-SESSION.** Windows
+  re-compacted the 363 MB `CbsPersist_20260827190818.log` back into its
+  8.2 MB `.cab` during this very session, and the bundle reported
+  `0.0 B of 0.0 B (0%)` — which reads as a fact about the file rather
+  than as "it is not there any more". It now says so. (That churn is
+  also exactly why W4-01's cab support matters.)
+- No filters says "No filters — every loaded record was in view", since
+  a blank section reads as "the filters were not recorded".
 
 ### W5-03 (idea 23): Error codes that explain themselves
 
