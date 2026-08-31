@@ -56,10 +56,10 @@ without asking — `requirements.txt` drift is caught by
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
-| 4 | Getting logs in | 5 | 3 |
+| 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W4-04 (open a support bundle zip).
+**Next task:** W5-01 (save and reopen a view). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -906,11 +906,20 @@ code path rather than writing a second one.
 
 **Files:** `archives.py`, pane, tests
 
-- [ ] Test: `test_a_zip_of_logs_opens_as_a_merged_set`
-- [ ] Test: `test_a_zip_entry_that_is_not_a_log_is_skipped`
-- [ ] Test: `test_a_zip_bomb_or_absolute_path_entry_is_refused` — `zipfile`
+- [x] Test: `test_a_zip_of_logs_opens_as_a_merged_set`
+- [x] Test: `test_a_zip_entry_that_is_not_a_log_is_skipped`
+- [x] Test: `test_a_zip_bomb_or_absolute_path_entry_is_refused` — `zipfile`
       will happily write outside the target directory otherwise
-- [ ] Commit
+- [x] Commit
+- **The Zip Slip guard is the substance of this task.** `zipfile` will
+  write a member named `../escaped.log` or an absolute one wherever it
+  says, and a viewer that unpacks a bundle from someone else's machine
+  has to refuse that. Every member is joined to the target and checked
+  AFTER resolution, which is what survives `..`, an absolute name and a
+  symlinked temp directory alike. Refused members are logged and the
+  safe ones still open.
+- Non-log entries are skipped rather than extracted; a bundle holding no
+  logs says so instead of opening an empty pane.
 
 ### W4-05 (idea 40): Validate the CMTrace path — **BLOCKED**
 

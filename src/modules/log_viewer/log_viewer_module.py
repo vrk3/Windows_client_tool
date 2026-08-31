@@ -46,7 +46,8 @@ from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.clustering import normalise
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
-from modules.log_viewer.archives import extract_cab, is_cab
+from modules.log_viewer.archives import (extract_cab, extract_zip,
+                                         is_cab, is_zip)
 from modules.log_viewer.folder_dialog import FolderPickDialog
 from modules.log_viewer.log_set import (LOG_SUFFIXES, LogSet,
                                         preselected)
@@ -100,8 +101,8 @@ class LogViewerWidget(QWidget):
 
     #: Windows 11 rolls CBS into .cab files, so they belong in the dialog
     #: beside the plain logs rather than behind "All files".
-    FILE_FILTER = ("Logs (*.log *.lo_ *.txt *.cab);;"
-                   "Cabinets (*.cab);;All files (*)")
+    FILE_FILTER = ("Logs and bundles (*.log *.lo_ *.txt *.cab *.zip);;"
+                   "Cabinets (*.cab);;Bundles (*.zip);;All files (*)")
 
     def __init__(self, parent=None, max_bytes: Optional[int] = None) -> None:
         super().__init__(parent)
@@ -630,6 +631,16 @@ class LogViewerWidget(QWidget):
         """
         opened = []
         for path in paths:
+            if is_zip(path):
+                members, problem = extract_zip(path)
+                if problem:
+                    self.status.setText(f"Could not open that bundle: "
+                                        f"{problem}")
+                    continue
+                for member in members:
+                    self._extracted[member] = path
+                opened.extend(members)
+                continue
             if not is_cab(path):
                 opened.append(path)
                 continue

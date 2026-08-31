@@ -1,4 +1,9 @@
-r"""Getting a log out of a `.cab` so the viewer can open it.
+r"""Getting logs out of an archive so the viewer can open them.
+
+Two kinds: a `.cab`, which is how Windows 11 rolls CBS, and a `.zip`, which
+is how logs arrive from someone else's machine. The zip half refuses members
+that would land outside the directory it was given -- see `extract_zip`.
+
 
 Windows 11 rolls CBS into cabinet files -- four of them in
 `C:\Windows\Logs\CBS` on this machine -- and the plain `CBS.log` beside them
@@ -24,8 +29,14 @@ import logging
 import os
 import subprocess
 import tempfile
+import zipfile
 
 logger = logging.getLogger(__name__)
+
+#: What counts as a log inside a bundle. Same rule the folder
+#: scan uses, kept here rather than imported so this module does
+#: not depend on the merge engine.
+LOG_SUFFIXES = (".log", ".lo_")
 
 #: Windows' own cabinet extractor. Full path deliberately: a bare `expand`
 #: resolves to a different, unrelated tool under a POSIX shell.
@@ -40,6 +51,10 @@ _MAGIC = b"MSCF"
 
 def is_cab(path: str) -> bool:
     return bool(path) and path.lower().endswith(".cab")
+
+
+def is_zip(path: str) -> bool:
+    return bool(path) and path.lower().endswith(".zip")
 
 
 def largest_cbs_cab(environ=None) -> str:
@@ -122,3 +137,66 @@ def extract_cab(path: str, into: str = None):
 
     produced.sort(reverse=True)
     return produced[0][1], ""
+
+
+def _is_inside(target: str, path: str) -> bool:
+    """Whether `path` really lands inside `target`.
+
+    Compared after resolving both, because that is the only comparison that
+    survives `..`, an absolute member name, and a symlinked temp directory.
+    """
+    target = os.path.realpath(target)
+    resolved = os.path.realpath(path)
+    return resolved == target or resolved.startswith(target + os.sep)
+
+
+def extract_zip(path: str, into: str = None):
+    """`(log paths, problem)` from a bundle of collected logs.
+
+    This is the shape logs arrive in from someone else's machine.
+
+    **Members that would land outside `into` are refused, not extracted.**
+    `zipfile` will write `../escaped.log` or an absolute member name wherever
+    it says, and a viewer that unpacks a bundle from a stranger's machine has
+    to refuse that. Everything is joined to the target and then checked after
+    resolution, which is what survives `..`, an absolute name, and a
+    symlinked temp directory alike.
+    """
+    if not os.path.isfile(path):
+        return [], f"{os.path.basename(path) or path} is not there"
+    target = into or tempfile.mkdtemp(prefix="logviewer_zip_")
+    os.makedirs(target, exist_ok=True)
+
+    found = []
+    refused = 0
+    try:
+        with zipfile.ZipFile(path) as bundle:
+            for member in bundle.infolist():
+                if member.is_dir():
+                    continue
+                name = member.filename
+                if not name.lower().endswith(LOG_SUFFIXES):
+                    continue
+                destination = os.path.join(target, name)
+                if not _is_inside(target, destination):
+                    refused += 1
+                    logger.warning(
+                        "Refused a zip member that would land outside %s: %s",
+                        target, name)
+                    continue
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                with bundle.open(member) as source:
+                    with open(destination, "wb") as handle:
+                        handle.write(source.read())
+                found.append(destination)
+    except zipfile.BadZipFile:
+        return [], f"{os.path.basename(path)} is not a zip file"
+    except OSError as problem:
+        return [], f"could not read {os.path.basename(path)}: {problem}"
+
+    if not found:
+        detail = (f" ({refused} member(s) refused as unsafe)" if refused
+                  else "")
+        return [], (f"{os.path.basename(path)} holds no logs "
+                    f"(*.log, *.lo_){detail}")
+    return sorted(found), ""
