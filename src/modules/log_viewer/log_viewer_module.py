@@ -124,6 +124,9 @@ class LogViewerWidget(QWidget):
         self._loading_earlier = False
         #: Logs and folders opened recently, most recent first.
         self._recent: list = []
+        #: The folder to re-scan while following, or "" -- a repair run
+        #: creates new logs and Follow only tracks the ones already open.
+        self._watched_folder = ""
         #: Temporary extractions, mapped back to the cab they came from, so
         #: the status line can name the file the user actually chose.
         self._extracted: dict = {}
@@ -643,6 +646,10 @@ class LogViewerWidget(QWidget):
             return
         self._paths = opened
         entry = remember_as or (paths[0] if paths else "")
+        # Only a FOLDER is watched for newcomers. Opening one file is not a
+        # request to open its neighbours.
+        self._watched_folder = remember_as if (
+            remember_as and os.path.isdir(remember_as)) else ""
         if entry:
             self._recent = remember(self._recent, entry, cap=RECENT_CAP)
             save_recent(self._config, self._recent)
@@ -782,6 +789,7 @@ class LogViewerWidget(QWidget):
     def _poll(self, scroll: bool = None) -> None:
         if self._set is None:
             return
+        self._pick_up_new_logs()
         try:
             entries = self._set.read_new()
         except Exception as exc:                    # noqa: BLE001
@@ -795,6 +803,28 @@ class LogViewerWidget(QWidget):
         if scroll or (scroll is None and self.follow.isChecked()):
             self.table.scrollToBottom()
         self._update_status()
+
+    def _pick_up_new_logs(self) -> None:
+        """Add any log that has appeared in the watched folder.
+
+        Only while following: this costs a directory listing per tick, and
+        someone who is not following is not waiting for anything to arrive.
+        A folder that has been removed is not an error -- it is a folder that
+        has been removed.
+        """
+        if not self._watched_folder or not self.follow.isChecked():
+            return
+        if self._set is None:
+            return
+        try:
+            present = LogSet.logs_in_folder(self._watched_folder)
+        except OSError:
+            return
+        for path in present:
+            if path not in self._set.paths:
+                logger.info("A new log appeared while following: %s", path)
+                self._set.add_source(path)
+                self._paths = list(self._set.paths)
 
     # ---- walking backwards ----------------------------------------------
 

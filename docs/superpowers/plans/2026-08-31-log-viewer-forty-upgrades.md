@@ -56,10 +56,10 @@ without asking — `requirements.txt` drift is caught by
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
-| 4 | Getting logs in | 5 | 2 |
+| 4 | Getting logs in | 5 | 3 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W4-03 (watch a folder for new logs).
+**Next task:** W4-04 (open a support bundle zip).
 
 ---
 
@@ -882,13 +882,25 @@ code path rather than writing a second one.
 
 **Files:** `log_set.py`, pane, tests
 
-- [ ] Test: `test_a_log_appearing_after_open_is_picked_up`
-- [ ] Test: `test_a_log_that_disappears_does_not_raise`
-- [ ] Test: `test_watching_is_off_unless_following`
-- [ ] **Do not inject a fake change source and call it tested** — the file
+- [x] Test: `test_a_log_appearing_after_open_is_picked_up`
+- [x] Test: `test_a_log_that_disappears_does_not_raise`
+- [x] Test: `test_watching_is_off_unless_following`
+- [x] **Do not inject a fake change source and call it tested** — the file
       watcher in TreeSize had two fatal bugs behind 21 passing tests for
       exactly that reason. Drive it against a real temp folder.
-- [ ] Commit
+- [x] Commit
+- **Every test drives a REAL folder on disk**, as this task demanded:
+  files are actually created and removed while the pane is open. No
+  injected change source, which is what hid two fatal bugs in TreeSize's
+  watcher behind 21 passing tests.
+- Only a FOLDER is watched, and only while following. Opening one file
+  is not a request to open its neighbours, and someone who is not
+  following is not waiting for anything to arrive — it would be a
+  directory listing per tick for nothing.
+- A new source is given the SAME window share as the others rather than
+  triggering a re-split: re-splitting would change every reader's budget
+  mid-flight and re-read what is already loaded.
+- A log — or the whole folder — disappearing is not an error.
 
 ### W4-04 (idea 30): Open a support bundle (zip)
 

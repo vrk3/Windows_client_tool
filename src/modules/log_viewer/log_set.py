@@ -145,6 +145,21 @@ class LogSet:
         """How much of the whole set sits before what is loaded."""
         return sum(reader.window_start() for reader in self._readers)
 
+    def add_source(self, path: str) -> None:
+        """Start reading a log that appeared after the set was built.
+
+        A repair run creates new files, and Follow only tracks the ones
+        already open. The new source gets the same window share as the
+        others rather than triggering a re-split: re-splitting would change
+        every reader's budget mid-flight and re-read what is already loaded.
+        """
+        if path in self.paths:
+            return
+        self.paths.append(path)
+        self._readers.append(
+            LogReader(path, max_bytes=self.per_source_bytes))
+        self._entries.append([])
+
     # ---- reading --------------------------------------------------------
 
     def read_new(self) -> list:
