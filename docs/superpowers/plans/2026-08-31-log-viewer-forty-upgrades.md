@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 7 |
+| 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-08 (pin rows), then Wave 4.
+**Next task:** W4-01 (open a CbsPersist .cab). Waves 1-3 complete.
 
 ---
 
@@ -803,10 +803,22 @@ pane; tests
 
 **Files:** pane (a second small table above the main one), tests
 
-- [ ] Test: `test_a_pinned_row_stays_visible_while_scrolling`
-- [ ] Test: `test_a_pinned_row_survives_a_filter_that_would_hide_it`
-- [ ] Test: `test_unpinning_removes_it`
-- [ ] Commit
+- [x] Test: `test_a_pinned_row_stays_visible_while_scrolling`
+- [x] Test: `test_a_pinned_row_survives_a_filter_that_would_hide_it`
+- [x] Test: `test_unpinning_removes_it`
+- [x] Commit
+- **The strip has its OWN model, not a proxy over the main one.** A
+  pinned row has to survive a filter that would hide it -- keeping the
+  error on screen while you scroll through what preceded it is the whole
+  point -- and a proxy cannot show a row the source model has already
+  excluded. That requirement is what chose the design.
+- Held as RECORDS, like bookmarks, and sorted into log order rather than
+  the order they were pinned.
+- Pins are cleared when another log is opened: they belong to the file
+  they came from, and carrying them across would show records that are
+  not in it.
+- Distinct from a bookmark, which is a place to jump back TO. A pin
+  stays visible.
 
 ---
 

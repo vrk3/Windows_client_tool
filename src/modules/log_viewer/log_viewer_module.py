@@ -382,6 +382,28 @@ class LogViewerWidget(QWidget):
         range_row.addStretch(1)
         layout.addLayout(range_row)
 
+        # Rows kept in view while you scroll. Its OWN model rather than a
+        # proxy over the main one: a pinned row has to survive a filter that
+        # would hide it, and a proxy cannot show a row the source model has
+        # already excluded.
+        self.pinned_model = LogModel(self)
+        self.pinned_table = QTableView(self)
+        self.pinned_table.setModel(self.pinned_model)
+        self.pinned_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.pinned_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.pinned_table.verticalHeader().setVisible(False)
+        self.pinned_table.horizontalHeader().setVisible(False)
+        self.pinned_table.verticalHeader().setDefaultSectionSize(20)
+        self.pinned_table.setShowGrid(False)
+        self.pinned_table.setFont(QFont("Consolas", 9))
+        self.pinned_table.setWordWrap(False)
+        self.pinned_table.setMaximumHeight(84)
+        self.pinned_table.setVisible(False)
+        self._pinned: list = []
+        layout.addWidget(self.pinned_table)
+
         # Above the table: where the records and the failures fall across the
         # loaded span. On a 1.5-million-record archive this is the difference
         # between reading a log and hunting through one.
@@ -668,6 +690,10 @@ class LogViewerWidget(QWidget):
             return
         self.model.clear()
         self.detail.clear()
+        # Pinned rows belong to the log they came from; carrying them into a
+        # different file would show records that are not in it.
+        self._pinned = []
+        self._refresh_pinned()
         self._set = LogSet(self._paths,
                            max_bytes=self._max_bytes,
                            include_rolled=self.rolled.isChecked(),
@@ -858,6 +884,7 @@ class LogViewerWidget(QWidget):
                 ("Ctrl+L", lambda: self._focus(self.filter_box)),
                 ("Ctrl+H", lambda: self._focus(self.exclude_box)),
                 ("Ctrl+D", self.toggle_bookmark),
+                ("Ctrl+P", self.toggle_pin),
                 ("F3", self.find_next),
                 ("Shift+F3", self.find_previous),
         ):
@@ -1083,6 +1110,35 @@ class LogViewerWidget(QWidget):
                                             "Name for this view:")
         if chosen:
             self.save_current_preset(name)
+
+    def toggle_pin(self) -> None:
+        """Keep the current row on screen, or stop keeping it.
+
+        Held as RECORDS, like bookmarks: rows shift on every filter change
+        and entry indices shift on every "load earlier".
+        """
+        entry = self.model.entry(self.table.currentIndex().row())
+        if entry is None:
+            return
+        if any(held is entry for held in self._pinned):
+            self._pinned = [held for held in self._pinned if held is not entry]
+        else:
+            self._pinned.append(entry)
+        self._refresh_pinned()
+
+    def _refresh_pinned(self) -> None:
+        """Rebuild the strip, in the order the records appear in the log."""
+        order = {id(entry): index
+                 for index, entry in enumerate(self.model._entries)}
+        self._pinned.sort(key=lambda entry: order.get(id(entry), 0))
+        self.pinned_model.clear()
+        self.pinned_model.append(list(self._pinned))
+        self.pinned_table.setVisible(bool(self._pinned))
+        for column in range(self.pinned_model.columnCount()):
+            self.pinned_table.setColumnHidden(
+                column, self.table.isColumnHidden(column))
+            self.pinned_table.setColumnWidth(
+                column, self.table.columnWidth(column))
 
     def toggle_bookmark(self) -> None:
         """Mark or unmark the current row.
@@ -1363,6 +1419,7 @@ class LogViewerWidget(QWidget):
         menu.addAction("Peek at the lines around this row",
                        self.peek_around_current)
         menu.addAction("Bookmark this row  (Ctrl+D)", self.toggle_bookmark)
+        menu.addAction("Pin this row  (Ctrl+P)", self.toggle_pin)
         menu.addAction("Copy selected rows", self.copy_selection)
         menu.addAction("Copy selected rows as Markdown",
                        self.copy_selection_as_markdown)
