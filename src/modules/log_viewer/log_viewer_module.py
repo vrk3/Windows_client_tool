@@ -51,6 +51,7 @@ from modules.log_viewer.archives import (extract_cab, extract_zip,
 from modules.log_viewer.folder_dialog import FolderPickDialog
 from modules.log_viewer.log_set import (LOG_SUFFIXES, LogSet,
                                         preselected)
+from modules.log_viewer.views import View, load_view, save_view
 from modules.log_viewer.presets import (BUILT_IN, Preset,
                                         load_presets,
                                         save_presets)
@@ -1102,6 +1103,81 @@ class LogViewerWidget(QWidget):
         self.model.peek(entry, self.CONTEXT_LINES)
         self._update_status()
 
+    # ---- saving a whole investigation -------------------------------------
+
+    def current_view(self) -> View:
+        """Everything needed to put this pane back as it is now."""
+        return View(
+            sources=list(self._paths),
+            needle=self.filter_box.text(),
+            exclude=self.exclude_box.text(),
+            regex=self.regex_box.isChecked(),
+            levels=[level for level, box in self._level_boxes.items()
+                    if box.isChecked()],
+            components=sorted(self.selected_components()),
+            thread=self.thread.currentText(),
+            log=self.source.currentText(),
+            time_from=self.time_from.dateTime().toString(
+                "yyyy-MM-dd HH:mm:ss") if self._range_active else "",
+            time_to=self.time_to.dateTime().toString(
+                "yyyy-MM-dd HH:mm:ss") if self._range_active else "",
+            fold=self.fold.isChecked(),
+            hidden_columns=sorted(self._hidden_columns),
+        )
+
+    def apply_view(self, view: View) -> None:
+        """Reopen the logs and restore every axis.
+
+        Missing sources are NAMED. Opening the rest quietly would present a
+        partial investigation as a whole one.
+        """
+        gone = view.missing()
+        present = [path for path in view.sources if path not in gone]
+        if present:
+            self.open_paths(present)
+        self._hidden_columns = {name for name in view.hidden_columns
+                                if name not in self.ALWAYS_SHOWN}
+        self._apply_column_choice()
+        self.filter_box.setText(view.needle)
+        self.exclude_box.setText(view.exclude)
+        self.regex_box.setChecked(view.regex)
+        self.fold.setChecked(view.fold)
+        wanted = set(view.levels)
+        for level, box in self._level_boxes.items():
+            box.setChecked(level in wanted if wanted else True)
+        self.set_components(set(view.components))
+        if gone:
+            names = ", ".join(os.path.basename(path) for path in gone)
+            self.status.setText(f"These logs are no longer there: {names}")
+
+    def save_view_to(self, path: str) -> str:
+        problem = save_view(path, self.current_view())
+        if problem:
+            self.status.setText(f"Could not save the view: {problem}")
+        else:
+            self.status.setText(f"View saved to {os.path.basename(path)}.")
+        return problem
+
+    def load_view_from(self, path: str) -> str:
+        view, problem = load_view(path)
+        if problem:
+            self.status.setText(f"Could not open that view: {problem}")
+            return problem
+        self.apply_view(view)
+        return ""
+
+    def choose_save_view(self) -> None:
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Save this view", "", "Saved views (*.json)")
+        if path:
+            self.save_view_to(path)
+
+    def choose_load_view(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Open a saved view", "", "Saved views (*.json)")
+        if path:
+            self.load_view_from(path)
+
     # ---- columns ---------------------------------------------------------
 
     #: Without it the table is metadata about lines you cannot read.
@@ -1160,6 +1236,11 @@ class LogViewerWidget(QWidget):
         self.preset_menu.addSeparator()
         self.preset_menu.addAction("Save current view as…",
                                    self.choose_preset_name)
+        self.preset_menu.addSeparator()
+        self.preset_menu.addAction("Save investigation to a file…",
+                                   self.choose_save_view)
+        self.preset_menu.addAction("Open an investigation…",
+                                   self.choose_load_view)
 
     def apply_preset(self, preset) -> None:
         """Set every axis the preset names, and CLEAR the ones it does not.

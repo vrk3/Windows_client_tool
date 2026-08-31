@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 0 |
+| 5 | Output and performance | 7 | 1 |
 
-**Next task:** W5-01 (save and reopen a view). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-02 (evidence bundle). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -945,10 +945,21 @@ code path rather than writing a second one.
 **Interfaces:** a JSON document naming sources, every filter axis, the time
 range, fold state and column layout.
 
-- [ ] Test: `test_a_saved_view_round_trips_every_axis`
-- [ ] Test: `test_opening_a_view_whose_logs_are_gone_says_which`
-- [ ] Test: `test_a_view_from_a_future_version_is_refused_not_half_applied`
-- [ ] Commit
+- [x] Test: `test_a_saved_view_round_trips_every_axis`
+- [x] Test: `test_opening_a_view_whose_logs_are_gone_says_which`
+- [x] Test: `test_a_view_from_a_future_version_is_refused_not_half_applied`
+- [x] Commit
+- **Three rules, each because the alternative is a quiet lie:**
+  every axis is written (one missing field and the view you reopen is
+  not the one you saved, with nothing to say so — there is a test that
+  every field actually reaches the file); missing sources are NAMED
+  rather than skipped, since opening the rest quietly presents a partial
+  investigation as a whole one; and a file from a NEWER version is
+  refused outright, because half-applying something we do not understand
+  gives a view that is neither the saved one nor the current one and
+  blames neither.
+- A file from an OLDER version still loads, with absent axes taking
+  their defaults. Refusing those would make the format a one-way door.
 
 ### W5-02 (idea 36): Evidence bundle
 
