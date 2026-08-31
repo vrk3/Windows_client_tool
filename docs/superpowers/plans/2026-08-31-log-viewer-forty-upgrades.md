@@ -53,13 +53,13 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 4 |
+| 1 | Quick wins that change daily use | 13 | 5 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-03.
+**Next task:** W1-04.
 
 ---
 
@@ -116,11 +116,22 @@ Small, self-contained, each one visible the moment it lands. All live in
 or keeps the `QLineEdit` with a `QCompleter` over a history list. Prefer the
 completer — the clear button and placeholder behaviour are already right.
 
-- [ ] Test: `test_a_committed_filter_joins_the_history`
-- [ ] Test: `test_the_history_does_not_grow_without_bound` (cap 20)
-- [ ] Test: `test_an_identical_filter_moves_to_the_front_rather_than_repeating`
-- [ ] Persist through `self._config` if a config is present, else in memory
-- [ ] Commit
+- [x] Test: `test_a_committed_filter_joins_the_history`
+- [x] Test: `test_the_history_does_not_grow_without_bound` (cap 20)
+- [x] Test: `test_an_identical_filter_moves_to_the_front_rather_than_repeating`
+- [x] Persist through `self._config` if a config is present, else in memory
+- [x] Commit
+- **Done.** New Qt-free `src/modules/log_viewer/history.py` holds the
+  ordering rules as a pure function so they test without a widget; the
+  pane keeps a `QCompleter` over a `QStringListModel`.
+- **Enter is the commit gesture, not typing.** The filter applies live,
+  so recording on `textChanged` would fill the history with every
+  prefix: H, HR, HRE, HRES.
+- `MatchContains`, not the default prefix match — a log pattern is
+  rarely recalled from its first character.
+- A stored value that is not a list of strings is discarded rather than
+  trusted: config files get hand-edited and a bad value would otherwise
+  reach a completer during `create_widget`.
 
 ### W1-04 (idea 12): Multi-select Component and Thread
 

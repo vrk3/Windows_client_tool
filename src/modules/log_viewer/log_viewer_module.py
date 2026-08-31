@@ -15,13 +15,14 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, QDateTime
+from PyQt6.QtCore import Qt, QTimer, QDateTime, QStringListModel
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
     QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
-    QSplitter, QTableView, QToolButton, QVBoxLayout, QWidget,
+    QCompleter, QSplitter, QTableView, QToolButton, QVBoxLayout,
+    QWidget,
 )
 
 from core.base_module import BaseModule
@@ -33,6 +34,8 @@ from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
     COMPONENT, LogModel, MESSAGE, SEVERITY, SOURCE, THREAD, TIME,
 )
+from modules.log_viewer.history import (load_history, remember,
+                                        save_history)
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.log_set import LogSet
@@ -224,6 +227,16 @@ class LogViewerWidget(QWidget):
             "show only lines containing… (case insensitive)")
         self.filter_box.setClearButtonEnabled(True)
         self.filter_box.textChanged.connect(lambda _t: self._apply_filters())
+        # The filter applies live, so every keystroke would otherwise be
+        # remembered -- H, HR, HRE, HRES. Enter is the commit gesture.
+        self.filter_box.returnPressed.connect(self._remember_filter)
+        self._filter_history: list = []
+        self._history_model = QStringListModel(self)
+        completer = QCompleter(self._history_model, self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        # A log pattern is rarely recalled from its first character.
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.filter_box.setCompleter(completer)
         find_row.addWidget(self.filter_box, 1)
 
         # The inverse box. A real CBS.log is mostly `Appl: detectParent` and
@@ -590,6 +603,13 @@ class LogViewerWidget(QWidget):
             return
         self.table.scrollTo(self.model.index(row, MESSAGE),
                             QAbstractItemView.ScrollHint.PositionAtTop)
+
+    def _remember_filter(self) -> None:
+        """Put the committed pattern at the front of the history."""
+        self._filter_history = remember(self._filter_history,
+                                        self.filter_box.text())
+        self._history_model.setStringList(self._filter_history)
+        save_history(self._config, self._filter_history)
 
     def _refresh_match_colours(self) -> None:
         """Tell the Message delegate what to pick out inside each line.
@@ -1085,6 +1105,10 @@ class LogViewerModule(BaseModule):
             self._widget._config = config
             self._widget._rules = load_rules(config)
             self._widget.model.set_highlight_rules(self._widget._rules)
+            # The filter history is only worth saving if it is read back.
+            self._widget._filter_history = load_history(config)
+            self._widget._history_model.setStringList(
+                self._widget._filter_history)
         return self._widget
 
     def get_search_provider(self) -> Optional[SearchProvider]:
