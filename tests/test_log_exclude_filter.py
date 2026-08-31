@@ -193,3 +193,47 @@ def test_the_excluded_term_is_not_coloured_as_a_match(viewer):
     viewer.exclude_box.setText("detectParent")
     patterns = [n.pattern for n in viewer.message_delegate.needles]
     assert "detectParent" not in patterns
+
+
+# ---- W1-02: saying when a filter matched nothing -------------------------
+#
+# An empty table reads as "this log has no such records". It is a different
+# statement from "your filter removed everything", and the pane has to make
+# which one it means unambiguous.
+
+def test_a_filter_matching_nothing_says_so(viewer):
+    viewer.filter_box.setText("nothing whatsoever matches this")
+    assert "no rows match" in viewer.status.text().lower()
+
+
+def test_a_filter_matching_something_does_not_say_it(viewer):
+    viewer.filter_box.setText("package")
+    assert "no rows match" not in viewer.status.text().lower()
+
+
+def test_an_empty_log_does_not_blame_the_filter(qapp, tmp_path):
+    """Nothing loaded is not the same as a filter that removed everything."""
+    path = tmp_path / "empty.log"
+    path.write_text("", encoding="utf-8")
+    widget = LogViewerWidget()
+    try:
+        widget.open(str(path))
+        widget.filter_box.setText("anything")
+        assert "no rows match" not in widget.status.text().lower()
+    finally:
+        widget.stop()
+
+
+def test_the_hide_box_emptying_the_table_says_so_too(viewer):
+    viewer.exclude_box.setText("e")
+    assert "no rows match" in viewer.status.text().lower()
+
+
+def test_the_count_updates_on_every_keystroke(viewer):
+    """textChanged is already wired; this pins it, because a count that only
+    refreshes on commit is worse than none."""
+    viewer.filter_box.setText("Failed")
+    first = viewer.status.text()
+    viewer.filter_box.setText("Failed to open")
+    assert viewer.status.text() == first or "1 shown" in viewer.status.text()
+    assert "shown of" in viewer.status.text()

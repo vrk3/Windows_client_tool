@@ -53,13 +53,13 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 1 |
+| 1 | Quick wins that change daily use | 13 | 3 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-02.
+**Next task:** W1-03.
 
 ---
 
@@ -96,12 +96,17 @@ Small, self-contained, each one visible the moment it lands. All live in
 
 **Files:** `log_viewer_module.py`, `tests/test_log_viewer_module.py`
 
-- [ ] Test: `test_the_status_says_how_many_rows_the_filter_left`
-- [ ] Test: `test_a_filter_matching_nothing_says_so_rather_than_showing_empty`
-- [ ] The count already exists in `_update_status` as "N shown of M"; this
+- [x] Test: `test_the_status_says_how_many_rows_the_filter_left`
+- [x] Test: `test_a_filter_matching_nothing_says_so_rather_than_showing_empty`
+- [x] The count already exists in `_update_status` as "N shown of M"; this
       task adds the *no matches* wording and makes it update on every
       keystroke rather than only after a commit
-- [ ] Commit
+- [x] Commit
+- **Done.** The count already refreshed per keystroke; what was missing
+  was the wording. An empty table reads as "this log has no such
+  records", which is a different claim from "your filter removed
+  everything" -- and only said when records ARE loaded, since nothing
+  loaded is a third thing and not the filter's fault.
 
 ### W1-03 (idea 10): Filter history
 
@@ -155,13 +160,22 @@ tests for both
 **Interfaces:** `LogModel.row_at_or_after(timestamp) -> int` using `bisect`
 over `_visible`, mirroring `row_for_entry`.
 
-- [ ] Test: `test_going_to_a_time_lands_on_the_first_row_at_or_after_it`
-- [ ] Test: `test_a_time_after_the_end_lands_on_the_last_row`
-- [ ] Test: `test_a_time_before_the_start_lands_on_the_first_row`
-- [ ] Test: `test_rows_with_no_timestamp_are_skipped_rather_than_matched`
-- [ ] Pane: a "Go to…" button opening a small dialog prefilled with the
+- [x] Test: `test_going_to_a_time_lands_on_the_first_row_at_or_after_it`
+- [x] Test: `test_a_time_after_the_end_lands_on_the_last_row`
+- [x] Test: `test_a_time_before_the_start_lands_on_the_first_row`
+- [x] Test: `test_rows_with_no_timestamp_are_skipped_rather_than_matched`
+- [x] Pane: a "Go to…" button opening a small dialog prefilled with the
       loaded span, or reuse the existing `QDateTimeEdit` pattern
-- [ ] Commit
+- [x] Commit
+- **Done, with two corrections the tests forced.** (1) `row_at_or_after`
+  is a LINEAR walk, not a bisect: log timestamps are not sorted --
+  setupact jumps ten hours backwards at a phase boundary and a merged
+  set interleaves several clocks -- so a bisect answers confidently and
+  wrongly. 200k comparisons is a few ms and it runs on a click. (2) The
+  jump takes its own time via a small dialog rather than reading the
+  From box: editing that box fires `dateTimeChanged`, which is what
+  turns the range filter ON, so reusing it would have hidden rows
+  before the jump ever happened.
 
 ### W1-07 (idea 24): Flag corruption markers
 

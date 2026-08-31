@@ -18,7 +18,8 @@ from typing import Optional
 from PyQt6.QtCore import Qt, QTimer, QDateTime
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QFileDialog, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
+    QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
     QSplitter, QTableView, QToolButton, QVBoxLayout, QWidget,
 )
@@ -263,6 +264,17 @@ class LogViewerWidget(QWidget):
         self.time_to.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.time_to.dateTimeChanged.connect(self._on_range_edited)
         range_row.addWidget(self.time_to)
+        # Jumping is not filtering. The range boxes HIDE everything outside
+        # the range; this only moves you to a moment, which is what you want
+        # when correlating a log against an event log or someone's account of
+        # what happened. It reuses the From box because that is already
+        # prefilled with the loaded span.
+        self.goto_button = QPushButton("Go to", self)
+        self.goto_button.setToolTip(
+            "Scroll to a moment in time without hiding anything.")
+        self.goto_button.clicked.connect(self.choose_go_to)
+        range_row.addWidget(self.goto_button)
+
         self.clear_range_button = QPushButton("Clear range", self)
         self.clear_range_button.clicked.connect(self._reset_range)
         range_row.addWidget(self.clear_range_button)
@@ -636,6 +648,13 @@ class LogViewerWidget(QWidget):
             opened = os.path.basename(self._path)
         parts = [opened,
                  f"{self.model.rowCount():,} shown of {self.model.total:,}"]
+        if self.model.total and not self.model.rowCount():
+            # An empty table reads as "this log has no such records", which
+            # is a different statement from "your filter removed everything"
+            # -- and the first one sends someone away believing the log is
+            # clean. Only said when records ARE loaded: nothing loaded is a
+            # third thing again, and not the filter's fault.
+            parts.append("no rows match the current filter")
         if self.model.dropped:
             # Saying so matters: silently showing the last 200k lines of a
             # 900k-line log is how someone concludes the log is clean.
@@ -709,6 +728,51 @@ class LogViewerWidget(QWidget):
         self.time_to.blockSignals(False)
         self._range_active = True
         self._apply_filters()
+
+    def choose_go_to(self) -> None:
+        """Ask for a moment, then jump to it.
+
+        Its own input rather than the From box: editing that box fires
+        `dateTimeChanged`, which is what turns the range filter ON, so
+        typing a time there would hide rows before the jump ever happened.
+        """
+        span = self.model.time_span()
+        if not span:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Go to time")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Scroll to the first record at or after:",
+                                dialog))
+        picker = QDateTimeEdit(dialog)
+        picker.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        picker.setDateTime(QDateTime(span[0]))
+        layout.addWidget(picker)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec():
+            self.go_to_time(picker.dateTime().toPyDateTime())
+
+    def go_to_time(self, when=None) -> None:
+        """Scroll to the first row at or after `when`.
+
+        Deliberately does NOT set `_range_active`: a jump is not a filter,
+        and switching the range on here would hide the surrounding rows that
+        are the entire reason for jumping rather than filtering.
+        """
+        if when is None:
+            when = self.time_from.dateTime().toPyDateTime()
+        row = self.model.row_at_or_after(when)
+        if row < 0:
+            return
+        index = self.model.index(row, MESSAGE)
+        self.table.setCurrentIndex(index)
+        self.table.scrollTo(index,
+                            QAbstractItemView.ScrollHint.PositionAtCenter)
 
     def _on_range_edited(self, _new_value) -> None:
         """A genuine user edit of either box -- see the comment on the

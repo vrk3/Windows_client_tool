@@ -211,6 +211,30 @@ class LogModel(QAbstractTableModel):
             return self._visible[row]
         return None
 
+    def row_at_or_after(self, when) -> int:
+        """The first VISIBLE row timestamped at or after `when`, or -1.
+
+        A linear walk, deliberately, where `row_for_entry` next door uses a
+        bisect. A bisect needs the column to be sorted, and log timestamps
+        are not: `setupact.log` and `setuperr.log` both jump ten hours
+        backwards at a setup phase boundary, and a merged set interleaves
+        several clocks. A bisect over that answers confidently and wrongly.
+
+        200,000 comparisons is a few milliseconds and this runs on a click,
+        not on a keystroke.
+
+        Records with no clock of their own are skipped rather than matched:
+        landing on a continuation puts you inside a block with no way to tell
+        where you are.
+        """
+        for row, index in enumerate(self._visible):
+            entry = self._entries[index]
+            if entry.timestamp == UNKNOWN_TIME:
+                continue
+            if entry.timestamp >= when:
+                return row
+        return len(self._visible) - 1 if self._visible else -1
+
     def row_for_entry(self, index: int) -> int:
         """The row showing record `index`, or the nearest one below it.
 
