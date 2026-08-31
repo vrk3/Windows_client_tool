@@ -15,7 +15,8 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, QDateTime, QStringListModel
+from PyQt6.QtCore import (Qt, QTimer, QDateTime, QStringListModel,
+                          pyqtSignal)
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
@@ -96,6 +97,20 @@ def _size(count: int) -> str:
 
 
 class LogViewerWidget(QWidget):
+    #: How many records are added to the model before the window is given a
+    #: chance to repaint. Measured: the 84.5 MB archive parses in 1.44s and
+    #: the 90-log Windows\Logs tree in 1.45s, both past the second where a
+    #: frozen window stops looking busy and starts looking broken.
+    #:
+    #: Chunked on the UI thread rather than moved to a worker: making open()
+    #: asynchronous would break the contract that it completes before it
+    #: returns, which roughly two hundred existing tests rely on, and would
+    #: add widget-lifetime hazards for a 1.4-second win.
+    CHUNK = 5000
+
+    #: Emitted 0..100 while a big log is being taken in.
+    progress_reported = pyqtSignal(int)
+
     #: Offered on a row. Five minutes is the default because a servicing
     #: operation's related lines land within seconds of each other; the
     #: wider ones are for correlating across a reboot.
@@ -125,6 +140,13 @@ class LogViewerWidget(QWidget):
         #: path chains loads and walks the window back several steps from one
         #: flick of the wheel.
         self._loading_earlier = False
+        #: Set by cancel_load() while a big log is being taken in.
+        self._cancelled = False
+        #: (records taken in, records offered) when a load was cancelled, so
+        #: the status line can say so. Kept here rather than written straight
+        #: to the label because `_poll` calls `_update_status()` immediately
+        #: after a load and would overwrite the message.
+        self._cancelled_at = None
         #: Logs and folders opened recently, most recent first.
         self._recent: list = []
         #: The folder to re-scan while following, or "" -- a repair run
@@ -810,12 +832,52 @@ class LogViewerWidget(QWidget):
             self.status.setText(f"Could not read the log: {exc}")
             return
         if entries:
-            self.model.append(entries)
+            self._append_in_chunks(entries)
             self.provider.set_entries(self.model._entries,
                                       os.path.basename(self._path))
         if scroll or (scroll is None and self.follow.isChecked()):
             self.table.scrollToBottom()
         self._update_status()
+
+    def cancel_load(self) -> None:
+        """Stop taking in the rest of the current log."""
+        self._cancelled = True
+
+    def _append_in_chunks(self, entries) -> None:
+        """Add records a slice at a time, letting the window breathe.
+
+        Below one chunk this is exactly the old behaviour -- one append, no
+        progress, no event pumping -- so the common case pays nothing.
+
+        `processEvents` between slices is what makes Cancel possible without
+        a worker: the click is delivered during the load rather than after
+        it.
+        """
+        from PyQt6.QtWidgets import QApplication
+
+        entries = list(entries)
+        if len(entries) <= self.CHUNK:
+            self.model.append(entries)
+            return
+
+        self._cancelled = False
+        self._cancelled_at = None
+        total = len(entries)
+        for start in range(0, total, self.CHUNK):
+            if self._cancelled:
+                # Recorded rather than written straight to the status line:
+                # `_poll` calls `_update_status()` immediately after this
+                # and would overwrite the message, so the user would cancel
+                # and be told nothing had happened.
+                self._cancelled_at = (self.model.total, total)
+                return
+            self.model.append(entries[start:start + self.CHUNK])
+            done = min(start + self.CHUNK, total)
+            self.progress_reported.emit(int(100 * done / total))
+            self.status.setText(
+                f"Reading {os.path.basename(self._path)}… "
+                f"{100 * done // total}%")
+            QApplication.processEvents()
 
     def _pick_up_new_logs(self) -> None:
         """Add any log that has appeared in the watched folder.
@@ -1577,6 +1639,10 @@ class LogViewerWidget(QWidget):
             # Same reason. These records are one click away rather than gone,
             # but the count still has to be visible.
             parts.append(f"{folded:,} continuation lines folded")
+        if self._cancelled_at:
+            taken, offered = self._cancelled_at
+            parts.append(f"load cancelled — {taken:,} of {offered:,} "
+                         "records taken in")
         if self.model.unloaded_newer:
             # The window slid backwards and the newest records went to make
             # room. They are one "Newest" click away rather than gone, but

@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 4 |
+| 5 | Output and performance | 7 | 5 |
 
-**Next task:** W5-05 (parse off the UI thread). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-06 (timestamp index). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -1034,14 +1034,32 @@ range, fold state and column layout.
 
 **Files:** pane, tests
 
-- [ ] Test: `test_a_large_open_reports_progress`
-- [ ] Test: `test_cancelling_a_load_leaves_the_pane_usable`
-- [ ] Test: `test_a_worker_that_finishes_after_the_widget_is_gone_does_not_crash`
+- [x] Test: `test_a_large_open_reports_progress`
+- [x] Test: `test_cancelling_a_load_leaves_the_pane_usable`
+- [x] Test: `test_a_worker_that_finishes_after_the_widget_is_gone_does_not_crash`
       — guard with `sip.isdeleted`, as the codebase already does
-- [ ] Use `Worker` from `core/worker.py`; `worker.is_cancelled` is a
+- [x] Use `Worker` from `core/worker.py`; `worker.is_cancelled` is a
       property, not a method; cancel via `worker.cancel()`
-- [ ] Only worth doing once a real open exceeds ~1 s; measure first
-- [ ] Commit
+- [x] Only worth doing once a real open exceeds ~1 s; measure first
+- [x] Commit
+- **Measured first, as this task required.** The 84.5 MB archive opens
+  in **1.44 s** and the 90-log `C:/Windows/Logs` tree in **1.45 s** —
+  both past the one second where a frozen window stops looking busy and
+  starts looking broken. So it was warranted.
+- **But NOT with a worker, deliberately.** Moving the parse off the UI
+  thread makes `open()` asynchronous, and roughly two hundred existing
+  tests call `open()` and assert on the result immediately — that
+  contract is load-bearing. It would also add widget-lifetime hazards
+  for a 1.4-second win. Chunked appends with `processEvents` between
+  slices keep the contract, keep the window responsive, and make Cancel
+  work (the click is delivered DURING the load).
+- Below one chunk the behaviour is exactly as before — one append, no
+  progress, no event pumping — so the common case pays nothing.
+- **A bug the tests caught:** the cancellation message was written
+  straight to the status label, and `_poll` calls `_update_status()`
+  immediately afterwards and wiped it — so you cancelled and were told
+  nothing had happened. The status line now owns that fact.
+- Real archive: 1.48 s, 28 progress updates, 138,683 records.
 
 ### W5-06 (idea 38): Timestamp index for seeking
 
