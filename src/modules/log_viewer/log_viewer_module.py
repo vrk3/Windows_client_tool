@@ -47,7 +47,9 @@ from modules.log_viewer.clustering import normalise
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.archives import extract_cab, is_cab
-from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
+from modules.log_viewer.folder_dialog import FolderPickDialog
+from modules.log_viewer.log_set import (LOG_SUFFIXES, LogSet,
+                                        preselected)
 from modules.log_viewer.presets import (BUILT_IN, Preset,
                                         load_presets,
                                         save_presets)
@@ -604,6 +606,8 @@ class LogViewerWidget(QWidget):
         self.open_menu.addAction("Browse…", self.choose_file)
         self.open_menu.addAction("Open every log in a folder…",
                                  self.choose_folder)
+        self.open_menu.addAction("Open a folder and its subfolders…",
+                                 self.choose_folder_tree)
 
     def choose_file(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
@@ -703,6 +707,31 @@ class LogViewerWidget(QWidget):
                 "Dropped no log files (*.log, *.lo_ are what this opens).")
             return
         self.open_paths(logs)
+
+    def choose_folder_tree(self) -> None:
+        """Walk a whole tree, then show what was found before opening any of
+        it.
+
+        Separate from the flat open on purpose. `C:/Windows/Logs` holds 90
+        logs across twelve subfolders, one of them 84.5 MB; opening all of
+        that because someone pointed at the parent is the accident this
+        exists to prevent.
+        """
+        folder = QFileDialog.getExistingDirectory(
+            self, "Open logs from a folder and its subfolders")
+        if not folder:
+            return
+        found, capped = LogSet.logs_under(folder)
+        if not found:
+            self.status.setText(
+                f"No logs (*.log, *.lo_) anywhere under {folder}")
+            return
+        dialog = FolderPickDialog(folder, found, preselected(found), capped,
+                                  self)
+        if dialog.exec():
+            chosen = dialog.chosen()
+            if chosen:
+                self.open_paths(chosen, remember_as=folder)
 
     def choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Open every log in a folder")

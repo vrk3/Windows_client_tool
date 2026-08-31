@@ -54,6 +54,34 @@ APPENDIX_TIME = datetime.max
 #: `test_log_set.py` pins the two to the same number.
 DEFAULT_CAP = 200_000
 
+#: How many files a recursive scan will offer. Measured on the real
+#: `C:/Windows/Logs`: 90 logs across 12 subfolders. The cap is not about
+#: that folder but about the ones nobody has measured.
+RECURSIVE_CAP = 200
+
+#: A log at or under this is ticked in the checklist by default. The CBS
+#: archive in that same folder is 84.5 MB, and opening it because someone
+#: pointed at the parent directory is the accident the checklist prevents.
+#: 85 of those 90 real logs are under 1 MB, so the common case is unaffected.
+PRESELECT_MAX_BYTES = 8 * 1024 * 1024
+
+
+def preselected(paths) -> set:
+    """Which of `paths` to tick by default: the ones small enough to be
+    opened without thinking about it.
+
+    A file that has vanished between the scan and the dialog is not ticked;
+    a log can roll away in that gap.
+    """
+    ticked = set()
+    for path in paths or ():
+        try:
+            if os.path.getsize(path) <= PRESELECT_MAX_BYTES:
+                ticked.add(path)
+        except OSError:
+            continue
+    return ticked
+
 
 def effective_time(entry):
     """The moment a record happened, or None if it has no real one.
@@ -249,6 +277,30 @@ class LogSet:
         return [row[3] for row in heapq.merge(*keyed, key=lambda row: row[:3])]
 
     # ---- folders --------------------------------------------------------
+
+    @classmethod
+    def logs_under(cls, folder: str, cap: int = None):
+        """`(paths, hit the cap)` for every log in the TREE under `folder`.
+
+        Separate from `logs_in_folder`, which stays flat: the default open
+        must not walk twelve subfolders because someone pointed at a parent.
+        This is the deliberate version, and it hands back whether it stopped
+        early so the caller can say so rather than silently truncating.
+        """
+        limit = RECURSIVE_CAP if cap is None else cap
+        found = []
+        for base, _dirs, files in os.walk(folder):
+            for name in sorted(files):
+                if not name.lower().endswith(LOG_SUFFIXES):
+                    continue
+                path = os.path.join(base, name)
+                if os.path.isfile(path):
+                    found.append(path)
+                    if len(found) >= limit:
+                        return sorted(found), True
+        # Sorted by full path so the checklist reads grouped by folder, not
+        # in whatever order os.walk happened to reach them.
+        return sorted(found), False
 
     @classmethod
     def logs_in_folder(cls, folder: str) -> list:

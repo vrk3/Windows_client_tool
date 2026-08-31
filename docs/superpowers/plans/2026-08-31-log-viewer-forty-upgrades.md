@@ -56,10 +56,10 @@ without asking — `requirements.txt` drift is caught by
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
-| 4 | Getting logs in | 5 | 1 |
+| 4 | Getting logs in | 5 | 2 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W4-02 (recursive folder open with a checklist).
+**Next task:** W4-03 (watch a folder for new logs).
 
 ---
 
@@ -862,11 +862,21 @@ code path rather than writing a second one.
 
 **Files:** `log_set.py` (`logs_under(folder)`), a small dialog, pane, tests
 
-- [ ] Test: `test_a_recursive_scan_finds_nested_logs`
-- [ ] Test: `test_the_scan_is_capped_and_says_when_it_capped`
-- [ ] Test: `test_the_dialog_preselects_nothing_over_a_size_threshold`
-- [ ] `C:\Windows\Logs` has ~30 subfolders; the cap is the whole point
-- [ ] Commit
+- [x] Test: `test_a_recursive_scan_finds_nested_logs`
+- [x] Test: `test_the_scan_is_capped_and_says_when_it_capped`
+- [x] Test: `test_the_dialog_preselects_nothing_over_a_size_threshold`
+- [x] `C:\Windows\Logs` has ~30 subfolders; the cap is the whole point
+- [x] Commit
+- **Measured the real tree first:** `C:/Windows/Logs` holds **90 logs,
+  106 MB, across twelve subfolders** — 85 of them under 1 MB and one of
+  them 84.5 MB. That shape chose the design: the list is ticked BY SIZE
+  rather than wholesale, so the big archive is offered and not assumed.
+- The flat scan stays flat, with a test pinning it. Pointing at a parent
+  directory must not open everything beneath it.
+- The scan reports whether it hit its cap, and the dialog says so: a
+  silently truncated list reads as "this is everything there is".
+- Results are sorted by full path so the checklist reads grouped by
+  folder rather than in os.walk order.
 
 ### W4-03 (idea 31): Watch a folder for new logs
 
