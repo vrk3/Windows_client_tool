@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.composite_module import CompositeModule
 from core.events import NAV_REQUEST_MODULE, NavRequestData
 
 try:
@@ -398,8 +399,10 @@ def _fmt(b: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-class DashboardModule(BaseModule):
-    name = "Dashboard"
+class OverviewModule(BaseModule):
+    """The at-a-glance pane the Dashboard used to be, now its first tab."""
+
+    name = "Overview"
     icon = "🏠"
     description = "Live system overview — CPU, memory, disk, network, uptime"
     requires_admin = False
@@ -449,4 +452,35 @@ class DashboardModule(BaseModule):
         self._refreshing = False
 
     def get_status_info(self) -> str:
-        return "Dashboard"
+        return "Overview"
+
+
+class DashboardModule(CompositeModule):
+    """Task Manager and Process Explorer, in one place.
+
+    Hosts the old at-a-glance pane as its first tab, then the process views.
+    Process Explorer is a CHILD here rather than its own sidebar entry: two
+    doors to the same room is two places to kill a process from, and two
+    process engines to keep honest.
+    """
+
+    name = "Dashboard"
+    icon = "🏠"
+    description = ("System overview, every process, and Process Explorer's "
+                   "detail")
+    group = ModuleGroup.OVERVIEW
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Imported here rather than at module scope, per CLAUDE.md: a child
+        # imported at the top would be loaded even when the tab is never
+        # opened, and the frozen build needs each one in HIDDEN_IMPORTS.
+        from modules.dashboard.details_module import DetailsModule
+        from modules.process_explorer.process_explorer_module import (
+            ProcessExplorerModule)
+
+        self.children = [
+            OverviewModule(),
+            DetailsModule(),
+            ProcessExplorerModule(),
+        ]

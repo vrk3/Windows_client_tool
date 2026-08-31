@@ -87,6 +87,19 @@ HIDDEN_IMPORTS = [
     # the frozen build runs fine until someone clicks it.
     "modules.log_viewer.match_colour_dialog",
     "modules.log_viewer.match_colours",
+    # Imported inside DashboardModule.__init__, so PyInstaller's static
+    # analysis can miss them and the tabs would be silently absent.
+    "modules.dashboard.details_module",
+    "modules.dashboard.details_tab",
+    "modules.dashboard.details_model",
+    "modules.dashboard.process_menu",
+    "modules.dashboard.procengine.ntquery",
+    "modules.dashboard.procengine.rates",
+    "modules.dashboard.procengine.details",
+    "modules.dashboard.procengine.snapshot",
+    "modules.dashboard.procengine.columns",
+    "modules.dashboard.procengine.actions",
+    "modules.process_explorer.process_explorer_module",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means
     # PyInstaller cannot see it. The trap here is worse than a missing tab:

@@ -144,10 +144,10 @@ and the wall time between them.
 ### W1-08: The composite, and absorbing Process Explorer
 **Files:** Modify `dashboard_module.py`, `main.py`, `pyinstaller_common.py`
 
-- [ ] Dashboard becomes a `CompositeModule`; the existing overview stays as
+- [x] Dashboard becomes a `CompositeModule`; the existing overview stays as
       its first tab.
-- [ ] `ProcessExplorerModule` is unregistered from the sidebar and hosted here.
-- [ ] Tests: the sidebar no longer offers two ways to kill a process; the
+- [x] `ProcessExplorerModule` is unregistered from the sidebar and hosted here.
+- [x] Tests: the sidebar no longer offers two ways to kill a process; the
       composite answers `get_refresh_interval()` for its children (miss this
       and every child loses auto-refresh -- it has happened here before).
 
@@ -250,3 +250,19 @@ Recorded as they are learned, the way the Log Viewer plan did.
   root is already gone when its turn comes. A tree kill therefore counts an
   already-dead member as ended; reporting that as failure told the user a
   kill had failed while everything was dead.
+- **2026-08-31, W1-07 (found by looking at the output, not by a test):**
+  rolling an app up to its DESCENDANTS put 60 processes and 6.6 GB under
+  "Windows Explorer" -- Steam, WhatsApp and Visual Studio among them. Anything
+  launched from the shell inherits explorer.exe as its parent. Task Manager
+  groups by app identity, so a member must be a descendant AND the same
+  program, matched on image path. Explorer went from 60 processes to 2;
+  Chrome still rolls up its 21 correctly.
+- **2026-08-31, W1-07:** unelevated, the token cannot classify a single
+  system process (all refused), so the "Windows processes" group came out
+  EMPTY. Session 0 is the signal that works: it arrives free with the bulk
+  syscall, cannot be refused, and is exactly the non-interactive session
+  Windows reserves for services. 136 processes classified where 0 were.
+- **2026-08-31, W1-08:** absorbing Process Explorer exposed a latent crash in
+  it: `on_start` does `app.thread_pool.start(w)` unguarded, and as a
+  composite CHILD it is started with whatever app the host was given. It now
+  reads service names inline when there is no pool.
