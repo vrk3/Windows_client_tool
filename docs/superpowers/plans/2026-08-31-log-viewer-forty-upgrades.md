@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 1 |
+| 2 | Analysis — what the tool is *for* | 7 | 2 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-02 (stall detection).
+**Next task:** W2-03 (KB and package column).
 
 ---
 
@@ -432,14 +432,27 @@ Qt-free module beside `log_set.py`, with the pane only rendering the result.
 
 **Interfaces:** `gaps(entries, threshold_seconds) -> [(index, seconds)]`.
 
-- [ ] Test: `test_a_gap_longer_than_the_threshold_is_reported`
-- [ ] Test: `test_records_with_no_timestamp_do_not_create_false_gaps` —
+- [x] Test: `test_a_gap_longer_than_the_threshold_is_reported`
+- [x] Test: `test_records_with_no_timestamp_do_not_create_false_gaps` —
       continuations inherit, so use the effective timestamp
-- [ ] Test: `test_a_backwards_clock_step_is_not_reported_as_a_gap` —
+- [x] Test: `test_a_backwards_clock_step_is_not_reported_as_a_gap` —
       setupact jumps ten hours backwards at a phase boundary; a negative
       delta is not a stall
-- [ ] Render as a marker in the gutter or a tinted row; threshold in the UI
-- [ ] Commit
+- [x] Render as a marker in the gutter or a tinted row; threshold in the UI
+- [x] Commit
+- **Done, as a fourth Summary column.** Measured on real logs and it is
+  selective: **1 gap in the CBS archive's 138,683 records** (121 s), 5 in
+  setupact, 31 in dism.log whose longest is 113,897 s -- idle between two
+  DISM runs, which is honest rather than wrong. Costs 16 ms, unlike
+  `top_codes`' 297 ms.
+- **The trap: a gap's index is NOT a row number.** Gaps are counted over
+  `visible_entries()`, which ignores folding, so the panel stores the
+  RECORD and `LogModel.row_for_record()` finds its row by identity.
+  Clicking would otherwise land somewhere arbitrary whenever folding was
+  on -- which is the default.
+- A backwards clock step is not a stall (setupact jumps ten hours back
+  at a phase boundary), a record with no clock creates no gap, and a
+  threshold of 0 reports nothing rather than every row in the log.
 
 ### W2-03 (idea 22): KB and package column
 

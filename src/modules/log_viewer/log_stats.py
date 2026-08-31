@@ -13,6 +13,7 @@ No Qt, like the reader, the parser and the merge engine it sits beside.
 """
 from collections import Counter
 
+from .cmtrace_parser import UNKNOWN_TIME
 from .error_codes import _is_failure, find_codes
 
 #: How many rows a panel shows before it stops being scannable.
@@ -72,3 +73,51 @@ def top_messages(entries, limit: int = DEFAULT_TOP_N, key=None) -> list:
             continue
         counts[key(text) if key else text] += 1
     return _ranked(counts, limit)
+
+
+#: A silence shorter than this is just a log being a log.
+DEFAULT_GAP_SECONDS = 30
+
+
+def _clock(entry):
+    """The moment a record happened, or None if it does not carry one.
+
+    Prefers the effective timestamp a merged set assigns, because that is
+    what the timeline was actually built on -- measuring a gap against
+    anything else would describe an order the view is not in.
+    """
+    when = entry.raw.get("merge_time") or entry.timestamp
+    return None if when == UNKNOWN_TIME else when
+
+
+def gaps(entries, threshold_seconds: float = DEFAULT_GAP_SECONDS) -> list:
+    """`(index, seconds)` for every silence longer than the threshold.
+
+    Longest first, and the index points at the record AFTER the silence --
+    the first thing that happened when it started again, which is the row
+    worth being taken to.
+
+    A hang leaves no error line; it leaves a hole in the timestamps. Two
+    things are deliberately NOT holes:
+
+    * A record with no clock of its own. Treating a continuation's absent
+      timestamp as a moment would invent a gap back to the epoch.
+    * A backwards step. `setupact.log` and `setuperr.log` both jump ten
+      hours backwards at a setup phase boundary; that is a clock changing,
+      not silence.
+    """
+    if threshold_seconds <= 0:
+        # A control set to zero would otherwise report every row in the log.
+        return []
+    found = []
+    previous = None
+    for index, entry in enumerate(entries or ()):
+        when = _clock(entry)
+        if when is None:
+            continue
+        if previous is not None:
+            seconds = (when - previous).total_seconds()
+            if seconds >= threshold_seconds:
+                found.append((index, seconds))
+        previous = when
+    return sorted(found, key=lambda pair: (-pair[1], pair[0]))

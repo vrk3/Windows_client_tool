@@ -21,7 +21,8 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
     QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
-    QCompleter, QListWidget, QSplitter, QTableView, QToolButton,
+    QCompleter, QListWidget, QListWidgetItem, QSplitter, QTableView,
+    QToolButton,
     QVBoxLayout, QWidget,
 )
 
@@ -41,7 +42,7 @@ from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
-from modules.log_viewer.log_stats import (top_codes,
+from modules.log_viewer.log_stats import (gaps, top_codes,
                                           top_components,
                                           top_messages)
 from modules.log_viewer.log_search_provider import LogSearchProvider
@@ -400,8 +401,10 @@ class LogViewerWidget(QWidget):
         self.summary_codes = QListWidget(self.summary_panel)
         self.summary_components = QListWidget(self.summary_panel)
         self.summary_messages = QListWidget(self.summary_panel)
+        self.summary_gaps = QListWidget(self.summary_panel)
         for title, listing in (("Failing codes", self.summary_codes),
                                ("Components", self.summary_components),
+                               ("Silences", self.summary_gaps),
                                ("Repeated lines", self.summary_messages)):
             column = QVBoxLayout()
             column.setContentsMargins(0, 0, 0, 0)
@@ -419,6 +422,7 @@ class LogViewerWidget(QWidget):
         self.summary_components.itemClicked.connect(
             self._on_summary_component)
         self.summary_messages.itemClicked.connect(self._on_summary_message)
+        self.summary_gaps.itemClicked.connect(self._on_summary_gap)
         self.summary_panel.setVisible(False)
         layout.addWidget(self.summary_panel)
 
@@ -832,12 +836,32 @@ class LogViewerWidget(QWidget):
         self.summary_messages.clear()
         for message, count in top_messages(entries):
             self.summary_messages.addItem(f"{count:,}   {message[:120]}")
+        self.summary_gaps.clear()
+        for index, seconds in gaps(entries):
+            # The RECORD is kept, not the index: gaps are counted over
+            # `visible_entries()`, which ignores folding, so those positions
+            # are not row numbers and clicking one would land anywhere.
+            item = QListWidgetItem(
+                f"{seconds:,.0f}s   {entries[index].message[:100]}")
+            item.setData(Qt.ItemDataRole.UserRole, entries[index])
+            self.summary_gaps.addItem(item)
 
     def _on_summary_code(self, item) -> None:
         self.filter_box.setText(item.text().split(" ")[0])
 
     def _on_summary_component(self, item) -> None:
         self.set_components({item.text().rsplit("   ", 1)[0]})
+
+    def _on_summary_gap(self, item) -> None:
+        """Go to the first record after the silence."""
+        entry = item.data(Qt.ItemDataRole.UserRole)
+        row = self.model.row_for_record(entry)
+        if row < 0:
+            return
+        index = self.model.index(row, MESSAGE)
+        self.table.setCurrentIndex(index)
+        self.table.scrollTo(index,
+                            QAbstractItemView.ScrollHint.PositionAtCenter)
 
     def _on_summary_message(self, item) -> None:
         self.filter_box.setText(item.text().split("   ", 1)[1])

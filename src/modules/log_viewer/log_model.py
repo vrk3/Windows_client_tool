@@ -227,6 +227,19 @@ class LogModel(QAbstractTableModel):
             return self._visible[row]
         return None
 
+    def row_for_record(self, entry) -> int:
+        """The row showing this exact record, or -1.
+
+        By identity, not by index: callers that computed something over
+        `rows_for_export()` hold a record, and that list ignores folding, so
+        its positions are not row numbers. Turning one back into a row is
+        this method's whole job.
+        """
+        for row, index in enumerate(self._visible):
+            if self._entries[index] is entry:
+                return row
+        return -1
+
     def row_at_or_after(self, when) -> int:
         """The first VISIBLE row timestamped at or after `when`, or -1.
 
