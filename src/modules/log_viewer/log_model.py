@@ -9,6 +9,7 @@ Filtering keeps a separate index list rather than copying entries, so turning
 records themselves.
 """
 import re
+from bisect import bisect_left
 from collections import deque
 from typing import Optional, Tuple
 
@@ -47,6 +48,11 @@ class LogModel(QAbstractTableModel):
         self._fold_counts = {}          # entry index -> continuations under it
         self._folded = set()            # entry indices folded under a parent
         self.dropped = 0                # records aged out of the cap
+        #: Records pushed off the NEWEST end to make room for an earlier
+        #: chunk. The opposite end to `dropped`, and a different thing to
+        #: tell the user: these were loaded a moment ago and are one "Newest"
+        #: click away, rather than having scrolled out of a growing file.
+        self.unloaded_newer = 0
 
     # ---- content --------------------------------------------------------
 
@@ -97,6 +103,46 @@ class LogModel(QAbstractTableModel):
         self.endInsertRows()
         self._repaint_visible()
 
+    def prepend(self, entries) -> None:
+        """Put an EARLIER chunk in front of what is loaded.
+
+        The mirror of `append`, and the model half of "load earlier". Where
+        `append` lets the cap drop the oldest records, this lets it evict the
+        newest: the window slides backwards through a file far larger than
+        the cap could ever hold.
+
+        Unlike `append` this RESETS rather than inserting. `_visible`,
+        `_folded` and `_fold_counts` are all keyed by entry index and every
+        one of them shifts by len(entries), so there is nothing to preserve;
+        `_reindex` costs 0.05s over 134,527 records, against the ~1.2s parse
+        that produced the chunk. The reset clears the selection -- the trap
+        `append` exists to avoid -- which is acceptable only because a
+        prepend is something the user deliberately asked for, and the pane
+        restores the viewport afterwards.
+        """
+        if not entries:
+            return
+        entries = list(entries)
+        capacity = self._entries.maxlen
+        if capacity is not None and len(entries) > capacity:
+            # `extendleft` would keep this chunk's OLDEST end and discard the
+            # seam along with everything already loaded, leaving a window
+            # with a hole in the middle of it and no sign that it happened.
+            raise ValueError(
+                f"cannot prepend {len(entries):,} records to a model capped "
+                f"at {capacity:,}")
+        if capacity is not None:
+            self.unloaded_newer += max(
+                0, len(self._entries) + len(entries) - capacity)
+
+        self.beginResetModel()
+        # extendleft REVERSES what it is given. Without the reversed() the
+        # chunk goes in backwards -- every timestamp in it running the wrong
+        # way, every row present and plausible, and nothing to say so.
+        self._entries.extendleft(reversed(entries))
+        self._reindex()
+        self.endResetModel()
+
     def clear(self) -> None:
         self.beginResetModel()
         self._entries.clear()
@@ -104,12 +150,38 @@ class LogModel(QAbstractTableModel):
         self._fold_counts = {}
         self._folded = set()
         self.dropped = 0
+        self.unloaded_newer = 0
         self.endResetModel()
 
     def entry(self, row: int):
         if 0 <= row < len(self._visible):
             return self._entries[self._visible[row]]
         return None
+
+    def entry_index(self, row: int):
+        """Which RECORD a row is showing, as an index into the deque.
+
+        A row number is only meaningful until the next prepend shifts every
+        one of them; a record's index shifts by a known amount, so this is
+        what an anchor across a load has to be kept as.
+        """
+        if 0 <= row < len(self._visible):
+            return self._visible[row]
+        return None
+
+    def row_for_entry(self, index: int) -> int:
+        """The row showing record `index`, or the nearest one below it.
+
+        `_visible` is ascending by construction, so this is a bisect rather
+        than a scan -- it runs against 200,000 records. A record hidden by
+        the current filter has no row of its own; the next visible one after
+        it is the honest answer, and past the end means the record is no
+        longer loaded at all.
+        """
+        if not self._visible:
+            return -1
+        row = bisect_left(self._visible, index)
+        return row if row < len(self._visible) else len(self._visible) - 1
 
     @property
     def total(self) -> int:

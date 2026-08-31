@@ -74,6 +74,17 @@ QPushButton {
 QPushButton:hover {
     background-color: #1177bb;
 }
+QPushButton:pressed {
+    background-color: #094771;
+}
+/* A disabled button must LOOK disabled. Without this it kept the solid blue
+   and white text of an enabled one, so the Log Viewer's "Load earlier" on a
+   log that fits whole read as perfectly clickable and did nothing. The dark
+   sheet has always said this; the light one never did. */
+QPushButton:disabled {
+    background-color: #d6d6d6;
+    color: #8c8c8c;
+}
 
 QTreeView, QTableView, QListView {
     background-color: #ffffff;
