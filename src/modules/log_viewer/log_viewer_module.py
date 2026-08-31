@@ -44,6 +44,7 @@ from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.clustering import normalise
+from modules.log_viewer.compare import compare
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.archives import (extract_cab, extract_zip,
@@ -1256,6 +1257,47 @@ class LogViewerWidget(QWidget):
         if path:
             self.write_evidence_to(path)
 
+    def compare_with(self, path: str) -> str:
+        """This log's steps against another file's, in the log's own words.
+
+        Aligned on what happened rather than on when: two machines never
+        share a clock. Reads the other file with its own reader so its
+        encoding is sniffed independently.
+        """
+        from .log_reader import LogReader
+
+        try:
+            text = LogReader(path).read_new()
+        except OSError as problem:
+            return f"Could not read {os.path.basename(path)}: {problem}"
+        other = cmtrace_parser.parse(text)
+        if not other:
+            return f"{os.path.basename(path)} held no records to compare."
+        return compare(self.visible_entries(), other).as_text()
+
+    def choose_compare(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Compare against another log", "", self.FILE_FILTER)
+        if not path:
+            return
+        from PyQt6.QtWidgets import QPlainTextEdit
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"This log vs {os.path.basename(path)}")
+        dialog.resize(760, 460)
+        layout = QVBoxLayout(dialog)
+        report = QPlainTextEdit(dialog)
+        report.setReadOnly(True)
+        report.setFont(QFont("Consolas", 9))
+        report.setPlainText(self.compare_with(path))
+        layout.addWidget(report)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close,
+                                   dialog)
+        buttons.rejected.connect(dialog.reject)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
+
     # ---- columns ---------------------------------------------------------
 
     #: Without it the table is metadata about lines you cannot read.
@@ -1321,6 +1363,8 @@ class LogViewerWidget(QWidget):
                                    self.choose_load_view)
         self.preset_menu.addAction("Save an evidence bundle…",
                                    self.choose_evidence)
+        self.preset_menu.addAction("Compare against another log…",
+                                   self.choose_compare)
 
     def apply_preset(self, preset) -> None:
         """Set every axis the preset names, and CLEAR the ones it does not.

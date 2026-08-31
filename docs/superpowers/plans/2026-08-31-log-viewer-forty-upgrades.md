@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 3 |
+| 5 | Output and performance | 7 | 4 |
 
-**Next task:** W5-04 (compare two logs). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-05 (parse off the UI thread). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -1012,11 +1012,23 @@ range, fold state and column layout.
 
 **Files:** create `src/modules/log_viewer/compare.py`; a dialog; tests
 
-- [ ] Test: `test_identical_logs_report_no_differences`
-- [ ] Test: `test_alignment_is_on_normalised_message_not_timestamp` — two
+- [x] Test: `test_identical_logs_report_no_differences`
+- [x] Test: `test_alignment_is_on_normalised_message_not_timestamp` — two
       machines never share a clock; reuse `normalise` from W2-07
-- [ ] Test: `test_a_step_present_in_one_and_absent_in_the_other_is_reported`
-- [ ] Commit
+- [x] Test: `test_a_step_present_in_one_and_absent_in_the_other_is_reported`
+- [x] Commit
+- **Aligned on WHAT HAPPENED, never on when**, reusing W2-07's
+  `normalise`. Two machines never share a clock, and even one machine's
+  own clock jumps — setupact moves ten hours backwards at a phase
+  boundary. Comparing by timestamp would report every line as different
+  and say nothing.
+- Differences are reported in the log's OWN words (an example line),
+  not the normalised form: `Installing <package>` is not what anyone
+  wants read back to them.
+- Also reports when a SHARED step ran a different number of times —
+  "ran once" and "ran forty times" are not the same servicing run.
+- Run against the two real CBS logs: a 4,497-line report, which is
+  honest for two genuinely different servicing runs.
 
 ### W5-05 (idea 37): Parse off the UI thread
 
