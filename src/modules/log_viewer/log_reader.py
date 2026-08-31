@@ -276,6 +276,14 @@ class LogReader:
         """Whether any of the file sits before the loaded slice."""
         return self._start > 0
 
+    def window_start(self) -> int:
+        """The byte offset the loaded slice begins at.
+
+        How much of the file is NOT loaded, which is what the status line
+        needs in order to say so.
+        """
+        return self._start
+
     def read_earlier(self) -> str:
         """The chunk immediately BEFORE the loaded slice, oldest data last.
 

@@ -32,7 +32,7 @@ from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
     COMPONENT, LogModel, MESSAGE, SEVERITY, THREAD, TIME,
 )
-from modules.log_viewer.log_reader import LogReader
+from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES, LogReader
 from modules.log_viewer.log_search_provider import LogSearchProvider
 
 logger = logging.getLogger(__name__)
@@ -44,17 +44,43 @@ FOLLOW_MS = 1000
 LEVELS = ("Error", "Warning", "Info")
 
 
+def _size(count: int) -> str:
+    """Bytes as something a person can read, for the status line.
+
+    Local rather than imported: the only formatter in the tree lives inside
+    the cleanup scanner's package, and reaching into that from here would tie
+    two unrelated modules together for four lines.
+    """
+    step = float(count)
+    for unit in ("B", "KB", "MB", "GB"):
+        if step < 1024:
+            return f"{step:.1f} {unit}"
+        step /= 1024
+    return f"{step:.1f} TB"
+
+
 class LogViewerWidget(QWidget):
     #: Offered on a row. Five minutes is the default because a servicing
     #: operation's related lines land within seconds of each other; the
     #: wider ones are for correlating across a reboot.
     RANGE_MINUTES = (1, 5, 15, 60)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, max_bytes: Optional[int] = None) -> None:
         super().__init__(parent)
         self.model = LogModel(self)
         self.provider = LogSearchProvider()
         self._reader: Optional[LogReader] = None
+        #: How much one read covers, forwards on Open and backwards on "load
+        #: earlier". Only the tests pass this; they would otherwise have to
+        #: write 32 MB files. `tools/log_viewer_real_check.py` pages the real
+        #: archive at the real size, because a seam like this hides the bugs
+        #: that live on the other side of it.
+        self._max_bytes = max_bytes or DEFAULT_MAX_BYTES
+        #: One load at a time. A step costs ~1.2s at the real size and the
+        #: scroll bar keeps emitting throughout, so without this the auto
+        #: path chains loads and walks the window back several steps from one
+        #: flick of the wheel.
+        self._loading_earlier = False
         self._path = ""
         self._last_found = -1
         self._lookup = None
@@ -105,6 +131,24 @@ class LogViewerWidget(QWidget):
                              "record they belong to.")
         self.fold.toggled.connect(self._on_fold_toggled)
         top.addWidget(self.fold)
+
+        # A log too big to hold is opened at its tail, and until these two
+        # existed everything before that point was simply unreachable: the
+        # real CBS archive is 380 MB and the window is 32 MB of it.
+        self.load_earlier_button = QPushButton("Load earlier", self)
+        self.load_earlier_button.setToolTip(
+            "Read the previous chunk of this file and put it above what is "
+            "shown. Scrolling to the top does the same thing.")
+        self.load_earlier_button.setEnabled(False)
+        self.load_earlier_button.clicked.connect(self.load_earlier)
+        top.addWidget(self.load_earlier_button)
+
+        self.newest_button = QPushButton("Newest", self)
+        self.newest_button.setToolTip(
+            "Go back to the end of the file, where new lines land.")
+        self.newest_button.setEnabled(False)
+        self.newest_button.clicked.connect(self.go_to_newest)
+        top.addWidget(self.newest_button)
 
         self.rolled = QCheckBox("Include rolled (.lo_)", self)
         self.rolled.setToolTip("ConfigMgr rolls foo.log to foo.lo_ . Read the "
@@ -264,6 +308,11 @@ class LogViewerWidget(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
 
+        # Reaching the top is a request for what comes before it. Connected
+        # after the table exists, and guarded by _loading_earlier, since
+        # prepending rows moves the bar and would otherwise re-enter here.
+        self.table.verticalScrollBar().valueChanged.connect(self._on_scrolled)
+
         self.table.selectionModel().currentRowChanged.connect(
             self._on_row_selected)
 
@@ -322,11 +371,13 @@ class LogViewerWidget(QWidget):
         self.model.clear()
         self.detail.clear()
         self._reader = LogReader(self._path,
+                                 max_bytes=self._max_bytes,
                                  include_rolled=self.rolled.isChecked())
         self._poll(scroll=True)
         self._refresh_components()
         self._refresh_threads()
         self._reset_range()
+        self._sync_paging_buttons()
         # The refreshes above blockSignals() around rebuilding the Component
         # and Thread combos, so falling back to index 0 ("All") when the
         # previous log's selection is not in the new one never told the
@@ -355,6 +406,101 @@ class LogViewerWidget(QWidget):
             self.table.scrollToBottom()
         self._update_status()
 
+    # ---- walking backwards ----------------------------------------------
+
+    def load_earlier(self) -> None:
+        """Read the chunk before the loaded slice and put it on top.
+
+        The window slides: the model's cap evicts from the newest end to make
+        room, which is what lets someone walk back through a file far larger
+        than the cap could ever hold. Both the button and the scroll bar come
+        through here, so the lock lives here too.
+        """
+        if self._loading_earlier or self._reader is None:
+            return
+        if not self._reader.has_earlier():
+            return
+
+        self._loading_earlier = True
+        try:
+            try:
+                text = self._reader.read_earlier()
+            except Exception as exc:                # noqa: BLE001
+                logger.warning("Could not read earlier of %s", self._path,
+                               exc_info=True)
+                self.status.setText(f"Could not read the log: {exc}")
+                return
+            if not text:
+                self._sync_paging_buttons()
+                return
+
+            # Following means "stay at the end of the file", and the end is
+            # what the cap has just evicted. Appending live lines onto a
+            # slice they are not contiguous with fabricates a timeline, which
+            # is worse than not following at all.
+            if self.follow.isChecked():
+                self.follow.setChecked(False)
+
+            anchor = self._top_entry_index()
+            entries = cmtrace_parser.parse(text)
+            self.model.prepend(entries)
+            self.provider.set_entries(self.model._entries,
+                                      os.path.basename(self._path))
+            self._restore_viewport(anchor, len(entries))
+            self._refresh_components()
+            self._refresh_threads()
+        finally:
+            self._loading_earlier = False
+        self._sync_paging_buttons()
+        self._update_status()
+
+    def go_to_newest(self) -> None:
+        """Back to the end of the file, where new lines land."""
+        self.reload()
+
+    def _on_scrolled(self, value: int) -> None:
+        """Reaching the top asks for what comes before it."""
+        if value > self.table.verticalScrollBar().minimum():
+            return
+        self.load_earlier()
+
+    def _top_entry_index(self) -> Optional[int]:
+        """Which record the view is currently showing at its top.
+
+        Kept as an ENTRY index rather than a row: a prepend shifts every row
+        number by the size of the chunk, and this is the thing that has to
+        survive that.
+        """
+        row = self.table.rowAt(0)
+        if row < 0:
+            row = self.table.verticalScrollBar().value()
+        return self.model.entry_index(row)
+
+    def _restore_viewport(self, anchor: Optional[int], prepended: int) -> None:
+        """Put the record the user was reading back under their eyes.
+
+        Not a nicety: without it the view stays at row 0 after the prepend,
+        which immediately re-fires the auto-load and walks the window back
+        through the whole file from one flick of the wheel.
+
+        Eviction happens at the far end and shifts nothing, so the anchor's
+        new entry index is exactly its old one plus the chunk size.
+        """
+        if anchor is None:
+            return
+        row = self.model.row_for_entry(anchor + prepended)
+        if row < 0:
+            return
+        self.table.scrollTo(self.model.index(row, MESSAGE),
+                            QAbstractItemView.ScrollHint.PositionAtTop)
+
+    def _sync_paging_buttons(self) -> None:
+        earlier = self._reader is not None and self._reader.has_earlier()
+        self.load_earlier_button.setEnabled(earlier)
+        # "Newest" is only meaningful once the window has actually moved off
+        # the end of the file.
+        self.newest_button.setEnabled(bool(self.model.unloaded_newer))
+
     def _update_status(self) -> None:
         if not self._path:
             self.status.setText("No log open.")
@@ -370,9 +516,23 @@ class LogViewerWidget(QWidget):
             # Same reason. These records are one click away rather than gone,
             # but the count still has to be visible.
             parts.append(f"{folded:,} continuation lines folded")
-        if self._reader is not None and self._reader.truncated:
-            parts.append("opened at the tail of a large file")
+        if self.model.unloaded_newer:
+            # The window slid backwards and the newest records went to make
+            # room. They are one "Newest" click away rather than gone, but
+            # showing a slice out of the middle of a file without saying so
+            # is how someone concludes the log is clean.
+            parts.append(f"{self.model.unloaded_newer:,} newer records "
+                         "unloaded")
+        earlier = self._earlier_bytes()
+        if earlier:
+            parts.append(f"{_size(earlier)} earlier in the file not loaded")
         self.status.setText("  |  ".join(parts))
+
+    def _earlier_bytes(self) -> int:
+        """How much of the file sits before the loaded window."""
+        if self._reader is None or not self._reader.has_earlier():
+            return 0
+        return self._reader.window_start()
 
     def _on_row_selected(self, current, _previous) -> None:
         """Show the whole selected record, and spell out its error codes.

@@ -9,6 +9,7 @@ Filtering keeps a separate index list rather than copying entries, so turning
 records themselves.
 """
 import re
+from bisect import bisect_left
 from collections import deque
 from typing import Optional, Tuple
 
@@ -156,6 +157,31 @@ class LogModel(QAbstractTableModel):
         if 0 <= row < len(self._visible):
             return self._entries[self._visible[row]]
         return None
+
+    def entry_index(self, row: int):
+        """Which RECORD a row is showing, as an index into the deque.
+
+        A row number is only meaningful until the next prepend shifts every
+        one of them; a record's index shifts by a known amount, so this is
+        what an anchor across a load has to be kept as.
+        """
+        if 0 <= row < len(self._visible):
+            return self._visible[row]
+        return None
+
+    def row_for_entry(self, index: int) -> int:
+        """The row showing record `index`, or the nearest one below it.
+
+        `_visible` is ascending by construction, so this is a bisect rather
+        than a scan -- it runs against 200,000 records. A record hidden by
+        the current filter has no row of its own; the next visible one after
+        it is the honest answer, and past the end means the record is no
+        longer loaded at all.
+        """
+        if not self._visible:
+            return -1
+        row = bisect_left(self._visible, index)
+        return row if row < len(self._visible) else len(self._visible) - 1
 
     @property
     def total(self) -> int:
