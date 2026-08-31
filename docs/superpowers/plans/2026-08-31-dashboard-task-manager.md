@@ -198,6 +198,48 @@ and the wall time between them.
 
 ---
 
+## Where this stopped (2026-08-31, end of session)
+
+**Wave 1 is COMPLETE and shipped.** Wave 2 is four tasks of six.
+
+Merged to `master` and built into the deployed portable:
+
+| | |
+|---|---|
+| W1-01..W1-08 | engine, Details tab, Processes tab, actions, menu, composite |
+| W2-01 | CPU: per-core load, processor facts |
+| W2-02 | Memory: the whole panel |
+| W2-03 | Disk: per-drive active time, throughput, queue depth |
+| W2-04 | Network: per-interface send/receive, link speed |
+
+The Dashboard is now a `CompositeModule` with five tabs: **Overview,
+Processes, Performance, Details, Process Explorer**. Process Explorer is no
+longer its own sidebar entry (33 entries, not 34).
+
+### Pick up here
+
+**W2-05 GPU** is next. Per-engine utilisation, dedicated and shared memory,
+driver and DirectX version. The likely source is the `GPU Engine` and
+`GPU Process Memory` performance counter sets via PDH -- there is no simple
+syscall for this the way there is for CPU and memory, and the counter
+instance names encode the pid and engine type, which is how Task Manager
+attributes GPU use to a process.
+
+**W2-06** is Process Explorer's System Information window, which is mostly a
+re-arrangement of what `cpuinfo`/`meminfo`/`ioinfo` already return.
+
+Then **wave 3**, which is the big one: the 11-tab properties dialog, the
+DLL and handle lower panes, find-handle, signature verification.
+
+### What to run first
+
+- `pytest tests/ -q` -- 3,600-odd tests, all green at the last commit.
+- The engine is `src/modules/dashboard/procengine/` and is **Qt-free**;
+  every module there has a test asserting it does not import PyQt6.
+- Screenshots have caught more real bugs here than the tests have. Render
+  the tab and LOOK at it before believing it works -- see the findings
+  below, where three separate bugs produced entirely plausible numbers.
+
 ## Findings
 
 Recorded as they are learned, the way the Log Viewer plan did.
