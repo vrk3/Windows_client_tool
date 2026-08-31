@@ -57,9 +57,9 @@ without asking — `requirements.txt` drift is caught by
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
 | 4 | Getting logs in | 5 | 4 (5th BLOCKED) |
-| 5 | Output and performance | 7 | 5 |
+| 5 | Output and performance | 7 | 6 |
 
-**Next task:** W5-06 (timestamp index). W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
+**Next task:** W5-07 (search the part that is not loaded) — the last one. W4-05 is BLOCKED on a real ConfigMgr/Intune log, which this machine does not have.
 
 ---
 
@@ -1065,13 +1065,26 @@ range, fold state and column layout.
 
 **Files:** `log_reader.py` or a new `timeindex.py`; tests
 
-- [ ] Test: `test_the_index_maps_a_time_to_a_byte_offset_at_or_before_it`
-- [ ] Test: `test_seeking_by_time_lands_on_a_line_boundary` — the same rule
+- [x] Test: `test_the_index_maps_a_time_to_a_byte_offset_at_or_before_it`
+- [x] Test: `test_seeking_by_time_lands_on_a_line_boundary` — the same rule
       `_start` follows; a byte offset that is not a line boundary costs the
       seam line
-- [ ] Test: `test_a_non_monotonic_log_does_not_break_the_index` — setupact
+- [x] Test: `test_a_non_monotonic_log_does_not_break_the_index` — setupact
       goes backwards ten hours
-- [ ] Commit
+- [x] Commit
+- **Sparse and approximate on purpose.** It samples rather than reads,
+  answering "start here and you will not have missed it" rather than
+  "the record is at this byte" — which is all a seek needs and all a log
+  can honestly support, since real logs are not sorted by time.
+- Every mark sits on a LINE boundary, the rule `LogReader._start`
+  already follows, and each sample is char-aligned first or a UTF-16
+  probe decodes as CJK.
+- `offset_at_or_before` walks rather than bisects, for the same reason
+  `row_at_or_after` does: the marks need not be sorted, because the file
+  they came from need not be.
+- **Measured on the real archive: 84.5 MB indexed in 0.02 s** giving 22
+  marks; a seek to 08:45:00 lands at byte 88,080,467 on a line dated
+  08:44:27 — correctly at or before.
 
 ### W5-07 (idea 15): Search the part that is not loaded
 
