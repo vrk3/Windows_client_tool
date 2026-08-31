@@ -419,3 +419,93 @@ def test_the_cap_matches_the_models():
     """Duplicated rather than imported, so it has to be pinned."""
     from modules.log_viewer import log_model, log_set
     assert log_set.DEFAULT_CAP == log_model.DEFAULT_CAP
+
+
+# ---- sources that carry no clock at all ---------------------------------
+#
+# `C:\Windows\Logs\CBS\FilterList.log` has no timestamps anywhere: it is a
+# table of filter drivers, not a timeline. Its 22 records all take the epoch,
+# which sorted them to the very top of a merged view of that folder -- so the
+# first thing anyone saw on opening the CBS folder was a filter driver table.
+
+def test_a_source_with_no_timestamps_anywhere_sorts_last(tmp_path):
+    a = _write(tmp_path / "cbs.log",
+               _service_line("2026-08-27 10:00:00", "CBS", "real record"))
+    b = _write(tmp_path / "FilterList.log", "bindflt   1\nFsDepends   7\n")
+
+    entries = LogSet([a, b]).read_new()
+
+    assert _messages(entries)[0] == "real record"
+    assert _logs(entries)[-1] == "FilterList.log"
+
+
+def test_a_source_with_SOME_timestamps_is_not_moved(tmp_path):
+    """Only a source with no clock AT ALL is demoted. One that merely starts
+    with an undated line is still a timeline."""
+    a = _write(tmp_path / "cbs.log",
+               _service_line("2026-08-27 10:00:30", "CBS", "later"))
+    b = _write(tmp_path / "dism.log",
+               "a preamble line with no date\n"
+               + _service_line("2026-08-27 10:00:00", "DISM", "earlier"))
+
+    entries = LogSet([a, b]).read_new()
+
+    assert _messages(entries)[-1] == "later", \
+        "dism.log has timestamps and must still interleave normally"
+
+
+def test_a_clockless_source_keeps_its_own_order(tmp_path):
+    a = _write(tmp_path / "FilterList.log", "first\nsecond\nthird\n")
+
+    entries = LogSet([a]).read_new()
+
+    assert _messages(entries) == ["first", "second", "third"]
+
+
+def test_a_clockless_source_on_its_own_is_not_hidden(tmp_path):
+    a = _write(tmp_path / "FilterList.log", "bindflt   1\n")
+    assert len(LogSet([a]).read_new()) == 1
+
+
+def test_an_orphan_continuation_is_still_not_demoted(tmp_path):
+    """A dated file whose slice STARTS mid-block still has real timestamps,
+    so the orphan keeps the epoch and leads that file -- it must not drag the
+    whole source to the end."""
+    a = _write(tmp_path / "cbs.log",
+               "    (7) Install: orphan\n"
+               + _service_line("2026-08-27 10:00:00", "CBS", "Ending"))
+    b = _write(tmp_path / "dism.log",
+               _service_line("2026-08-27 10:00:30", "DISM", "later"))
+
+    entries = LogSet([a, b]).read_new()
+
+    assert _messages(entries)[-1] == "later"
+    assert "    (7) Install: orphan" in _messages(entries)
+
+
+# ---- the appendix sentinel is a sort key, never a moment ----------------
+
+def test_effective_time_rejects_the_appendix_sentinel(tmp_path):
+    r"""A source with no clock is sorted last by giving its records
+    `APPENDIX_TIME` (datetime.max). Anything that reads `merge_time` as a
+    real timestamp -- the gap finder, the density strip -- must reject it, or
+    the record lands in the year 9999: gaps of two millennia, and a density
+    strip squashed into one bar at the right-hand edge.
+    """
+    from modules.log_viewer.log_set import APPENDIX_TIME, effective_time
+
+    a = _write(tmp_path / "FilterList.log", "bindflt   1\n")
+    entries = LogSet([a]).read_new()
+
+    assert entries[0].raw["merge_time"] == APPENDIX_TIME, "sorted last"
+    assert effective_time(entries[0]) is None, "but not a moment in time"
+
+
+def test_effective_time_gives_a_real_timestamp_through(tmp_path):
+    from modules.log_viewer.log_set import effective_time
+
+    a = _write(tmp_path / "cbs.log",
+               _service_line("2026-08-27 10:00:00", "CBS", "real"))
+    entries = LogSet([a]).read_new()
+
+    assert effective_time(entries[0]) is not None

@@ -55,6 +55,75 @@ def as_text(entries, header: bool = True) -> str:
     return "\n".join(lines)
 
 
+def as_markdown(entries) -> str:
+    """A table that pastes into a ticket without reformatting.
+
+    Pipes are escaped and newlines folded: a CBS message can contain both,
+    and either one unescaped turns a single row into a broken table for
+    every row after it.
+    """
+    lines = ["| " + " | ".join(COLUMNS) + " |",
+             "|" + "|".join(["---"] * len(COLUMNS)) + "|"]
+    for entry in entries or ():
+        cells = []
+        for value in _row(entry):
+            value = str(value).replace("|", r"\|")
+            # A stack trace is one entry; a raw newline would end the row.
+            value = value.replace("\n", " ").replace("\r", " ")
+            cells.append(value)
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+#: Severity colours for the exported page, taken from the same values the
+#: pane uses. Hardcoded rather than imported from `semantic_colors` because
+#: this module has no Qt and no theme: an exported file has one appearance,
+#: and it is read on someone else's machine.
+_HTML_SEVERITY = {
+    "Error": "#b3261e",
+    "Warning": "#8a5300",
+    "Info": "#00639c",
+}
+
+
+def as_html(entries) -> str:
+    """The view as a self-contained page, colours intact.
+
+    The text and CSV writers drop exactly the information the colouring was
+    added to carry -- which rows are failures. This keeps it, so what someone
+    is sent looks like what was on screen.
+    """
+    from html import escape
+
+    styles = "\n".join(
+        f"    td.{level} {{ color: {colour}; }}"
+        for level, colour in _HTML_SEVERITY.items())
+    rows = []
+    for entry in entries or ():
+        stamp, level, component, thread, message = _row(entry)
+        safe_level = escape(level or "")
+        rows.append(
+            f"  <tr><td>{escape(stamp)}</td>"
+            f"<td class=\"{safe_level}\">{safe_level}</td>"
+            f"<td>{escape(component or '')}</td>"
+            f"<td>{escape(thread or '')}</td>"
+            f"<td>{escape(message or '')}</td></tr>")
+    heads = "".join(f"<th>{escape(name)}</th>" for name in COLUMNS)
+    return (
+        "<!doctype html>\n<html><head><meta charset=\"utf-8\">\n"
+        "<title>Log Viewer export</title>\n<style>\n"
+        "    body { font: 13px Consolas, monospace; }\n"
+        "    table { border-collapse: collapse; }\n"
+        "    td, th { padding: 1px 8px; text-align: left; "
+        "vertical-align: top; }\n"
+        "    th { border-bottom: 1px solid #999; }\n"
+        f"{styles}\n"
+        "</style></head>\n<body>\n"
+        f"<p>{escape(_HEADER.lstrip('# '))}</p>\n"
+        f"<table>\n  <tr>{heads}</tr>\n" + "\n".join(rows) +
+        "\n</table>\n</body></html>\n")
+
+
 def as_csv(entries) -> str:
     buffer = io.StringIO()
     # lineterminator explicitly: csv defaults to \r\n, which lands as blank
@@ -64,3 +133,72 @@ def as_csv(entries) -> str:
     for entry in entries or ():
         writer.writerow(_row(entry))
     return buffer.getvalue()
+
+
+def _mb(count) -> str:
+    step = float(count or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if step < 1024:
+            return f"{step:.1f} {unit}"
+        step /= 1024
+    return f"{step:.1f} TB"
+
+
+def as_evidence(entries, sources, filters, shown: int, total: int) -> str:
+    """The rows, with everything needed to judge what they are.
+
+    Rows pasted into a ticket are not evidence on their own. Which files they
+    came from, how big those files are, what span they cover, **how much of
+    each was actually loaded**, and what was being filtered at the time is
+    what makes the excerpt mean something.
+
+    The loaded-fraction line is the one that matters most: a 32 MB window
+    over a 381 MB archive that does not say so implies the whole file was
+    searched, and an absence of hits then reads as "this did not happen".
+    """
+    lines = [_HEADER.lstrip("# "), ""]
+
+    lines.append("Sources")
+    for source in sources or ():
+        name = source.get("name") or source.get("path") or "?"
+        size = source.get("size") or 0
+        loaded = source.get("loaded") or 0
+        first, last = source.get("first"), source.get("last")
+        lines.append(f"  {name}")
+        lines.append(f"    path      : {source.get('path', '')}")
+        if not size:
+            # Windows re-compacts an extracted CbsPersist back into its .cab
+            # while you are reading it, so a source really can vanish
+            # mid-session. "0.0 B of 0.0 B (0%)" reads as a fact about the
+            # file rather than as "it is not there any more".
+            lines.append("    size      : could not be read "
+                         "(the file may no longer be there)")
+            if first and last:
+                lines.append(f"    span      : {first} .. {last}")
+            continue
+        lines.append(f"    size      : {_mb(size)}")
+        if loaded >= size:
+            lines.append("    loaded    : the whole file")
+        else:
+            share = (100.0 * loaded / size) if size else 0.0
+            lines.append(f"    loaded    : {_mb(loaded)} of {_mb(size)} "
+                         f"({share:.0f}%)")
+        if first and last:
+            lines.append(f"    span      : {first} .. {last}")
+    if not sources:
+        lines.append("  (none recorded)")
+    lines.append("")
+
+    lines.append("Filters in force")
+    if filters:
+        for name, value in filters.items():
+            lines.append(f"  {name}: {value}")
+    else:
+        # A blank section reads as "the filters were not recorded".
+        lines.append("  No filters — every loaded record was in view.")
+    lines.append("")
+
+    lines.append(f"Rows: {shown:,} shown of {total:,} loaded")
+    lines.append("")
+    lines.append(as_text(entries, header=False))
+    return "\n".join(lines)

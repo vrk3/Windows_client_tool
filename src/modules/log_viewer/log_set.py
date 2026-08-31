@@ -29,6 +29,7 @@ No Qt here, like the reader and the parser it sits beside.
 """
 import heapq
 import os
+from datetime import datetime
 
 from . import cmtrace_parser
 from .cmtrace_parser import UNKNOWN_TIME
@@ -39,11 +40,61 @@ from .log_reader import DEFAULT_MAX_BYTES, LogReader
 #: with them.
 LOG_SUFFIXES = (".log", ".lo_")
 
+#: The sort key a source with no clock at all is given, so it lands at the
+#: end of the timeline rather than at the epoch in front of it.
+#:
+#: It is a SORT key, never a moment. Anything reading `merge_time` as a real
+#: timestamp has to reject it -- `effective_time()` below is how, and both
+#: the gap finder and the density strip go through it.
+APPENDIX_TIME = datetime.max
+
 #: Deliberately duplicated from `log_model` rather than imported: that module
 #: imports PyQt6, and importing it here would drag Qt into the merge engine
 #: and cost the headless testability this file's docstring claims.
 #: `test_log_set.py` pins the two to the same number.
 DEFAULT_CAP = 200_000
+
+#: How many files a recursive scan will offer. Measured on the real
+#: `C:/Windows/Logs`: 90 logs across 12 subfolders. The cap is not about
+#: that folder but about the ones nobody has measured.
+RECURSIVE_CAP = 200
+
+#: A log at or under this is ticked in the checklist by default. The CBS
+#: archive in that same folder is 84.5 MB, and opening it because someone
+#: pointed at the parent directory is the accident the checklist prevents.
+#: 85 of those 90 real logs are under 1 MB, so the common case is unaffected.
+PRESELECT_MAX_BYTES = 8 * 1024 * 1024
+
+
+def preselected(paths) -> set:
+    """Which of `paths` to tick by default: the ones small enough to be
+    opened without thinking about it.
+
+    A file that has vanished between the scan and the dialog is not ticked;
+    a log can roll away in that gap.
+    """
+    ticked = set()
+    for path in paths or ():
+        try:
+            if os.path.getsize(path) <= PRESELECT_MAX_BYTES:
+                ticked.add(path)
+        except OSError:
+            continue
+    return ticked
+
+
+def effective_time(entry):
+    """The moment a record happened, or None if it has no real one.
+
+    Prefers the merged timeline's own key, since that is what the view was
+    built on -- but rejects `APPENDIX_TIME`, which is a sort position for a
+    source with no clock rather than a time anything happened. Reading that
+    as a timestamp puts the record in the year 9999.
+    """
+    when = entry.raw.get("merge_time") or entry.timestamp
+    if when in (UNKNOWN_TIME, APPENDIX_TIME):
+        return None
+    return when
 
 
 class LogSet:
@@ -93,6 +144,21 @@ class LogSet:
     def earlier_bytes(self) -> int:
         """How much of the whole set sits before what is loaded."""
         return sum(reader.window_start() for reader in self._readers)
+
+    def add_source(self, path: str) -> None:
+        """Start reading a log that appeared after the set was built.
+
+        A repair run creates new files, and Follow only tracks the ones
+        already open. The new source gets the same window share as the
+        others rather than triggering a re-split: re-splitting would change
+        every reader's budget mid-flight and re-read what is already loaded.
+        """
+        if path in self.paths:
+            return
+        self.paths.append(path)
+        self._readers.append(
+            LogReader(path, max_bytes=self.per_source_bytes))
+        self._entries.append([])
 
     # ---- reading --------------------------------------------------------
 
@@ -167,7 +233,20 @@ class LogSet:
         than dropping it.
         """
         for source in self._entries:
-            carried = UNKNOWN_TIME
+            # A source with no clock ANYWHERE is not a timeline: it is a
+            # table that happens to live in a .log file.
+            # `C:\Windows\Logs\CBS\FilterList.log` is one, and at the epoch
+            # its 22 rows of filter-driver names sorted to the very top, so
+            # the first thing anyone saw on opening the CBS folder was that.
+            # Sorted last instead, where it reads as an appendix.
+            #
+            # Decided per SOURCE, not per record: a dated file whose slice
+            # begins mid-block has an orphan continuation with nothing to
+            # inherit, and that orphan belongs at the front of ITS file, not
+            # at the end of the timeline.
+            dateless = all(entry.timestamp == UNKNOWN_TIME
+                           for entry in source)
+            carried = APPENDIX_TIME if dateless else UNKNOWN_TIME
             for entry in source:
                 if entry.timestamp != UNKNOWN_TIME:
                     carried = entry.timestamp
@@ -213,6 +292,30 @@ class LogSet:
         return [row[3] for row in heapq.merge(*keyed, key=lambda row: row[:3])]
 
     # ---- folders --------------------------------------------------------
+
+    @classmethod
+    def logs_under(cls, folder: str, cap: int = None):
+        """`(paths, hit the cap)` for every log in the TREE under `folder`.
+
+        Separate from `logs_in_folder`, which stays flat: the default open
+        must not walk twelve subfolders because someone pointed at a parent.
+        This is the deliberate version, and it hands back whether it stopped
+        early so the caller can say so rather than silently truncating.
+        """
+        limit = RECURSIVE_CAP if cap is None else cap
+        found = []
+        for base, _dirs, files in os.walk(folder):
+            for name in sorted(files):
+                if not name.lower().endswith(LOG_SUFFIXES):
+                    continue
+                path = os.path.join(base, name)
+                if os.path.isfile(path):
+                    found.append(path)
+                    if len(found) >= limit:
+                        return sorted(found), True
+        # Sorted by full path so the checklist reads grouped by folder, not
+        # in whatever order os.walk happened to reach them.
+        return sorted(found), False
 
     @classmethod
     def logs_in_folder(cls, folder: str) -> list:

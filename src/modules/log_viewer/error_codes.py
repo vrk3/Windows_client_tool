@@ -20,6 +20,7 @@ the wrong problem entirely.
 No Qt here, so the lookup is testable without a display.
 """
 import ctypes
+from dataclasses import dataclass
 import logging
 import re
 
@@ -70,6 +71,75 @@ def code_spans(text: str) -> list:
     """
     return [(match.start(), match.end(), int(match.group(1), 16))
             for match in _CODE.finditer(text or "")]
+
+
+@dataclass(frozen=True)
+class Advice:
+    """What a code usually means, and what to do about it."""
+    cause: str
+    remedy: str
+    reference: str
+
+
+#: Codes whose cause is documented and whose remedy is something a person can
+#: actually run and then check.
+#:
+#: **Nothing here is invented, and the table is deliberately short.** A
+#: plausible-sounding fix for the wrong error costs more time than no fix at
+#: all, because it gets acted on. A code with no entry keeps the name-only
+#: behaviour `describe()` already gives it -- silence beats a guess.
+#:
+#: The four below are the ones this machine's own logs actually produce:
+#: 0x80004005 appears 522 times in the CBS archive and 0x80070490 five times.
+CODE_ADVICE = {
+    0x800F081F: Advice(
+        cause="The component store has no source for the files the update "
+              "needs -- usually the payload was cleaned up or the machine "
+              "cannot reach Windows Update.",
+        remedy="DISM /Online /Cleanup-Image /RestoreHealth, adding "
+               "/Source:<path> and /LimitAccess if the machine is offline.",
+        reference="CBS_E_SOURCE_MISSING; Microsoft's servicing repair "
+                  "guidance."),
+    0x80073701: Advice(
+        cause="A referenced assembly is missing from the component store, so "
+              "servicing cannot complete the operation.",
+        remedy="DISM /Online /Cleanup-Image /RestoreHealth, then sfc "
+               "/scannow to confirm the store is consistent.",
+        reference="ERROR_SXS_ASSEMBLY_MISSING."),
+    0x800F0805: Advice(
+        cause="The package handed to servicing is not a valid package -- "
+              "commonly a damaged or partly downloaded update.",
+        remedy="Remove the cached update and let Windows Update download it "
+               "again; DISM /Online /Cleanup-Image /RestoreHealth if the "
+               "store itself is suspect.",
+        reference="CBS_E_INVALID_PACKAGE."),
+    0x80070490: Advice(
+        cause="An element servicing looked for is not present in the store. "
+              "It accompanies a store that is missing or has damaged "
+              "manifests rather than being a fault in the update itself.",
+        remedy="DISM /Online /Cleanup-Image /RestoreHealth, then sfc "
+               "/scannow.",
+        reference="ERROR_NOT_FOUND."),
+    0x80004005: Advice(
+        cause="An unspecified failure. It is a GENERIC code and carries no "
+              "detail of its own, so the useful information is in the lines "
+              "around it, not in the number.",
+        remedy="Read the records immediately before this one -- the Summary "
+               "panel's first-error row is usually the specific failure this "
+               "is reporting.",
+        reference="E_FAIL. Deliberately offers no repair command: doing so "
+                  "would be inventing a fix for an error that does not say "
+                  "what went wrong."),
+}
+
+
+def advice(code: int):
+    """What is documented about `code`, or None.
+
+    None is the common answer and the right one: an explanation of the wrong
+    error sends someone after a problem they do not have.
+    """
+    return CODE_ADVICE.get(code & 0xFFFFFFFF)
 
 
 def describe(code: int) -> str:
@@ -123,6 +193,36 @@ def explain(text: str) -> list:
         if meaning:
             out.append((f"0x{code:08X}", meaning))
     return out
+
+
+#: Phrases that mean the component store is damaged, as Windows actually
+#: writes them. A servicing failure says so in words at least as often as in
+#: a code, and those words rendered as ordinary Info-coloured text.
+#:
+#: Each one is anchored to real wording rather than to a keyword. "Repair" on
+#: its own is routine -- CBS says it constantly while everything is fine --
+#: and "corruption" appears in prose about checking for it. A marker that
+#: fires on either would colour thousands of rows and stop meaning anything.
+#:
+#: `STATUS_SXS_\w+` is deliberately open-ended: new SXS statuses arrive with
+#: new Windows builds, and a hardcoded roster would silently stop matching.
+_CORRUPTION = re.compile(
+    r"STATUS_SXS_\w+"
+    r"|cannot repair"
+    r"|store corruption"
+    r"|do not match",
+    re.IGNORECASE)
+
+
+def corruption_spans(text: str) -> list:
+    """`(start, end, label)` for every damage marker in `text`.
+
+    Ordered and non-overlapping, so the delegate can lay them alongside the
+    error-code spans without nesting tags. The label is the matched phrase
+    lowercased, which is what names the finding.
+    """
+    return [(match.start(), match.end(), match.group(0).lower())
+            for match in _CORRUPTION.finditer(text)]
 
 
 def _is_failure(code: int) -> bool:

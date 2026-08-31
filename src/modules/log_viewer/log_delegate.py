@@ -13,13 +13,13 @@ surface nine failures.
 import re
 from html import escape
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QTextDocument, QPalette
 from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
 
 from core.semantic_colors import semantic
 
-from .error_codes import _is_failure, code_spans
+from .error_codes import _is_failure, code_spans, corruption_spans
 
 
 class LogMessageDelegate(QStyledItemDelegate):
@@ -32,6 +32,12 @@ class LogMessageDelegate(QStyledItemDelegate):
         #: sys.excepthook and then qFatal() -- it cannot be caught, and the
         #: process dies. A half-typed regex is a keystroke, not a crash.
         self.needles: list = []
+        #: The one row allowed to wrap to its full height, or -1.
+        #:
+        #: One, never a set: `sizeHint` is asked for every row the view lays
+        #: out, and building a QTextDocument per row would lay out 200,000
+        #: messages to show one.
+        self.expanded_row = -1
 
     def set_needles(self, patterns, regex: bool = False) -> None:
         """What the Filter and Find boxes are looking for, ready to paint.
@@ -98,9 +104,34 @@ class LogMessageDelegate(QStyledItemDelegate):
             pieces.append((start, end))
         return pieces
 
+    @staticmethod
+    def failure_spans(text: str) -> list:
+        """Everything that means "this went wrong", merged.
+
+        A failing error code and a damage marker are the same news to a
+        reader and get the same colour, so they are combined here and any
+        overlap between them collapsed -- two spans over one stretch of text
+        would nest their tags and paint it twice.
+        """
+        found = [(start, end) for start, end, code in code_spans(text)
+                 if _is_failure(code)]
+        found.extend((start, end) for start, end, _label
+                     in corruption_spans(text))
+        if not found:
+            return []
+        found.sort()
+        merged = [found[0]]
+        for start, end in found[1:]:
+            last_start, last_end = merged[-1]
+            if start <= last_end:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+        return merged
+
     @classmethod
     def needs_rich_text(cls, text: str, needles=()) -> bool:
-        if any(_is_failure(code) for _s, _e, code in code_spans(text)):
+        if cls.failure_spans(text):
             return True
         return bool(cls.match_spans(text, needles))
 
@@ -119,8 +150,7 @@ class LogMessageDelegate(QStyledItemDelegate):
         error_colour = semantic("error")
         match_colour = semantic("match")
 
-        errors = [(start, end) for start, end, code in code_spans(text)
-                  if _is_failure(code)]
+        errors = cls.failure_spans(text)
         spans = [(start, end, error_colour) for start, end in errors]
         for span in cls.match_spans(text, needles):
             spans.extend((start, end, match_colour)
@@ -143,9 +173,40 @@ class LogMessageDelegate(QStyledItemDelegate):
                 f'<span style="color:{base_colour}">{final_segment}</span>')
         return "".join(pieces)
 
+    def _document(self, text: str, base_colour: str, width: int):
+        """A laid-out document for `text`, wrapped to `width`."""
+        document = QTextDocument()
+        document.setHtml(self.rich_text(text, base_colour, self.needles))
+        if width > 0:
+            document.setTextWidth(width)
+        return document
+
+    def sizeHint(self, option, index):
+        """One line, except for the expanded row.
+
+        Only that row is measured. Laying out every row to find its natural
+        height is what makes a 200,000-record table unusable.
+        """
+        if index.row() != self.expanded_row:
+            return super().sizeHint(option, index)
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        # `option.rect` is EMPTY when Qt asks during resizeRowToContents, and
+        # a text width of zero disables wrapping -- so the row came back one
+        # line tall and nothing appeared to happen. Fall back to the view's
+        # actual column width, which is the number that matters anyway.
+        width = option.rect.width()
+        if width <= 0 and option.widget is not None:
+            width = option.widget.columnWidth(index.column())
+        document = self._document(str(text), "#000000", width)
+        size = document.size()
+        return QSize(int(size.width()), int(size.height()) + 4)
+
     def paint(self, painter, option, index):
         text = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        if not self.needs_rich_text(text, self.needles):
+        expanded = index.row() == self.expanded_row
+        # The expanded row always takes the rich-text path: that is where the
+        # wrapping lives, and the plain path elides instead.
+        if not expanded and not self.needs_rich_text(text, self.needles):
             super().paint(painter, option, index)
             return
 
@@ -165,9 +226,9 @@ class LogMessageDelegate(QStyledItemDelegate):
             base_colour = option.palette.color(
                 QPalette.ColorRole.Text).name()
 
-        document = QTextDocument()
+        document = self._document(text, base_colour,
+                                  option.rect.width() - 8 if expanded else 0)
         document.setDefaultFont(option.font)
-        document.setHtml(self.rich_text(text, base_colour, self.needles))
         painter.save()
         painter.translate(option.rect.left() + 4, option.rect.top())
         document.drawContents(painter)

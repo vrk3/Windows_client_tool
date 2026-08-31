@@ -19,6 +19,7 @@ from PyQt6.QtGui import QColor
 from .cmtrace_parser import UNKNOWN_TIME
 from .highlight import haystack, matching_rule
 from .log_export import format_stamp
+from .packages import package_of
 from .palette import component_colour, readable_text_on, severity_row_colour
 
 #: Source is the FILE a record came from; Component is `entry.source`, which
@@ -26,12 +27,58 @@ from .palette import component_colour, readable_text_on, severity_row_colour
 #: The Source column is always defined -- the pane hides it while a single log
 #: is open -- because letting the column count change under the delegate would
 #: shift MESSAGE's index at runtime.
-COLUMNS = ("Time", "Source", "Severity", "Component", "Thread", "Message")
-TIME, SOURCE, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
+COLUMNS = ("Time", "Source", "Severity", "Component", "Package", "Thread",
+           "Message")
+TIME, SOURCE, SEVERITY, COMPONENT, PACKAGE, THREAD, MESSAGE = range(
+    len(COLUMNS))
 
 #: How many records are kept. Past this the oldest go, which is what CMTrace
 #: does in practice and what keeps a 300 MB log openable.
 DEFAULT_CAP = 200_000
+
+
+def split_terms(text: str) -> list:
+    """A filter box's text as the terms it means, AS TYPED.
+
+    Case is preserved because the delegate colours what it is given and the
+    model lowercases when it compares; lowercasing here would make the
+    highlighting disagree with the box.
+
+    Space separated and ANDed, because "these two words, either order" is the
+    everyday case and a regex is the wrong tool for it. A quoted phrase is
+    one term, so a phrase with a space in it is still expressible.
+
+    An unmatched quote is a half-typed phrase, not a syntax error: the rest
+    of the text is taken as ordinary terms rather than the filter refusing.
+    Empty terms are dropped -- one would match every row and silently widen
+    the filter back out.
+    """
+    terms = []
+    for index, chunk in enumerate((text or "").split('"')):
+        if index % 2:
+            # Inside quotes: one term, spaces and all.
+            phrase = chunk.strip()
+            if phrase:
+                terms.append(phrase)
+        else:
+            terms.extend(word for word in chunk.split() if word)
+    return terms
+
+
+def _as_selection(value) -> frozenset:
+    """A filter axis as a set of accepted values.
+
+    Takes a bare string as well as a set, because every existing caller
+    passes a string and one axis reading differently from its neighbour is
+    how a filter quietly stops meaning what it says.
+
+    An empty string OR an empty set both mean "no opinion, show everything".
+    Treating an empty set as "accept nothing" would leave someone staring at
+    an empty table having ticked nothing.
+    """
+    if isinstance(value, str):
+        return frozenset([value]) if value else frozenset()
+    return frozenset(entry for entry in value if entry)
 
 
 class LogModel(QAbstractTableModel):
@@ -42,8 +89,15 @@ class LogModel(QAbstractTableModel):
         self._levels = set()            # empty means "show everything"
         self._needle = ""
         self._pattern = ""
-        self._component = ""
-        self._thread = ""
+        self._terms: list = []
+        #: The inverse of the needle: rows matching this are REMOVED. A real
+        #: CBS.log is mostly `Appl: detectParent` and `Plan: Package`, and no
+        #: positive filter drops that boilerplate without dropping the rest.
+        self._exclude = ""
+        self._exclude_terms: list = []
+        self._exclude_matcher = None
+        self._component = frozenset()
+        self._thread = frozenset()
         self._log = ""
         self._time_from = None
         self._time_to = None
@@ -59,6 +113,51 @@ class LogModel(QAbstractTableModel):
         #: tell the user: these were loaded a moment ago and are one "Newest"
         #: click away, rather than having scrolled out of a growing file.
         self.unloaded_newer = 0
+        #: Bookmarked RECORDS, held two ways. The id set makes the lookup in
+        #: `data()` O(1) -- it runs per painted cell -- and the reference
+        #: list is what keeps those ids valid: without it a record could be
+        #: freed and its id handed to a different object, silently marking
+        #: the wrong row.
+        #:
+        #: Never row or entry INDICES. Rows shift whenever the filter
+        #: changes and entry indices shift by the size of every "load
+        #: earlier" chunk, so either would quietly come to mean a different
+        #: record.
+        self._bookmark_ids: set = set()
+        self._bookmark_refs: list = []
+        #: "Show rows near an anchor". `None` means off. Two features share
+        #: it: errors-with-context anchors on every Error, peek anchors on
+        #: one record you picked.
+        self._context_lines = None
+        self._peek_ref = None
+        self._peek_lines = 0
+
+    # ---- bookmarks ------------------------------------------------------
+
+    def toggle_bookmark(self, entry) -> None:
+        if entry is None:
+            return
+        if id(entry) in self._bookmark_ids:
+            self._bookmark_ids.discard(id(entry))
+            self._bookmark_refs = [held for held in self._bookmark_refs
+                                   if held is not entry]
+        else:
+            self._bookmark_ids.add(id(entry))
+            self._bookmark_refs.append(entry)
+        self._repaint_visible()
+
+    def is_bookmarked(self, entry) -> bool:
+        return entry is not None and id(entry) in self._bookmark_ids
+
+    def bookmarks(self) -> list:
+        """Bookmarked records still loaded, in view order.
+
+        A record evicted by the cap has nothing to point at, so it drops out
+        rather than lingering as a row that goes nowhere.
+        """
+        loaded = {id(entry) for entry in self._entries}
+        return [entry for entry in self._entries
+                if id(entry) in self._bookmark_ids and id(entry) in loaded]
 
     # ---- content --------------------------------------------------------
 
@@ -188,6 +287,8 @@ class LogModel(QAbstractTableModel):
         self._folded = set()
         self.dropped = 0
         self.unloaded_newer = 0
+        self._bookmark_ids = set()
+        self._bookmark_refs = []
         self.endResetModel()
 
     def entry(self, row: int):
@@ -205,6 +306,43 @@ class LogModel(QAbstractTableModel):
         if 0 <= row < len(self._visible):
             return self._visible[row]
         return None
+
+    def row_for_record(self, entry) -> int:
+        """The row showing this exact record, or -1.
+
+        By identity, not by index: callers that computed something over
+        `rows_for_export()` hold a record, and that list ignores folding, so
+        its positions are not row numbers. Turning one back into a row is
+        this method's whole job.
+        """
+        for row, index in enumerate(self._visible):
+            if self._entries[index] is entry:
+                return row
+        return -1
+
+    def row_at_or_after(self, when) -> int:
+        """The first VISIBLE row timestamped at or after `when`, or -1.
+
+        A linear walk, deliberately, where `row_for_entry` next door uses a
+        bisect. A bisect needs the column to be sorted, and log timestamps
+        are not: `setupact.log` and `setuperr.log` both jump ten hours
+        backwards at a setup phase boundary, and a merged set interleaves
+        several clocks. A bisect over that answers confidently and wrongly.
+
+        200,000 comparisons is a few milliseconds and this runs on a click,
+        not on a keystroke.
+
+        Records with no clock of their own are skipped rather than matched:
+        landing on a continuation puts you inside a block with no way to tell
+        where you are.
+        """
+        for row, index in enumerate(self._visible):
+            entry = self._entries[index]
+            if entry.timestamp == UNKNOWN_TIME:
+                continue
+            if entry.timestamp >= when:
+                return row
+        return len(self._visible) - 1 if self._visible else -1
 
     def row_for_entry(self, index: int) -> int:
         """The row showing record `index`, or the nearest one below it.
@@ -232,7 +370,7 @@ class LogModel(QAbstractTableModel):
     def set_filter(self, levels=None, needle: str = None,
                    component: str = None, thread: str = None,
                    time_from=None, time_to=None, regex: bool = None,
-                   log: str = None) -> None:
+                   log: str = None, exclude: str = None) -> None:
         """Each argument left as None keeps that axis unchanged.
 
         `time_from`/`time_to` take the sentinel `False` to mean "clear this
@@ -244,12 +382,18 @@ class LogModel(QAbstractTableModel):
         if needle is not None:
             self._needle = needle.lower()
             self._pattern = needle
+            self._terms = [term.lower()
+                           for term in split_terms(needle)]
         if component is not None:
-            self._component = component
+            self._component = _as_selection(component)
         if thread is not None:
-            self._thread = thread
+            self._thread = _as_selection(thread)
         if log is not None:
             self._log = log
+        if exclude is not None:
+            self._exclude = exclude
+            self._exclude_terms = [term.lower()
+                                   for term in split_terms(exclude)]
         if time_from is not None:
             self._time_from = None if time_from is False else time_from
         if time_to is not None:
@@ -267,6 +411,20 @@ class LogModel(QAbstractTableModel):
                 # A half-typed pattern is a typo. Nothing matches until it
                 # is finished; the pane says so in the status bar.
                 self._matcher = False
+
+        # Compiled here for the same reason the include filter is: at
+        # 134,527 records a per-row compile is 134,527 compiles per keystroke.
+        self._exclude_matcher = None
+        if self._regex and self._exclude:
+            try:
+                self._exclude_matcher = re.compile(self._exclude,
+                                                   re.IGNORECASE)
+            except re.error:
+                # An unfinished exclude removes NOTHING. False here would
+                # mean "hide everything", which empties the table over a
+                # keystroke -- the opposite of what the include filter's
+                # False does, and the reason the two are not shared.
+                self._exclude_matcher = False
 
         self.beginResetModel()
         self._reindex()
@@ -287,9 +445,9 @@ class LogModel(QAbstractTableModel):
     def _matches(self, entry) -> bool:
         if self._levels and entry.level not in self._levels:
             return False
-        if self._component and entry.source != self._component:
+        if self._component and entry.source not in self._component:
             return False
-        if self._thread and entry.raw.get("thread", "") != self._thread:
+        if self._thread and entry.raw.get("thread", "") not in self._thread:
             return False
         if self._log and entry.raw.get("log", "") != self._log:
             return False
@@ -314,9 +472,39 @@ class LogModel(QAbstractTableModel):
             if self._matcher is not None:
                 if not self._matcher.search(text):
                     return False
-            elif self._needle not in text.lower():
+            elif not all(term in text.lower() for term in self._terms):
                 return False
+        if self._exclude and self._excluded_by(entry):
+            return False
         return True
+
+    def _excluded_by(self, entry) -> bool:
+        """Whether the exclude pattern removes this row.
+
+        Applied AFTER every include test, so exclude narrows what the filter
+        left rather than being able to resurrect a row the filter dropped.
+        Matched against the same `haystack()` the include filter and the
+        highlight rules use, so the three can never disagree about what "the
+        row" means.
+        """
+        if self._exclude_matcher is False:
+            # Unfinished pattern: remove nothing.
+            return False
+        text = haystack(entry)
+        if self._exclude_matcher is not None:
+            return bool(self._exclude_matcher.search(text))
+        lowered = text.lower()
+        return bool(self._exclude_terms) and all(
+            term in lowered for term in self._exclude_terms)
+
+    def has_packages(self) -> bool:
+        """Whether any loaded record names a package.
+
+        Stops at the first hit, so on a servicing log -- where 92% of records
+        carry one -- it answers immediately. Only a large log with NO
+        packages pays the full scan, and those are the small ones.
+        """
+        return any(package_of(entry.message) for entry in self._entries)
 
     def logs(self) -> list:
         """The files currently represented, for the Source combo."""
@@ -345,6 +533,11 @@ class LogModel(QAbstractTableModel):
             return None
         return min(stamps), max(stamps)
 
+    def exclude_pattern_is_invalid(self) -> bool:
+        """The pane asks, so it can say so rather than leaving someone to
+        wonder why nothing is being hidden."""
+        return self._exclude_matcher is False
+
     def filter_pattern_is_invalid(self) -> bool:
         """The pane asks, so it can say so rather than showing an empty
         table that reads as "no such records"."""
@@ -352,8 +545,79 @@ class LogModel(QAbstractTableModel):
 
     def _reindex(self) -> None:
         self._recount_folds()
-        self._visible = [i for i, e in enumerate(self._entries)
-                         if self._shows(i, e)]
+        visible = [i for i, e in enumerate(self._entries)
+                   if self._shows(i, e)]
+        self._visible = self._widened(visible)
+
+    def _widened(self, visible) -> list:
+        """`visible` plus the rows around each anchor, if context is on.
+
+        Context WIDENS what an anchor pulls in; it never overrides a filter
+        the user set, so a neighbour excluded by the component or severity
+        filter stays excluded. Windows are merged rather than concatenated:
+        two errors three apart with a context of three would otherwise list
+        the rows between them twice.
+        """
+        if self._context_lines is None and self._peek_ref is None:
+            return visible
+
+        allowed = set(visible)
+        anchors = []
+        if self._context_lines is not None:
+            anchors = [index for index in visible
+                       if self._entries[index].level == "Error"]
+        if self._peek_ref is not None:
+            anchors = [index for index, entry in enumerate(self._entries)
+                       if entry is self._peek_ref]
+
+        peeking = self._peek_ref is not None
+        reach = self._peek_lines if peeking else self._context_lines
+        kept = set()
+        for anchor in anchors:
+            low = max(anchor - reach, 0)
+            high = min(anchor + reach, len(self._entries) - 1)
+            for index in range(low, high + 1):
+                # The two features differ here, deliberately.
+                #
+                # PEEK reveals its neighbours unconditionally: it is an
+                # explicit, temporary "show me what this filter is hiding
+                # around this one row", and honouring the filter would
+                # answer nothing.
+                #
+                # ERROR CONTEXT is a browsing mode rather than a request to
+                # see past anything, so a neighbour still has to pass the
+                # filter -- otherwise choosing a component would silently
+                # show rows from the components you excluded.
+                if peeking or index in allowed                         or self._matches(self._entries[index]):
+                    kept.add(index)
+        return sorted(kept)
+
+    def set_error_context(self, lines) -> None:
+        """Show only errors and the `lines` rows either side, or None to
+        stop."""
+        self._context_lines = lines
+        self._peek_ref = None
+        self.beginResetModel()
+        self._reindex()
+        self.endResetModel()
+
+    def is_peeking(self) -> bool:
+        """Whether a peek is open at all.
+
+        Not "at this record": once a peek opens, the neighbours it revealed
+        become rows too, so the current row is usually no longer the record
+        that was peeked at. Asking about a specific one made pressing the
+        button twice peek at a NEIGHBOUR instead of closing.
+        """
+        return self._peek_ref is not None
+
+    def peek(self, entry, lines: int) -> None:
+        """Reveal the rows around one record without clearing the filter."""
+        self._peek_ref = entry
+        self._peek_lines = lines
+        self.beginResetModel()
+        self._reindex()
+        self.endResetModel()
 
     def _recount_folds(self) -> None:
         """How many continuation lines sit under each parent record.
@@ -489,14 +753,23 @@ class LogModel(QAbstractTableModel):
             if column == TIME:
                 # The same formatter log_export uses for the exported file,
                 # so what someone sees here and what they export can never
-                # quietly disagree.
-                return format_stamp(entry)
+                # quietly disagree. The bookmark star is DISPLAY only, the
+                # same rule the fold suffix follows -- export reads the
+                # record, so it can never leak into a file.
+                stamp = format_stamp(entry)
+                return f"★ {stamp}" if self.is_bookmarked(entry) else stamp
             if column == SOURCE:
                 return entry.raw.get("log", "")
             if column == SEVERITY:
                 return entry.level
             if column == COMPONENT:
                 return entry.source
+            if column == PACKAGE:
+                # Computed here rather than stored at parse time: Qt only
+                # asks for the cells it is about to paint, so this costs ~30
+                # regex searches per repaint instead of 250 ms added to
+                # every open of the real archive.
+                return package_of(entry.message)
             if column == THREAD:
                 return entry.raw.get("thread", "")
             if column == MESSAGE:

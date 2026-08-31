@@ -46,9 +46,12 @@ def test_the_status_line_names_the_file_and_the_counts(viewer):
 
 
 def test_components_populate_the_filter_box(viewer):
-    items = [viewer.component.itemText(i)
-             for i in range(viewer.component.count())]
-    assert items == ["All", "Alpha", "Beta"]
+    """A checkable menu now, not a combo: CSI does the servicing work and CBS
+    narrates it, so reading a failure means being able to see both at once,
+    and a combo can only ever say one. "All" is the absence of any tick
+    rather than an entry of its own."""
+    assert viewer.component_values() == ["Alpha", "Beta"]
+    assert viewer.selected_components() == set()
 
 
 def test_opening_a_second_log_replaces_the_first(viewer, tmp_path):
@@ -167,7 +170,7 @@ def test_all_severities_ticked_filters_nothing(viewer):
 
 
 def test_filtering_by_component(viewer):
-    viewer.component.setCurrentText("Beta")
+    viewer.set_components({"Beta"})
     assert viewer.model.rowCount() == 2
 
 
@@ -602,7 +605,7 @@ def test_opening_a_second_log_does_not_keep_the_first_logs_thread_filter(
 
         widget.open(str(second))
         assert widget.thread.currentText() == "All"
-        assert widget.model._thread == "", (
+        assert not widget.model._thread, (
             "the combo says All but the model kept the old log's thread id")
         assert widget.model.rowCount() == 1
         assert "only line in the second log" in \
