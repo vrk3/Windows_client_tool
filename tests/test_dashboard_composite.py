@@ -15,8 +15,10 @@ def module():
 
 
 def test_the_dashboard_hosts_the_process_views(module):
+    """Processes before Details: the grouped view is the one most people
+    want, and the 40-column table is the one you go to next."""
     assert [child.name for child in module.children] == \
-        ["Overview", "Details", "Process Explorer"]
+        ["Overview", "Processes", "Details", "Process Explorer"]
 
 
 def test_the_old_overview_is_still_the_first_tab(module):
