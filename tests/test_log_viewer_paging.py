@@ -20,9 +20,13 @@ STEP = 2048
 
 
 def _record(number):
-    return ('<![LOG[Record {n:04d}]LOG]!><time="13:45:{s:02d}.000+000" '
+    """One CMTrace record, timestamped so that 300 of them run strictly
+    forwards over five minutes -- paging is about time going backwards, so
+    the fixture's clock has to actually move."""
+    return ('<![LOG[Record {n:04d}]LOG]!><time="13:{m:02d}:{s:02d}.000+000" '
             'date="08-20-2026" component="Alpha" context="" type="1" '
-            'thread="1" file="a.cpp:1">\n').format(n=number, s=number % 60)
+            'thread="1" file="a.cpp:1">\n').format(
+                n=number, m=number // 60, s=number % 60)
 
 
 @pytest.fixture
@@ -197,6 +201,38 @@ def test_a_filter_still_applies_after_loading_earlier(viewer):
         viewer.load_earlier()
 
     assert _messages(viewer) == [f"Record {n:04d}" for n in range(10)]
+
+
+def test_the_range_boxes_open_on_the_span_that_is_now_loaded(viewer):
+    """Found by rendering the pane and reading it, not by a test.
+
+    The From/To boxes are filled once, at open, with the span of the tail
+    slice. Page back through 300 MB of older records and they still claim the
+    log begins three minutes before it ends -- and nudging either box is how
+    a range is turned ON, so the first nudge filters out everything that was
+    just loaded.
+    """
+    before = viewer.time_from.dateTime().toPyDateTime()
+
+    while viewer.load_earlier_button.isEnabled():
+        viewer.load_earlier()
+
+    after = viewer.time_from.dateTime().toPyDateTime()
+    assert after < before, "the boxes still describe the tail slice"
+    assert after == viewer.model.time_span()[0]
+
+
+def test_a_range_the_user_set_is_not_wiped_by_loading_earlier(viewer):
+    """The counterpart. `_reset_range` also CLEARS the range, so refreshing
+    the boxes must not go through it while the user has one set."""
+    viewer.anchor_range(0, 1)
+    chosen = viewer.time_from.dateTime()
+    assert viewer._range_active
+
+    viewer.load_earlier()
+
+    assert viewer._range_active, "the user's range was cleared under them"
+    assert viewer.time_from.dateTime() == chosen
 
 
 def test_find_searches_the_records_that_were_just_loaded(viewer):

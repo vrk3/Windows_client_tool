@@ -449,6 +449,7 @@ class LogViewerWidget(QWidget):
             self._restore_viewport(anchor, len(entries))
             self._refresh_components()
             self._refresh_threads()
+            self._refresh_range_bounds()
         finally:
             self._loading_earlier = False
         self._sync_paging_buttons()
@@ -493,6 +494,30 @@ class LogViewerWidget(QWidget):
             return
         self.table.scrollTo(self.model.index(row, MESSAGE),
                             QAbstractItemView.ScrollHint.PositionAtTop)
+
+    def _refresh_range_bounds(self) -> None:
+        """Re-open the From/To boxes on the span that is loaded NOW.
+
+        Deliberately not `_reset_range`, which also CLEARS the range: a range
+        the user set is theirs and survives a load. When none is set the
+        boxes are only a starting point, and one describing a slice three
+        minutes wide after paging back through 300 MB is worse than useless
+        -- nudging a box is how the range is turned on, so the first nudge
+        would filter out everything that had just been loaded.
+
+        The signals are blocked for the same reason `_reset_range` blocks
+        them: `setDateTime` is indistinguishable from a user edit, and a user
+        edit is what sets `_range_active`.
+        """
+        if self._range_active:
+            return
+        span = self.model.time_span()
+        if not span:
+            return
+        for box, value in ((self.time_from, span[0]), (self.time_to, span[1])):
+            box.blockSignals(True)
+            box.setDateTime(QDateTime(value))
+            box.blockSignals(False)
 
     def _sync_paging_buttons(self) -> None:
         earlier = self._reader is not None and self._reader.has_earlier()
