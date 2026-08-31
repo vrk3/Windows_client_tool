@@ -53,7 +53,7 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 10 |
+| 1 | Quick wins that change daily use | 13 | 11 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
@@ -243,15 +243,24 @@ over `_visible`, mirroring `row_for_entry`.
 **Why:** `FilterList.log` has no timestamps at all, so its 22 records take
 the epoch and lead any merged view of `C:\Windows\Logs\CBS`.
 
-- [ ] Test: `test_a_source_with_no_timestamps_at_all_sorts_last`
-- [ ] Test: `test_a_source_with_SOME_timestamps_is_not_moved`
-- [ ] Test: `test_an_orphan_continuation_is_still_not_dropped` (regression —
+- [x] Test: `test_a_source_with_no_timestamps_at_all_sorts_last`
+- [x] Test: `test_a_source_with_SOME_timestamps_is_not_moved`
+- [x] Test: `test_an_orphan_continuation_is_still_not_dropped` (regression —
       the epoch is still right for a record inside a timestamped file)
-- [ ] Implement: decide per SOURCE, not per record. If a source has no real
+- [x] Implement: decide per SOURCE, not per record. If a source has no real
       timestamp anywhere, give its records a sentinel that sorts last;
       otherwise the existing inherit-from-above rule stands
-- [ ] Real check: reopen the CBS folder, confirm FilterList no longer leads
-- [ ] Commit
+- [x] Real check: reopen the CBS folder, confirm FilterList no longer leads
+- [x] Commit
+- **Done, and verified on the real CBS folder:** the archive now leads
+  and FilterList.log sits at the end. Before, its 22 rows of
+  filter-driver names were the first thing anyone saw.
+- **Decided per SOURCE, not per record.** A dated file whose slice
+  begins mid-block has an orphan continuation with nothing to inherit,
+  and that orphan belongs at the front of ITS file -- not dragged, nor
+  dragging its whole source, to the end of the timeline.
+- The merge check still reports 38,101 == 38,101, 0 cross-file ordering
+  steps and 0 separated continuations.
 
 ### W1-09 (idea 28): Recent files and folders
 

@@ -29,6 +29,7 @@ No Qt here, like the reader and the parser it sits beside.
 """
 import heapq
 import os
+from datetime import datetime
 
 from . import cmtrace_parser
 from .cmtrace_parser import UNKNOWN_TIME
@@ -38,6 +39,10 @@ from .log_reader import DEFAULT_MAX_BYTES, LogReader
 #: logs as .txt, but so does every readme and licence file that would come
 #: with them.
 LOG_SUFFIXES = (".log", ".lo_")
+
+#: The sort key a source with no clock at all is given, so it lands at
+#: the end of the timeline rather than at the epoch in front of it.
+_APPENDIX = datetime.max
 
 #: Deliberately duplicated from `log_model` rather than imported: that module
 #: imports PyQt6, and importing it here would drag Qt into the merge engine
@@ -167,7 +172,20 @@ class LogSet:
         than dropping it.
         """
         for source in self._entries:
-            carried = UNKNOWN_TIME
+            # A source with no clock ANYWHERE is not a timeline: it is a
+            # table that happens to live in a .log file.
+            # `C:\Windows\Logs\CBS\FilterList.log` is one, and at the epoch
+            # its 22 rows of filter-driver names sorted to the very top, so
+            # the first thing anyone saw on opening the CBS folder was that.
+            # Sorted last instead, where it reads as an appendix.
+            #
+            # Decided per SOURCE, not per record: a dated file whose slice
+            # begins mid-block has an orphan continuation with nothing to
+            # inherit, and that orphan belongs at the front of ITS file, not
+            # at the end of the timeline.
+            dateless = all(entry.timestamp == UNKNOWN_TIME
+                           for entry in source)
+            carried = _APPENDIX if dateless else UNKNOWN_TIME
             for entry in source:
                 if entry.timestamp != UNKNOWN_TIME:
                     carried = entry.timestamp
