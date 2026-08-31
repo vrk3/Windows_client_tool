@@ -83,6 +83,45 @@ class LogModel(QAbstractTableModel):
         #: tell the user: these were loaded a moment ago and are one "Newest"
         #: click away, rather than having scrolled out of a growing file.
         self.unloaded_newer = 0
+        #: Bookmarked RECORDS, held two ways. The id set makes the lookup in
+        #: `data()` O(1) -- it runs per painted cell -- and the reference
+        #: list is what keeps those ids valid: without it a record could be
+        #: freed and its id handed to a different object, silently marking
+        #: the wrong row.
+        #:
+        #: Never row or entry INDICES. Rows shift whenever the filter
+        #: changes and entry indices shift by the size of every "load
+        #: earlier" chunk, so either would quietly come to mean a different
+        #: record.
+        self._bookmark_ids: set = set()
+        self._bookmark_refs: list = []
+
+    # ---- bookmarks ------------------------------------------------------
+
+    def toggle_bookmark(self, entry) -> None:
+        if entry is None:
+            return
+        if id(entry) in self._bookmark_ids:
+            self._bookmark_ids.discard(id(entry))
+            self._bookmark_refs = [held for held in self._bookmark_refs
+                                   if held is not entry]
+        else:
+            self._bookmark_ids.add(id(entry))
+            self._bookmark_refs.append(entry)
+        self._repaint_visible()
+
+    def is_bookmarked(self, entry) -> bool:
+        return entry is not None and id(entry) in self._bookmark_ids
+
+    def bookmarks(self) -> list:
+        """Bookmarked records still loaded, in view order.
+
+        A record evicted by the cap has nothing to point at, so it drops out
+        rather than lingering as a row that goes nowhere.
+        """
+        loaded = {id(entry) for entry in self._entries}
+        return [entry for entry in self._entries
+                if id(entry) in self._bookmark_ids and id(entry) in loaded]
 
     # ---- content --------------------------------------------------------
 
@@ -212,6 +251,8 @@ class LogModel(QAbstractTableModel):
         self._folded = set()
         self.dropped = 0
         self.unloaded_newer = 0
+        self._bookmark_ids = set()
+        self._bookmark_refs = []
         self.endResetModel()
 
     def entry(self, row: int):
@@ -599,8 +640,11 @@ class LogModel(QAbstractTableModel):
             if column == TIME:
                 # The same formatter log_export uses for the exported file,
                 # so what someone sees here and what they export can never
-                # quietly disagree.
-                return format_stamp(entry)
+                # quietly disagree. The bookmark star is DISPLAY only, the
+                # same rule the fold suffix follows -- export reads the
+                # record, so it can never leak into a file.
+                stamp = format_stamp(entry)
+                return f"★ {stamp}" if self.is_bookmarked(entry) else stamp
             if column == SOURCE:
                 return entry.raw.get("log", "")
             if column == SEVERITY:

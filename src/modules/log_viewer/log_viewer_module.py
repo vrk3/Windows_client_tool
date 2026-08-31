@@ -427,7 +427,9 @@ class LogViewerWidget(QWidget):
         self.summary_gaps = QListWidget(self.summary_panel)
         self.summary_failure = QListWidget(self.summary_panel)
         self.summary_sessions = QListWidget(self.summary_panel)
-        for title, listing in (("The failure", self.summary_failure),
+        self.summary_bookmarks = QListWidget(self.summary_panel)
+        for title, listing in (("Bookmarks", self.summary_bookmarks),
+                               ("The failure", self.summary_failure),
                                ("Servicing sessions", self.summary_sessions),
                                ("Failing codes", self.summary_codes),
                                ("Components", self.summary_components),
@@ -452,6 +454,7 @@ class LogViewerWidget(QWidget):
         self.summary_gaps.itemClicked.connect(self._on_summary_gap)
         self.summary_failure.itemClicked.connect(self._on_summary_gap)
         self.summary_sessions.itemClicked.connect(self._on_summary_gap)
+        self.summary_bookmarks.itemClicked.connect(self._on_summary_gap)
         self.summary_panel.setVisible(False)
         layout.addWidget(self.summary_panel)
 
@@ -811,6 +814,7 @@ class LogViewerWidget(QWidget):
                 ("Ctrl+F", lambda: self._focus(self.find_box)),
                 ("Ctrl+L", lambda: self._focus(self.filter_box)),
                 ("Ctrl+H", lambda: self._focus(self.exclude_box)),
+                ("Ctrl+D", self.toggle_bookmark),
                 ("F3", self.find_next),
                 ("Shift+F3", self.find_previous),
         ):
@@ -886,6 +890,12 @@ class LogViewerWidget(QWidget):
             else:
                 self._add_record(self.summary_failure, "last success",
                                  entries[worked])
+        self.summary_bookmarks.clear()
+        marked = self.model.bookmarks()
+        if not marked:
+            self.summary_bookmarks.addItem("Nothing bookmarked (Ctrl+D)")
+        for entry in marked:
+            self._add_record(self.summary_bookmarks, "★", entry)
         self.summary_sessions.clear()
         found = sessions(entries)
         if not found:
@@ -906,6 +916,18 @@ class LogViewerWidget(QWidget):
 
     def _on_summary_component(self, item) -> None:
         self.set_components({item.text().rsplit("   ", 1)[0]})
+
+    def toggle_bookmark(self) -> None:
+        """Mark or unmark the current row.
+
+        An investigation is a loop of "that line and this line", and the only
+        way back to a row was to remember what it said.
+        """
+        entry = self.model.entry(self.table.currentIndex().row())
+        if entry is None:
+            return
+        self.model.toggle_bookmark(entry)
+        self._refresh_summary()
 
     def _add_record(self, listing, label: str, entry) -> None:
         """A summary row that remembers WHICH RECORD it is about.
@@ -1146,6 +1168,7 @@ class LogViewerWidget(QWidget):
         menu.addSeparator()
         menu.addAction("Look up the error codes on this row",
                        lambda _c=False: self.open_error_lookup(row))
+        menu.addAction("Bookmark this row  (Ctrl+D)", self.toggle_bookmark)
         menu.addAction("Copy selected rows", self.copy_selection)
         menu.addAction("Copy selected rows as Markdown",
                        self.copy_selection_as_markdown)

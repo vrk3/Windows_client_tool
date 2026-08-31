@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 0 |
+| 3 | Reading and filtering | 8 | 1 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-01 (bookmarks). Waves 1 and 2 are complete.
+**Next task:** W3-02 (peek context through a filter).
 
 ---
 
@@ -629,12 +629,25 @@ version numbers and package names with placeholders; `cluster(entries)`.
 
 **Files:** `log_model.py` (a bookmark set keyed by entry index), pane, tests
 
-- [ ] Test: `test_a_bookmarked_row_stays_bookmarked_through_a_filter`
-- [ ] Test: `test_bookmarks_follow_their_record_across_a_prepend` — indices
+- [x] Test: `test_a_bookmarked_row_stays_bookmarked_through_a_filter`
+- [x] Test: `test_bookmarks_follow_their_record_across_a_prepend` — indices
       shift by the chunk size, exactly like the viewport anchor
-- [ ] Test: `test_a_bookmark_on_an_unloaded_record_is_dropped_not_stale`
-- [ ] Ctrl+D toggles; a side list jumps
-- [ ] Commit
+- [x] Test: `test_a_bookmark_on_an_unloaded_record_is_dropped_not_stale`
+- [x] Ctrl+D toggles; a side list jumps
+- [x] Commit
+- **Held as RECORDS, never indices** -- the W2-02 lesson applied up
+  front rather than after being bitten. Rows shift whenever the filter
+  changes and entry indices shift by the size of every "load earlier"
+  chunk, so either would come to mean a different record.
+- Two structures on purpose: an id SET so the lookup in `data()` is
+  O(1) (it runs per painted cell) and a reference LIST that keeps those
+  ids valid. Without the references a record could be freed and its id
+  reused, silently marking the wrong row.
+- A bookmark on a record the cap has evicted drops out of the list
+  rather than lingering as a row that goes nowhere.
+- The star in the Time column is DISPLAY only, the same rule the fold
+  suffix follows: export reads the record, so it cannot leak into a
+  file.
 
 ### W3-02 (idea 03): Peek context through a filter
 
