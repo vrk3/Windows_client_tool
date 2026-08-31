@@ -15,16 +15,16 @@ from modules.dashboard.procengine.ioinfo import (
 )
 
 
-def _disk(index=0, read=0, written=0, idle=0, at=0.0):
+def _disk(index=0, read=0, written=0, idle=0, at=0.0, query_time=0):
     return DiskCounters(index=index, bytes_read=read, bytes_written=written,
                         read_time=0, write_time=0, idle_time=idle,
-                        queue_depth=0, at=at)
+                        queue_depth=0, query_time=query_time, at=at)
 
 
 def _nic(name="Ethernet", sent=0, received=0, at=0.0, speed=1_000_000_000):
     return InterfaceCounters(index=0, name=name, bytes_sent=sent,
                              bytes_received=received, speed_bps=speed,
-                             up=True, at=at)
+                             up=True, loopback=False, at=at)
 
 
 # ---- the real disks -----------------------------------------------------
@@ -216,3 +216,71 @@ def test_the_engine_does_not_import_qt():
     from modules.dashboard.procengine import ioinfo
 
     assert "PyQt6" not in inspect.getsource(ioinfo)
+
+
+def test_the_drivers_own_timestamp_measures_the_interval():
+    """A wall clock read once before a loop over seven disks is already
+    stale by the time the last one answers, and that skew is the entire
+    signal when the true active time is zero -- it put a permanent 2-3%
+    ripple on disks doing nothing."""
+    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+
+    # The driver says exactly one second passed; the wall clock disagrees.
+    # Both timestamps are non-zero: 0 is the sentinel for "the driver gave
+    # us none", which is a different case and has its own test below.
+    before = _disk(idle=0, at=0.0, query_time=HUNDRED_NS)
+    after = _disk(idle=HUNDRED_NS, at=99.0, query_time=HUNDRED_NS * 2)
+
+    assert disk_rates([before], [after])[0].active_percent == \
+        pytest.approx(0.0)
+
+
+def test_the_wall_clock_is_used_when_the_driver_gives_no_timestamp():
+    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+
+    before = _disk(idle=0, at=0.0, query_time=0)
+    after = _disk(idle=HUNDRED_NS // 2, at=1.0, query_time=0)
+
+    assert disk_rates([before], [after])[0].active_percent == \
+        pytest.approx(50.0)
+
+
+def test_a_real_idle_disk_reads_as_near_zero_active():
+    """The symptom this fixed: idle disks drawing a permanent ripple."""
+    before = disk_counters()
+    time.sleep(0.5)
+    rates = disk_rates(before, disk_counters())
+    quiet = [rate for rate in rates
+             if not rate.read_bps and not rate.write_bps
+             and rate.active_percent is not None]
+    if not quiet:
+        pytest.skip("every disk was busy")
+    assert max(rate.active_percent for rate in quiet) < 2.0
+
+
+def test_the_loopback_adapter_is_flagged():
+    """It carries no real traffic and Task Manager does not list it."""
+    found = [counters for counters in interface_counters()
+             if counters.loopback]
+    assert found, "no loopback interface was identified"
+
+
+def test_loopback_is_detected_by_address_not_by_name():
+    """"Loopback Pseudo-Interface 1" is the English name only; a name match
+    would quietly start listing it on a German install."""
+    from modules.dashboard.procengine.ioinfo import _is_loopback
+
+    class _Entry:
+        def __init__(self, address):
+            self.address = address
+
+    assert _is_loopback([_Entry("127.0.0.1")]) is True
+    assert _is_loopback([_Entry("::1")]) is True
+    assert _is_loopback([_Entry("192.168.1.5")]) is False
+    assert _is_loopback([]) is False
+
+
+def test_a_real_adapter_is_not_flagged_as_loopback():
+    real = [counters for counters in interface_counters()
+            if counters.up and not counters.loopback]
+    assert real, "every interface was called loopback"

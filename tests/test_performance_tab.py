@@ -257,3 +257,65 @@ def test_the_memory_speed_shown_is_not_in_gigahertz(tab):
         pytest.skip("WMI did not report a memory speed")
     assert "GHz" not in shown
     assert "MHz" in shown
+
+
+# ---- disk and network panels --------------------------------------------
+
+def test_the_tab_offers_disk_and_network(tab):
+    labels = [tab.chooser.item(row).text()
+              for row in range(tab.chooser.count())]
+    assert "Disk" in labels and "Network" in labels
+
+
+def test_a_graph_appears_for_every_physical_disk(tab):
+    from modules.dashboard.procengine.ioinfo import disk_counters
+
+    assert len(tab._disk_rows) == len(disk_counters())
+
+
+def test_each_disk_caption_reports_its_activity(tab):
+    for _graph, caption in tab._disk_rows.values():
+        assert "active" in caption.text()
+        assert "queue" in caption.text()
+
+
+def test_only_interfaces_that_are_up_get_a_graph(tab):
+    """A machine has a dozen tunnel and loopback adapters; a graph each
+    would bury the one that matters."""
+    from modules.dashboard.procengine.ioinfo import interface_counters
+
+    assert 0 < len(tab._network_rows) < len(interface_counters())
+
+
+def test_a_network_graph_is_scaled_against_its_link_speed(tab):
+    """A 2.5 Gb/s card and a 100 Mb/s card must not draw the same picture
+    for the same traffic."""
+    graphs = [graph for graph, _caption in tab._network_rows.values()]
+    assert any(graph._ceiling > 1.0 for graph in graphs)
+
+
+def test_the_first_disk_reading_is_not_drawn_as_zero(qapp):
+    widget = PerformanceTab()
+    try:
+        widget.refresh()
+        for graph, _caption in widget._disk_rows.values():
+            assert all(value is None for value in graph.history())
+    finally:
+        widget.stop()
+
+
+def test_an_unmeasured_rate_shows_a_dash_not_zero_bytes(qapp):
+    from modules.dashboard.performance_tab import _rate
+
+    assert _rate(None) == "—"
+    assert _rate(0) == "0 B/s"
+
+
+def test_the_disk_panel_paints(tab):
+    tab.chooser.setCurrentRow(2)
+    _paint(tab, 900, 600)
+
+
+def test_the_network_panel_paints(tab):
+    tab.chooser.setCurrentRow(3)
+    _paint(tab, 900, 600)

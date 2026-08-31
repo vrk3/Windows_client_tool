@@ -83,6 +83,12 @@ class DiskCounters:
     write_time: int
     idle_time: int
     queue_depth: int
+    #: The storage stack's OWN timestamp for this sample, in 100ns ticks.
+    #: Used in preference to a wall clock read here: the disks are polled in
+    #: a loop, so a single `now` taken before it is already stale by the
+    #: time the seventh disk answers, and that skew lands directly in the
+    #: active-time percentage.
+    query_time: int
     at: float
 
 
@@ -145,6 +151,7 @@ def _one_disk(index: int, now: float) -> Optional[DiskCounters]:
             write_time=performance.WriteTime,
             idle_time=performance.IdleTime,
             queue_depth=performance.QueueDepth,
+            query_time=performance.QueryTime,
             at=now)
     finally:
         _kernel32.CloseHandle(handle)
@@ -189,14 +196,31 @@ def _active(before: DiskCounters, after: DiskCounters,
     Derived from IDLE time, which is what the storage stack actually
     counts: active is the remainder. Read and write time overlap on a
     queued device, so adding those two would exceed the interval.
+
+    The window is measured with the driver's OWN `QueryTime` where both
+    samples carry one. Using a wall clock instead put a permanent 2-3%
+    ripple on every disk, including ones doing nothing at all: the disks
+    are polled in a loop, so one timestamp taken before it is wrong by
+    however long the loop takes, and that error is the whole signal when
+    the true answer is zero.
     """
     idle = after.idle_time - before.idle_time
     if idle < 0:
         return None
-    window = elapsed * HUNDRED_NS
+    window = _window(before, after, elapsed)
     if window <= 0:
         return None
     return min(100.0, max(0.0, (1.0 - idle / window) * 100.0))
+
+
+def _window(before: DiskCounters, after: DiskCounters,
+            elapsed: float) -> float:
+    """The interval in 100ns ticks, from the driver's clock if it gave one."""
+    if before.query_time and after.query_time:
+        measured = after.query_time - before.query_time
+        if measured > 0:
+            return float(measured)
+    return elapsed * HUNDRED_NS
 
 
 def _per_second(before: int, after: int, elapsed: float) -> Optional[float]:
@@ -218,6 +242,11 @@ class InterfaceCounters:
     bytes_received: int
     speed_bps: Optional[int]
     up: bool
+    #: True for the loopback adapter, which carries no real traffic and is
+    #: not something Task Manager lists. Detected from its ADDRESS rather
+    #: than its name: the name is localised, and "Loopback" only matches on
+    #: an English install.
+    loopback: bool
     at: float
 
 
@@ -229,6 +258,7 @@ class InterfaceRate:
     receive_bps: Optional[float] = None
     speed_bps: Optional[int] = None
     up: bool = False
+    loopback: bool = False
 
 
 def interface_counters() -> List[InterfaceCounters]:
@@ -248,6 +278,7 @@ def interface_counters() -> List[InterfaceCounters]:
     try:
         counters = psutil.net_io_counters(pernic=True)
         stats = psutil.net_if_stats()
+        addresses = psutil.net_if_addrs()
     except Exception as error:  # noqa: BLE001
         logger.warning("Could not read the network counters: %s", error)
         return []
@@ -267,8 +298,23 @@ def interface_counters() -> List[InterfaceCounters]:
             bytes_received=entry.bytes_recv,
             speed_bps=speed,
             up=bool(stat.isup) if stat is not None else False,
+            loopback=_is_loopback(addresses.get(name, ())),
             at=now))
     return out
+
+
+def _is_loopback(entries) -> bool:
+    """Whether an interface is the loopback adapter.
+
+    By address, not by name. "Loopback Pseudo-Interface 1" is what it is
+    called on an English install and something else everywhere else, and a
+    name match would quietly start listing it on a German machine.
+    """
+    for entry in entries:
+        address = getattr(entry, "address", "") or ""
+        if address.startswith("127.") or address == "::1":
+            return True
+    return False
 
 
 def interface_rates(before: List[InterfaceCounters],
@@ -285,13 +331,15 @@ def interface_rates(before: List[InterfaceCounters],
         if previous is None:
             rates.append(InterfaceRate(
                 index=counters.index, name=counters.name,
-                speed_bps=counters.speed_bps, up=counters.up))
+                speed_bps=counters.speed_bps, up=counters.up,
+                loopback=counters.loopback))
             continue
         elapsed = counters.at - previous.at
         if elapsed <= 0:
             rates.append(InterfaceRate(
                 index=counters.index, name=counters.name,
-                speed_bps=counters.speed_bps, up=counters.up))
+                speed_bps=counters.speed_bps, up=counters.up,
+                loopback=counters.loopback))
             continue
         rates.append(InterfaceRate(
             index=counters.index,
@@ -301,5 +349,6 @@ def interface_rates(before: List[InterfaceCounters],
             receive_bps=_per_second(previous.bytes_received,
                                     counters.bytes_received, elapsed),
             speed_bps=counters.speed_bps,
-            up=counters.up))
+            up=counters.up,
+            loopback=counters.loopback))
     return rates

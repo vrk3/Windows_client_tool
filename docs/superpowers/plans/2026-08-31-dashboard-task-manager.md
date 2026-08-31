@@ -160,9 +160,9 @@ and the wall time between them.
       L1/L2/L3 cache.
 - [x] W2-02 Memory: in use, available, committed, cached, paged and non-paged
       pool, speed, slots used, form factor, hardware reserved.
-- [ ] W2-03 Disk: active time, average response time, read/write speed,
+- [x] W2-03 Disk: active time, average response time, read/write speed,
       capacity, system disk, page file.
-- [ ] W2-04 Network: throughput, adapter, SSID, DNS, IPv4/IPv6, signal.
+- [x] W2-04 Network: throughput, adapter, SSID, DNS, IPv4/IPv6, signal.
 - [ ] W2-05 GPU: per-engine utilisation, dedicated and shared memory, driver
       version, DirectX version.
 - [ ] W2-06 Process Explorer's System Information window (CPU/memory/IO/GPU
@@ -279,3 +279,22 @@ Recorded as they are learned, the way the Log Viewer plan did.
   processor and wrong for memory: the DDR5 speed rendered as "4.80 GHz",
   a figure nobody quotes and easily misread as the CPU's clock. Memory speed
   has its own formatter now.
+- **2026-08-31, W2-03:** opening a raw physical drive with `GENERIC_READ`
+  needs elevation -- unelevated, zero of this machine's seven drives opened.
+  `IOCTL_DISK_PERFORMANCE` is FILE_ANY_ACCESS, so asking for **zero access
+  rights** opens all seven. Measured both ways.
+- **2026-08-31, W2-03 (found by rendering):** using a wall clock for the
+  interval put a permanent 2-3% ripple on every disk, including ones doing
+  nothing -- the drives are polled in a loop, so one `now` taken before it is
+  wrong by however long the loop takes, and that error IS the signal when the
+  true answer is zero. `DISK_PERFORMANCE` carries its own `QueryTime`; using
+  it flattened idle disks to zero and made "active 1% / write 139.9 KB/s"
+  agree with itself.
+- **2026-08-31, W2-04 (found by rendering):** scaling the network graph
+  against the LINK speed means ordinary traffic on a 2.5 Gb/s card is a flat
+  line on the floor -- the graph only ever moves during a file transfer. It
+  scales to the busiest moment in the visible window instead, which is why
+  Task Manager's axis label changes.
+- **2026-08-31, W2-04:** loopback is excluded by ADDRESS, not by name.
+  "Loopback Pseudo-Interface 1" is the English name only, and a name match
+  would quietly start listing it on a localised install.

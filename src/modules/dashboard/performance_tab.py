@@ -25,6 +25,8 @@ from .perf_graph import CoreGrid, PerfGraph
 from .procengine.columns import fmt_bytes
 from .procengine.cpuinfo import (core_loads, cpu_static, processor_times,
                                  uptime_seconds)
+from .procengine.ioinfo import (disk_counters, disk_rates,
+                                interface_counters, interface_rates)
 from .procengine.meminfo import memory_modules, memory_status
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,8 @@ class PerformanceTab(QWidget):
         self._workers: list = []
         self._app = None
         self._previous_cores = None
+        self._previous_disks = None
+        self._previous_nics = None
         self._static = None
         self._setup_ui()
         self._timer = QTimer(self)
@@ -60,6 +64,8 @@ class PerformanceTab(QWidget):
 
         self._add_cpu_panel()
         self._add_memory_panel()
+        self._add_disk_panel()
+        self._add_network_panel()
         self.chooser.setCurrentRow(0)
 
     def _add_cpu_panel(self) -> None:
@@ -145,6 +151,44 @@ class PerformanceTab(QWidget):
         self.panels.addWidget(panel)
         self.chooser.addItem(QListWidgetItem("Memory"))
 
+    def _add_disk_panel(self) -> None:
+        """One graph for every physical disk, stacked.
+
+        Task Manager gives each disk its own entry in the chooser. Stacking
+        them in one panel says the same thing in less clicking, and this
+        machine has seven.
+        """
+        panel = QWidget(self)
+        column = QVBoxLayout(panel)
+        title = QLabel("Disk", panel)
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        column.addWidget(title)
+
+        self.disk_area = QVBoxLayout()
+        column.addLayout(self.disk_area, 1)
+        column.addStretch(0)
+        #: index -> (graph, caption). Built on the first reading, because
+        #: how many disks there are is not known until then.
+        self._disk_rows = {}
+
+        self.panels.addWidget(panel)
+        self.chooser.addItem(QListWidgetItem("Disk"))
+
+    def _add_network_panel(self) -> None:
+        panel = QWidget(self)
+        column = QVBoxLayout(panel)
+        title = QLabel("Network", panel)
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        column.addWidget(title)
+
+        self.network_area = QVBoxLayout()
+        column.addLayout(self.network_area, 1)
+        column.addStretch(0)
+        self._network_rows = {}
+
+        self.panels.addWidget(panel)
+        self.chooser.addItem(QListWidgetItem("Network"))
+
     # ---- lifecycle ------------------------------------------------------
 
     def set_app(self, app) -> None:
@@ -211,10 +255,82 @@ class PerformanceTab(QWidget):
         try:
             self._refresh_cpu()
             self._refresh_memory()
+            self._refresh_disks()
+            self._refresh_network()
         except OSError as error:
             # A failed reading must not kill the timer, or the tab goes
             # permanently dead after one hiccup.
             logger.warning("Performance refresh failed: %s", error)
+
+    def _refresh_disks(self) -> None:
+        current = disk_counters()
+        if self._previous_disks is None:
+            self._previous_disks = current
+            return
+        rates = disk_rates(self._previous_disks, current)
+        self._previous_disks = current
+        for rate in rates:
+            graph, caption = self._disk_row(rate.index)
+            graph.push(rate.active_percent)
+            caption.setText(
+                f"Disk {rate.index}   ·   active "
+                f"{_percent(rate.active_percent)}   ·   "
+                f"read {_rate(rate.read_bps)}   ·   "
+                f"write {_rate(rate.write_bps)}   ·   "
+                f"queue {rate.queue_depth}")
+
+    def _disk_row(self, index: int):
+        row = self._disk_rows.get(index)
+        if row is None:
+            caption = QLabel("", self)
+            caption.setStyleSheet("font-size: 11px;")
+            graph = PerfGraph(semantic("warning"), 100.0, self)
+            graph.setMinimumHeight(56)
+            self.disk_area.addWidget(caption)
+            self.disk_area.addWidget(graph)
+            row = (graph, caption)
+            self._disk_rows[index] = row
+        return row
+
+    def _refresh_network(self) -> None:
+        current = interface_counters()
+        if self._previous_nics is None:
+            self._previous_nics = current
+            return
+        rates = interface_rates(self._previous_nics, current)
+        self._previous_nics = current
+        for rate in rates:
+            # Only the interfaces that are actually up. A machine has a
+            # dozen tunnel and loopback adapters and a graph each would
+            # bury the one that matters.
+            if not rate.up or rate.loopback:
+                continue
+            graph, caption = self._network_row(rate.name)
+            total = (rate.send_bps or 0) + (rate.receive_bps or 0)
+            graph.push(None if rate.send_bps is None else total)
+            # Scaled to the busiest moment in the visible window, not to the
+            # link speed. Against a 2.5 Gb/s link, ordinary traffic of a few
+            # kilobytes a second is a flat line on the floor -- the graph
+            # would only ever move during a file transfer. Task Manager
+            # rescales the same way, which is why its axis label changes.
+            graph.set_ceiling(_ceiling_for(graph))
+            caption.setText(
+                f"{rate.name}   ·   send {_rate(rate.send_bps)}   ·   "
+                f"receive {_rate(rate.receive_bps)}   ·   "
+                f"link {_link(rate.speed_bps)}")
+
+    def _network_row(self, name: str):
+        row = self._network_rows.get(name)
+        if row is None:
+            caption = QLabel("", self)
+            caption.setStyleSheet("font-size: 11px;")
+            graph = PerfGraph(semantic("info"), 1.0, self)
+            graph.setMinimumHeight(56)
+            self.network_area.addWidget(caption)
+            self.network_area.addWidget(graph)
+            row = (graph, caption)
+            self._network_rows[name] = row
+        return row
 
     def _refresh_cpu(self) -> None:
         current = processor_times()
@@ -303,6 +419,36 @@ def _enabled(value: Optional[bool]) -> str:
     if value is None:
         return "—"
     return "Enabled" if value else "Disabled"
+
+
+def _ceiling_for(graph) -> float:
+    """The graph's own peak, with a floor so a silent link is not scaled
+    against zero."""
+    seen = [value for value in graph.history() if value]
+    return max(seen) * 1.15 if seen else 1024.0
+
+
+def _percent(value: Optional[float]) -> str:
+    return "—" if value is None else f"{value:.0f}%"
+
+
+def _rate(value: Optional[float]) -> str:
+    """Bytes per second, or a dash when it has not been measured yet.
+
+    Not "0 B/s": the first reading of any device has no rate, and claiming
+    zero there says the device is idle when we simply have not looked twice.
+    """
+    if value is None:
+        return "—"
+    return f"{fmt_bytes(value)}/s"
+
+
+def _link(speed_bps: Optional[int]) -> str:
+    if not speed_bps:
+        return "—"
+    if speed_bps >= 1_000_000_000:
+        return f"{speed_bps / 1_000_000_000:.1f} Gb/s"
+    return f"{speed_bps / 1_000_000:.0f} Mb/s"
 
 
 def _uptime(seconds: float) -> str:
