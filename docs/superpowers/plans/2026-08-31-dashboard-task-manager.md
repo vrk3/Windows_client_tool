@@ -72,7 +72,7 @@ and the wall time between them.
 
 ---
 
-## Wave 1 -- The engine and the two process tabs
+## Wave 1 -- The engine and the two process tabs  **[COMPLETE]**
 
 ### W1-01: The syscall, parsed
 **Files:** Create `src/modules/dashboard/procengine/ntquery.py`,
@@ -135,10 +135,10 @@ and the wall time between them.
 ### W1-07: The Processes tab
 **Files:** Create `src/modules/dashboard/processes_tab.py`, tests
 
-- [ ] Task Manager's grouped view: Apps / Background processes / Windows
+- [x] Task Manager's grouped view: Apps / Background processes / Windows
       processes, per-app child rows, the heat-map tint on the value columns,
       End task, Resource values as values or percents.
-- [ ] Tests: grouping puts a windowed process under Apps; the tint scales
+- [x] Tests: grouping puts a windowed process under Apps; the tint scales
       against the busiest row.
 
 ### W1-08: The composite, and absorbing Process Explorer

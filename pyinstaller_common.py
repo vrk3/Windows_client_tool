@@ -90,6 +90,9 @@ HIDDEN_IMPORTS = [
     # Imported inside DashboardModule.__init__, so PyInstaller's static
     # analysis can miss them and the tabs would be silently absent.
     "modules.dashboard.details_module",
+    "modules.dashboard.processes_module",
+    "modules.dashboard.processes_tab",
+    "modules.dashboard.procengine.grouping",
     "modules.dashboard.details_tab",
     "modules.dashboard.details_model",
     "modules.dashboard.process_menu",

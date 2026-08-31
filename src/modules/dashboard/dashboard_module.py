@@ -476,11 +476,13 @@ class DashboardModule(CompositeModule):
         # imported at the top would be loaded even when the tab is never
         # opened, and the frozen build needs each one in HIDDEN_IMPORTS.
         from modules.dashboard.details_module import DetailsModule
+        from modules.dashboard.processes_module import ProcessesModule
         from modules.process_explorer.process_explorer_module import (
             ProcessExplorerModule)
 
         self.children = [
             OverviewModule(),
+            ProcessesModule(),
             DetailsModule(),
             ProcessExplorerModule(),
         ]
