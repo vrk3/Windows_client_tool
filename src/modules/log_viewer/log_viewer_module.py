@@ -30,9 +30,11 @@ from core.search_provider import SearchProvider
 from modules.log_viewer import cmtrace_parser
 from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
-    COMPONENT, LogModel, MESSAGE, SEVERITY, THREAD, TIME,
+    COMPONENT, LogModel, MESSAGE, SEVERITY, SOURCE, THREAD, TIME,
 )
-from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES, LogReader
+from modules.log_viewer.known_logs import largest_cbs_archive
+from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
+from modules.log_viewer.log_set import LogSet
 from modules.log_viewer.log_search_provider import LogSearchProvider
 
 logger = logging.getLogger(__name__)
@@ -69,7 +71,10 @@ class LogViewerWidget(QWidget):
         super().__init__(parent)
         self.model = LogModel(self)
         self.provider = LogSearchProvider()
-        self._reader: Optional[LogReader] = None
+        self._set: Optional[LogSet] = None
+        #: Every log currently open. One entry is the ordinary case; a folder
+        #: puts several in and the pane becomes a merged timeline.
+        self._paths: list = []
         #: How much one read covers, forwards on Open and backwards on "load
         #: earlier". Only the tests pass this; they would otherwise have to
         #: write 32 MB files. `tools/log_viewer_real_check.py` pages the real
@@ -172,6 +177,19 @@ class LogViewerWidget(QWidget):
         self.component.addItem("All")
         self.component.currentIndexChanged.connect(lambda _i: self._apply_filters())
         top.addWidget(self.component)
+
+        # Only useful once several logs are open; hidden until then, like the
+        # column it filters on.
+        self.source_label = QLabel("Source:", self)
+        top.addWidget(self.source_label)
+        self.source = QComboBox(self)
+        self.source.setMinimumWidth(150)
+        self.source.addItem("All")
+        self.source.currentIndexChanged.connect(lambda _i: self._apply_filters())
+        top.addWidget(self.source)
+        self.source_label.setVisible(False)
+        self.source.setVisible(False)
+
         top.addStretch(1)
         layout.addLayout(top)
 
@@ -276,7 +294,11 @@ class LogViewerWidget(QWidget):
         # its default width and the text is crammed into the left third of
         # the window with two thirds empty beside it.
         header = self.table.horizontalHeader()
-        for column in (TIME, SEVERITY, COMPONENT, THREAD):
+        # SOURCE sizes to content like the rest: left at Qt's default
+        # width it rendered "CbsPersist_20…", and CBS archives differ
+        # only in the timestamp at the END of the name, so every one of
+        # them elided to the same characters.
+        for column in (TIME, SOURCE, SEVERITY, COMPONENT, THREAD):
             header.setSectionResizeMode(column,
                                         QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(MESSAGE, QHeaderView.ResizeMode.Stretch)
@@ -358,8 +380,18 @@ class LogViewerWidget(QWidget):
             self.open_menu.addAction(
                 "CBS — newest rolled archive",
                 lambda _c=False, p=archive: self.open(p))
+        largest = largest_cbs_archive()
+        if largest and largest != archive:
+            # The newest archive is routinely the smallest -- 15 MB here
+            # against the 363 MB one two days older that holds the actual
+            # servicing history.
+            self.open_menu.addAction(
+                "CBS — largest archive on disk",
+                lambda _c=False, p=largest: self.open(p))
         self.open_menu.addSeparator()
         self.open_menu.addAction("Browse…", self.choose_file)
+        self.open_menu.addAction("Open every log in a folder…",
+                                 self.choose_folder)
 
     def choose_file(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
@@ -369,23 +401,51 @@ class LogViewerWidget(QWidget):
             self.open(path)
 
     def open(self, path: str) -> None:
-        self._path = path
+        self.open_paths([path])
+
+    def open_paths(self, paths) -> None:
+        """Open one log, or several read as a single timeline."""
+        self._paths = list(paths)
+        self._path = self._paths[0] if self._paths else ""
         self.reload()
 
+    def open_folder(self, folder: str) -> None:
+        """Every log sitting directly in `folder`, as one timeline."""
+        found = LogSet.logs_in_folder(folder)
+        if not found:
+            self.model.clear()
+            self.detail.clear()
+            self._set = None
+            self._paths = []
+            self._path = ""
+            self.status.setText(
+                f"No logs (*.log, *.lo_) directly in {folder}")
+            return
+        self.open_paths(found)
+
+    def choose_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Open every log in a folder")
+        if folder:
+            self.open_folder(folder)
+
     def reload(self) -> None:
-        """Start again from the beginning of the current file."""
-        if not self._path:
+        """Start again from the beginning of the current file(s)."""
+        if not self._paths:
             return
         self.model.clear()
         self.detail.clear()
-        self._reader = LogReader(self._path,
-                                 max_bytes=self._max_bytes,
-                                 include_rolled=self.rolled.isChecked())
+        self._set = LogSet(self._paths,
+                           max_bytes=self._max_bytes,
+                           include_rolled=self.rolled.isChecked(),
+                           cap=self.model._entries.maxlen)
         self._poll(scroll=True)
         self._refresh_components()
         self._refresh_threads()
+        self._refresh_sources()
         self._reset_range()
         self._sync_paging_buttons()
+        # Only worth a column when there is more than one file to tell apart.
+        self.table.setColumnHidden(SOURCE, len(self._paths) < 2)
         # The refreshes above blockSignals() around rebuilding the Component
         # and Thread combos, so falling back to index 0 ("All") when the
         # previous log's selection is not in the new one never told the
@@ -398,16 +458,16 @@ class LogViewerWidget(QWidget):
         self._apply_filters()
 
     def _poll(self, scroll: bool = None) -> None:
-        if self._reader is None:
+        if self._set is None:
             return
         try:
-            text = self._reader.read_new()
+            entries = self._set.read_new()
         except Exception as exc:                    # noqa: BLE001
             logger.warning("Could not read %s", self._path, exc_info=True)
             self.status.setText(f"Could not read the log: {exc}")
             return
-        if text:
-            self.model.append(cmtrace_parser.parse(text))
+        if entries:
+            self.model.append(entries)
             self.provider.set_entries(self.model._entries,
                                       os.path.basename(self._path))
         if scroll or (scroll is None and self.follow.isChecked()):
@@ -417,46 +477,52 @@ class LogViewerWidget(QWidget):
     # ---- walking backwards ----------------------------------------------
 
     def load_earlier(self) -> None:
-        """Read the chunk before the loaded slice and put it on top.
+        """Step every truncated source back once and rebuild the timeline.
 
-        The window slides: the model's cap evicts from the newest end to make
-        room, which is what lets someone walk back through a file far larger
-        than the cap could ever hold. Both the button and the scroll bar come
-        through here, so the lock lives here too.
+        With one log this is the sliding window of chunk 3. With several it
+        cannot be a prepend: one source's earlier chunk is older than that
+        source's own loaded part but not necessarily older than what is
+        already loaded from another, so the set is re-merged and replaces the
+        model's contents whole. `keep_oldest` makes the cap drop from the
+        newest end either way, which is the same window sliding backwards.
+
+        Both the button and the scroll bar come through here, so the lock
+        lives here too.
         """
-        if self._loading_earlier or self._reader is None:
+        if self._loading_earlier or self._set is None:
             return
-        if not self._reader.has_earlier():
+        if not self._set.has_earlier():
             return
 
         self._loading_earlier = True
         try:
             try:
-                text = self._reader.read_earlier()
+                merged = self._set.read_earlier()
             except Exception as exc:                # noqa: BLE001
                 logger.warning("Could not read earlier of %s", self._path,
                                exc_info=True)
                 self.status.setText(f"Could not read the log: {exc}")
                 return
-            if not text:
+            if not merged:
                 self._sync_paging_buttons()
                 return
 
-            # Following means "stay at the end of the file", and the end is
-            # what the cap has just evicted. Appending live lines onto a
-            # slice they are not contiguous with fabricates a timeline, which
-            # is worse than not following at all.
+            # Following means "stay at the end", and the end is what the cap
+            # has just dropped. Appending live lines onto a slice they are
+            # not contiguous with fabricates a timeline, which is worse than
+            # not following at all.
             if self.follow.isChecked():
                 self.follow.setChecked(False)
 
             anchor = self._top_entry_index()
-            entries = cmtrace_parser.parse(text)
-            self.model.prepend(entries)
+            before = self.model.total
+            self.model.replace(merged, keep_oldest=True)
             self.provider.set_entries(self.model._entries,
                                       os.path.basename(self._path))
-            self._restore_viewport(anchor, len(entries))
+            self._restore_viewport(anchor, max(self.model.total - before, 0))
             self._refresh_components()
             self._refresh_threads()
+            self._refresh_sources()
             self._refresh_range_bounds()
         finally:
             self._loading_earlier = False
@@ -544,17 +610,21 @@ class LogViewerWidget(QWidget):
             box.blockSignals(False)
 
     def _sync_paging_buttons(self) -> None:
-        earlier = self._reader is not None and self._reader.has_earlier()
+        earlier = self._set is not None and self._set.has_earlier()
         self.load_earlier_button.setEnabled(earlier)
         # "Newest" is only meaningful once the window has actually moved off
         # the end of the file.
         self.newest_button.setEnabled(bool(self.model.unloaded_newer))
 
     def _update_status(self) -> None:
-        if not self._path:
+        if not self._paths:
             self.status.setText("No log open.")
             return
-        parts = [os.path.basename(self._path),
+        if len(self._paths) > 1:
+            opened = f"{len(self._paths)} logs merged"
+        else:
+            opened = os.path.basename(self._path)
+        parts = [opened,
                  f"{self.model.rowCount():,} shown of {self.model.total:,}"]
         if self.model.dropped:
             # Saying so matters: silently showing the last 200k lines of a
@@ -579,9 +649,9 @@ class LogViewerWidget(QWidget):
 
     def _earlier_bytes(self) -> int:
         """How much of the file sits before the loaded window."""
-        if self._reader is None or not self._reader.has_earlier():
+        if self._set is None or not self._set.has_earlier():
             return 0
-        return self._reader.window_start()
+        return self._set.earlier_bytes()
 
     def _on_row_selected(self, current, _previous) -> None:
         """Show the whole selected record, and spell out its error codes.
@@ -796,6 +866,27 @@ class LogViewerWidget(QWidget):
         self.thread.setCurrentIndex(max(0, index))
         self.thread.blockSignals(False)
 
+    def _refresh_sources(self) -> None:
+        """Rebuild the Source combo for the logs now open.
+
+        Blocked while rebuilding, like the Component and Thread combos -- and
+        for the same reason `reload` documents: falling back to "All" without
+        telling the model leaves it filtering on a file that is no longer
+        open, while the combo claims otherwise.
+        """
+        current = self.source.currentText()
+        self.source.blockSignals(True)
+        self.source.clear()
+        self.source.addItem("All")
+        for name in self.model.logs():
+            self.source.addItem(name)
+        index = self.source.findText(current)
+        self.source.setCurrentIndex(max(0, index))
+        self.source.blockSignals(False)
+        several = len(self._paths) > 1
+        self.source_label.setVisible(several)
+        self.source.setVisible(several)
+
     def _reset_range(self) -> None:
         """Open the boxes on the whole log, and stop filtering by time."""
         span = self.model.time_span()
@@ -843,6 +934,8 @@ class LogViewerWidget(QWidget):
             needle=self.filter_box.text(),
             component="" if component == "All" else component,
             thread=thread,
+            log="" if self.source.currentText() == "All"
+                else self.source.currentText(),
             time_from=time_from,
             time_to=time_to,
             regex=self.regex_box.isChecked())

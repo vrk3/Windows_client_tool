@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 
 from core.search_provider import SearchQuery
+from modules.log_viewer.log_model import MESSAGE, SEVERITY
 from modules.log_viewer.log_viewer_module import LogViewerModule, LogViewerWidget
 
 CMTRACE = (
@@ -314,7 +315,7 @@ def test_searching_survives_the_log_growing_underneath_it(viewer, log):
 def test_typing_in_the_filter_hides_everything_else(viewer):
     viewer.filter_box.setText("broke")
     assert viewer.model.rowCount() == 1
-    assert viewer.model.data(viewer.model.index(0, 4)) == "It broke"
+    assert viewer.model.data(viewer.model.index(0, MESSAGE)) == "It broke"
 
 
 def test_the_filter_is_case_insensitive(viewer):
@@ -339,7 +340,7 @@ def test_the_filter_matches_the_severity_column_too(viewer):
     though the word appears in the type attribute, not the message."""
     viewer.filter_box.setText("warning")
     assert viewer.model.rowCount() == 1
-    assert viewer.model.data(viewer.model.index(0, 1)) == "Warning"
+    assert viewer.model.data(viewer.model.index(0, SEVERITY)) == "Warning"
 
 
 def test_the_filter_matches_the_component_too(viewer):
@@ -395,7 +396,7 @@ def test_the_tooltip_explains_an_error_code(qapp, tmp_path):
     widget = LogViewerWidget()
     try:
         widget.open(str(path))
-        tip = widget.model.data(widget.model.index(0, 4),
+        tip = widget.model.data(widget.model.index(0, MESSAGE),
                                 Qt.ItemDataRole.ToolTipRole)
         assert "0x80070005" in tip
         assert "denied" in tip.lower()
@@ -414,7 +415,7 @@ def test_selecting_a_row_spells_the_code_out_in_the_detail_pane(qapp, tmp_path):
     widget = LogViewerWidget()
     try:
         widget.open(str(path))
-        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        widget.table.setCurrentIndex(widget.model.index(0, MESSAGE))
         detail = widget.detail.toPlainText()
         assert "0x87D00231" in detail
         assert "distribution point" in detail.lower()
@@ -425,7 +426,7 @@ def test_selecting_a_row_spells_the_code_out_in_the_detail_pane(qapp, tmp_path):
 
 def test_selecting_a_row_leaves_the_status_line_alone(viewer):
     """The counts must not be replaced by whatever row was clicked last."""
-    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    viewer.table.setCurrentIndex(viewer.model.index(0, MESSAGE))
     assert "ccmexec.log" in viewer.status.text()
     assert "3" in viewer.status.text()
 
@@ -453,7 +454,7 @@ def test_the_detail_pane_shows_the_whole_message(qapp, long_log):
     widget = LogViewerWidget()
     try:
         widget.open(str(long_log))
-        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        widget.table.setCurrentIndex(widget.model.index(0, MESSAGE))
         assert widget.detail.toPlainText().count("a_very_long_path") == 40
     finally:
         widget.stop()
@@ -463,7 +464,7 @@ def test_the_detail_pane_names_the_fields_of_the_record(qapp, long_log):
     widget = LogViewerWidget()
     try:
         widget.open(str(long_log))
-        widget.table.setCurrentIndex(widget.model.index(0, 4))
+        widget.table.setCurrentIndex(widget.model.index(0, MESSAGE))
         detail = widget.detail.toPlainText()
         assert "Setup" in detail and "4242" in detail and "Error" in detail
     finally:
@@ -477,13 +478,13 @@ def test_the_detail_pane_is_visible_by_default(viewer):
 def test_a_detail_pane_dragged_shut_stays_shut(viewer):
     """No setting for it: the splitter position IS the setting."""
     viewer.splitter.setSizes([100, 0])
-    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    viewer.table.setCurrentIndex(viewer.model.index(0, MESSAGE))
     viewer.table.setCurrentIndex(viewer.model.index(1, 4))
     assert viewer.splitter.sizes()[1] == 0
 
 
 def test_opening_another_log_empties_the_detail_pane(viewer, tmp_path):
-    viewer.table.setCurrentIndex(viewer.model.index(0, 4))
+    viewer.table.setCurrentIndex(viewer.model.index(0, MESSAGE))
     assert viewer.detail.toPlainText()
     other = tmp_path / "other.log"
     other.write_text("plain line\n", encoding="utf-8")
@@ -605,7 +606,7 @@ def test_opening_a_second_log_does_not_keep_the_first_logs_thread_filter(
             "the combo says All but the model kept the old log's thread id")
         assert widget.model.rowCount() == 1
         assert "only line in the second log" in \
-            widget.model.data(widget.model.index(0, 4))
+            widget.model.data(widget.model.index(0, MESSAGE))
     finally:
         widget.stop()
 

@@ -21,8 +21,13 @@ from .highlight import haystack, matching_rule
 from .log_export import format_stamp
 from .palette import component_colour, readable_text_on, severity_row_colour
 
-COLUMNS = ("Time", "Severity", "Component", "Thread", "Message")
-TIME, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
+#: Source is the FILE a record came from; Component is `entry.source`, which
+#: is the subsystem inside that file. Two different questions, so two columns.
+#: The Source column is always defined -- the pane hides it while a single log
+#: is open -- because letting the column count change under the delegate would
+#: shift MESSAGE's index at runtime.
+COLUMNS = ("Time", "Source", "Severity", "Component", "Thread", "Message")
+TIME, SOURCE, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
 
 #: How many records are kept. Past this the oldest go, which is what CMTrace
 #: does in practice and what keeps a 300 MB log openable.
@@ -39,6 +44,7 @@ class LogModel(QAbstractTableModel):
         self._pattern = ""
         self._component = ""
         self._thread = ""
+        self._log = ""
         self._time_from = None
         self._time_to = None
         self._regex = False
@@ -143,6 +149,37 @@ class LogModel(QAbstractTableModel):
         self._reindex()
         self.endResetModel()
 
+    def replace(self, entries, keep_oldest: bool = False) -> None:
+        """Swap the whole contents for a finished list.
+
+        The merged timeline's path. When several logs are open, "load
+        earlier" cannot prepend: one source's earlier chunk is older than
+        that source's own loaded part but not necessarily older than what is
+        already loaded from another source, so the set is re-merged from
+        scratch and handed here whole.
+
+        `keep_oldest` says which end the cap trims. Loading earlier is a walk
+        backwards, so what goes is the newest -- the same sliding-window
+        semantics `prepend` has, counted into the same `unloaded_newer`.
+        """
+        entries = list(entries)
+        capacity = self._entries.maxlen
+        overflow = 0
+        if capacity is not None and len(entries) > capacity:
+            overflow = len(entries) - capacity
+            if keep_oldest:
+                self.unloaded_newer += overflow
+                entries = entries[:capacity]
+            else:
+                self.dropped += overflow
+                entries = entries[-capacity:]
+
+        self.beginResetModel()
+        self._entries.clear()
+        self._entries.extend(entries)
+        self._reindex()
+        self.endResetModel()
+
     def clear(self) -> None:
         self.beginResetModel()
         self._entries.clear()
@@ -194,7 +231,8 @@ class LogModel(QAbstractTableModel):
 
     def set_filter(self, levels=None, needle: str = None,
                    component: str = None, thread: str = None,
-                   time_from=None, time_to=None, regex: bool = None) -> None:
+                   time_from=None, time_to=None, regex: bool = None,
+                   log: str = None) -> None:
         """Each argument left as None keeps that axis unchanged.
 
         `time_from`/`time_to` take the sentinel `False` to mean "clear this
@@ -210,6 +248,8 @@ class LogModel(QAbstractTableModel):
             self._component = component
         if thread is not None:
             self._thread = thread
+        if log is not None:
+            self._log = log
         if time_from is not None:
             self._time_from = None if time_from is False else time_from
         if time_to is not None:
@@ -251,6 +291,8 @@ class LogModel(QAbstractTableModel):
             return False
         if self._thread and entry.raw.get("thread", "") != self._thread:
             return False
+        if self._log and entry.raw.get("log", "") != self._log:
+            return False
         # A record with no timestamp of its own -- a continuation line -- is
         # never removed by a time filter. Losing a record is the one outcome
         # a log viewer must not produce.
@@ -275,6 +317,11 @@ class LogModel(QAbstractTableModel):
             elif self._needle not in text.lower():
                 return False
         return True
+
+    def logs(self) -> list:
+        """The files currently represented, for the Source combo."""
+        return sorted({e.raw.get("log", "") for e in self._entries
+                       if e.raw.get("log")})
 
     def threads(self) -> list:
         """`(thread, count)` ordered by count descending.
@@ -444,6 +491,8 @@ class LogModel(QAbstractTableModel):
                 # so what someone sees here and what they export can never
                 # quietly disagree.
                 return format_stamp(entry)
+            if column == SOURCE:
+                return entry.raw.get("log", "")
             if column == SEVERITY:
                 return entry.level
             if column == COMPONENT:

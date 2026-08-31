@@ -51,6 +51,49 @@ def _candidates(environ) -> list:
     ]
 
 
+def largest_cbs_archive(environ=None, exists=None, listdir=None,
+                        getsize=None) -> str:
+    """The BIGGEST `CbsPersist_*.log`, or "".
+
+    Different from `newest_cbs_archive`, and worth its own menu entry: the
+    newest archive is routinely the smallest. On this machine the newest is
+    15 MB while the one two days older is 363 MB and holds the actual
+    servicing history. Offering only the newest means the log anyone would
+    want is reachable only by typing a path.
+    """
+    environ = os.environ if environ is None else environ
+    exists = os.path.isdir if exists is None else exists
+    listdir = os.listdir if listdir is None else listdir
+    getsize = os.path.getsize if getsize is None else getsize
+
+    system_root = environ.get("SystemRoot", "")
+    if not system_root:
+        return ""
+    folder = os.path.join(system_root, "Logs", "CBS")
+    if not exists(folder):
+        return ""
+    try:
+        names = listdir(folder)
+    except OSError:
+        logger.debug("Could not list %s", folder, exc_info=True)
+        return ""
+
+    biggest = ""
+    biggest_size = -1
+    for name in names:
+        lowered = name.lower()
+        if not lowered.startswith("cbspersist") or not lowered.endswith(".log"):
+            continue
+        path = os.path.join(folder, name)
+        try:
+            size = getsize(path)
+        except OSError:
+            continue
+        if size > biggest_size:
+            biggest, biggest_size = path, size
+    return biggest
+
+
 def known_logs(environ=None, exists=None) -> list:
     """The logs present on this machine, in menu order."""
     environ = os.environ if environ is None else environ
