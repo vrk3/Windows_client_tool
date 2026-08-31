@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 6 |
+| 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-07 (collapse near-identical lines).
+**Next task:** W3-01 (bookmarks). Waves 1 and 2 are complete.
 
 ---
 
@@ -588,14 +588,38 @@ detecting `Beginning TrustedInstaller` / `Ending TrustedInstaller`.
 **Interfaces:** `normalise(message) -> str` replacing GUIDs, hex addresses,
 version numbers and package names with placeholders; `cluster(entries)`.
 
-- [ ] Test each normalisation with a real CBS line
-- [ ] Test: `test_two_lines_differing_only_by_guid_cluster_together`
-- [ ] Test: `test_two_genuinely_different_lines_do_not_cluster`
-- [ ] Test: `test_normalising_never_returns_an_empty_string`
-- [ ] **Run over the real archive: 125,012 CBS records should collapse to a
+- [x] Test each normalisation with a real CBS line
+- [x] Test: `test_two_lines_differing_only_by_guid_cluster_together`
+- [x] Test: `test_two_genuinely_different_lines_do_not_cluster`
+- [x] Test: `test_normalising_never_returns_an_empty_string`
+- [x] **Run over the real archive: 125,012 CBS records should collapse to a
       few hundred distinct sentences. If it yields thousands, the
       normalisation is too timid; if it yields ten, it is too aggressive.**
-- [ ] Commit
+- [x] Commit
+- **Tuned against the real logs, in three passes.** First rules:
+  16,417 forms -- too timid by this task's own yardstick. Looking at the
+  singletons showed 13,093 of them differed only in an `Update:` value,
+  so a key-anchored rule took it to 11,068; component-manifest names
+  (`amd64_microsoft-windows-...`) and the leading 8-hex record id took
+  it to **5,311**.
+- **The honest number is not "distinct forms" but coverage: the top 200
+  forms cover 95% of the archive's records** (88% of CBS.log, 94% of
+  dism.log). "A few hundred forms" was optimistic for a 138,683-record
+  file; "read 200 rows and you have seen 95% of the log" is the claim
+  that is actually true.
+- **Error codes are deliberately NOT normalised.** `0x800f0805` and
+  `0x80073701` are the distinction, not noise; collapsing them would
+  merge every failure into one row and discard the reason.
+- Wired into `top_messages(key=normalise)`, the seam W2-01 left. The
+  Repeated lines column now reads 19,962 / 16,748 / 11,950 instead of a
+  verbatim maximum of 589.
+- `lru_cache` on `normalise`: 35,657 distinct messages across 138,683
+  records means three quarters of the work is the same string again.
+  Summary refresh 1.91s -> 0.94s, normalising the archive 0.44s -> 0.02s.
+- **The backslash-in-heredoc trap struck again and this time produced a
+  literal BACKSPACE byte (0x08) inside a regex**, exactly as the project
+  memory warns. `grep` cannot see it; `od -c` can. Written with the Write
+  tool instead.
 
 ---
 

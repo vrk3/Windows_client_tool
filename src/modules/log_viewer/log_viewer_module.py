@@ -42,6 +42,7 @@ from modules.log_viewer.history import (RECENT_CAP, load_history,
 from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
+from modules.log_viewer.clustering import normalise
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
@@ -866,7 +867,10 @@ class LogViewerWidget(QWidget):
         for name, count in top_components(entries):
             self.summary_components.addItem(f"{name}   {count:,}")
         self.summary_messages.clear()
-        for message, count in top_messages(entries):
+        # Normalised: verbatim, a real CBS log's most repeated line occurs
+        # 589 times of 138,683 because every line names a different package.
+        # Grouped, the top 200 forms cover 95% of the records.
+        for message, count in top_messages(entries, key=normalise):
             self.summary_messages.addItem(f"{count:,}   {message[:120]}")
         self.summary_failure.clear()
         failed = first_error(entries)
