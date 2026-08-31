@@ -184,6 +184,14 @@ class LogViewerWidget(QWidget):
         self.newest_button.clicked.connect(self.go_to_newest)
         top.addWidget(self.newest_button)
 
+        # `grep -C` for errors: the single most common thing anyone does to
+        # a log by hand.
+        self.context_box = QCheckBox("Errors + context", self)
+        self.context_box.setToolTip(
+            "Show only the errors and the lines either side of them.")
+        self.context_box.toggled.connect(self._on_context_toggled)
+        top.addWidget(self.context_box)
+
         self.rolled = QCheckBox("Include rolled (.lo_)", self)
         self.rolled.setToolTip("ConfigMgr rolls foo.log to foo.lo_ . Read the "
                                "pair as one timeline.")
@@ -917,6 +925,26 @@ class LogViewerWidget(QWidget):
     def _on_summary_component(self, item) -> None:
         self.set_components({item.text().rsplit("   ", 1)[0]})
 
+    #: How many lines either side an error or a peeked row shows.
+    CONTEXT_LINES = 3
+
+    def _on_context_toggled(self, on: bool) -> None:
+        self.model.set_error_context(self.CONTEXT_LINES if on else None)
+        self._update_status()
+
+    def peek_around_current(self) -> None:
+        """Reveal the rows around the current one, without clearing the
+        filter. Pressing it again closes the peek."""
+        if self.model.is_peeking():
+            self.model.peek(None, 0)
+            self._update_status()
+            return
+        entry = self.model.entry(self.table.currentIndex().row())
+        if entry is None:
+            return
+        self.model.peek(entry, self.CONTEXT_LINES)
+        self._update_status()
+
     def toggle_bookmark(self) -> None:
         """Mark or unmark the current row.
 
@@ -1025,7 +1053,11 @@ class LogViewerWidget(QWidget):
             opened = os.path.basename(self._path)
         parts = [opened,
                  f"{self.model.rowCount():,} shown of {self.model.total:,}"]
-        if self.model.total and not self.model.rowCount():
+        if self.context_box.isChecked() and not self.model.rowCount():
+            # Distinct from the ordinary "no rows match": the user asked for
+            # errors and there are none, which is an answer worth having.
+            parts.append("no errors in what is loaded")
+        elif self.model.total and not self.model.rowCount():
             # An empty table reads as "this log has no such records", which
             # is a different statement from "your filter removed everything"
             # -- and the first one sends someone away believing the log is
@@ -1168,6 +1200,8 @@ class LogViewerWidget(QWidget):
         menu.addSeparator()
         menu.addAction("Look up the error codes on this row",
                        lambda _c=False: self.open_error_lookup(row))
+        menu.addAction("Peek at the lines around this row",
+                       self.peek_around_current)
         menu.addAction("Bookmark this row  (Ctrl+D)", self.toggle_bookmark)
         menu.addAction("Copy selected rows", self.copy_selection)
         menu.addAction("Copy selected rows as Markdown",

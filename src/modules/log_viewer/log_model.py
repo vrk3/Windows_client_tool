@@ -95,6 +95,12 @@ class LogModel(QAbstractTableModel):
         #: record.
         self._bookmark_ids: set = set()
         self._bookmark_refs: list = []
+        #: "Show rows near an anchor". `None` means off. Two features share
+        #: it: errors-with-context anchors on every Error, peek anchors on
+        #: one record you picked.
+        self._context_lines = None
+        self._peek_ref = None
+        self._peek_lines = 0
 
     # ---- bookmarks ------------------------------------------------------
 
@@ -503,8 +509,79 @@ class LogModel(QAbstractTableModel):
 
     def _reindex(self) -> None:
         self._recount_folds()
-        self._visible = [i for i, e in enumerate(self._entries)
-                         if self._shows(i, e)]
+        visible = [i for i, e in enumerate(self._entries)
+                   if self._shows(i, e)]
+        self._visible = self._widened(visible)
+
+    def _widened(self, visible) -> list:
+        """`visible` plus the rows around each anchor, if context is on.
+
+        Context WIDENS what an anchor pulls in; it never overrides a filter
+        the user set, so a neighbour excluded by the component or severity
+        filter stays excluded. Windows are merged rather than concatenated:
+        two errors three apart with a context of three would otherwise list
+        the rows between them twice.
+        """
+        if self._context_lines is None and self._peek_ref is None:
+            return visible
+
+        allowed = set(visible)
+        anchors = []
+        if self._context_lines is not None:
+            anchors = [index for index in visible
+                       if self._entries[index].level == "Error"]
+        if self._peek_ref is not None:
+            anchors = [index for index, entry in enumerate(self._entries)
+                       if entry is self._peek_ref]
+
+        peeking = self._peek_ref is not None
+        reach = self._peek_lines if peeking else self._context_lines
+        kept = set()
+        for anchor in anchors:
+            low = max(anchor - reach, 0)
+            high = min(anchor + reach, len(self._entries) - 1)
+            for index in range(low, high + 1):
+                # The two features differ here, deliberately.
+                #
+                # PEEK reveals its neighbours unconditionally: it is an
+                # explicit, temporary "show me what this filter is hiding
+                # around this one row", and honouring the filter would
+                # answer nothing.
+                #
+                # ERROR CONTEXT is a browsing mode rather than a request to
+                # see past anything, so a neighbour still has to pass the
+                # filter -- otherwise choosing a component would silently
+                # show rows from the components you excluded.
+                if peeking or index in allowed                         or self._matches(self._entries[index]):
+                    kept.add(index)
+        return sorted(kept)
+
+    def set_error_context(self, lines) -> None:
+        """Show only errors and the `lines` rows either side, or None to
+        stop."""
+        self._context_lines = lines
+        self._peek_ref = None
+        self.beginResetModel()
+        self._reindex()
+        self.endResetModel()
+
+    def is_peeking(self) -> bool:
+        """Whether a peek is open at all.
+
+        Not "at this record": once a peek opens, the neighbours it revealed
+        become rows too, so the current row is usually no longer the record
+        that was peeked at. Asking about a specific one made pressing the
+        button twice peek at a NEIGHBOUR instead of closing.
+        """
+        return self._peek_ref is not None
+
+    def peek(self, entry, lines: int) -> None:
+        """Reveal the rows around one record without clearing the filter."""
+        self._peek_ref = entry
+        self._peek_lines = lines
+        self.beginResetModel()
+        self._reindex()
+        self.endResetModel()
 
     def _recount_folds(self) -> None:
         """How many continuation lines sit under each parent record.

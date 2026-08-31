@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 1 |
+| 3 | Reading and filtering | 8 | 3 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-02 (peek context through a filter).
+**Next task:** W3-04 (several filter terms).
 
 ---
 
@@ -653,20 +653,41 @@ version numbers and package names with placeholders; `cluster(entries)`.
 
 **Files:** `log_model.py`, pane, tests
 
-- [ ] Test: `test_peeking_reveals_the_neighbours_of_a_filtered_row`
-- [ ] Test: `test_peeked_rows_are_marked_so_they_read_as_context`
-- [ ] Test: `test_closing_the_peek_restores_the_filtered_view_exactly`
-- [ ] Test: `test_export_ignores_peeked_rows` (they are context, not matches)
-- [ ] Commit
+- [x] Test: `test_peeking_reveals_the_neighbours_of_a_filtered_row`
+- [x] Test: `test_peeked_rows_are_marked_so_they_read_as_context`
+- [x] Test: `test_closing_the_peek_restores_the_filtered_view_exactly`
+- [x] Test: `test_export_ignores_peeked_rows` (they are context, not matches)
+- [x] Commit
+- **Done, sharing one primitive with W3-03** (`_widened`): "show rows
+  near an anchor", where peek anchors on one record and errors-with-
+  context anchors on every Error.
+- **They differ on one point, deliberately: peek reveals its
+  neighbours UNCONDITIONALLY**, because it is an explicit "show me
+  what this filter is hiding around this row" and honouring the filter
+  would answer nothing. Error context stays inside the filter.
+- **"Peek again to close" cannot ask whether the current row is the
+  peeked one.** Once a peek opens, its neighbours are rows too, so the
+  current row usually is not -- and the button peeked at a NEIGHBOUR
+  instead of closing. `is_peeking()` asks whether a peek is open at
+  all.
 
 ### W3-03 (idea 13): Errors with context
 
 **Files:** `log_model.py`, pane, tests
 
-- [ ] Test: `test_context_mode_shows_n_rows_either_side_of_each_error`
-- [ ] Test: `test_overlapping_context_windows_are_merged_not_duplicated`
-- [ ] Test: `test_context_mode_with_no_errors_shows_nothing`
-- [ ] Commit
+- [x] Test: `test_context_mode_shows_n_rows_either_side_of_each_error`
+- [x] Test: `test_overlapping_context_windows_are_merged_not_duplicated`
+- [x] Test: `test_context_mode_with_no_errors_shows_nothing`
+- [x] Commit
+- **Done** as an "Errors + context" checkbox. Overlapping windows are
+  merged, not concatenated: two errors three apart with three lines of
+  context would otherwise list the rows between them twice.
+- Context WIDENS what an anchor pulls in; it never overrides a filter
+  the user set, or choosing a component would silently show rows from
+  the components they excluded.
+- A log with no errors says "no errors in what is loaded" rather than
+  showing the ordinary "no rows match" -- the user asked for errors,
+  and "there are none" is the answer.
 
 ### W3-04 (idea 09): Several filter terms
 
