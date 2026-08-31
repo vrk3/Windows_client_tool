@@ -53,13 +53,13 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 9 |
+| 1 | Quick wins that change daily use | 13 | 10 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-04.
+**Next task:** W1-05.
 
 ---
 
@@ -140,13 +140,32 @@ completer — the clear button and placeholder behaviour are already right.
 **Interfaces:** `set_filter(component=...)` and `thread=...` accept a `set()`
 as well as a `str`. A bare string keeps working — several tests pass one.
 
-- [ ] Test: `test_two_components_can_be_shown_at_once`
-- [ ] Test: `test_a_single_component_string_still_works` (back-compat)
-- [ ] Test: `test_clearing_the_selection_shows_every_component`
-- [ ] Replace the combos with checkable ones (`QListWidget` in a
+- [x] Test: `test_two_components_can_be_shown_at_once`
+- [x] Test: `test_a_single_component_string_still_works` (back-compat)
+- [x] Test: `test_clearing_the_selection_shows_every_component`
+- [x] Replace the combos with checkable ones (`QListWidget` in a
       `QComboBox` view, or a `QToolButton` + checkable `QMenu`); the Thread
       combo has 329 entries on DISM, so keep it searchable
-- [ ] Commit
+- [x] Commit
+- **Scope call, stated rather than made silently: the MODEL takes a set
+  on both axes, but only COMPONENT got the multi-select control.** DISM
+  has 329 distinct threads; picking two of them is not a workflow, and a
+  checkable popup over 329 entries needs its own search box. Component
+  has 3-4 values and "CSI plus CBS" is the everyday case. The model half
+  is done, so the Thread control can catch up without touching it again.
+- `_as_selection()` takes a bare string as well as a set, because every
+  existing caller passes a string and one axis reading differently from
+  its neighbour is how a filter quietly stops meaning what it says.
+- **An empty set means "show everything", not "accept nothing".** The
+  latter would leave someone staring at an empty table having ticked
+  nothing at all.
+- The Component control is a checkable `QMenu` on a `QToolButton`; "All"
+  is the ABSENCE of any tick rather than an entry of its own. A tick only
+  survives a reopen if its component is still present -- keeping one from
+  a closed log is the stale-filter shape that has bitten this pane twice.
+- The button summarises past two selections (`3 components`): a label
+  that grows with the selection shoves every control to its right along
+  the toolbar.
 
 ### W1-05 (idea 04): Keyboard navigation
 

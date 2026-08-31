@@ -34,6 +34,22 @@ TIME, SOURCE, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
 DEFAULT_CAP = 200_000
 
 
+def _as_selection(value) -> frozenset:
+    """A filter axis as a set of accepted values.
+
+    Takes a bare string as well as a set, because every existing caller
+    passes a string and one axis reading differently from its neighbour is
+    how a filter quietly stops meaning what it says.
+
+    An empty string OR an empty set both mean "no opinion, show everything".
+    Treating an empty set as "accept nothing" would leave someone staring at
+    an empty table having ticked nothing.
+    """
+    if isinstance(value, str):
+        return frozenset([value]) if value else frozenset()
+    return frozenset(entry for entry in value if entry)
+
+
 class LogModel(QAbstractTableModel):
     def __init__(self, parent=None, cap: int = DEFAULT_CAP) -> None:
         super().__init__(parent)
@@ -47,8 +63,8 @@ class LogModel(QAbstractTableModel):
         #: positive filter drops that boilerplate without dropping the rest.
         self._exclude = ""
         self._exclude_matcher = None
-        self._component = ""
-        self._thread = ""
+        self._component = frozenset()
+        self._thread = frozenset()
         self._log = ""
         self._time_from = None
         self._time_to = None
@@ -274,9 +290,9 @@ class LogModel(QAbstractTableModel):
             self._needle = needle.lower()
             self._pattern = needle
         if component is not None:
-            self._component = component
+            self._component = _as_selection(component)
         if thread is not None:
-            self._thread = thread
+            self._thread = _as_selection(thread)
         if log is not None:
             self._log = log
         if exclude is not None:
@@ -332,9 +348,9 @@ class LogModel(QAbstractTableModel):
     def _matches(self, entry) -> bool:
         if self._levels and entry.level not in self._levels:
             return False
-        if self._component and entry.source != self._component:
+        if self._component and entry.source not in self._component:
             return False
-        if self._thread and entry.raw.get("thread", "") != self._thread:
+        if self._thread and entry.raw.get("thread", "") not in self._thread:
             return False
         if self._log and entry.raw.get("log", "") != self._log:
             return False

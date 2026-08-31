@@ -181,12 +181,18 @@ class LogViewerWidget(QWidget):
             top.addWidget(box)
 
         top.addSpacing(12)
-        top.addWidget(QLabel("Component:", self))
-        self.component = QComboBox(self)
-        self.component.setMinimumWidth(160)
-        self.component.addItem("All")
-        self.component.currentIndexChanged.connect(lambda _i: self._apply_filters())
-        top.addWidget(self.component)
+        # A checkable menu rather than a combo: CSI does the servicing work
+        # and CBS narrates it, so reading a failure means seeing both, and a
+        # combo can only ever say one.
+        self.component_button = QToolButton(self)
+        self.component_button.setText("Component: All")
+        self.component_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.component_menu = QMenu(self.component_button)
+        self.component_button.setMenu(self.component_menu)
+        self._component_actions: list = []
+        self._populating_components = False
+        top.addWidget(self.component_button)
 
         # Only useful once several logs are open; hidden until then, like the
         # column it filters on.
@@ -1039,16 +1045,67 @@ class LogViewerWidget(QWidget):
 
     # ---- filtering and find ---------------------------------------------
 
+    def component_values(self) -> list:
+        """Every component the menu offers, in menu order."""
+        return [action.text() for action in self._component_actions]
+
+    def selected_components(self) -> set:
+        return {action.text() for action in self._component_actions
+                if action.isChecked()}
+
+    def set_components(self, chosen) -> None:
+        """Tick exactly `chosen` and apply it."""
+        self._populating_components = True
+        try:
+            for action in self._component_actions:
+                action.setChecked(action.text() in chosen)
+        finally:
+            self._populating_components = False
+        self._on_components_changed()
+
+    def _on_components_changed(self) -> None:
+        if self._populating_components:
+            return
+        chosen = self.selected_components()
+        if not chosen:
+            label = "Component: All"
+        elif len(chosen) <= 2:
+            label = "Component: " + ", ".join(sorted(chosen))
+        else:
+            # A button that grows with the selection shoves every control to
+            # its right along the toolbar.
+            label = f"Component: {len(chosen)} components"
+        self.component_button.setText(label)
+        self._apply_filters()
+
     def _refresh_components(self) -> None:
-        current = self.component.currentText()
-        self.component.blockSignals(True)
-        self.component.clear()
-        self.component.addItem("All")
-        for name in self.model.components():
-            self.component.addItem(name)
-        index = self.component.findText(current)
-        self.component.setCurrentIndex(max(0, index))
-        self.component.blockSignals(False)
+        """Rebuild the menu for the components now loaded.
+
+        A tick only survives if its component is still present. Keeping one
+        that belongs to a log which is no longer open is the stale-filter
+        shape that has bitten this pane twice -- the control would read
+        "CSI" while the model filtered on a component the new log has never
+        heard of, and the table would be empty with nothing to explain it.
+        """
+        kept = self.selected_components()
+        self._populating_components = True
+        try:
+            self.component_menu.clear()
+            self._component_actions = []
+            for name in self.model.components():
+                action = self.component_menu.addAction(name)
+                action.setCheckable(True)
+                action.setChecked(name in kept)
+                action.toggled.connect(
+                    lambda _c=False: self._on_components_changed())
+                self._component_actions.append(action)
+            if self._component_actions:
+                self.component_menu.addSeparator()
+                self.component_menu.addAction(
+                    "Show all", lambda: self.set_components(set()))
+        finally:
+            self._populating_components = False
+        self._on_components_changed()
 
     def _refresh_threads(self) -> None:
         current = self.thread.currentText()
@@ -1101,7 +1158,6 @@ class LogViewerWidget(QWidget):
         # All boxes ticked means no filtering at all, rather than a set that
         # happens to list every level -- Debug records would vanish otherwise.
         levels = set() if checked == set(LEVELS) else checked
-        component = self.component.currentText()
         thread = self.thread.currentText()
         thread = "" if thread == "All" else thread.split(" ")[0]
         # The boxes always hold a value -- the log's whole span, or
@@ -1128,7 +1184,7 @@ class LogViewerWidget(QWidget):
             levels=levels,
             needle=self.filter_box.text(),
             exclude=self.exclude_box.text(),
-            component="" if component == "All" else component,
+            component=self.selected_components(),
             thread=thread,
             log="" if self.source.currentText() == "All"
                 else self.source.currentText(),
