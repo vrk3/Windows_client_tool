@@ -107,9 +107,9 @@ and the wall time between them.
 ### W1-04: The snapshot the UI reads
 **Files:** Create `procengine/snapshot.py`, `tests/test_procengine_snapshot.py`
 
-- [ ] Joins hot + rates + cold into `ProcessInfo`; builds the parent/child
+- [x] Joins hot + rates + cold into `ProcessInfo`; builds the parent/child
       tree; marks services, own-user, suspended, elevated.
-- [ ] Tests: the tree roots at the processes whose parent is gone; a cycle in
+- [x] Tests: the tree roots at the processes whose parent is gone; a cycle in
       ppid (pid reuse makes them) does not recurse forever.
 
 ### W1-05: The Details table
@@ -227,3 +227,14 @@ Recorded as they are learned, the way the Log Viewer plan did.
   the usual place, just a dead process. Every Win32 prototype in `details.py`
   now declares `restype`/`argtypes`; the pointer-returning ones are the
   reason.
+- **2026-08-31, W1-04:** a ppid CYCLE is reachable on a real machine (pid
+  reuse lets two processes each name the other as parent). Promoting both to
+  roots is not enough -- each stays listed as the other's child, so the
+  result is a cycle wearing the shape of a tree, and walking it never
+  returns. The test for it HUNG rather than failed, which is its own lesson:
+  the link has to be cut, not re-pointed. `_break_cycles` severs one edge per
+  cycle in O(n).
+- **2026-08-31, W1-04:** a parent link is believed only when the parent was
+  created BEFORE the child. Without that check an orphan is adopted by
+  whatever process now holds its dead parent's pid -- the mechanism by which
+  a process tree claims Notepad started sixty services.
