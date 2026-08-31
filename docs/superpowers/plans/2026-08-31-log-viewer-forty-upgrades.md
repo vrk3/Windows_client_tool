@@ -55,11 +55,11 @@ without asking — `requirements.txt` drift is caught by
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
-| 3 | Reading and filtering | 8 | 4 |
+| 3 | Reading and filtering | 8 | 5 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W3-05 (saved filter presets).
+**Next task:** W3-06 (column chooser).
 
 ---
 
@@ -716,14 +716,38 @@ version numbers and package names with placeholders; `cluster(entries)`.
 **Files:** create `src/modules/log_viewer/presets.py` with shipped defaults;
 pane; tests
 
-- [ ] Test: `test_the_shipped_presets_all_parse`
-- [ ] Test: `test_applying_a_preset_sets_every_axis_it_names`
-- [ ] Test: `test_a_user_preset_survives_a_restart`
-- [ ] Ship: CBS servicing errors, DISM corruption, setup phase boundaries
-- [ ] **Each shipped preset must be checked against the real log it targets
+- [x] Test: `test_the_shipped_presets_all_parse`
+- [x] Test: `test_applying_a_preset_sets_every_axis_it_names`
+- [x] Test: `test_a_user_preset_survives_a_restart`
+- [x] Ship: CBS servicing errors, DISM corruption, setup phase boundaries
+- [x] **Each shipped preset must be checked against the real log it targets
       and its hit count recorded** — a preset that matches nothing is worse
       than no preset
-- [ ] Commit
+- [x] Commit
+- **Every shipped preset was run against the real logs before it was
+  shipped**, which is the whole point: a preset that matches nothing
+  answers "there is no such problem here" when it means "I was written
+  wrong", and nobody re-checks a filter that came with the tool.
+
+  | preset | CBS.log | archive | dism.log | setupact |
+  |---|---|---|---|---|
+  | Errors only | 0 | 522 | 0 | 29 |
+  | Errors and warnings | 5 | 522 | 28 | 359 |
+  | Failing result codes | 8 | 530 | 142 | 102 |
+  | Store damage | 0 | **261** | 0 | 0 |
+  | Hide servicing boilerplate | 10,188 | **48,390** | 12,034 | 13,119 |
+  | Setup phase boundaries | 0 | 0 | 21 | **637** |
+
+  (totals: 11,277 / 138,683 / 12,454 / 13,473. "Store damage" finds
+  exactly the 261 SXS hash mismatches; "Hide boilerplate" removes 65%
+  of the archive. A zero is correct where that log has no such
+  problem.)
+- **A preset is a whole view, not a patch**: applying one CLEARS the
+  axes it does not name. Leaving yesterday's exclude in place would
+  give a result neither the preset nor the user asked for, and it would
+  be blamed on the preset.
+- A stored preset with no name is dropped rather than shown as a blank
+  menu row, and one bad row does not discard the good ones.
 
 ### W3-06 (idea 07): Column chooser
 

@@ -47,6 +47,9 @@ from modules.log_viewer.clustering import normalise
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
+from modules.log_viewer.presets import (BUILT_IN, Preset,
+                                        load_presets,
+                                        save_presets)
 from modules.log_viewer.sessions import sessions
 from modules.log_viewer.log_stats import (first_error, gaps,
                                           last_success_before,
@@ -340,6 +343,19 @@ class LogViewerWidget(QWidget):
         self.error_lookup_button.clicked.connect(
             lambda _c=False: self.open_error_lookup())
         range_row.addWidget(self.error_lookup_button)
+
+        # The knowledge of what to grep for is the expensive part; it should
+        # not live in one person's head. Every shipped preset was run against
+        # the real log it targets before it was added.
+        self.preset_button = QToolButton(self)
+        self.preset_button.setText("Presets")
+        self.preset_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.preset_menu = QMenu(self.preset_button)
+        self.preset_button.setMenu(self.preset_menu)
+        self._presets: list = []
+        self._build_preset_menu()
+        range_row.addWidget(self.preset_button)
 
         self.summary_button = QPushButton("Summary", self)
         self.summary_button.setCheckable(True)
@@ -945,6 +961,63 @@ class LogViewerWidget(QWidget):
             return
         self.model.peek(entry, self.CONTEXT_LINES)
         self._update_status()
+
+    # ---- presets ---------------------------------------------------------
+
+    def _build_preset_menu(self) -> None:
+        self.preset_menu.clear()
+        for preset in list(BUILT_IN) + list(self._presets):
+            self.preset_menu.addAction(
+                preset.name,
+                lambda _c=False, p=preset: self.apply_preset(p))
+        self.preset_menu.addSeparator()
+        self.preset_menu.addAction("Save current view as…",
+                                   self.choose_preset_name)
+
+    def apply_preset(self, preset) -> None:
+        """Set every axis the preset names, and CLEAR the ones it does not.
+
+        A preset is a whole view, not a patch: leaving yesterday's exclude in
+        place would give a result neither the preset nor the user asked for,
+        and it would be attributed to the preset.
+        """
+        self.filter_box.setText(preset.needle)
+        self.exclude_box.setText(preset.exclude)
+        self.regex_box.setChecked(preset.regex)
+        wanted = set(preset.levels)
+        for level, box in self._level_boxes.items():
+            box.setChecked(level in wanted if wanted else True)
+        self._apply_filters()
+
+    def current_preset(self, name: str):
+        return Preset(name=name,
+                      needle=self.filter_box.text(),
+                      exclude=self.exclude_box.text(),
+                      levels=tuple(level for level, box
+                                   in self._level_boxes.items()
+                                   if box.isChecked())
+                      if not all(b.isChecked()
+                                 for b in self._level_boxes.values())
+                      else (),
+                      regex=self.regex_box.isChecked())
+
+    def save_current_preset(self, name: str) -> None:
+        if not name.strip():
+            return
+        preset = self.current_preset(name.strip())
+        self._presets = [p for p in self._presets if p.name != preset.name]
+        self._presets.append(preset)
+        save_presets(self._config, self._presets)
+        self._build_preset_menu()
+        self.status.setText(f"Saved the current view as {preset.name!r}.")
+
+    def choose_preset_name(self) -> None:
+        from PyQt6.QtWidgets import QInputDialog
+
+        name, chosen = QInputDialog.getText(self, "Save view",
+                                            "Name for this view:")
+        if chosen:
+            self.save_current_preset(name)
 
     def toggle_bookmark(self) -> None:
         """Mark or unmark the current row.
@@ -1612,6 +1685,8 @@ class LogViewerModule(BaseModule):
             self._widget._recent = load_recent(config)
             self._widget._build_open_menu()
             self._widget.apply_layout(load_layout(config))
+            self._widget._presets = load_presets(config)
+            self._widget._build_preset_menu()
         return self._widget
 
     def get_search_provider(self) -> Optional[SearchProvider]:
