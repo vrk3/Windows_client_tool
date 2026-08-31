@@ -16,7 +16,7 @@ from datetime import timedelta
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer, QDateTime, QStringListModel
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDateTimeEdit, QDialog,
     QDialogButtonBox, QFileDialog, QHBoxLayout,
@@ -390,6 +390,8 @@ class LogViewerWidget(QWidget):
         # prepending rows moves the bar and would otherwise re-enter here.
         self.table.verticalScrollBar().valueChanged.connect(self._on_scrolled)
 
+        self._build_shortcuts()
+
         self.table.selectionModel().currentRowChanged.connect(
             self._on_row_selected)
 
@@ -682,6 +684,34 @@ class LogViewerWidget(QWidget):
             return
         self.table.scrollTo(self.model.index(row, MESSAGE),
                             QAbstractItemView.ScrollHint.PositionAtTop)
+
+    def _build_shortcuts(self) -> None:
+        """Keyboard access to the things done constantly.
+
+        Every binding carries a modifier or is a function key, deliberately.
+        A `QShortcut` takes precedence over the widget that has focus, so a
+        bare `/` or `n` would be stolen from the Find, Filter, Hide and
+        thread boxes the moment someone typed one -- the shortcut would fire
+        and the character would never arrive.
+        """
+        self._shortcuts = []
+        for sequence, slot in (
+                ("Ctrl+F", lambda: self._focus(self.find_box)),
+                ("Ctrl+L", lambda: self._focus(self.filter_box)),
+                ("Ctrl+H", lambda: self._focus(self.exclude_box)),
+                ("F3", self.find_next),
+                ("Shift+F3", self.find_previous),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setContext(
+                Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
+            self._shortcuts.append(shortcut)
+
+    @staticmethod
+    def _focus(box) -> None:
+        box.setFocus()
+        box.selectAll()
 
     def _remember_filter(self) -> None:
         """Put the committed pattern at the front of the history."""

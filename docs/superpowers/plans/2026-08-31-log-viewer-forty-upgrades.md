@@ -53,13 +53,25 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 11 |
+| 1 | Quick wins that change daily use | 13 | 12 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-05.
+**Next task:** W1-13, then Wave 2.
+
+---
+
+## Known issue, unrelated to this work
+
+`tests/test_lower_pane_views.py::test_network_view_filters_by_pid` failed
+**once in nine full-suite runs** on 2026-08-31. It passes in isolation, it
+passes on `master`, and it passed on the immediately repeated full run, so it
+is an ordering interaction rather than anything these tasks introduced. Worth
+chasing before it is dismissed as noise: this project's whole testing habit
+rests on a red suite meaning something, and the two previous flakes here both
+turned out to be two clock reads landing in one tick.
 
 ---
 
@@ -175,12 +187,25 @@ as well as a `str`. A bare string keeps working — several tests pass one.
 `Ctrl+F` focus find, `F3`/`n` next match, `Shift+F3`/`N` previous,
 `Ctrl+Home`/`Ctrl+End` first/last row.
 
-- [ ] Test: `test_the_find_shortcut_focuses_the_find_box`
-- [ ] Test: `test_f3_moves_to_the_next_match`
-- [ ] Test: `test_shift_f3_moves_back`
-- [ ] Single-letter shortcuts must NOT fire while a text box has focus —
+- [x] Test: `test_the_find_shortcut_focuses_the_find_box`
+- [x] Test: `test_f3_moves_to_the_next_match`
+- [x] Test: `test_shift_f3_moves_back`
+- [x] Single-letter shortcuts must NOT fire while a text box has focus —
       test that too: `test_typing_a_slash_into_the_filter_is_not_a_shortcut`
-- [ ] Commit
+- [x] Commit
+- **Deviation from this task as written, on purpose.** The plan asked
+  for `/` to focus the filter and `n`/`N` for next/previous match. A
+  `QShortcut` takes precedence over the widget that has focus, so a bare
+  letter or symbol would be STOLEN from the Find, Filter and Hide boxes
+  the moment anyone typed one. Every binding therefore carries a
+  modifier or is a function key: Ctrl+F, Ctrl+L, Ctrl+H, F3, Shift+F3.
+  A test asserts no binding is ever a bare key.
+- **Do not test these with `QTest.keyClick`.** An offscreen window is
+  never activated, so Qt delivers no shortcut to it and every such test
+  passes vacuously. Fire `shortcut.activated` and assert the behaviour;
+  what is under test is which sequence is bound to what, not Qt's key
+  delivery. For the same reason `hasFocus()` is always False here --
+  use `widget.focusWidget()`.
 
 ### W1-06 (idea 02): Go to a time
 
