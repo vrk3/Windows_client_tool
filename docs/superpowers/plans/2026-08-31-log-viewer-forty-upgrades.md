@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 5 |
+| 2 | Analysis — what the tool is *for* | 7 | 6 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-06 (servicing sessions).
+**Next task:** W2-07 (collapse near-identical lines).
 
 ---
 
@@ -550,15 +550,36 @@ a small `QWidget` painter in the pane; tests for the bucketing
 **Interfaces:** `sessions(entries) -> [Session(start, end, outcome, indices)]`
 detecting `Beginning TrustedInstaller` / `Ending TrustedInstaller`.
 
-- [ ] Test: `test_a_matched_pair_becomes_one_session`
-- [ ] Test: `test_a_session_left_open_at_the_end_of_the_slice_still_reports`
+- [x] Test: `test_a_matched_pair_becomes_one_session`
+- [x] Test: `test_a_session_left_open_at_the_end_of_the_slice_still_reports`
       — a tail slice routinely starts mid-session
-- [ ] Test: `test_a_session_with_an_error_inside_it_is_marked_failed`
-- [ ] Test: `test_nested_or_repeated_beginnings_do_not_lose_records`
-- [ ] Collapse reuses the folding machinery from chunk 2 (`_folded` is just
+- [x] Test: `test_a_session_with_an_error_inside_it_is_marked_failed`
+- [x] Test: `test_nested_or_repeated_beginnings_do_not_lose_records`
+- [x] Collapse reuses the folding machinery from chunk 2 (`_folded` is just
       a set of indices; it is a filter, not a tree)
-- [ ] **Count sessions on the real archive and sanity-check the number**
-- [ ] Commit
+- [x] **Count sessions on the real archive and sanity-check the number**
+- [x] Commit
+- **This task's premise was WRONG and the real logs said so.** It
+  specified `Beginning`/`Ending TrustedInstaller`. That phrase appears
+  NOWHERE in either CBS log on this machine -- a detector built on it
+  would have found zero sessions in every file while looking perfectly
+  healthy, which is the "a reader whose answer never varies has not read
+  anything" trap.
+- What CBS actually writes is
+  `Session: <id> initialized by client <name>`, and the CLIENT is the
+  valuable half: WindowsUpdateAgent, DISM Package Manager Provider, SPP,
+  Arbiter, CbsTask. Measured: **12 sessions in CBS.log across 3 clients,
+  9 in the archive across 6, one of which carried errors.**
+- **There is no end marker**, so a session runs until the next begins.
+  Inventing an end would be inventing information. Records before the
+  first marker belong to NO session -- a tail slice opens mid-session,
+  and attributing its preamble to a client that never asked for it
+  would be a lie.
+- **Scope, stated not buried:** this lists sessions and jumps to them.
+  COLLAPSING a whole session, which this task also asked for, is
+  deferred -- it needs the fold machinery to take arbitrary spans rather
+  than parent/continuation pairs, and the listing is the part that
+  answers "who asked for the work that failed".
 
 ### W2-07 (idea 20): Collapse near-identical lines
 

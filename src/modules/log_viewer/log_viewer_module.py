@@ -45,6 +45,7 @@ from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
+from modules.log_viewer.sessions import sessions
 from modules.log_viewer.log_stats import (first_error, gaps,
                                           last_success_before,
                                           top_codes,
@@ -424,7 +425,9 @@ class LogViewerWidget(QWidget):
         self.summary_messages = QListWidget(self.summary_panel)
         self.summary_gaps = QListWidget(self.summary_panel)
         self.summary_failure = QListWidget(self.summary_panel)
+        self.summary_sessions = QListWidget(self.summary_panel)
         for title, listing in (("The failure", self.summary_failure),
+                               ("Servicing sessions", self.summary_sessions),
                                ("Failing codes", self.summary_codes),
                                ("Components", self.summary_components),
                                ("Silences", self.summary_gaps),
@@ -447,6 +450,7 @@ class LogViewerWidget(QWidget):
         self.summary_messages.itemClicked.connect(self._on_summary_message)
         self.summary_gaps.itemClicked.connect(self._on_summary_gap)
         self.summary_failure.itemClicked.connect(self._on_summary_gap)
+        self.summary_sessions.itemClicked.connect(self._on_summary_gap)
         self.summary_panel.setVisible(False)
         layout.addWidget(self.summary_panel)
 
@@ -878,6 +882,13 @@ class LogViewerWidget(QWidget):
             else:
                 self._add_record(self.summary_failure, "last success",
                                  entries[worked])
+        self.summary_sessions.clear()
+        found = sessions(entries)
+        if not found:
+            self.summary_sessions.addItem("No servicing sessions here")
+        for session in found:
+            self._add_record(self.summary_sessions, session.label(),
+                             entries[session.start])
         self.summary_gaps.clear()
         for index, seconds in gaps(entries):
             # The RECORD is kept, not the index: gaps are counted over
