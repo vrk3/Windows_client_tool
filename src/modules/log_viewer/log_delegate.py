@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
 
 from core.semantic_colors import semantic
 
-from .error_codes import _is_failure, code_spans
+from .error_codes import _is_failure, code_spans, corruption_spans
 
 
 class LogMessageDelegate(QStyledItemDelegate):
@@ -98,9 +98,34 @@ class LogMessageDelegate(QStyledItemDelegate):
             pieces.append((start, end))
         return pieces
 
+    @staticmethod
+    def failure_spans(text: str) -> list:
+        """Everything that means "this went wrong", merged.
+
+        A failing error code and a damage marker are the same news to a
+        reader and get the same colour, so they are combined here and any
+        overlap between them collapsed -- two spans over one stretch of text
+        would nest their tags and paint it twice.
+        """
+        found = [(start, end) for start, end, code in code_spans(text)
+                 if _is_failure(code)]
+        found.extend((start, end) for start, end, _label
+                     in corruption_spans(text))
+        if not found:
+            return []
+        found.sort()
+        merged = [found[0]]
+        for start, end in found[1:]:
+            last_start, last_end = merged[-1]
+            if start <= last_end:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+        return merged
+
     @classmethod
     def needs_rich_text(cls, text: str, needles=()) -> bool:
-        if any(_is_failure(code) for _s, _e, code in code_spans(text)):
+        if cls.failure_spans(text):
             return True
         return bool(cls.match_spans(text, needles))
 
@@ -119,8 +144,7 @@ class LogMessageDelegate(QStyledItemDelegate):
         error_colour = semantic("error")
         match_colour = semantic("match")
 
-        errors = [(start, end) for start, end, code in code_spans(text)
-                  if _is_failure(code)]
+        errors = cls.failure_spans(text)
         spans = [(start, end, error_colour) for start, end in errors]
         for span in cls.match_spans(text, needles):
             spans.extend((start, end, match_colour)

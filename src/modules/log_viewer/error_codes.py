@@ -125,6 +125,36 @@ def explain(text: str) -> list:
     return out
 
 
+#: Phrases that mean the component store is damaged, as Windows actually
+#: writes them. A servicing failure says so in words at least as often as in
+#: a code, and those words rendered as ordinary Info-coloured text.
+#:
+#: Each one is anchored to real wording rather than to a keyword. "Repair" on
+#: its own is routine -- CBS says it constantly while everything is fine --
+#: and "corruption" appears in prose about checking for it. A marker that
+#: fires on either would colour thousands of rows and stop meaning anything.
+#:
+#: `STATUS_SXS_\w+` is deliberately open-ended: new SXS statuses arrive with
+#: new Windows builds, and a hardcoded roster would silently stop matching.
+_CORRUPTION = re.compile(
+    r"STATUS_SXS_\w+"
+    r"|cannot repair"
+    r"|store corruption"
+    r"|do not match",
+    re.IGNORECASE)
+
+
+def corruption_spans(text: str) -> list:
+    """`(start, end, label)` for every damage marker in `text`.
+
+    Ordered and non-overlapping, so the delegate can lay them alongside the
+    error-code spans without nesting tags. The label is the matched phrase
+    lowercased, which is what names the finding.
+    """
+    return [(match.start(), match.end(), match.group(0).lower())
+            for match in _CORRUPTION.finditer(text)]
+
+
 def _is_failure(code: int) -> bool:
     """An HRESULT fails when its sign bit is set; 0 is S_OK."""
     return bool(int(code) & 0xFFFFFFFF & 0x80000000)

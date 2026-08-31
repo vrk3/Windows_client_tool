@@ -53,7 +53,7 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 3 |
+| 1 | Quick wins that change daily use | 13 | 4 |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
@@ -186,13 +186,25 @@ over `_visible`, mirroring `row_for_entry`.
 `STATUS_SXS_*`, `"cannot repair"`, `"store corruption"`,
 `"Hashes for file member ... do not match"`.
 
-- [ ] Test each marker is found, with a real CBS line as the fixture
-- [ ] Test: `test_a_line_merely_mentioning_corruption_in_prose_is_not_flagged`
-- [ ] Colour them with `semantic("error")` in the delegate, joining the
+- [x] Test each marker is found, with a real CBS line as the fixture
+- [x] Test: `test_a_line_merely_mentioning_corruption_in_prose_is_not_flagged`
+- [x] Colour them with `semantic("error")` in the delegate, joining the
       existing failing-code spans; reuse `_without` so they never overlap
-- [ ] **Run against the real CBS archive and report the count** — if it
+- [x] **Run against the real CBS archive and report the count** — if it
       flags thousands of lines the markers are wrong
-- [ ] Commit
+- [x] Commit
+- **Measured on real logs before wiring it up:** CBS.log 0 of 11,277,
+  dism.log 0 of 12,454, CbsPersist_20260831055247.log **522 of 138,683
+  (0.38%)** — 261 rows carrying `STATUS_SXS_FILE_HASH_MISMATCH` and 261
+  saying "do not match". Signal, not noise, and a real finding about
+  this machine's component store.
+- `STATUS_SXS_\w+` is open-ended on purpose: new SXS statuses ship with
+  new Windows builds and a hardcoded roster would silently stop
+  matching. "Repair" and "corruption" alone are NOT markers — CBS says
+  both constantly while everything is fine.
+- The delegate gained `failure_spans()`, merging failing codes and
+  markers into one non-overlapping list: they are the same news to a
+  reader, and two spans over one stretch would nest their tags.
 
 ### W1-08 (idea 32): Logs with no clock sort last
 

@@ -181,3 +181,37 @@ def test_an_empty_needle_matches_nothing(qapp):
     """An empty Filter box is not a match on every character."""
     assert LogMessageDelegate.needs_rich_text("anything", _needles([""])) \
         is False
+
+
+# ---- corruption markers, coloured like the codes they accompany ---------
+
+def test_a_corruption_marker_earns_rich_text(qapp):
+    assert LogMessageDelegate.needs_rich_text(
+        "CSI Store check FAILED: cannot repair member file") is True
+
+
+def test_a_corruption_marker_is_painted_in_the_error_colour(qapp):
+    html = LogMessageDelegate.rich_text(
+        "Detected store corruption", "#123456")
+    assert f'<span style="color:{semantic("error")}">store corruption</span>' \
+        in html
+
+
+def test_a_marker_and_a_failing_code_in_one_line_are_both_painted(qapp):
+    html = LogMessageDelegate.rich_text(
+        "[HRESULT = 0x80073701 - STATUS_SXS_ASSEMBLY_MISSING]", "#123456")
+    assert "0x80073701" in html
+    assert "STATUS_SXS_ASSEMBLY_MISSING" in html
+    assert html.count(f'color:{semantic("error")}') == 2
+
+
+def test_an_ordinary_line_still_takes_the_fast_path(qapp):
+    assert LogMessageDelegate.needs_rich_text(
+        "Appl: detectParent: parent found") is False
+
+
+def test_a_marker_overlapping_a_search_match_keeps_the_error_colour(qapp):
+    html = LogMessageDelegate.rich_text(
+        "cannot repair member", "#123456", _needles(["cannot repair"]))
+    assert f'<span style="color:{semantic("error")}">cannot repair</span>' \
+        in html
