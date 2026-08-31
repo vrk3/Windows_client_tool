@@ -53,13 +53,13 @@ without asking — `requirements.txt` drift is caught by
 
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
-| 1 | Quick wins that change daily use | 13 | 12 |
+| 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | 0 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W1-13, then Wave 2.
+**Next task:** W2-01 (Top-N panel). Wave 1 is complete.
 
 ---
 
@@ -364,13 +364,26 @@ the epoch and lead any merged view of `C:\Windows\Logs\CBS`.
 
 **Files:** `log_viewer_module.py`, `tests/test_log_viewer_module.py`
 
-- [ ] Test: `test_column_widths_are_saved_and_restored`
-- [ ] Test: `test_the_splitter_position_survives_a_reopen`
-- [ ] Test: `test_a_saved_layout_from_an_older_column_set_is_ignored`
+- [x] Test: `test_column_widths_are_saved_and_restored`
+- [x] Test: `test_the_splitter_position_survives_a_reopen`
+- [x] Test: `test_a_saved_layout_from_an_older_column_set_is_ignored`
       — `COLUMNS` has changed twice; a stale saved width list must not be
       applied positionally to a different set of columns
-- [ ] Persist via `self._config`; save on `closeEvent`/`on_deactivate`
-- [ ] Commit
+- [x] Persist via `self._config`; save on `closeEvent`/`on_deactivate`
+- [x] Commit
+- **Column widths deliberately NOT remembered, and the task title is
+  wrong to ask for them.** The narrow columns are `ResizeToContents` and
+  cannot be dragged, and that auto-sizing is exactly what stopped the
+  Source column rendering every CBS archive as `CbsPersist_20…` -- they
+  differ only in the timestamp at the END of the name. Making them
+  draggable so they could be memorable would trade a real fix for a
+  preference. Column VISIBILITY is W3-06's job.
+- What is remembered is what is adjustable: the splitter, and the fold
+  and regex checkboxes. Each key is validated and applied on its own, so
+  a hand-edited splitter does not cost you the fold setting, and a
+  corrupt value cannot take the pane down while it is being built.
+- Saved on `stop()`, not on every splitter drag: the splitter emits while
+  it is being moved and that would be a config write per pixel.
 
 ---
 

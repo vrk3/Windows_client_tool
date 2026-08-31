@@ -37,6 +37,7 @@ from modules.log_viewer.log_model import (
 from modules.log_viewer.history import (RECENT_CAP, load_history,
                                         load_recent, remember,
                                         save_history, save_recent)
+from modules.log_viewer.layout import load_layout, save_layout
 from modules.log_viewer.known_logs import largest_cbs_archive
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
@@ -685,6 +686,32 @@ class LogViewerWidget(QWidget):
         self.table.scrollTo(self.model.index(row, MESSAGE),
                             QAbstractItemView.ScrollHint.PositionAtTop)
 
+    def apply_layout(self, layout) -> None:
+        """Restore how the pane was arranged, if anything was stored.
+
+        Each key is applied only if it is present, so a partial or
+        partially-rejected layout leaves the defaults alone rather than
+        resetting them to something arbitrary.
+        """
+        if not layout:
+            return
+        if "fold" in layout:
+            self.fold.setChecked(layout["fold"])
+        if "regex" in layout:
+            self.regex_box.setChecked(layout["regex"])
+        if "splitter" in layout:
+            self.splitter.setSizes(layout["splitter"])
+
+    def current_layout(self) -> dict:
+        return {
+            "fold": self.fold.isChecked(),
+            "regex": self.regex_box.isChecked(),
+            "splitter": list(self.splitter.sizes()),
+        }
+
+    def save_layout_now(self) -> None:
+        save_layout(self._config, self.current_layout())
+
     def _build_shortcuts(self) -> None:
         """Keyboard access to the things done constantly.
 
@@ -1268,6 +1295,10 @@ class LogViewerWidget(QWidget):
 
     def stop(self) -> None:
         self._timer.stop()
+        # Saved here rather than on every drag: the splitter emits while it
+        # is being moved, and writing the config file on each pixel would be
+        # a lot of disk for a preference.
+        self.save_layout_now()
 
 
 class LogViewerModule(BaseModule):
@@ -1296,6 +1327,9 @@ class LogViewerModule(BaseModule):
             self._widget._filter_history = load_history(config)
             self._widget._history_model.setStringList(
                 self._widget._filter_history)
+            self._widget._recent = load_recent(config)
+            self._widget._build_open_menu()
+            self._widget.apply_layout(load_layout(config))
         return self._widget
 
     def get_search_provider(self) -> Optional[SearchProvider]:
