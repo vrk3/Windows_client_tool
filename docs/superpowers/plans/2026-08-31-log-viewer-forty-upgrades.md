@@ -56,22 +56,29 @@ without asking — `requirements.txt` drift is caught by
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
 | 2 | Analysis — what the tool is *for* | 7 | **7 — DONE** |
 | 3 | Reading and filtering | 8 | **8 — DONE** |
-| 4 | Getting logs in | 5 | 0 |
+| 4 | Getting logs in | 5 | 1 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W4-01 (open a CbsPersist .cab). Waves 1-3 complete.
+**Next task:** W4-02 (recursive folder open with a checklist).
 
 ---
 
 ## Known issue, unrelated to this work
 
-`tests/test_lower_pane_views.py::test_network_view_filters_by_pid` failed
-**once in nine full-suite runs** on 2026-08-31. It passes in isolation, it
-passes on `master`, and it passed on the immediately repeated full run, so it
-is an ordering interaction rather than anything these tasks introduced. Worth
-chasing before it is dismissed as noise: this project's whole testing habit
-rests on a red suite meaning something, and the two previous flakes here both
-turned out to be two clock reads landing in one tick.
+**FIXED on 2026-08-31.** `test_network_view_filters_by_pid` failed once in
+nine full runs, then twice in a row as the suite grew past 3,100 tests. It
+always passed in isolation.
+
+The cause was a race, not an ordering accident: `_drain()` pumped Qt events
+for a flat **100 ms** and then asserted, but a worker delivers its signal when
+it delivers it. That is fine on a quiet machine and fails once the run is long
+enough for the thread pool to be busy -- and this session's ~700 new tests
+made it long enough. Exactly the class of the two previous flakes here, which
+were both two clock reads landing in one tick.
+
+`_drain(qapp, ms=2000, until=...)` now waits for the CONDITION and returns as
+soon as it holds, so the fast case stays fast and a loaded machine gets room.
+Three consecutive full runs green afterwards.
 
 ---
 
@@ -831,11 +838,25 @@ pane; tests
 **Note:** the Diagnose CBS tab already extracts cabs with 7z — reuse that
 code path rather than writing a second one.
 
-- [ ] Test: `test_a_cab_is_extracted_to_a_temp_file_and_opened`
-- [ ] Test: `test_a_cab_that_cannot_be_extracted_says_why`
-- [ ] Test: `test_the_temp_extraction_is_cleaned_up`
-- [ ] Test: `test_7z_missing_is_reported_rather_than_silently_failing`
-- [ ] Commit
+- [x] Test: `test_a_cab_is_extracted_to_a_temp_file_and_opened`
+- [x] Test: `test_a_cab_that_cannot_be_extracted_says_why`
+- [x] Test: `test_the_temp_extraction_is_cleaned_up`
+- [x] Test: `test_7z_missing_is_reported_rather_than_silently_failing`
+- [x] Commit
+- **Used `expand.exe`, NOT 7-Zip as this task suggested.** 7-Zip is
+  installed on this machine and is not on most; depending on it would
+  make the feature work on the developer's box and nowhere else.
+  `expand.exe` ships with Windows. Its full path is used deliberately --
+  a bare `expand` resolves to an unrelated tool under a POSIX shell.
+- **Two things real CBS cabs do that a naive extractor gets wrong**, both
+  found by running against the real folder: the member inside is named
+  like the CAB (`cbspersist_20260829190803.cab`), so looking for `*.log`
+  finds nothing; and it is 15.8 MB of text from a 465 KB cab.
+- `expand` exits 0 while extracting nothing, so the return code is not
+  the signal -- what came out is. The same rule the security readers
+  follow.
+- The status line names the CAB, not the temporary extraction: that is
+  the file the user chose and the one still there tomorrow.
 
 ### W4-02 (idea 29): Recursive folder open with a checklist
 

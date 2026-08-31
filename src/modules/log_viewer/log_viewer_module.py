@@ -46,6 +46,7 @@ from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES
 from modules.log_viewer.clustering import normalise
 from modules.log_viewer.density import buckets
 from modules.log_viewer.density_strip import DensityStrip
+from modules.log_viewer.archives import extract_cab, is_cab
 from modules.log_viewer.log_set import LOG_SUFFIXES, LogSet
 from modules.log_viewer.presets import (BUILT_IN, Preset,
                                         load_presets,
@@ -95,6 +96,11 @@ class LogViewerWidget(QWidget):
     #: wider ones are for correlating across a reboot.
     RANGE_MINUTES = (1, 5, 15, 60)
 
+    #: Windows 11 rolls CBS into .cab files, so they belong in the dialog
+    #: beside the plain logs rather than behind "All files".
+    FILE_FILTER = ("Logs (*.log *.lo_ *.txt *.cab);;"
+                   "Cabinets (*.cab);;All files (*)")
+
     def __init__(self, parent=None, max_bytes: Optional[int] = None) -> None:
         super().__init__(parent)
         self.model = LogModel(self)
@@ -116,6 +122,9 @@ class LogViewerWidget(QWidget):
         self._loading_earlier = False
         #: Logs and folders opened recently, most recent first.
         self._recent: list = []
+        #: Temporary extractions, mapped back to the cab they came from, so
+        #: the status line can name the file the user actually chose.
+        self._extracted: dict = {}
         self._path = ""
         # Dropping a file or a folder on the pane opens it. The folder path
         # is already a first-class input, so this costs almost nothing.
@@ -599,7 +608,7 @@ class LogViewerWidget(QWidget):
     def choose_file(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
             self, "Open log", "",
-            "Logs (*.log *.lo_ *.txt);;All files (*)")
+            self.FILE_FILTER)
         if path:
             self.open(path)
 
@@ -612,8 +621,24 @@ class LogViewerWidget(QWidget):
         `remember_as` is what goes in the recent list: a folder is remembered
         as the folder, not as the dozen files it happened to contain.
         """
-        self._paths = list(paths)
-        entry = remember_as or (self._paths[0] if self._paths else "")
+        opened = []
+        for path in paths:
+            if not is_cab(path):
+                opened.append(path)
+                continue
+            extracted, problem = extract_cab(path)
+            if problem:
+                self.status.setText(f"Could not open that cabinet: {problem}")
+                continue
+            # Remembered under the CAB's name: that is the file the user
+            # chose and the one that will still be there tomorrow. The
+            # extraction is a temporary copy.
+            self._extracted[extracted] = path
+            opened.append(extracted)
+        if paths and not opened:
+            return
+        self._paths = opened
+        entry = remember_as or (paths[0] if paths else "")
         if entry:
             self._recent = remember(self._recent, entry, cap=RECENT_CAP)
             save_recent(self._config, self._recent)
@@ -1253,7 +1278,8 @@ class LogViewerWidget(QWidget):
         if len(self._paths) > 1:
             opened = f"{len(self._paths)} logs merged"
         else:
-            opened = os.path.basename(self._path)
+            shown = self._extracted.get(self._path, self._path)
+            opened = os.path.basename(shown)
         parts = [opened,
                  f"{self.model.rowCount():,} shown of {self.model.total:,}"]
         if self.context_box.isChecked() and not self.model.rowCount():

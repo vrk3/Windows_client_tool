@@ -15,12 +15,26 @@ def _make_conn(pid, sock_type=socket.SOCK_STREAM,
     return c
 
 
-def _drain(qapp, ms=100):
-    """Process Qt events for up to ms milliseconds, letting background threads deliver signals."""
+def _drain(qapp, ms=2000, until=None):
+    """Pump Qt events until `until()` is true, or `ms` elapses.
+
+    It used to wait a flat 100 ms and then assert, which is a race rather
+    than a synchronisation: the worker delivers its signal when it delivers
+    it. That passed in isolation and on a quiet machine, and failed in the
+    full suite once the run was long enough for the thread pool to be busy --
+    intermittently at first, then every time as the suite grew.
+
+    Waiting for the CONDITION keeps the fast case fast (it returns as soon as
+    the signal lands, usually in a millisecond or two) while giving a loaded
+    machine room. The generous deadline costs nothing when nothing is wrong.
+    """
     deadline = time.monotonic() + ms / 1000
     while time.monotonic() < deadline:
         qapp.processEvents()
+        if until is not None and until():
+            return
         time.sleep(0.005)
+    qapp.processEvents()
 
 
 def test_network_view_filters_by_pid(qapp):
@@ -32,7 +46,7 @@ def test_network_view_filters_by_pid(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(1234)
-        _drain(qapp)
+        _drain(qapp, until=lambda: view._table.rowCount() == 1)
     assert view._table.rowCount() == 1
 
 
@@ -48,7 +62,7 @@ def test_network_view_tcp_udp_label(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(1)
-        _drain(qapp)
+        _drain(qapp, until=lambda: view._table.rowCount() == 2)
     assert view._table.item(0, 0).text() == "TCP"
     assert view._table.item(1, 0).text() == "UDP"
 
@@ -62,7 +76,7 @@ def test_network_view_access_denied_clears_table(qapp):
     with patch("modules.process_explorer.lower_pane.network_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(1234)
-        _drain(qapp)
+        _drain(qapp, ms=300)
     assert view._table.rowCount() == 0
 
 
@@ -75,7 +89,7 @@ def test_thread_view_populates_rows(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(1234)
-        _drain(qapp)
+        _drain(qapp, until=lambda: view._table.rowCount() == 1)
     assert view._table.rowCount() == 1
     assert view._table.item(0, 0).text() == "100"
 
@@ -87,7 +101,7 @@ def test_thread_view_no_such_process(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                side_effect=psutil.NoSuchProcess(1234)):
         view.load_pid(1234)
-        _drain(qapp)
+        _drain(qapp, ms=300)
     assert view._table.rowCount() == 0
 
 
@@ -100,8 +114,8 @@ def test_thread_view_refresh_reuses_pid(qapp):
     with patch("modules.process_explorer.lower_pane.thread_view.psutil.Process",
                return_value=mock_proc):
         view.load_pid(5678)
-        _drain(qapp)
+        _drain(qapp, until=lambda: view._table.rowCount() == 1)
         view._refresh()
-        _drain(qapp)
+        _drain(qapp, until=lambda: view._table.rowCount() == 1)
     assert view._pid == 5678
     assert view._table.rowCount() == 1
