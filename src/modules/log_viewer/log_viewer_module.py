@@ -180,6 +180,11 @@ class LogViewerWidget(QWidget):
         self.find_box = QLineEdit(self)
         self.find_box.setPlaceholderText("text to look for")
         self.find_box.returnPressed.connect(self.find_next)
+        # Find does not filter, so it does not go through
+        # _apply_filters -- but what it is looking for is still
+        # coloured in place as it is typed.
+        self.find_box.textChanged.connect(
+            lambda _t: self._refresh_match_colours())
         find_row.addWidget(self.find_box, 1)
         self.previous_button = QPushButton("Previous", self)
         self.previous_button.clicked.connect(self.find_previous)
@@ -278,7 +283,10 @@ class LogViewerWidget(QWidget):
 
         from .log_delegate import LogMessageDelegate
 
-        self.table.setItemDelegateForColumn(MESSAGE, LogMessageDelegate(self))
+        # Kept as an attribute: it is told what the Filter and Find boxes
+        # hold, so it can pick those out inside the message.
+        self.message_delegate = LogMessageDelegate(self)
+        self.table.setItemDelegateForColumn(MESSAGE, self.message_delegate)
 
         # Message is a Stretch section, so the table has no horizontal scroll
         # bar to reach a clipped line with -- measured on a real CBS archive,
@@ -494,6 +502,22 @@ class LogViewerWidget(QWidget):
             return
         self.table.scrollTo(self.model.index(row, MESSAGE),
                             QAbstractItemView.ScrollHint.PositionAtTop)
+
+    def _refresh_match_colours(self) -> None:
+        """Tell the Message delegate what to pick out inside each line.
+
+        Both boxes, because they answer different questions and both are
+        worth seeing: Filter decides which rows survive, Find decides which
+        row you are taken to. Neither is visible inside a 2,751px CBS message
+        without this.
+
+        A repaint, not a reset: which rows are VISIBLE has not changed, and a
+        reset would clear the selection -- the trap `append` documents.
+        """
+        self.message_delegate.set_needles(
+            [self.filter_box.text(), self.find_box.text()],
+            regex=self.regex_box.isChecked())
+        self.table.viewport().update()
 
     def _refresh_range_bounds(self) -> None:
         """Re-open the From/To boxes on the span that is loaded NOW.
@@ -825,6 +849,7 @@ class LogViewerWidget(QWidget):
         if self.model.filter_pattern_is_invalid():
             self.status.setText("That pattern is not finished yet.")
             return
+        self._refresh_match_colours()
         self._update_status()
 
     def find_next(self) -> None:

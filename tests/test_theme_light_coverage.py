@@ -160,3 +160,27 @@ def test_pane_follows_the_light_theme(light_app, module_cls, module_name):
         f"the LIGHT theme -- the pane is painting its own dark colours and "
         f"ignoring the application stylesheet"
     )
+
+
+# ---- a disabled control must LOOK disabled, in both themes --------------
+
+def _stylesheet(name):
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "src", "ui", "styles", f"{name}.qss")
+    with open(path, encoding="utf-8") as handle:
+        return handle.read()
+
+
+def test_both_themes_style_a_disabled_button():
+    """Found by rendering the Log Viewer's new paging buttons under light.
+
+    `light.qss` styled QPushButton and :hover but not :disabled, so a
+    disabled button kept the solid blue background and white text of an
+    enabled one. "Load earlier" on a log that fits whole looked perfectly
+    clickable and did nothing -- and this applies to every disabled button in
+    the app, not just these two.
+    """
+    for theme in ("dark", "light"):
+        assert "QPushButton:disabled" in _stylesheet(theme), (
+            f"{theme}.qss does not say what a disabled button looks like")

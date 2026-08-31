@@ -942,3 +942,57 @@ def test_the_display_suffix_never_reaches_the_export(qapp, folded_log,
         assert "lines)" not in out.read_text(encoding="utf-8")
     finally:
         widget.stop()
+
+
+# ---- colouring what you searched for ------------------------------------
+#
+# The term you filtered or searched on is picked out inside the message, in
+# its own colour, so it can be found by eye in the row the search put in
+# front of you. Colour only -- the row already carries a severity tint.
+
+def _needle_sources(viewer):
+    return [n.pattern for n in viewer.message_delegate.needles]
+
+
+def test_the_filter_text_is_handed_to_the_delegate(viewer):
+    viewer.filter_box.setText("broke")
+    assert _needle_sources(viewer) == ["broke"]
+
+
+def test_the_find_text_is_handed_to_the_delegate(viewer):
+    viewer.find_box.setText("Careful")
+    assert _needle_sources(viewer) == ["Careful"]
+
+
+def test_both_boxes_colour_at_once(viewer):
+    viewer.filter_box.setText("broke")
+    viewer.find_box.setText("Careful")
+    assert sorted(_needle_sources(viewer)) == ["Careful", "broke"]
+
+
+def test_clearing_the_boxes_stops_the_colouring(viewer):
+    viewer.filter_box.setText("broke")
+    viewer.filter_box.setText("")
+    assert viewer.message_delegate.needles == []
+
+
+def test_a_plain_needle_reaches_the_delegate_escaped(viewer):
+    """With Regex off, `a.c` must mean those three characters -- the delegate
+    always matches with a compiled pattern, so the escaping happens there."""
+    viewer.filter_box.setText("a.c")
+    assert _needle_sources(viewer) == [r"a\.c"]
+
+
+def test_the_regex_box_reaches_the_delegate_too(viewer):
+    viewer.regex_box.setChecked(True)
+    viewer.filter_box.setText("Care.ul")
+    assert _needle_sources(viewer) == ["Care.ul"]
+    assert viewer.message_delegate.needles[0].search("Careful")
+
+
+def test_a_half_typed_pattern_leaves_the_delegate_with_nothing(viewer):
+    """It must not reach `paint`, which is a Qt virtual: an exception there
+    goes to qFatal() and takes the process with it."""
+    viewer.regex_box.setChecked(True)
+    viewer.filter_box.setText("Care(ful")
+    assert viewer.message_delegate.needles == []

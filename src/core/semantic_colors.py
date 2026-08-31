@@ -28,6 +28,11 @@ SEMANTIC_PALETTES: Dict[str, Dict[str, str]] = {
         "warning": "#e5c07b",
         "error": "#f44747",
         "info": "#4fc3f7",
+        # What the Filter or Find box is looking for, picked out inside the
+        # message. Violet on purpose: far enough from the error red, warning
+        # amber, info blue and success teal that a match never reads as a
+        # severity. 5.99:1 here, 5.97:1 on the light pane.
+        "match": "#c586c0",
     },
     # Darkened rather than recoloured: the same hues, taken down until they
     # clear 4.5:1 on a light pane. A light-theme "OK" should still read green.
@@ -36,6 +41,7 @@ SEMANTIC_PALETTES: Dict[str, Dict[str, str]] = {
         "warning": "#8a5300",
         "error": "#b3261e",
         "info": "#00639c",
+        "match": "#6f42c1",
     },
 }
 

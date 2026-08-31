@@ -10,6 +10,7 @@ CBS.log, 4,553 lines carry a hex code and 4,427 of them carry nothing but
 0x00000000 -- painting those would be four thousand successes on screen to
 surface nine failures.
 """
+import re
 from html import escape
 
 from PyQt6.QtCore import Qt
@@ -23,31 +24,118 @@ from .error_codes import _is_failure, code_spans
 
 class LogMessageDelegate(QStyledItemDelegate):
 
-    @staticmethod
-    def needs_rich_text(text: str) -> bool:
-        return any(_is_failure(code) for _s, _e, code in code_spans(text))
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        #: Compiled patterns for whatever the Filter and Find boxes hold.
+        #: Compiled HERE and never inside `paint`: `paint` is a reimplemented
+        #: Qt virtual, so an exception raised inside it is routed to
+        #: sys.excepthook and then qFatal() -- it cannot be caught, and the
+        #: process dies. A half-typed regex is a keystroke, not a crash.
+        self.needles: list = []
+
+    def set_needles(self, patterns, regex: bool = False) -> None:
+        """What the Filter and Find boxes are looking for, ready to paint.
+
+        An unfinished pattern colours nothing until it is finished, which is
+        the same thing the Filter itself does with one.
+        """
+        compiled = []
+        for pattern in patterns or ():
+            if not pattern:
+                # An empty box is not a match on every character.
+                continue
+            try:
+                compiled.append(re.compile(
+                    pattern if regex else re.escape(pattern), re.IGNORECASE))
+            except re.error:
+                continue
+        self.needles = compiled
 
     @staticmethod
-    def rich_text(text: str, base_colour: str) -> str:
-        """`text` with every failing code wrapped in a coloured span.
+    def match_spans(text: str, needles) -> list:
+        """`(start, end)` of every needle match, overlaps merged.
+
+        Filter and Find can both match the same run of characters, and two
+        spans over one stretch of text would nest their tags and paint it
+        twice.
+        """
+        found = []
+        for needle in needles or ():
+            for match in needle.finditer(text):
+                if match.end() > match.start():
+                    found.append((match.start(), match.end()))
+        if not found:
+            return []
+        found.sort()
+        merged = [found[0]]
+        for start, end in found[1:]:
+            last_start, last_end = merged[-1]
+            if start <= last_end:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+        return merged
+
+    @staticmethod
+    def _without(span, blockers) -> list:
+        """`span` with every blocker cut out of it.
+
+        A failing error code keeps its own colour even when the search term
+        lands on top of it: searching for `0x800f0805` must not stop it
+        reading as a failure.
+        """
+        start, end = span
+        pieces = []
+        for blocked_start, blocked_end in blockers:
+            if blocked_end <= start or blocked_start >= end:
+                continue
+            if blocked_start > start:
+                pieces.append((start, blocked_start))
+            start = max(start, blocked_end)
+            if start >= end:
+                return pieces
+        if start < end:
+            pieces.append((start, end))
+        return pieces
+
+    @classmethod
+    def needs_rich_text(cls, text: str, needles=()) -> bool:
+        if any(_is_failure(code) for _s, _e, code in code_spans(text)):
+            return True
+        return bool(cls.match_spans(text, needles))
+
+    @classmethod
+    def rich_text(cls, text: str, base_colour: str, needles=()) -> str:
+        """`text` with failing codes and search matches wrapped in spans.
 
         Built by walking the spans forwards with a cursor, escaping each
         plain-text segment as it goes -- a CBS message can contain < and &.
         Plain-text segments are wrapped with the base_colour to avoid
         relying on the ambient pen colour.
+
+        Colour only, never a background: the row already carries a severity
+        tint, and a highlight behind the match would fight it.
         """
         error_colour = semantic("error")
+        match_colour = semantic("match")
+
+        errors = [(start, end) for start, end, code in code_spans(text)
+                  if _is_failure(code)]
+        spans = [(start, end, error_colour) for start, end in errors]
+        for span in cls.match_spans(text, needles):
+            spans.extend((start, end, match_colour)
+                         for start, end in cls._without(span, errors))
+        spans.sort()
+
         pieces = []
         cursor = 0
-        for start, end, code in code_spans(text):
-            if not _is_failure(code):
-                continue
+        for start, end, colour in spans:
             plain_segment = escape(text[cursor:start])
             if plain_segment:
                 pieces.append(
                     f'<span style="color:{base_colour}">{plain_segment}</span>')
             pieces.append(
-                f'<span style="color:{error_colour}">{escape(text[start:end])}</span>')
+                f'<span style="color:{colour}">{escape(text[start:end])}</span>')
             cursor = end
         final_segment = escape(text[cursor:])
         if final_segment:
@@ -57,7 +145,7 @@ class LogMessageDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         text = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        if not self.needs_rich_text(text):
+        if not self.needs_rich_text(text, self.needles):
             super().paint(painter, option, index)
             return
 
@@ -79,7 +167,7 @@ class LogMessageDelegate(QStyledItemDelegate):
 
         document = QTextDocument()
         document.setDefaultFont(option.font)
-        document.setHtml(self.rich_text(text, base_colour))
+        document.setHtml(self.rich_text(text, base_colour, self.needles))
         painter.save()
         painter.translate(option.rect.left() + 4, option.rect.top())
         document.drawContents(painter)
