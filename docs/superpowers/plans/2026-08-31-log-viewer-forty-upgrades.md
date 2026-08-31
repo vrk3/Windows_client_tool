@@ -54,12 +54,12 @@ without asking — `requirements.txt` drift is caught by
 | Wave | Theme | Tasks | Done |
 |---|---|---|---|
 | 1 | Quick wins that change daily use | 13 | **13 — DONE** |
-| 2 | Analysis — what the tool is *for* | 7 | 2 |
+| 2 | Analysis — what the tool is *for* | 7 | 3 |
 | 3 | Reading and filtering | 8 | 0 |
 | 4 | Getting logs in | 5 | 0 |
 | 5 | Output and performance | 7 | 0 |
 
-**Next task:** W2-03 (KB and package column).
+**Next task:** W2-04 (first error, last success).
 
 ---
 
@@ -461,13 +461,31 @@ Qt-free module beside `log_set.py`, with the pane only rendering the result.
 **Interfaces:** `package_of(message) -> str` extracting
 `Package_for_KB3025096~31bf3856ad364e35~amd64~~6.4.1.0` → `KB3025096`.
 
-- [ ] Test: with a real CBS line as the fixture
-- [ ] Test: `test_a_line_with_no_package_yields_empty`
-- [ ] Test: `test_an_update_id_is_not_mistaken_for_a_kb`
-- [ ] New optional column, hidden unless a log actually carries packages
+- [x] Test: with a real CBS line as the fixture
+- [x] Test: `test_a_line_with_no_package_yields_empty`
+- [x] Test: `test_an_update_id_is_not_mistaken_for_a_kb`
+- [x] New optional column, hidden unless a log actually carries packages
       (same rule the Source column follows)
-- [ ] **Run over the real archive and report how many records carry one**
-- [ ] Commit
+- [x] **Run over the real archive and report how many records carry one**
+- [x] Commit
+- **The real data changed the design.** Only 124 of the archive's
+  138,683 records mention a KB, while package tokens appear on 127,623
+  of them (92%). A KB-only column would have been empty 99.9% of the
+  time, so `package_of()` returns the KB when the package name embeds
+  one and the package identity otherwise: 1,691 distinct values, 8 KBs.
+- Anchored on the 16-hex publisher key, which is what separates a
+  package identity from a sentence containing the word "package".
+  GUIDs, UpdateIDs and hex codes do not match.
+- **Computed in `data()`, not stored at parse time.** Qt asks only for
+  the cells it is about to paint, so this costs ~30 regex searches per
+  repaint instead of the 250 ms it would add to every open.
+- **No new filter axis, deliberately.** The Filter box already matches
+  the whole row, so typing a KB or package name narrows to it today.
+- **Found by rendering: the column took 470px and was empty on screen.**
+  ResizeToContents measures the widest value in the WHOLE model, and
+  servicing names run to 62 characters, so one long name shoved Message
+  off to the right for rows with no package at all. Sized to content,
+  then capped at PACKAGE_MAX_WIDTH.
 
 ### W2-04 (idea 21): First error, last success
 

@@ -28,10 +28,11 @@ def _model(entries=(), cap=None):
 def test_rows_and_columns(qapp):
     model = _model([_entry("one"), _entry("two")])
     assert model.rowCount() == 2
-    # Time, Source, Severity, Component, Thread, Message. Source is the FILE
-    # a record came from and is always defined, hidden by the pane while a
-    # single log is open.
-    assert model.columnCount() == 6
+    # Time, Source, Severity, Component, Package, Thread, Message. Source
+    # and Package are always DEFINED and hidden by the pane when they would
+    # be columns of blanks -- letting the column count vary at runtime would
+    # shift MESSAGE's index under the delegate.
+    assert model.columnCount() == 7
 
 
 def test_each_column_shows_its_field(qapp):

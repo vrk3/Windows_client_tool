@@ -33,7 +33,8 @@ from core.search_provider import SearchProvider
 from modules.log_viewer import cmtrace_parser
 from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_model import (
-    COMPONENT, LogModel, MESSAGE, SEVERITY, SOURCE, THREAD, TIME,
+    COMPONENT, LogModel, MESSAGE, PACKAGE, SEVERITY, SOURCE, THREAD,
+    TIME,
 )
 from modules.log_viewer.history import (RECENT_CAP, load_history,
                                         load_recent, remember,
@@ -54,6 +55,13 @@ logger = logging.getLogger(__name__)
 FOLLOW_MS = 1000
 
 LEVELS = ("Error", "Warning", "Info")
+
+#: How wide the Package column may get. Sized to content it took 470px on the
+#: real archive -- servicing names run to 62 characters -- and stood empty on
+#: every visible row while pushing Message off to the right. The full value is
+#: in the message and the detail pane; the column only has to be enough to
+#: recognise and compare.
+PACKAGE_MAX_WIDTH = 240
 
 
 def _size(count: int) -> str:
@@ -357,7 +365,8 @@ class LogViewerWidget(QWidget):
         # width it rendered "CbsPersist_20…", and CBS archives differ
         # only in the timestamp at the END of the name, so every one of
         # them elided to the same characters.
-        for column in (TIME, SOURCE, SEVERITY, COMPONENT, THREAD):
+        for column in (TIME, SOURCE, SEVERITY, COMPONENT, PACKAGE,
+                       THREAD):
             header.setSectionResizeMode(column,
                                         QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(MESSAGE, QHeaderView.ResizeMode.Stretch)
@@ -615,6 +624,10 @@ class LogViewerWidget(QWidget):
         self._sync_paging_buttons()
         # Only worth a column when there is more than one file to tell apart.
         self.table.setColumnHidden(SOURCE, len(self._paths) < 2)
+        # Same rule: a log that names no packages gets no Package column
+        # rather than a column of blanks.
+        self.table.setColumnHidden(PACKAGE, not self.model.has_packages())
+        self._cap_package_width()
         # The refreshes above blockSignals() around rebuilding the Component
         # and Thread combos, so falling back to index 0 ("All") when the
         # previous log's selection is not in the new one never told the
@@ -1253,6 +1266,21 @@ class LogViewerWidget(QWidget):
             label = f"Component: {len(chosen)} components"
         self.component_button.setText(label)
         self._apply_filters()
+
+    def _cap_package_width(self) -> None:
+        """Let Package size to its content, then stop it taking the table.
+
+        Sized to contents it measures the widest package in the WHOLE model,
+        not the widest on screen, so one 62-character name gave a column that
+        was empty on every visible row and half as wide as the message.
+        """
+        header = self.table.horizontalHeader()
+        if self.table.isColumnHidden(PACKAGE):
+            return
+        header.setSectionResizeMode(PACKAGE,
+                                    QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(
+            PACKAGE, min(header.sectionSize(PACKAGE), PACKAGE_MAX_WIDTH))
 
     def _refresh_components(self) -> None:
         """Rebuild the menu for the components now loaded.

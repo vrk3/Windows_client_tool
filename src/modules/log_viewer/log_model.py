@@ -19,6 +19,7 @@ from PyQt6.QtGui import QColor
 from .cmtrace_parser import UNKNOWN_TIME
 from .highlight import haystack, matching_rule
 from .log_export import format_stamp
+from .packages import package_of
 from .palette import component_colour, readable_text_on, severity_row_colour
 
 #: Source is the FILE a record came from; Component is `entry.source`, which
@@ -26,8 +27,10 @@ from .palette import component_colour, readable_text_on, severity_row_colour
 #: The Source column is always defined -- the pane hides it while a single log
 #: is open -- because letting the column count change under the delegate would
 #: shift MESSAGE's index at runtime.
-COLUMNS = ("Time", "Source", "Severity", "Component", "Thread", "Message")
-TIME, SOURCE, SEVERITY, COMPONENT, THREAD, MESSAGE = range(len(COLUMNS))
+COLUMNS = ("Time", "Source", "Severity", "Component", "Package", "Thread",
+           "Message")
+TIME, SOURCE, SEVERITY, COMPONENT, PACKAGE, THREAD, MESSAGE = range(
+    len(COLUMNS))
 
 #: How many records are kept. Past this the oldest go, which is what CMTrace
 #: does in practice and what keeps a 300 MB log openable.
@@ -411,6 +414,15 @@ class LogModel(QAbstractTableModel):
             return bool(self._exclude_matcher.search(text))
         return self._exclude.lower() in text.lower()
 
+    def has_packages(self) -> bool:
+        """Whether any loaded record names a package.
+
+        Stops at the first hit, so on a servicing log -- where 92% of records
+        carry one -- it answers immediately. Only a large log with NO
+        packages pays the full scan, and those are the small ones.
+        """
+        return any(package_of(entry.message) for entry in self._entries)
+
     def logs(self) -> list:
         """The files currently represented, for the Source combo."""
         return sorted({e.raw.get("log", "") for e in self._entries
@@ -595,6 +607,12 @@ class LogModel(QAbstractTableModel):
                 return entry.level
             if column == COMPONENT:
                 return entry.source
+            if column == PACKAGE:
+                # Computed here rather than stored at parse time: Qt only
+                # asks for the cells it is about to paint, so this costs ~30
+                # regex searches per repaint instead of 250 ms added to
+                # every open of the real archive.
+                return package_of(entry.message)
             if column == THREAD:
                 return entry.raw.get("thread", "")
             if column == MESSAGE:
