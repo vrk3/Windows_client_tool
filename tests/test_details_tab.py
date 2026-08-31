@@ -250,3 +250,82 @@ def test_sorting_moves_the_header_indicator_too(tab):
     tab.sort_by("handles")
     assert tab.table.horizontalHeader().sortIndicatorSection() == \
         _column_index(tab, "handles")
+
+
+# ---- the context menu ---------------------------------------------------
+
+def test_the_table_offers_a_context_menu(tab):
+    assert tab.menu is not None
+
+
+def test_the_menu_lists_task_managers_actions(tab, qapp, monkeypatch):
+    """Built without showing it: `exec` blocks on a real menu."""
+    from PyQt6.QtWidgets import QMenu
+
+    captured = []
+    monkeypatch.setattr(QMenu, "exec", lambda self, *a, **k: captured.append(
+        [action.text() for action in self.actions()]))
+
+    tab.table.selectRow(0)
+    tab.menu.show(tab.selected_pids(), tab.selected_info(), None)
+
+    assert captured, "no menu was built"
+    labels = " ".join(captured[0])
+    for expected in ("End task", "End process tree", "Suspend", "Resume",
+                     "Set priority", "Set affinity", "Create dump",
+                     "Open file location", "Search online"):
+        assert expected in labels, f"{expected} is missing from the menu"
+
+
+def test_ending_a_task_asks_first(tab, qapp, monkeypatch):
+    """Nothing destructive happens without a confirmation."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    asked = []
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: asked.append(self.text())
+                        or QMessageBox.StandardButton.No)
+    killed = []
+    monkeypatch.setattr("modules.dashboard.process_menu.end_process",
+                        lambda pid, **kw: killed.append(pid))
+
+    tab.menu._end([999_999])
+
+    assert asked, "it did not ask"
+    assert not killed, "it killed the process before asking"
+
+
+def test_declining_the_confirmation_does_nothing(tab, qapp, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: QMessageBox.StandardButton.No)
+    killed = []
+    monkeypatch.setattr("modules.dashboard.process_menu.end_process",
+                        lambda pid, **kw: killed.append(pid))
+
+    tab.menu._end([999_999])
+
+    assert not killed
+
+
+def test_a_failed_action_is_reported_rather_than_swallowed(tab, qapp,
+                                                           monkeypatch):
+    """A refusal that says nothing is how someone concludes the button is
+    broken."""
+    from PyQt6.QtWidgets import QMessageBox
+    from modules.dashboard.procengine.actions import Result
+
+    shown = []
+
+    def fake_exec(self):
+        shown.append(self.informativeText())
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    monkeypatch.setattr("modules.dashboard.process_menu.end_process",
+                        lambda pid, **kw: Result(False, "Access is denied."))
+
+    tab.menu._end([999_999])
+
+    assert any("Access is denied." in text for text in shown)

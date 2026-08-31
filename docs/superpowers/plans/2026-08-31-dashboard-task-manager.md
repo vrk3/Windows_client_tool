@@ -125,11 +125,11 @@ and the wall time between them.
 ### W1-06: The context menu
 **Files:** Create `src/modules/dashboard/process_menu.py`, tests
 
-- [ ] End task, end process tree, set priority, set affinity, analyse wait
+- [x] End task, end process tree, set priority, set affinity, analyse wait
       chain, create dump, open file location, search online, properties,
       go to service(s), UAC virtualisation, efficiency mode.
-- [ ] Reuses `process_actions.py`, extended -- not reimplemented.
-- [ ] Tests: each action confirms first; each reports the real outcome, and
+- [x] Reuses `process_actions.py`, extended -- not reimplemented.
+- [x] Tests: each action confirms first; each reports the real outcome, and
       a refused kill says "access denied", never a silent no-op.
 
 ### W1-07: The Processes tab
@@ -238,3 +238,15 @@ Recorded as they are learned, the way the Log Viewer plan did.
   created BEFORE the child. Without that check an orphan is adopted by
   whatever process now holds its dead parent's pid -- the mechanism by which
   a process tree claims Notepad started sixty services.
+- **2026-08-31, W1-06:** `psutil.Process(pid).kill()` returns long before
+  the process is gone, so `end_process` waits and re-checks. The rule the
+  Apps tab already pays for -- verified, never assumed.
+- **2026-08-31, W1-06 (a wrong diagnosis, recorded so it is not repeated):**
+  "End process tree" on a python child appeared to kill unrelated processes,
+  and the first read was that `psutil.children(recursive=True)` adopts
+  strangers by joining on the ppid number. It does not -- the validated walk
+  returns the same four. The real cause is that `.venv/Scripts/python.exe` is
+  a SHIM: killing the interpreter it launched takes the shim with it, so the
+  root is already gone when its turn comes. A tree kill therefore counts an
+  already-dead member as ended; reporting that as failure told the user a
+  kill had failed while everything was dead.

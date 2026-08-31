@@ -219,3 +219,38 @@ def _current_user() -> Optional[str]:
     if not user:
         return None
     return f"{domain}\\{user}" if domain else user
+
+
+def descendants_of(pid: int, rows=None) -> List[int]:
+    """Every process genuinely descended from `pid`.
+
+    Walks the same create-time-validated parent link the tree view uses, so
+    "End process tree" and the tree someone is looking at can never disagree
+    about who is a descendant. `psutil.children(recursive=True)` joins on the
+    ppid number alone; on this machine the two agree, but only the validated
+    walk is guaranteed to, and the one place it would diverge -- a dead
+    parent's pid reused by an unrelated process -- is a list of processes to
+    kill.
+    """
+    if rows is None:
+        rows = system_processes()
+    by_pid = {row.pid: row for row in rows}
+    parent_of = {row.pid: _real_parent(row, by_pid) for row in rows}
+    _break_cycles(parent_of)
+
+    children: Dict[int, List[int]] = {}
+    for child, parent in parent_of.items():
+        if parent is not None:
+            children.setdefault(parent, []).append(child)
+
+    found: List[int] = []
+    seen = {pid}
+    stack = list(children.get(pid, ()))
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        found.append(current)
+        stack.extend(children.get(current, ()))
+    return sorted(found)

@@ -25,7 +25,9 @@ ONE_SECOND = HUNDRED_NS
 def _raw(pid=100, create_time=1, kernel=0, user=0, read=0, write=0, other=0):
     return ProcessRaw(
         pid=pid, ppid=1, name="test.exe", threads=1, handles=1, session=1,
-        base_priority=8, working_set=0, private_bytes=0, paged_pool=0,
+        base_priority=8, working_set=0, working_set_private=0,
+        peak_working_set=0, private_bytes=0, peak_pagefile=0,
+        peak_virtual_size=0, paged_pool=0,
         nonpaged_pool=0, pagefile=0, virtual_size=0, page_faults=0,
         hard_faults=0, kernel_time=kernel, user_time=user, cycles=0,
         create_time=create_time, read_bytes=read, write_bytes=write,

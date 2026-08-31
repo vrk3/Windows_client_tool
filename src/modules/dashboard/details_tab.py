@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView,
 from core.worker import Worker
 
 from .details_model import DetailsModel, DetailsProxy
+from .process_menu import ProcessMenu
 from .procengine.columns import COLUMNS, DEFAULT_KEYS, GROUPS
 from .procengine.snapshot import SnapshotSource
 
@@ -90,6 +91,9 @@ class DetailsTab(QWidget):
         self.table.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setAlternatingRowColors(True)
+        self.table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_row_menu)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(22)
         header = self.table.horizontalHeader()
@@ -102,6 +106,11 @@ class DetailsTab(QWidget):
 
         self.status = QLabel("", self)
         layout.addWidget(self.status)
+
+        self.menu = ProcessMenu(self)
+        # An action changes the machine, so read it again rather than waiting
+        # up to a second for the next tick to show what happened.
+        self.menu.changed.connect(self.refresh)
 
     # ---- lifecycle ------------------------------------------------------
 
@@ -257,6 +266,13 @@ class DetailsTab(QWidget):
         header = self.table.horizontalHeader()
         for section, column in enumerate(self.model.columns()):
             header.resizeSection(section, _width_for(column.key))
+
+    def _show_row_menu(self, position) -> None:
+        pids = self.selected_pids()
+        if not pids:
+            return
+        self.menu.show(pids, self.selected_info(),
+                       self.table.viewport().mapToGlobal(position))
 
     # ---- selection ------------------------------------------------------
 

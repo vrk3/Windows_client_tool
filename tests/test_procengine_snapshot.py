@@ -20,7 +20,9 @@ from modules.dashboard.procengine.snapshot import SnapshotSource, build_tree
 def _raw(pid, ppid=0, name="test.exe", create_time=100):
     return ProcessRaw(
         pid=pid, ppid=ppid, name=name, threads=1, handles=1, session=1,
-        base_priority=8, working_set=0, private_bytes=0, paged_pool=0,
+        base_priority=8, working_set=0, working_set_private=0,
+        peak_working_set=0, private_bytes=0, peak_pagefile=0,
+        peak_virtual_size=0, paged_pool=0,
         nonpaged_pool=0, pagefile=0, virtual_size=0, page_faults=0,
         hard_faults=0, kernel_time=0, user_time=0, cycles=0,
         create_time=create_time, read_bytes=0, write_bytes=0, other_bytes=0,
