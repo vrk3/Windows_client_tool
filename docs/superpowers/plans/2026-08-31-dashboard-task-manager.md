@@ -477,3 +477,46 @@ Recorded as they are learned, the way the Log Viewer plan did.
   real. The lesson is the one W2-06 already paid for in the other
   direction: a number that looks wrong and a number that is wrong are told
   apart by a second source, never by how they look.
+- **2026-09-01, W3-01 (a source that is cheap, wrong, AND contaminating):**
+  the `.NET CLR Memory` counter set enumerates the whole machine in 140 ms
+  against 1.69 ms per process for a module scan -- and finds **4 processes
+  where the scan finds 15**, because .NET Core does not publish the legacy
+  counters. Worse, asking PDH for it **loads `mscoree.dll` into the asking
+  process**, after which any shim-based detector calls itself .NET forever.
+  Found because two tests in one run disagreed about this very process.
+  `mscoree`/`mscoreei` are the SHIM, not the runtime; only `clr.dll`,
+  `coreclr.dll` and `mscorwks.dll` mean managed code is running.
+- **2026-09-01, W3-01:** "hosts a service" matched **0 of 114** service
+  hosting processes, because it compared process names against SERVICE
+  names -- services are called `wuauserv`, the processes hosting them are
+  all `svchost.exe`. `EnumServicesStatusEx` gives the real pid mapping in
+  1.3 ms, which is exactly what `SnapshotSource.set_service_pids` was built
+  for and what nothing had ever called. Now 113.
+- **2026-09-01, W3-01 (dead code that was about to become a regression):**
+  the old GPU row tint coloured any row over 0.5% GPU. It had never once
+  appeared, because `gpu_percent` was never written to until W2-05 -- so
+  fixing that column would have silently started overriding the .NET and
+  service tints. A colour nobody has ever seen is not a feature, it is an
+  unexploded one. Process Explorer has no GPU category; the column carries
+  the number.
+- **2026-09-01, W3-01:** "packed" is entropy, and entropy is not evidence.
+  At the standard 7.0 threshold it flags OneNote, the Command Palette and
+  this tool. It carries its number beside the verdict, ranks below every
+  factual category, and is off unless asked for -- 4.11 ms a process, more
+  than all the other category facts together.
+- **2026-09-01, W3-02:** a properties window OUTLIVES what it watches, in
+  two ways that need different answers. A process exiting is not an error:
+  stop the timer, keep the last reading on screen, say so in the title --
+  blanking to zeros destroys the record of what it was doing. A pid being
+  REUSED is the dangerous one, because the window would go on reporting a
+  different program under the old one's title. Pinned to
+  `(pid, create_time)`, the same key the detail cache uses.
+- **2026-09-01, W3-02:** watching ONE process still goes through the bulk
+  syscall. `system_processes()` returns all 270 in 2.6 ms, which is
+  cheaper than `psutil.Process(pid)` reading the same fields for one. There
+  is no cheaper per-process path; the syscall IS the cheap path.
+- **2026-09-01, W3-02 (found by rendering):** the dialog's 700x500 default
+  was chosen when it had six tabs. Eleven overflowed the tab bar into
+  scroll arrows at both ends -- half the window reachable only by
+  scrolling a strip of text nobody thinks to scroll. Adding tabs to a
+  dialog means re-checking the size it was given for fewer.
