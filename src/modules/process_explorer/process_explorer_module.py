@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from PyQt6 import sip
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QSplitter,
                               QTabWidget, QTreeView, QToolBar, QComboBox,
                               QLabel, QLineEdit, QPushButton, QMenu,
@@ -31,6 +32,8 @@ from modules.process_explorer.lower_pane.memory_map_view import MemoryMapView
 from modules.process_explorer.lower_pane.activity_view import ActivityView
 
 logger = logging.getLogger(__name__)
+
+_widget_valid = lambda w: w is not None and not sip.isdeleted(w)
 
 
 class ProcessExplorerModule(BaseModule):
@@ -187,6 +190,10 @@ class ProcessExplorerModule(BaseModule):
         priority_btn.setMenu(pm)
         tb.addWidget(priority_btn)
 
+        sysinfo_action = QAction("System Information", tb)
+        sysinfo_action.triggered.connect(self._open_system_information)
+        tb.addAction(sysinfo_action)
+
         tb.addSeparator()
 
         self._search_box = QLineEdit()
@@ -221,6 +228,36 @@ class ProcessExplorerModule(BaseModule):
             if view is not None:
                 view.cancel()
 
+    def _open_system_information(self) -> None:
+        """Process Explorer's System Information window.
+
+        Modeless and reused: opening it twice should raise the one that is
+        already up, not stack a second copy polling the same counters.
+        Imported here rather than at module scope so the pane does not drag
+        the GPU and performance engines in at startup -- which is why it is
+        in HIDDEN_IMPORTS.
+        """
+        from modules.dashboard.system_information import \
+            SystemInformationDialog
+
+        existing = getattr(self, "_sysinfo_dialog", None)
+        if existing is not None and _widget_valid(existing):
+            existing.raise_()
+            existing.activateWindow()
+            return
+        dialog = SystemInformationDialog(self._widget)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._sysinfo_dialog = dialog
+        dialog.show()
+
+    def _close_system_information(self) -> None:
+        dialog = getattr(self, "_sysinfo_dialog", None)
+        if dialog is not None and _widget_valid(dialog):
+            # Its timer and its PDH query outlive the pane otherwise: the
+            # query lives in the performance-counter service, not here.
+            dialog.close()
+        self._sysinfo_dialog = None
+
     def on_deactivate(self) -> None:
         if self._collector:
             self._collector.stop()
@@ -231,6 +268,7 @@ class ProcessExplorerModule(BaseModule):
         if self._collector:
             self._collector.stop()
         self._cancel_lower_pane()
+        self._close_system_information()
         self.cancel_all_workers()
 
     def get_status_info(self) -> str:

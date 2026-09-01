@@ -319,3 +319,122 @@ def test_the_disk_panel_paints(tab):
 def test_the_network_panel_paints(tab):
     tab.chooser.setCurrentRow(3)
     _paint(tab, 900, 600)
+
+
+# ---- the GPU panel ------------------------------------------------------
+
+def test_the_tab_offers_a_gpu_panel(tab):
+    labels = [tab.chooser.item(row).text()
+              for row in range(tab.chooser.count())]
+    assert "GPU" in labels
+
+
+def test_a_graph_appears_for_every_hardware_adapter(tab):
+    assert tab._gpu_rows, "no GPU graph was built"
+
+
+def test_the_software_adapter_gets_no_graph(tab):
+    """WARP is present on every Windows machine and never does any work.
+    A permanently flat graph labelled with its name is a question, not an
+    answer, and Task Manager does not list it either."""
+    software = {facts.luid for facts in tab._gpu_facts.values()
+                if facts.software}
+    assert software, "this machine has no software adapter to exclude"
+    assert not (software & set(tab._gpu_rows))
+
+
+def test_each_adapter_reports_its_utilisation(tab):
+    for row in tab._gpu_rows.values():
+        assert row["utilisation"].text().startswith("Utilisation")
+
+
+def test_each_adapter_reports_its_memory_against_the_limit(tab):
+    for row in tab._gpu_rows.values():
+        text = row["memory"].text()
+        assert "Dedicated" in text and "shared" in text
+        assert " of " in text, f"no limit shown in {text!r}"
+
+
+def test_the_gpu_panel_paints(tab):
+    tab.chooser.setCurrentRow(4)
+    _paint(tab, 900, 700)
+
+
+def test_the_first_gpu_reading_is_not_drawn_as_zero(qapp):
+    """The memory counters answer at once but utilisation is a percentage
+    over an interval, so the first tick has memory and no load. Drawing
+    that as 0% would claim an idle GPU nobody measured."""
+    widget = PerformanceTab()
+    try:
+        widget._load_static()
+        widget.refresh()
+        for row in widget._gpu_rows.values():
+            assert row["graph"].history() == [None]
+            assert row["utilisation"].text().endswith("—")
+    finally:
+        widget.stop()
+
+
+def test_stopping_closes_the_gpu_query(qapp):
+    """The PDH query lives in the performance-counter service, not in this
+    process, so an abandoned one outlives the tab that opened it."""
+    widget = PerformanceTab()
+    widget._load_static()
+    widget.refresh()
+    assert widget._gpu is not None
+    widget.stop()
+    assert widget._gpu is None
+
+
+def test_an_adapter_the_registry_cannot_name_still_gets_a_graph(qapp):
+    """The DirectX key is written when DirectX first initialises an
+    adapter, so a live one can be missing from it. Dropping the graph
+    would hide a working GPU; the LUID is shown instead."""
+    from modules.dashboard.performance_tab import _adapter_name
+
+    assert _adapter_name(0x15725, None) == "Adapter 0x15725"
+
+
+def test_a_missing_directx_version_says_why(qapp):
+    """This machine's integrated adapter records no feature level at all.
+    A bare dash there reads as a broken panel."""
+    from modules.dashboard.performance_tab import _adapter_detail
+    from modules.dashboard.procengine.gpuinfo import AdapterFacts
+
+    detail = _adapter_detail(AdapterFacts(
+        luid=1, name="Card", driver_version="1.2.3.4",
+        unavailable={"directx_version": "the adapter records no level"}))
+    assert "DirectX version unavailable" in detail
+    assert "the adapter records no level" in detail
+
+
+def test_gpu_memory_without_a_known_limit_shows_the_figure_alone(qapp):
+    from modules.dashboard.performance_tab import _of_limit
+
+    assert _of_limit(None, 100) == "—"
+    assert _of_limit(1024, None) == "1.0 KB"
+    assert " of " in _of_limit(1024, 4096)
+
+
+def test_an_idle_engine_and_a_silent_one_read_differently(qapp):
+    """Rendering the panel caught these saying the same thing: the
+    integrated adapter showed "Utilisation 0%" beside "No engine is
+    reporting work", which cannot both be true. Engines reporting zero is
+    a measurement; no engines at all is the absence of one."""
+    from modules.dashboard.performance_tab import PerformanceTab
+    from modules.dashboard.procengine.gpuinfo import AdapterUsage, EngineLoad
+
+    widget = PerformanceTab()
+    try:
+        idle = AdapterUsage(luid=1, engines=(EngineLoad("3D", 0.0),
+                                             EngineLoad("Copy", 0.0)))
+        widget._show_adapter(idle, None)
+        assert widget._gpu_rows[1]["engines"].text() == "All 2 engines idle"
+        assert widget._gpu_rows[1]["utilisation"].text().endswith("0%")
+
+        silent = AdapterUsage(luid=2, engines=())
+        widget._show_adapter(silent, None)
+        assert "No engine" in widget._gpu_rows[2]["engines"].text()
+        assert widget._gpu_rows[2]["utilisation"].text().endswith("—")
+    finally:
+        widget.stop()

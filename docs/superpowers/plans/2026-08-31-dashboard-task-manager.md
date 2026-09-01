@@ -163,10 +163,12 @@ and the wall time between them.
 - [x] W2-03 Disk: active time, average response time, read/write speed,
       capacity, system disk, page file.
 - [x] W2-04 Network: throughput, adapter, SSID, DNS, IPv4/IPv6, signal.
-- [ ] W2-05 GPU: per-engine utilisation, dedicated and shared memory, driver
+- [x] W2-05 GPU: per-engine utilisation, dedicated and shared memory, driver
       version, DirectX version.
-- [ ] W2-06 Process Explorer's System Information window (CPU/memory/IO/GPU
+- [x] W2-06 Process Explorer's System Information window (CPU/memory/IO/GPU
       graphs, commit, kernel memory, paging).
+
+**Wave 2 is COMPLETE.**
 
 ## Wave 3 -- Process Explorer depth
 
@@ -198,11 +200,10 @@ and the wall time between them.
 
 ---
 
-## Where this stopped (2026-08-31, end of session)
+## Where this stopped (2026-09-01, end of session)
 
-**Wave 1 is COMPLETE and shipped.** Wave 2 is four tasks of six.
-
-Merged to `master` and built into the deployed portable:
+**Waves 1 and 2 are COMPLETE.** Committed on `feat/dashboard-gpu`, not yet
+merged to `master` and not yet built into the deployed portable.
 
 | | |
 |---|---|
@@ -211,34 +212,50 @@ Merged to `master` and built into the deployed portable:
 | W2-02 | Memory: the whole panel |
 | W2-03 | Disk: per-drive active time, throughput, queue depth |
 | W2-04 | Network: per-interface send/receive, link speed |
+| W2-05 | GPU: per-engine utilisation, adapter memory, driver + DirectX |
+| W2-06 | Process Explorer's System Information window, five tabs |
 
-The Dashboard is now a `CompositeModule` with five tabs: **Overview,
-Processes, Performance, Details, Process Explorer**. Process Explorer is no
-longer its own sidebar entry (33 entries, not 34).
+The Dashboard is a `CompositeModule` with five tabs: **Overview, Processes,
+Performance, Details, Process Explorer**, and the Performance tab now has
+six panels (CPU, Memory, Disk, Network, GPU). System Information opens
+from the Process Explorer toolbar, modeless and reused.
+
+New engine modules this session, both Qt-free and both tested:
+`procengine/gpuinfo.py` (PDH, query held open) and `procengine/sysinfo.py`
+(`NtQuerySystemInformation(SystemPerformanceInformation)`).
 
 ### Pick up here
 
-**W2-05 GPU** is next. Per-engine utilisation, dedicated and shared memory,
-driver and DirectX version. The likely source is the `GPU Engine` and
-`GPU Process Memory` performance counter sets via PDH -- there is no simple
-syscall for this the way there is for CPU and memory, and the counter
-instance names encode the pid and engine type, which is how Task Manager
-attributes GPU use to a process.
+**Two things are owed before wave 3:**
 
-**W2-06** is Process Explorer's System Information window, which is mostly a
-re-arrangement of what `cpuinfo`/`meminfo`/`ioinfo` already return.
+1. **Merge `feat/dashboard-gpu` to `master`, then build and deploy the
+   portable** — CLAUDE.md makes the deploy step to
+   `OneDrive/1 Personal/Aplicații/` a hard requirement, and it has not been
+   done for either W2-05 or W2-06.
+2. **Four tests fail, and none of them are this work.** They fail
+   identically on `master` at `4d70217` — verified by checking out master
+   and running them — so they are drift since the ledger last claimed all
+   green, not a regression:
+   - `test_procengine_details.py::test_nothing_is_ever_the_empty_string_instead_of_none`
+     — pid 4 (System) now returns `cmdline=''` where the rule requires
+     `None` plus a reason. This is in the Dashboard's OWN engine and is
+     the same class of bug the project keeps legislating against, so it
+     should be fixed before wave 3 builds on `details.py`.
+   - `test_firewall_rule_actions.py` (3 tests) — unrelated to the Dashboard.
 
-Then **wave 3**, which is the big one: the 11-tab properties dialog, the
-DLL and handle lower panes, find-handle, signature verification.
+Then **wave 3**, the big one: the 11-tab properties dialog, the DLL and
+handle lower panes, find-handle, signature verification.
 
 ### What to run first
 
-- `pytest tests/ -q` -- 3,600-odd tests, all green at the last commit.
+- `pytest tests/ -q` — 3,694 pass, 3 skip, and the 4 failures above.
 - The engine is `src/modules/dashboard/procengine/` and is **Qt-free**;
   every module there has a test asserting it does not import PyQt6.
 - Screenshots have caught more real bugs here than the tests have. Render
-  the tab and LOOK at it before believing it works -- see the findings
-  below, where three separate bugs produced entirely plausible numbers.
+  the tab and LOOK at it before believing it works — see the findings
+  below, where FIVE separate bugs produced entirely plausible numbers.
+  `scratchpad/` (gitignored) holds this session's harnesses:
+  `shoot_gpu_panel.py`, `shoot_sysinfo.py`, `gpu_load_check.py`.
 
 ## Findings
 
@@ -340,3 +357,78 @@ Recorded as they are learned, the way the Log Viewer plan did.
 - **2026-08-31, W2-04:** loopback is excluded by ADDRESS, not by name.
   "Loopback Pseudo-Interface 1" is the English name only, and a name match
   would quietly start listing it on a localised install.
+- **2026-09-01, W2-05 (the measurement that chose the engine):** there is no
+  syscall for the GPU the way there is for processors and memory — the
+  scheduler's accounting reaches user mode only through PDH. Held OPEN
+  across ticks, a full sample of this machine's **483 `GPU Engine`
+  instances plus the adapter memory costs 0.33 ms**. PDH keeps the instance
+  list and the previous reading inside the query; reopening it per tick
+  re-enumerates all 483. Hold the query, close it in `stop()` — it lives in
+  the performance-counter service, so an abandoned one outlives the widget.
+- **2026-09-01, W2-05:** PDH's first collection of a percentage counter
+  RAISES `PDH_INVALID_DATA` rather than returning zeros, which lands exactly
+  on the engine's "first sample is None" rule. But the two counter kinds do
+  not arrive together: memory in use is instantaneous and answers on the
+  first collection, so the first tick legitimately has real memory figures
+  and no utilisation. Returning `None` for the whole sample would have
+  thrown away half a reading.
+- **2026-09-01, W2-05:** an engine TYPE can be backed by several physical
+  engines — two Copy engines on this card, and **thirty-three 3D engines on
+  the basic render driver**. Instances must be summed across PROCESSES (each
+  is one process's share of one engine) but not across physical engines, or
+  a class of engine that is at most fully busy reports 3300%. The class
+  reads as its busiest member, and the adapter as its busiest class, which
+  is also Task Manager's headline definition.
+- **2026-09-01, W2-05:** `Win32_VideoController.AdapterRAM` is a signed
+  32-bit field. This machine's 24 GB card reports **-1048576** through it.
+  `HKLM\SOFTWARE\Microsoft\DirectX` carries a real 64-bit
+  `DedicatedVideoMemory`, plus the driver version, feature levels and the
+  shared limit — it is where Task Manager's own panel reads them. WMI is
+  consulted for the driver DATE alone, joined on the PCI vendor/device ids
+  parsed out of `PNPDeviceID` rather than on the adapter's name.
+- **2026-09-01, W2-05:** the DirectX key records a feature level only for an
+  adapter DirectX has actually INITIALISED. This machine's integrated Radeon
+  has never had a display attached, so its subkey carries the identity and
+  the memory sizes but no `MaxD3D11FeatureLevel` and no
+  `MaxD3D12FeatureLevel` at all. That is a fact about the machine, not a gap
+  in the reader — so it is `None` with a reason, and the panel says which.
+- **2026-09-01, W2-05:** WARP is excluded by its fixed PCI identity
+  (`0x1414`/`0x8C`), not by the string "Microsoft Basic Render Driver",
+  which is the English name only. Same trap as the loopback adapter.
+- **2026-09-01, W2-05 (found by rendering):** the integrated adapter read
+  "Utilisation 0%" beside "No engine is reporting work". Both cannot be
+  true. Engines that report zero are a MEASUREMENT — the GPU is idle; no
+  engines at all is the ABSENCE of one, and `utilisation` is `None` there.
+  The two now say different things.
+- **2026-09-01, W2-05 (the check the tests could not do):** idle numbers are
+  the easy half, and a counter stuck at a plausible 0.2% forever passes
+  every test in the suite. The reader was watched through a real OpenGL
+  workload: the discrete card moved 22% → 30% and its dedicated memory rose
+  2748 → 2895 MiB, then fell back. `scratchpad/gpu_load_check.py`.
+  (Its first version imported PyOpenGL inside `paintGL` — an ImportError in
+  a Qt virtual is not a traceback, it is a dead process at exit 127. The
+  `paintEvent` rule in CLAUDE.md covers every reimplemented virtual.)
+- **2026-09-01, W2-06:** `SYSTEM_PERFORMANCE_INFORMATION` is undocumented and
+  has grown across Windows versions, so the layout was verified at BOTH ends
+  rather than trusted — the head against `GetPerformanceInfo` (available,
+  committed and commit-limit pages all agree exactly) and the tail against
+  PDH (context switches 23,851/s vs 23,843/s; system calls 444,024/s vs
+  444,270/s; page faults 5,087/s vs 5,090/s). Agreement at both ends is what
+  makes the thirty undocumented cache-manager counters in the middle
+  believable. Both cross-checks are kept as tests, so a future Windows that
+  moves a field is caught rather than silently producing plausible numbers.
+- **2026-09-01, W2-06:** the call reports how many bytes it wrote, and a
+  reply SHORTER than the struct is refused rather than read. On a build with
+  a shorter struct the tail fields would be uninitialised buffer, and
+  uninitialised buffer formats as a perfectly ordinary number of context
+  switches.
+- **2026-09-01, W2-06 (found by rendering, the fifth of these):** the pool
+  allocation rows showed **"0 (0 / 0)" beside a paged pool of 1.2 GB**. A
+  machine holding 1.2 GB of paged pool has not made zero pool allocations —
+  the two readings contradict each other, and the contradiction is the proof
+  that the kernel is not maintaining the counter rather than reporting an
+  empty pool. Windows agrees: its own `\Memory\Pool Paged Allocs` reads 0
+  next to a `Pool Paged Bytes` of 1.34 GB. The row now says "not tracked by
+  this Windows build". Free system PTEs looked equally wrong at
+  4,288,176,072 and turned out to be REAL — PDH reports 4,288,175,957 — so
+  the two had to be told apart by checking, not by how they looked.

@@ -48,6 +48,15 @@ HIDDEN_IMPORTS = [
     "win32com.server", "win32com.server.util", "win32com.server.policy",
     "win32com.shell", "win32com.shell.shell", "win32com.shell.shellcon",
     "pythoncom", "pywintypes", "win32security",
+    # The Dashboard's GPU panel. Imported inside GpuSampler._open(), so
+    # static analysis never sees it, and the failure is the quiet kind
+    # this list exists for: the panel opens, logs "win32pdh is
+    # unavailable", and shows a GPU that is doing nothing at all.
+    "win32pdh",
+    # Process Explorer's System Information window, imported inside the
+    # toolbar handler so the pane does not drag the performance and GPU
+    # engines in at startup. Frozen without it, the button raises.
+    "modules.dashboard.system_information",
     # Composite children. A CompositeModule imports its children inside
     # __init__ so a host module's import does not drag four panes' worth of
     # Qt in at startup. main.py therefore names only the hosts, and these are

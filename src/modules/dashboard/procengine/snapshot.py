@@ -169,7 +169,21 @@ class SnapshotSource:
         path."""
         self._service_pids = set(pids)
 
-    def read(self) -> Snapshot:
+    def read(self, cold_budget: Optional[int] = None) -> Snapshot:
+        """One reading of the machine.
+
+        `cold_budget` caps how many processes may have their cold details
+        resolved on THIS call; the rest come back unresolved and are picked
+        up by later calls. `None`, the default, resolves everything, which
+        is what a pane wants when it can afford one slow first tick.
+
+        A cap is worth having because the cold sweep's cost turns on
+        privilege: unelevated, half the processes refuse at once and the
+        sweep is ~141 ms, but elevated nothing refuses and the same sweep
+        measures **2,252 ms** against 8.5 ms once warm. A live pane pays
+        that on the tick it is opened, which is the tick someone is
+        watching.
+        """
         now = time.monotonic()
         rows = system_processes()
         rates = self._rates.update(rows, now=now)
@@ -177,10 +191,11 @@ class SnapshotSource:
         live = {row.pid for row in rows}
         self._details.retain(live)
 
+        budget = None if cold_budget is None else [cold_budget]
         by_pid = {}
         readable = 0
         for row in rows:
-            details = self._details.get(row.pid, row.create_time)
+            details = self._details.get(row.pid, row.create_time, budget)
             if details.path is not None:
                 readable += 1
             by_pid[row.pid] = ProcessInfo(

@@ -16,8 +16,8 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QFormLayout, QGridLayout, QHBoxLayout, QLabel,
-                             QListWidget, QListWidgetItem, QStackedWidget,
-                             QVBoxLayout, QWidget)
+                             QListWidget, QListWidgetItem, QScrollArea,
+                             QStackedWidget, QVBoxLayout, QWidget)
 
 from core.semantic_colors import semantic
 
@@ -25,6 +25,7 @@ from .perf_graph import CoreGrid, PerfGraph
 from .procengine.columns import fmt_bytes
 from .procengine.cpuinfo import (core_loads, cpu_static, processor_times,
                                  uptime_seconds)
+from .procengine.gpuinfo import GpuSampler, adapter_facts
 from .procengine.ioinfo import (disk_counters, disk_rates,
                                 interface_counters, interface_rates)
 from .procengine.meminfo import memory_modules, memory_status
@@ -45,6 +46,12 @@ class PerformanceTab(QWidget):
         self._previous_disks = None
         self._previous_nics = None
         self._static = None
+        #: The PDH query, held open across ticks. Opened lazily on the
+        #: first GPU refresh so that building the tab costs nothing, and
+        #: closed by `stop()` -- an abandoned query leaks in the PDH
+        #: service, not in this process, so it outlives us.
+        self._gpu = None
+        self._gpu_facts = {}
         self._setup_ui()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
@@ -66,6 +73,7 @@ class PerformanceTab(QWidget):
         self._add_memory_panel()
         self._add_disk_panel()
         self._add_network_panel()
+        self._add_gpu_panel()
         self.chooser.setCurrentRow(0)
 
     def _add_cpu_panel(self) -> None:
@@ -151,43 +159,67 @@ class PerformanceTab(QWidget):
         self.panels.addWidget(panel)
         self.chooser.addItem(QListWidgetItem("Memory"))
 
+    def _stacked_panel(self, title_text: str):
+        """A scrolling panel of stacked device graphs.
+
+        Scrolling because how many devices there are is the machine's
+        business, not the layout's: this machine has SEVEN physical disks,
+        and unscrolled the seventh was drawn past the bottom of the window
+        with no way to reach it. The GPU panel has the same shape and the
+        same exposure on a machine with three adapters.
+
+        Returns `(area, page)` -- the layout new rows are added to, and the
+        widget holding the graphs, which is what has to grow rather than
+        squash so the scrollbar actually appears.
+        """
+        panel = QWidget(self)
+        column = QVBoxLayout(panel)
+        title = QLabel(title_text, panel)
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        column.addWidget(title)
+
+        scroller = QScrollArea(panel)
+        scroller.setWidgetResizable(True)
+        scroller.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroller.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        page = QWidget(scroller)
+        area = QVBoxLayout(page)
+        # No trailing stretch: the row builders append with `addWidget`, and
+        # anything appended after a stretch lands below it -- off the page.
+        scroller.setWidget(page)
+        column.addWidget(scroller, 1)
+
+        self.panels.addWidget(panel)
+        self.chooser.addItem(QListWidgetItem(title_text))
+        return area, page
+
     def _add_disk_panel(self) -> None:
-        """One graph for every physical disk, stacked.
+        """One graph for every physical disk, stacked and scrolling.
 
         Task Manager gives each disk its own entry in the chooser. Stacking
         them in one panel says the same thing in less clicking, and this
         machine has seven.
         """
-        panel = QWidget(self)
-        column = QVBoxLayout(panel)
-        title = QLabel("Disk", panel)
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        column.addWidget(title)
-
-        self.disk_area = QVBoxLayout()
-        column.addLayout(self.disk_area, 1)
-        column.addStretch(0)
+        self.disk_area, self._disk_page = self._stacked_panel("Disk")
         #: index -> (graph, caption). Built on the first reading, because
         #: how many disks there are is not known until then.
         self._disk_rows = {}
 
-        self.panels.addWidget(panel)
-        self.chooser.addItem(QListWidgetItem("Disk"))
-
     def _add_network_panel(self) -> None:
-        panel = QWidget(self)
-        column = QVBoxLayout(panel)
-        title = QLabel("Network", panel)
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        column.addWidget(title)
-
-        self.network_area = QVBoxLayout()
-        column.addLayout(self.network_area, 1)
-        column.addStretch(0)
+        self.network_area, self._network_page = self._stacked_panel("Network")
         self._network_rows = {}
 
-        self.panels.addWidget(panel)
-        self.chooser.addItem(QListWidgetItem("Network"))
+    def _add_gpu_panel(self) -> None:
+        """One block per adapter, stacked and scrolling like the disks.
+
+        Built on the first reading rather than here: how many adapters a
+        machine has, and which of them the graphics stack actually reports,
+        is not known until PDH has been asked.
+        """
+        self.gpu_area, self._gpu_page = self._stacked_panel("GPU")
+        #: luid -> the widgets for that adapter.
+        self._gpu_rows = {}
 
     # ---- lifecycle ------------------------------------------------------
 
@@ -201,6 +233,9 @@ class PerformanceTab(QWidget):
 
     def stop(self) -> None:
         self._timer.stop()
+        if self._gpu is not None:
+            self._gpu.close()
+            self._gpu = None
         self.cancel_all()
 
     def cancel_all(self) -> None:
@@ -246,6 +281,12 @@ class PerformanceTab(QWidget):
             self._memory_facts["Form factor"].setText(
                 ", ".join(sorted(forms)) if forms else "—")
 
+        # The adapter facts, keyed by LUID so the live sample can find
+        # them. One registry sweep plus one WMI query for the driver
+        # dates -- about 140 ms, which is why it happens here and never
+        # on a tick.
+        self._gpu_facts = {facts.luid: facts for facts in adapter_facts()}
+
     def _set_fact(self, name: str, text: str) -> None:
         self._cpu_facts[name].setText(text)
 
@@ -257,6 +298,7 @@ class PerformanceTab(QWidget):
             self._refresh_memory()
             self._refresh_disks()
             self._refresh_network()
+            self._refresh_gpu()
         except OSError as error:
             # A failed reading must not kill the timer, or the tab goes
             # permanently dead after one hiccup.
@@ -330,6 +372,88 @@ class PerformanceTab(QWidget):
             self.network_area.addWidget(graph)
             row = (graph, caption)
             self._network_rows[name] = row
+        return row
+
+    def _refresh_gpu(self) -> None:
+        """Utilisation and memory per adapter.
+
+        Unlike the disks and interfaces, no previous sample is kept here:
+        PDH holds the interval itself inside the open query, which is what
+        makes a reading of 483 counters cost a third of a millisecond.
+        """
+        if self._gpu is None:
+            self._gpu = GpuSampler()
+        usage = self._gpu.sample()
+        if not usage:
+            return
+        for entry in usage:
+            facts = self._gpu_facts.get(entry.luid)
+            # WARP is always present and never does any work. Task Manager
+            # does not list it, and a permanently flat graph labelled
+            # "Microsoft Basic Render Driver" only invites the question.
+            if facts is not None and facts.software:
+                continue
+            self._show_adapter(entry, facts)
+
+    def _show_adapter(self, entry, facts) -> None:
+        row = self._gpu_row(entry.luid, facts)
+        row["graph"].push(entry.utilisation)
+        row["utilisation"].setText(
+            f"Utilisation {_percent(entry.utilisation)}")
+
+        # The busiest few engines, so the caption says WHAT the card is
+        # doing, not only how much. An engine that has been idle all
+        # session is noise; Task Manager gives each its own graph and has
+        # the room, this has a line.
+        #
+        # The two quiet cases are NOT the same sentence, and rendering the
+        # panel is what showed it: the integrated adapter read
+        # "Utilisation 0%" beside "No engine is reporting work", which
+        # cannot both be true. Engines that report zero are a measurement
+        # -- the GPU is idle. No engines at all is the absence of one.
+        busy = [load for load in entry.engines if load.percent >= 0.5]
+        if busy:
+            text = "   ·   ".join(f"{load.engtype} {load.percent:.0f}%"
+                                  for load in busy[:4])
+        elif entry.engines:
+            text = f"All {len(entry.engines)} engines idle"
+        else:
+            text = "No engine is reporting work"
+        row["engines"].setText(text)
+
+        row["memory"].setText(
+            f"Dedicated {_of_limit(entry.dedicated_bytes, facts and facts.dedicated_limit)}"
+            f"   ·   shared "
+            f"{_of_limit(entry.shared_bytes, facts and facts.shared_limit)}")
+
+    def _gpu_row(self, luid: int, facts):
+        row = self._gpu_rows.get(luid)
+        if row is not None:
+            return row
+
+        title = QLabel(_adapter_name(luid, facts), self)
+        title.setStyleSheet("font-weight: 600;")
+        # Violet: the CPU and network graphs are already the info blue,
+        # memory the success teal and the disks the warning amber, and this
+        # is the only hue left that clears 4.5:1 in both themes. The
+        # palette is doing duty as a chart palette here, which is why the
+        # colour is asked for by a meaning that is not the graph's.
+        graph = PerfGraph(semantic("match"), 100.0, self)
+        graph.setMinimumHeight(72)
+        utilisation = QLabel("", self)
+        engines = QLabel("", self)
+        engines.setStyleSheet("font-size: 11px;")
+        memory = QLabel("", self)
+        memory.setStyleSheet("font-size: 11px;")
+        detail = QLabel(_adapter_detail(facts), self)
+        detail.setStyleSheet("font-size: 11px;")
+        detail.setWordWrap(True)
+
+        for widget in (title, graph, utilisation, engines, memory, detail):
+            self.gpu_area.addWidget(widget)
+        row = {"graph": graph, "utilisation": utilisation,
+               "engines": engines, "memory": memory}
+        self._gpu_rows[luid] = row
         return row
 
     def _refresh_cpu(self) -> None:
@@ -441,6 +565,53 @@ def _rate(value: Optional[float]) -> str:
     if value is None:
         return "—"
     return f"{fmt_bytes(value)}/s"
+
+
+def _adapter_name(luid: int, facts) -> str:
+    """The adapter's name, or its LUID when the registry did not name it.
+
+    A live adapter with no registry row is a real state -- the DirectX key
+    is written when DirectX first initialises an adapter, so one that has
+    only ever been touched by another API is missing from it. Showing the
+    LUID says "this exists and we cannot name it", which is the truth;
+    dropping the graph would hide a working GPU.
+    """
+    if facts is not None and facts.name:
+        return facts.name
+    return f"Adapter {luid:#x}"
+
+
+def _adapter_detail(facts) -> str:
+    """Driver version, driver date and DirectX version, on one line.
+
+    Each part is skipped when it is unknown rather than printed with a
+    dash: three dashes in a row read as a broken panel, where the absence
+    of the phrase reads as what it is.
+    """
+    if facts is None:
+        return "The graphics registry has no entry for this adapter"
+    parts = []
+    if facts.driver_version:
+        parts.append(f"Driver {facts.driver_version}")
+    if facts.driver_date:
+        parts.append(facts.driver_date)
+    if facts.directx_version:
+        parts.append(f"DirectX {facts.directx_version}")
+    else:
+        # The standing rule: say why, do not just leave a gap. This
+        # machine's integrated adapter genuinely records no feature level.
+        parts.append("DirectX version unavailable — "
+                     + facts.unavailable.get("directx_version", "not recorded"))
+    return "   ·   ".join(parts)
+
+
+def _of_limit(used: Optional[int], limit: Optional[int]) -> str:
+    """"2.7 GB of 23.9 GB", or just the figure when the limit is unknown."""
+    if used is None:
+        return "—"
+    if not limit:
+        return fmt_bytes(used)
+    return f"{fmt_bytes(used)} of {fmt_bytes(limit)}"
 
 
 def _link(speed_bps: Optional[int]) -> str:
