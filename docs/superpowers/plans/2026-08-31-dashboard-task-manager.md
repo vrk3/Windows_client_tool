@@ -520,3 +520,56 @@ Recorded as they are learned, the way the Log Viewer plan did.
   scroll arrows at both ends -- half the window reachable only by
   scrolling a strip of text nobody thinks to scroll. Adding tabs to a
   dialog means re-checking the size it was given for fewer.
+- **2026-09-01, W3-03 (a tab that had never once worked):**
+  `NtQuerySystemInformation` answers its FIRST call with
+  `STATUS_INFO_LENGTH_MISMATCH` by design. With no `restype` declared,
+  ctypes returns a SIGNED int, so the status reads `-1073741820`, never
+  equals `0xC0000004`, and the buffer-growth retry can never fire. The
+  Handles tab therefore showed **zero handles for every process, always** --
+  the kernel said this process holds 185 and the pane said 0. Nothing
+  about the UI looked broken. Declare `restype` on every ntdll call, and
+  be suspicious of any status compared against a `0x8...`/`0xC...`
+  constant.
+- **2026-09-01, W3-03:** `SystemHandleInformation` (class 16) stores
+  `UniqueProcessId` in a **USHORT**. Windows pids are DWORDs and this
+  machine is already at 35,612; past 65,535 that field wraps and hands one
+  process another's handles. Class 64 is full width for the same 8 ms.
+- **2026-09-01, W3-03:** the DLL pane had shown Size, Company and Version
+  columns since it was written, all of them hardcoded empty or zero. A
+  column of zeros reads as a measurement. If a column cannot be filled,
+  it should not be there.
+- **2026-09-01, W3-04 (the measurement that a sample cannot make):**
+  extrapolating the handle-naming sweep from twelve readable processes
+  said 0.5 s. The real sweep took **20 s**, because the cost lives
+  entirely in the processes that BLOCK -- and a sample of readable ones
+  contains none of them by construction. Corollary: **a per-item deadline
+  is not a bound on a loop over items.** Only a total is.
+- **2026-09-01, W3-04:** the hang risk and the cost turned out to be the
+  same thing. `NtQueryObject(ObjectNameInformation)` never returns on a
+  synchronous pipe whose peer is silent, and `GetFileType` identifies a
+  pipe without touching the other end. Skipping them took the sweep from
+  **5.5 s to 1.2 s** and cut blocking processes from 37 to 2.
+- **2026-09-01, W3-04:** counting "we were refused" together with "the
+  query blocked" made the number useless -- 17 "refusals" was really 16
+  processes we cannot open and 1 that blocked. One is a permission, the
+  other is the driver limit; a user can act on the first.
+- **2026-09-01, W3-04 (a leak I wrote, and how it hid):** closing the
+  target's process handle only on the success path leaked one handle per
+  timed-out process. It is self-amplifying -- the leak accumulates in the
+  process doing the searching, which then takes longer to search and times
+  out more often -- so it presented as a search failing to find a file
+  THIS process had open, and only after a few hundred earlier searches.
+  Whoever spawns the worker should not own the handle the worker uses.
+- **2026-09-01, W3-04:** iterate by handle count, not pid. In pid order a
+  truncated sweep always drops the HIGHEST pids, i.e. the most recently
+  started processes -- exactly what someone searching for their own
+  just-locked file is looking for.
+- **2026-09-01, W3-04 (a test worth deleting):** the find DIALOG had a
+  test asserting it could find a file this process held open. It passed
+  alone and failed after the engine suite, because under pytest this
+  process holds hundreds of handles and earlier tests leave blocked
+  naming threads behind, so it is sometimes among the handful whose
+  naming blocks -- and a process that cannot name its own handles cannot
+  find its own file. The engine test covers the same behaviour
+  deterministically. Duplicating an end-to-end assertion at a second
+  layer bought flakiness and no coverage.
