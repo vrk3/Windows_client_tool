@@ -1,136 +1,128 @@
-# src/modules/process_explorer/lower_pane/handle_view.py
+"""The lower pane's Handles tab.
+
+Reads `procengine/handles.py`, which is where the enumeration and naming
+live and where the reasons they can fail are documented. This file is the
+table and the banner that says what could not be read.
+
+The banner matters more here than anywhere else in the pane. Without a
+kernel driver, and unelevated, a great many handles in other users'
+processes cannot be duplicated and so cannot be named -- and a table full
+of blank Name cells reads as "these objects have no names", which is a
+different and wrong statement. The count of what could not be read is
+always shown.
+"""
 from __future__ import annotations
-import ctypes
-import ctypes.wintypes
+
 import logging
 import threading
 from typing import List, Optional
 
-from PyQt6.QtCore import pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
-                              QTableWidgetItem, QHeaderView, QLabel)
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(__name__)
 
-_HEADERS = ["Type", "Name", "Handle Value", "Object Address", "Access"]
-
-_ntdll = ctypes.windll.ntdll
-_kernel32 = ctypes.windll.kernel32
-
-SystemHandleInformation = 16
-STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
-
-
-class _SYSTEM_HANDLE_ENTRY(ctypes.Structure):
-    _fields_ = [
-        ("UniqueProcessId", ctypes.wintypes.USHORT),
-        ("CreatorBackTraceIndex", ctypes.wintypes.USHORT),
-        ("ObjectTypeIndex", ctypes.wintypes.BYTE),
-        ("HandleAttributes", ctypes.wintypes.BYTE),
-        ("HandleValue", ctypes.wintypes.USHORT),
-        ("Object", ctypes.c_void_p),
-        ("GrantedAccess", ctypes.wintypes.ULONG),
-    ]
-
-
-class _SYSTEM_HANDLE_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("NumberOfHandles", ctypes.wintypes.ULONG),
-        ("Handles", _SYSTEM_HANDLE_ENTRY * 1),
-    ]
-
-
-_MAX_HANDLE_BUFFER = 64 * 1024 * 1024  # 64 MB cap to prevent runaway growth
-
-
-def _query_handles(pid: int) -> List[dict]:
-    """Query all handles for pid via NtQuerySystemInformation."""
-    size = 0x10000
-    while True:
-        buf = (ctypes.c_byte * size)()
-        ret_len = ctypes.wintypes.ULONG()
-        status = _ntdll.NtQuerySystemInformation(
-            SystemHandleInformation, buf, size, ctypes.byref(ret_len)
-        )
-        if status == STATUS_INFO_LENGTH_MISMATCH:
-            size *= 2
-            if size > _MAX_HANDLE_BUFFER:
-                return []
-            continue
-        if status != 0:
-            return []
-        break
-
-    info = ctypes.cast(buf, ctypes.POINTER(_SYSTEM_HANDLE_INFORMATION)).contents
-    count = info.NumberOfHandles
-    entry_size = ctypes.sizeof(_SYSTEM_HANDLE_ENTRY)
-    base = ctypes.addressof(info.Handles)
-
-    results = []
-    for i in range(count):
-        entry = _SYSTEM_HANDLE_ENTRY.from_address(base + i * entry_size)
-        if entry.UniqueProcessId != pid:
-            continue
-        results.append({
-            "type_index": entry.ObjectTypeIndex,
-            "handle": entry.HandleValue,
-            "object": entry.Object,
-            "access": entry.GrantedAccess,
-        })
-    return results
+_HEADERS = ["Type", "Name", "Handle", "Object address", "Access"]
 
 
 class HandleView(QWidget):
-    _handles_ready = pyqtSignal(object)  # emits List[dict] from background thread
+    _ready = pyqtSignal(int, object, object)   # pid, rows, note
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._handles_ready.connect(self._populate)
+        self._ready.connect(self._populate)
+        self._pid: int = -1
+        self._thread: Optional[threading.Thread] = None
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._label = QLabel("Select a process to view handles")
+        self._label.setWordWrap(True)
         layout.addWidget(self._label)
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        # Name takes the slack. It is the column worth reading, and the
+        # default widths left a third of the table empty while truncating
+        # "\REGISTRY\MACHINE\SOFTWARE\Microsoft\..." to nothing useful.
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows)
         self._table.hide()
         layout.addWidget(self._table)
-        self._thread: Optional[threading.Thread] = None
 
     def cancel(self) -> None:
+        # The pid is the guard: a result for a pid we are no longer showing
+        # is dropped rather than painted over the new selection.
+        self._pid = -1
         self._label.setText("Select a process to view handles")
         self._table.hide()
         self._thread = None
 
-    def load_pid(self, pid: int):
+    def load_pid(self, pid: int) -> None:
         self.cancel()
-        self._label.setText(f"Loading handles for PID {pid}…")
-        self._table.hide()
-        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._pid = pid
+        self._label.setText(f"Reading handles for PID {pid}…")
+        self._thread = threading.Thread(target=self._load, args=(pid,),
+                                        daemon=True)
         self._thread.start()
 
-    def _load(self, pid: int):
-        try:
-            handles = _query_handles(pid)
-        except Exception as e:
-            logger.warning("Handle query failed for %d: %s", pid, e)
-            handles = []
-        # Marshal back to main thread via signal (thread-safe)
-        self._handles_ready.emit(handles)
+    def _load(self, pid: int) -> None:
+        from modules.dashboard.procengine.handles import (
+            HandleNamer, system_handles,
+        )
 
-    @pyqtSlot(object)
-    def _populate(self, handles: List[dict]):
-        self._table.setRowCount(len(handles))
-        for r, h in enumerate(handles):
-            for c, val in enumerate([
-                str(h["type_index"]),
-                "—",                        # name resolution omitted for safety
-                hex(h["handle"]),
-                hex(h["object"] or 0),
-                hex(h["access"]),
-            ]):
-                self._table.setItem(r, c, QTableWidgetItem(val))
-        self._label.setText(f"{len(handles)} handles")
+        try:
+            entries = system_handles(pid)
+            rows, note = HandleNamer().describe(entries)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Reading handles for pid %d failed: %s", pid, error)
+            rows, note = [], f"The handle table could not be read: {error}"
+        self._ready.emit(pid, rows, note)
+
+    @pyqtSlot(int, object, object)
+    def _populate(self, pid: int, rows: list, note) -> None:
+        if pid != self._pid:
+            return
+        from modules.dashboard.procengine.handles import access_flags
+
+        self._table.setRowCount(len(rows))
+        for index, row in enumerate(rows):
+            entry = row.entry
+            name = row.name if row.name else f"— {row.unavailable or ''}".strip()
+            cells = [
+                row.type_name or f"type {entry.type_index}",
+                name,
+                f"0x{entry.value:X}",
+                f"0x{entry.object_address:X}" if entry.object_address else "—",
+                access_flags(entry.granted_access, row.type_name),
+            ]
+            for column, text in enumerate(cells):
+                item = QTableWidgetItem(text)
+                if column == 1 and not row.name:
+                    # An unresolved name is greyed, so a glance separates
+                    # "this object is called X" from "we could not ask".
+                    item.setForeground(Qt.GlobalColor.gray)
+                    item.setToolTip(row.unavailable or "")
+                self._table.setItem(index, column, item)
+
+        self._label.setText(self._summary(rows, note))
         self._table.show()
+
+    @staticmethod
+    def _summary(rows: List, note) -> str:
+        if not rows:
+            return note or "This process has no open handles."
+        named = sum(1 for row in rows if row.name)
+        unnamed = len(rows) - named
+        text = f"{len(rows):,} handles · {named:,} named"
+        if unnamed:
+            # Said explicitly rather than left to the blank cells, which
+            # would read as "these objects have no names".
+            text += f" · {unnamed:,} could not be named"
+        if note:
+            text += f"\n{note}"
+        return text

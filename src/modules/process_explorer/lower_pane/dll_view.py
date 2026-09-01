@@ -1,94 +1,115 @@
-# src/modules/process_explorer/lower_pane/dll_view.py
+"""The lower pane's DLLs tab.
+
+Reads `procengine/modinfo.py`. This file is the table and the line that
+says what could not be read -- which matters because the previous version
+showed an empty table for a process it could not open, and an empty DLL
+list is not a possible state for a running process. It reads as an answer
+and is not one.
+"""
 from __future__ import annotations
-import ctypes
-import ctypes.wintypes
+
 import logging
-import os
 import threading
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
-                              QTableWidgetItem, QHeaderView)
+from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
 logger = logging.getLogger(__name__)
 
-_HEADERS = ["Name", "Full Path", "Base Address", "Size", "Company", "Version"]
-
-_psapi = ctypes.windll.psapi
-_kernel32 = ctypes.windll.kernel32
-PROCESS_QUERY_INFORMATION = 0x0400
-PROCESS_VM_READ = 0x0010
+_HEADERS = ["Name", "Description", "Company", "Version", "Base address",
+            "Size", "Full path"]
 
 
-def _get_dll_list(pid: int) -> List[Tuple[str, str, int, int]]:
-    """Returns list of (name, path, base_addr, size) for each module in pid."""
-    results = []
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid)
-    if not handle:
-        return results
-    try:
-        module_array = (ctypes.wintypes.HMODULE * 1024)()
-        needed = ctypes.wintypes.DWORD()
-        if not _psapi.EnumProcessModulesEx(
-            handle, module_array, ctypes.sizeof(module_array),
-            ctypes.byref(needed), 0x03  # LIST_MODULES_ALL
-        ):
-            return results
-        count = needed.value // ctypes.sizeof(ctypes.wintypes.HMODULE)
-        path_buf = ctypes.create_unicode_buffer(1024)
-        for i in range(count):
-            mod = module_array[i]
-            _psapi.GetModuleFileNameExW(handle, mod, path_buf, 1024)
-            path = path_buf.value
-            name = os.path.basename(path)
-            results.append((name, path, mod, 0))
-    finally:
-        _kernel32.CloseHandle(handle)
-    return results
+def _bytes(size: int) -> str:
+    if not size:
+        return "—"
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if abs(value) < 1024.0 or unit == "GB":
+            return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} GB"
 
 
 class DllView(QWidget):
-    _data_ready = pyqtSignal(int, object)  # (pid, dlls)
+    _ready = pyqtSignal(int, object, object)   # pid, modules, reason
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._data_ready.connect(self._populate)
+        self._ready.connect(self._populate)
         self._pid: int = -1
         self._thread: Optional[threading.Thread] = None
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        self._label = QLabel("Select a process to view its modules")
+        self._label.setWordWrap(True)
+        layout.addWidget(self._label)
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        # The full path takes the slack -- it is the widest and the one a
+        # truncation makes useless.
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table)
 
     def cancel(self) -> None:
-        """Cancel any in-progress background thread."""
-        self._pid = -1  # signals will be dropped
+        self._pid = -1
 
-    def load_pid(self, pid: int):
+    def load_pid(self, pid: int) -> None:
         self.cancel()
         self._pid = pid
         self._table.setRowCount(0)
-        self._thread = threading.Thread(target=self._load, args=(pid,), daemon=True)
+        self._label.setText(f"Reading modules for PID {pid}…")
+        self._thread = threading.Thread(target=self._load, args=(pid,),
+                                        daemon=True)
         self._thread.start()
 
-    def _load(self, pid: int):
-        try:
-            dlls = _get_dll_list(pid)
-        except Exception as e:
-            logger.warning("DLL enum failed for pid %d: %s", pid, e)
-            dlls = []
-        self._data_ready.emit(pid, dlls)
+    def _load(self, pid: int) -> None:
+        from modules.dashboard.procengine.modinfo import loaded_modules
 
-    @pyqtSlot(int, object)
-    def _populate(self, pid: int, dlls: list):
+        try:
+            modules, reason = loaded_modules(pid)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Reading modules for pid %d failed: %s", pid, error)
+            modules, reason = None, str(error)
+        self._ready.emit(pid, modules, reason)
+
+    @pyqtSlot(int, object, object)
+    def _populate(self, pid: int, modules, reason) -> None:
         if pid != self._pid:
-            return  # stale result
-        self._table.setRowCount(len(dlls))
-        for r, (name, path, base, size) in enumerate(dlls):
-            for c, val in enumerate([name, path, hex(base), str(size), "", ""]):
-                self._table.setItem(r, c, QTableWidgetItem(val))
+            return
+        if modules is None:
+            # NOT an empty table: a running process has loaded libraries by
+            # definition, so "none" would be a claim we cannot make.
+            self._table.setRowCount(0)
+            # Win32 reasons already end in a full stop ("Access is
+            # denied."), so appending one gives "denied.. Running".
+            why = (reason or "access denied").rstrip(".")
+            self._label.setText(
+                f"The modules of PID {pid} could not be read — {why}. "
+                f"Running elevated resolves most of these.")
+            return
+
+        self._table.setRowCount(len(modules))
+        for index, module in enumerate(modules):
+            cells = [
+                module.name,
+                module.description or "—",
+                module.company or "—",
+                module.version or "—",
+                f"0x{module.base:X}",
+                _bytes(module.size),
+                module.path,
+            ]
+            for column, text in enumerate(cells):
+                self._table.setItem(index, column, QTableWidgetItem(text))
+        signed = sum(1 for module in modules if module.company)
+        self._label.setText(
+            f"{len(modules):,} modules · {signed:,} name a company")
