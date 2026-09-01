@@ -90,3 +90,6 @@ tools/_probe_*
 # security_catalog_check.ps1 / security_roundtrip_llmnr.ps1 write these
 tools/_check_elevated.*
 tools/_roundtrip_elevated.*
+
+# Measurement and render harnesses, kept out of the tree like dist/
+scratchpad/
