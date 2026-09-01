@@ -19,6 +19,7 @@ seven lower panes all read it) and the `{pid: node}` snapshot contract.
 """
 from __future__ import annotations
 import logging
+import time
 from typing import Dict, List, Optional, Set, Tuple
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
@@ -35,9 +36,14 @@ logger = logging.getLogger(__name__)
 #: processes" group came out empty.
 SERVICES_SESSION = 0
 
+#: How long a process stays flagged as just-started or just-exited.
+#: Process Explorer's own difference highlight is one second.
+HIGHLIGHT_SECONDS = 1.0
+
 
 def node_from_info(info, service_names: Set[str],
-                   gpu: Optional[Dict[int, float]] = None) -> ProcessNode:
+                   gpu: Optional[Dict[int, float]] = None,
+                   kind=None) -> ProcessNode:
     """One engine `ProcessInfo` as the `ProcessNode` the pane speaks.
 
     The engine reports `None` for anything it could not read, which is the
@@ -68,6 +74,19 @@ def node_from_info(info, service_names: Set[str],
         is_service=info.is_service or (raw.name or "").lower() in service_names,
         is_suspended=_suspended(raw),
         integrity_level=details.integrity or "Medium",
+        is_own=info.is_own_user,
+        # `is_immersive` and `is_dotnet` are `Optional[bool]` in the engine
+        # -- None where we were refused. ProcessNode has no None, and the
+        # colour scheme reads them as plain booleans, so a refusal must
+        # become False here. That is the honest direction: an UNCOLOURED
+        # row claims nothing, where colouring one on a reading we never got
+        # would be a lie told in colour.
+        is_immersive=bool(kind.immersive) if kind is not None else False,
+        is_dotnet=bool(kind.dotnet) if kind is not None else False,
+        is_packed=bool(kind.packed.looks_packed)
+        if kind is not None and kind.packed is not None else False,
+        packed_entropy=kind.packed.entropy
+        if kind is not None and kind.packed is not None else None,
     )
 
 
@@ -93,7 +112,8 @@ COLD_BUDGET_PER_TICK = 60
 def build_snapshot(service_names: Set[str],
                    source=None,
                    gpu: Optional[Dict[int, float]] = None,
-                   cold_budget: Optional[int] = COLD_BUDGET_PER_TICK
+                   cold_budget: Optional[int] = COLD_BUDGET_PER_TICK,
+                   kinds=None
                    ) -> Dict[int, ProcessNode]:
     """Every process as a `{pid: ProcessNode}` map, children linked.
 
@@ -105,15 +125,33 @@ def build_snapshot(service_names: Set[str],
     """
     from modules.dashboard.procengine.snapshot import SnapshotSource
 
+    from modules.dashboard.procengine.classify import service_pids
+
     if source is None:
         source = SnapshotSource()
+    # Re-asked every tick: services start and stop, and 1.3 ms is far less
+    # than a stale answer costs. Without this the "hosts a service"
+    # category matched 0 of this machine's 114 service-hosting processes,
+    # because it was comparing process names against SERVICE names.
+    hosting = service_pids()
+    if hosting is not None:
+        source.set_service_pids(hosting)
     snapshot = source.read(cold_budget=cold_budget)
+
+    # The category facts share the cold budget's discipline but keep their
+    # own counter: the module scan is 1.69 ms a process, so an unbounded
+    # first sweep of 271 of them is most of half a second on its own.
+    kind_budget = None if cold_budget is None else [cold_budget]
 
     result: Dict[int, ProcessNode] = {}
     for pid, info in snapshot.by_pid.items():
         if pid == 0:
             continue
-        result[pid] = node_from_info(info, service_names, gpu)
+        kind = None
+        if kinds is not None:
+            kind = kinds.get(pid, info.raw.create_time,
+                             info.details.path, kind_budget)
+        result[pid] = node_from_info(info, service_names, gpu, kind)
 
     # Parent -> children, over the pids that are actually present. The
     # engine's own tree has already broken any ppid cycle (pid reuse makes
@@ -150,7 +188,15 @@ def diff_snapshots(
             old[p].gpu_percent != new[p].gpu_percent or
             old[p].disk_read_bps != new[p].disk_read_bps or
             old[p].disk_write_bps != new[p].disk_write_bps or
-            old[p].status != new[p].status)
+            old[p].status != new[p].status or
+            # The highlight and the late-arriving cold details change a
+            # row without any number moving. Without these, a green row
+            # never fades, a row that just died never reddens, and a path
+            # resolved on tick four never reaches the view at all.
+            old[p].is_new != new[p].is_new or
+            old[p].is_deleted != new[p].is_deleted or
+            old[p].exe != new[p].exe or
+            old[p].user != new[p].user)
     ]
     return added, removed, changed
 
@@ -162,9 +208,16 @@ class ProcessCollector(QObject):
     processes_updated = pyqtSignal(list)     # emits List[int] changed pids
     snapshot_ready    = pyqtSignal(dict)     # emits full {pid: ProcessNode} on first load
 
-    def __init__(self, interval_ms: int = 1000, parent=None):
+    def __init__(self, interval_ms: int = 1000, parent=None,
+                 want_packed: bool = False):
         super().__init__(parent)
         self._interval_ms = interval_ms
+        #: Whether to run the packed-image heuristic. Off by default: at
+        #: 4.11 ms a process it costs more than every other category fact
+        #: put together, for the only answer here that can be wrong about
+        #: a healthy program. Reachable rather than hardcoded, so the
+        #: colour is not the dead code the old GPU tint turned out to be.
+        self._want_packed = want_packed
         self._snapshot: Dict[int, ProcessNode] = {}
         self._service_names: Set[str] = set()
         self._timer = QTimer(self)
@@ -181,6 +234,13 @@ class ProcessCollector(QObject):
         #: not be holding.
         self._source = None
         self._gpu = None
+        self._kinds = None
+        #: pid -> when we first saw it, for the green highlight.
+        self._first_seen: Dict[int, float] = {}
+        #: pid -> (node, when it vanished), for the red one. A process that
+        #: has exited is not in any snapshot any more, so the row has to be
+        #: held here or there is nothing left to colour.
+        self._departed: Dict[int, Tuple[ProcessNode, float]] = {}
 
     def set_thread_pool(self, pool):
         self._thread_pool = pool
@@ -227,13 +287,18 @@ class ProcessCollector(QObject):
             if self._gpu is None:
                 from modules.dashboard.procengine.gpuinfo import GpuSampler
                 self._gpu = GpuSampler()
+            if self._kinds is None:
+                from modules.dashboard.procengine.classify import \
+                    ClassifyCache
+                self._kinds = ClassifyCache(want_packed=self._want_packed)
             # Collect once, then read the per-pid slice of that same
             # collection: sampling twice would halve each interval and
             # report GPU figures for a window that does not line up with
             # the CPU and disk rates on the same row.
             self._gpu.sample()
             gpu = self._gpu.process_usage()
-            return build_snapshot(service_names, source=self._source, gpu=gpu)
+            return build_snapshot(service_names, source=self._source,
+                                  gpu=gpu, kinds=self._kinds)
 
         def _on_error(e: str) -> None:
             logger.error("ProcessCollector error: %s", e)
@@ -247,10 +312,17 @@ class ProcessCollector(QObject):
     def _on_snapshot(self, new_snapshot: Dict[int, ProcessNode]):
         self._busy = False
         if self._first:
+            # Nothing on the FIRST snapshot is new: 270 processes were all
+            # running before this pane opened, and flashing every one of
+            # them green says the machine just booted.
+            now = time.monotonic()
+            self._first_seen = {pid: 0.0 for pid in new_snapshot}
             self._snapshot = new_snapshot
             self._first = False
             self.snapshot_ready.emit(new_snapshot)
             return
+
+        new_snapshot = self._mark_transient(new_snapshot)
         added, removed, changed = diff_snapshots(self._snapshot, new_snapshot)
         self._snapshot = new_snapshot
         for pid in added:
@@ -261,6 +333,48 @@ class ProcessCollector(QObject):
             self.process_removed.emit(pid)
         if changed:
             self.processes_updated.emit(changed)
+
+    def _mark_transient(self, snapshot: Dict[int, ProcessNode]
+                        ) -> Dict[int, ProcessNode]:
+        """Flag what just started, and hold what just exited.
+
+        Process Explorer flashes a new process green and a dead one red for
+        a moment. The green half is a timestamp. The red half is harder,
+        and it is why this returns a NEW mapping: an exited process is in
+        no snapshot any more, so the only way to colour its row is to keep
+        the row -- it is re-inserted here, marked, and allowed to fall out
+        one tick after the highlight expires.
+        """
+        now = time.monotonic()
+        window = HIGHLIGHT_SECONDS
+
+        for pid in snapshot:
+            self._first_seen.setdefault(pid, now)
+        # A pid that came back is a NEW process, not the old one returning:
+        # this drops the departed row so its successor gets its own life.
+        for pid in list(self._departed):
+            if pid in snapshot:
+                del self._departed[pid]
+        for pid, node in self._snapshot.items():
+            if pid not in snapshot and pid not in self._departed:
+                self._departed[pid] = (node, now)
+
+        merged = dict(snapshot)
+        for pid, (node, went) in list(self._departed.items()):
+            if now - went > window:
+                del self._departed[pid]
+                continue
+            node.is_deleted = True
+            node.is_new = False
+            merged[pid] = node
+
+        for pid, node in snapshot.items():
+            node.is_new = (now - self._first_seen.get(pid, now)) <= window
+
+        live = set(snapshot)
+        self._first_seen = {pid: seen for pid, seen in self._first_seen.items()
+                            if pid in live}
+        return merged
 
     def get_snapshot(self) -> Dict[int, ProcessNode]:
         return self._snapshot
