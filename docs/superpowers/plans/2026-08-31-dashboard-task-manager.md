@@ -172,9 +172,9 @@ and the wall time between them.
 
 ## Wave 3 -- Process Explorer depth
 
-- [ ] W3-01 Process tree colour coding (new, deleted, own, services,
+- [x] W3-01 Process tree colour coding (new, deleted, own, services,
       suspended, immersive, .NET, packed) -- extends `color_scheme.py`.
-- [ ] W3-02 Properties dialog, 11 tabs: Image, Performance, Performance Graph,
+- [x] W3-02 Properties dialog, 11 tabs: Image, Performance, Performance Graph,
       Disk and Network, GPU Graph, Threads, TCP/IP, Security, Environment,
       Job, Strings.
 - [ ] W3-03 Lower pane: DLLs and Handles, with the driver limits stated.

@@ -257,6 +257,17 @@ def summarise_processes(readings: Dict[str, float]) -> Dict[int, float]:
     return out
 
 
+def _summarise_by_pid(readings: Dict[str, float]) -> Dict[int, int]:
+    """A `GPU Process Memory` counter's instances, totalled per pid."""
+    out: Dict[int, int] = {}
+    for name, value in readings.items():
+        parsed = parse_memory_instance(name)
+        if parsed is None or parsed.pid is None:
+            continue
+        out[parsed.pid] = out.get(parsed.pid, 0) + int(value)
+    return out
+
+
 def _summarise_memory(readings: Dict[str, float]) -> Dict[int, int]:
     """Per adapter, the total bytes reported by a memory counter set."""
     out: Dict[int, int] = {}
@@ -273,6 +284,8 @@ def _summarise_memory(readings: Dict[str, float]) -> Dict[int, int]:
 _ENGINE_PATH = r"\GPU Engine(*)\Utilization Percentage"
 _DEDICATED_PATH = r"\GPU Adapter Memory(*)\Dedicated Usage"
 _SHARED_PATH = r"\GPU Adapter Memory(*)\Shared Usage"
+_PROC_DEDICATED_PATH = r"\GPU Process Memory(*)\Dedicated Usage"
+_PROC_SHARED_PATH = r"\GPU Process Memory(*)\Shared Usage"
 
 
 class GpuSampler:
@@ -306,7 +319,9 @@ class GpuSampler:
             self._query = win32pdh.OpenQuery()
             for name, path in (("engine", _ENGINE_PATH),
                                ("dedicated", _DEDICATED_PATH),
-                               ("shared", _SHARED_PATH)):
+                               ("shared", _SHARED_PATH),
+                               ("proc_dedicated", _PROC_DEDICATED_PATH),
+                               ("proc_shared", _PROC_SHARED_PATH)):
                 # AddEnglishCounter, not AddCounter: the counter set is
                 # named "GPU Engine" only on an English install.
                 self._counters[name] = win32pdh.AddEnglishCounter(
@@ -369,6 +384,21 @@ class GpuSampler:
                               shared_bytes=shared.get(luid))
                  for luid in sorted(luids)]
         return usage
+
+    def process_memory(self) -> Dict[int, Tuple[int, int]]:
+        """Per pid, `(dedicated bytes, shared bytes)` on the GPU.
+
+        Summed across adapters: a process can hold memory on more than one,
+        and the question the properties dialog asks is how much video
+        memory THIS process is using, not where.
+
+        Like `process_usage`, this reads the last collection rather than
+        taking one, so every figure on a row comes from the same instant.
+        """
+        dedicated = _summarise_by_pid(self._array("proc_dedicated"))
+        shared = _summarise_by_pid(self._array("proc_shared"))
+        return {pid: (dedicated.get(pid, 0), shared.get(pid, 0))
+                for pid in set(dedicated) | set(shared)}
 
     def process_usage(self) -> Dict[int, float]:
         """Per-pid GPU percentages from the LAST collection.
