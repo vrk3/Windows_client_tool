@@ -178,7 +178,7 @@ and the wall time between them.
       Disk and Network, GPU Graph, Threads, TCP/IP, Security, Environment,
       Job, Strings.
 - [x] W3-03 Lower pane: DLLs and Handles, with the driver limits stated.
-- [ ] W3-04 Find handle or DLL.
+- [x] W3-04 Find handle or DLL.
 - [ ] W3-05 Verify signatures; VirusTotal (reuses `virustotal_client.py`).
 - [ ] W3-06 Suspend/resume, restart, run as, create dump.
 

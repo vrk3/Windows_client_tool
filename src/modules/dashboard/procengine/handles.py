@@ -93,6 +93,15 @@ _kernel32.DuplicateHandle.argtypes = [
 _kernel32.CloseHandle.restype = wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 _kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+_kernel32.GetFileType.restype = wintypes.DWORD
+_kernel32.GetFileType.argtypes = [wintypes.HANDLE]
+
+#: `GetFileType` results. A pipe is the handle kind whose name query can
+#: block for ever, and this call is the cheap way to spot one -- it is a
+#: local lookup and does not touch the other end.
+FILE_TYPE_DISK = 0x0001
+FILE_TYPE_CHAR = 0x0002
+FILE_TYPE_PIPE = 0x0003
 
 
 class _EXTENDED_HANDLE(ctypes.Structure):
@@ -231,15 +240,25 @@ class HandleNamer:
                                 unavailable="this process cannot be opened "
                                             "for handle duplication")
                      for entry in entries],
-                    "Handle names need PROCESS_DUP_HANDLE on the target, "
-                    "which this process does not have. Running elevated "
-                    "resolves most of them; the rest need the kernel "
-                    "driver Process Explorer ships.")
+                    "REFUSED: handle names need PROCESS_DUP_HANDLE on the "
+                    "target, which this process does not have. Running "
+                    "elevated resolves most of them; the rest need the "
+                    "kernel driver Process Explorer ships.")
 
         rows: List[HandleInfo] = []
         finished = threading.Event()
 
         def work():
+            # The worker owns `source` and closes it, including when this
+            # thread is abandoned at the deadline and finishes later.
+            #
+            # Closing it on the caller's side instead leaked one process
+            # handle per timed-out process -- and that leak is
+            # self-amplifying, because the handles pile up in the very
+            # process doing the searching, which then takes longer to
+            # search and times out more often. It showed up as a
+            # machine-wide search failing to find a file THIS process had
+            # open, but only after a few hundred earlier searches.
             try:
                 for entry in entries:
                     rows.append(self._one(source, entry))
@@ -247,6 +266,7 @@ class HandleNamer:
                 logger.debug("Naming handles for %d failed: %s", pid, error)
             finally:
                 finished.set()
+                _kernel32.CloseHandle(source)
 
         worker = threading.Thread(target=work, daemon=True,
                                   name=f"handle-names-{pid}")
@@ -262,12 +282,11 @@ class HandleNamer:
                 unavailable="naming stopped: a handle query did not return")
                 for entry in remaining)
             return done, (
-                f"Naming stopped after {deadline:.0f}s with "
+                f"BLOCKED: naming stopped after {deadline:.2f}s with "
                 f"{len(remaining)} handles left. NtQueryObject blocks for "
                 f"ever on a synchronous pipe whose peer never answers, and "
                 f"it cannot be cancelled -- Process Explorer reads these "
                 f"through its kernel driver instead.")
-        _kernel32.CloseHandle(source)
         return rows, None
 
     def _one(self, source, entry: HandleEntry) -> HandleInfo:
@@ -282,6 +301,24 @@ class HandleNamer:
                               unavailable="the handle could not be duplicated")
         try:
             kind = self._type_of(duplicate, entry.type_index)
+            if kind == "File" and _kernel32.GetFileType(
+                    duplicate) == FILE_TYPE_PIPE:
+                # THE hang. `NtQueryObject(ObjectNameInformation)` on a
+                # synchronous pipe whose peer never answers blocks for
+                # ever and cannot be cancelled -- and because the deadline
+                # abandons the whole per-process pass, one such handle
+                # used to cost that process every name after it. That is
+                # how this process's own open file went unfound while 37
+                # processes reported "refused handle inspection".
+                #
+                # `GetFileType` is a local lookup that does not touch the
+                # other end, so it identifies the dangerous ones for
+                # nothing.
+                return HandleInfo(entry=entry, type_name=kind,
+                                  unavailable="named pipes are not queried: "
+                                              "the name query cannot be "
+                                              "cancelled and can block for "
+                                              "ever")
             name = _query_string(duplicate, ObjectNameInformation)
             if name is None:
                 return HandleInfo(entry=entry, type_name=kind,

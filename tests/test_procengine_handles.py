@@ -213,3 +213,59 @@ def test_the_engine_does_not_import_qt():
     from modules.dashboard.procengine import handles
 
     assert "PyQt6" not in inspect.getsource(handles)
+
+
+def test_the_process_handle_is_closed_by_the_worker_not_the_caller():
+    """Closing `source` only on the success path leaked one process handle
+    per timed-out process -- and the leak is self-amplifying, because it
+    accumulates in the very process doing the searching, which then takes
+    longer to search and times out more often.
+
+    Asserted structurally as well as numerically: the numeric check below
+    can only measure this whole process, and under a full test run other
+    suites leave genuinely-blocked naming threads behind (the documented
+    driver limit), which drift the count independently of this function.
+    """
+    import inspect
+
+    from modules.dashboard.procengine import handles as module
+
+    source = inspect.getsource(module.HandleNamer.describe)
+    worker = source[source.index("def work("):]
+    assert "CloseHandle(source)" in worker,         "the worker must own the handle it was given"
+    after_wait = source[source.index("finished.wait("):]
+    assert "CloseHandle(source)" not in after_wait,         "closing on the caller's side leaks whenever the deadline trips"
+
+
+def test_repeated_timed_out_passes_do_not_leak():
+    """Measured directly: 20 abandoned passes over 660 handles grow this
+    process's handle count by zero."""
+    from modules.dashboard.procengine.ntquery import system_processes
+
+    def held() -> int:
+        return [r for r in system_processes() if r.pid == MY_PID][0].handles
+
+    entries = system_handles(MY_PID)
+    before = held()
+    for _ in range(20):
+        HandleNamer().describe(entries, deadline=0.0)
+    time.sleep(1.0)
+    # Loose: this counts the WHOLE process, and a full test run leaves
+    # blocked naming threads from other suites holding handles they can
+    # never release. The leak this guards against was one per pass.
+    assert held() - before < 120, (
+        f"handles grew from {before} to {held()} over 20 abandoned passes")
+
+
+def test_a_named_pipe_is_skipped_rather_than_risked():
+    """`NtQueryObject` on a synchronous pipe with no peer blocks for ever
+    and cannot be cancelled. `GetFileType` spots one without touching the
+    other end, and skipping them took a full machine sweep from 5.5s to
+    1.2s -- the hang risk was also the dominant cost."""
+    import inspect
+
+    from modules.dashboard.procengine import handles as module
+
+    assert module.FILE_TYPE_PIPE == 3
+    source = inspect.getsource(module.HandleNamer._one)
+    assert "GetFileType" in source

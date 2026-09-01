@@ -194,6 +194,11 @@ class ProcessExplorerModule(BaseModule):
         sysinfo_action.triggered.connect(self._open_system_information)
         tb.addAction(sysinfo_action)
 
+        find_action = QAction("Find Handle or DLL", tb)
+        find_action.setShortcut("Ctrl+F")
+        find_action.triggered.connect(self._open_find)
+        tb.addAction(find_action)
+
         tb.addSeparator()
 
         self._search_box = QLineEdit()
@@ -250,6 +255,42 @@ class ProcessExplorerModule(BaseModule):
         self._sysinfo_dialog = dialog
         dialog.show()
 
+    def _open_find(self) -> None:
+        """Find handle or DLL. Modeless and reused, like System Information."""
+        from modules.process_explorer.find_dialog import FindHandleDialog
+
+        existing = getattr(self, "_find_dialog", None)
+        if existing is not None and _widget_valid(existing):
+            existing.raise_()
+            existing.activateWindow()
+            return
+        pool = getattr(self.app, "thread_pool", None) if self.app else None
+        dialog = FindHandleDialog(thread_pool=pool, parent=self._widget)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dialog.pid_chosen.connect(self._select_pid)
+        self._find_dialog = dialog
+        dialog.show()
+
+    def _select_pid(self, pid: int) -> None:
+        """Jump the tree to a pid, so a search result can be followed.
+
+        Finding what holds a file is only half the job; the other half is
+        getting to it.
+        """
+        if self._model is None or self._tree_view is None:
+            return
+        node = self._model._snapshot.get(pid)
+        if node is None:
+            return
+        self._selected_node = node
+        self._refresh_lower_pane()
+
+    def _close_find(self) -> None:
+        dialog = getattr(self, "_find_dialog", None)
+        if dialog is not None and _widget_valid(dialog):
+            dialog.close()
+        self._find_dialog = None
+
     def _close_system_information(self) -> None:
         dialog = getattr(self, "_sysinfo_dialog", None)
         if dialog is not None and _widget_valid(dialog):
@@ -269,6 +310,7 @@ class ProcessExplorerModule(BaseModule):
             self._collector.stop()
         self._cancel_lower_pane()
         self._close_system_information()
+        self._close_find()
         self.cancel_all_workers()
 
     def get_status_info(self) -> str:
