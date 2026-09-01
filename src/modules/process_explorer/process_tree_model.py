@@ -5,7 +5,8 @@ from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor
 
 from modules.process_explorer.process_node import ProcessNode
-from modules.process_explorer.color_scheme import get_row_color, get_row_text_color
+from modules.process_explorer.color_scheme import (describe, get_row_color,
+                                                   get_row_text_color)
 
 # Column indices
 COL_NAME  = 0
@@ -70,6 +71,26 @@ class ProcessTreeModel(QAbstractItemModel):
             old.net_recv_bps   = new_node.net_recv_bps
             old.gpu_percent    = new_node.gpu_percent
             old.status         = new_node.status
+            # The row's colour comes from these, so they have to travel
+            # with the metrics. is_new and is_deleted in particular are
+            # the only fields here that CHANGE over a process's life --
+            # left out, a green row never fades and a dead one never
+            # reddens, which is the whole of the difference highlight.
+            old.is_new         = new_node.is_new
+            old.is_deleted     = new_node.is_deleted
+            old.is_suspended   = new_node.is_suspended
+            old.is_immersive   = new_node.is_immersive
+            old.is_dotnet      = new_node.is_dotnet
+            old.is_packed      = new_node.is_packed
+            old.packed_entropy = new_node.packed_entropy
+            old.is_own         = new_node.is_own
+            old.is_service     = new_node.is_service
+            # The cold details arrive over several ticks now (the pane
+            # resolves 60 processes a tick), so a row's path, user and
+            # command line are filled in LATER than the row itself.
+            old.exe            = new_node.exe or old.exe
+            old.user           = new_node.user or old.user
+            old.cmdline        = new_node.cmdline or old.cmdline
 
         if changed:
             if self._flat_mode:
@@ -162,6 +183,21 @@ class ProcessTreeModel(QAbstractItemModel):
                 _fmt_bytes(int(node.net_recv_bps)), _fmt_bytes(int(node.net_send_bps)),
                 f"{node.gpu_percent:.1f}", node.user, node.exe,
             ][col]
+
+        if role == Qt.ItemDataRole.ToolTipRole:
+            # Every category the row qualifies for, not only the one its
+            # colour shows. A row can be four things at once, and a tint
+            # is a poor way to learn a fact you cannot look up.
+            #
+            # The Name column ALSO keeps the full path it showed before --
+            # there was a second ToolTipRole branch further down doing
+            # that, which a bare `return` here would have shadowed into
+            # dead code.
+            parts = [describe(node)]
+            if col == COL_NAME and node.exe:
+                parts.insert(0, node.exe)
+            joined = "\n".join(part for part in parts if part)
+            return joined or None
 
         if role == Qt.ItemDataRole.BackgroundRole:
             color = get_row_color(node)

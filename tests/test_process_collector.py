@@ -240,3 +240,89 @@ def test_stopping_releases_the_gpu_query(qapp):
 
 def test_stopping_a_collector_that_never_ran_is_harmless(qapp):
     ProcessCollector().stop()
+
+
+# ---- the new / exited highlight -----------------------------------------
+
+def _collector_with(snapshot, qapp):
+    collector = ProcessCollector()
+    collector._first = False
+    collector._snapshot = snapshot
+    collector._first_seen = {pid: 0.0 for pid in snapshot}
+    return collector
+
+
+def _n(pid):
+    return node_from_info(_info(raw=_raw(pid=pid)), set())
+
+
+def test_nothing_is_new_on_the_first_snapshot(qapp):
+    """270 processes were all running before the pane opened. Flashing
+    every one of them green says the machine just booted."""
+    collector = ProcessCollector()
+    seen = {}
+    collector.snapshot_ready.connect(lambda s: seen.update(s))
+    collector._on_snapshot({1: _n(1), 2: _n(2)})
+    assert seen and not any(node.is_new for node in seen.values())
+
+
+def test_a_process_that_appeared_is_flagged_new(qapp):
+    collector = _collector_with({1: _n(1)}, qapp)
+    collector._on_snapshot({1: _n(1), 2: _n(2)})
+    assert collector._snapshot[2].is_new
+    assert not collector._snapshot[1].is_new
+
+
+def test_a_process_that_exited_is_held_and_flagged(qapp):
+    """An exited process is in no snapshot any more, so the only way to
+    colour its row red is to keep the row."""
+    collector = _collector_with({1: _n(1), 2: _n(2)}, qapp)
+    collector._on_snapshot({1: _n(1)})
+    assert 2 in collector._snapshot
+    assert collector._snapshot[2].is_deleted
+
+
+def test_an_exited_process_is_dropped_once_the_highlight_expires(qapp):
+    import modules.process_explorer.process_collector as module
+
+    collector = _collector_with({1: _n(1), 2: _n(2)}, qapp)
+    collector._on_snapshot({1: _n(1)})
+    assert 2 in collector._snapshot
+
+    collector._departed[2] = (collector._departed[2][0],
+                              time.monotonic() - module.HIGHLIGHT_SECONDS - 1)
+    collector._on_snapshot({1: _n(1)})
+    assert 2 not in collector._snapshot
+
+
+def test_a_reused_pid_is_a_new_process_not_the_old_one_returning(qapp):
+    """Windows reuses pids briskly. A held-dead row whose pid comes back
+    must give way rather than keep painting the successor red."""
+    collector = _collector_with({1: _n(1), 2: _n(2)}, qapp)
+    collector._on_snapshot({1: _n(1)})
+    assert collector._snapshot[2].is_deleted
+
+    collector._on_snapshot({1: _n(1), 2: _n(2)})
+    assert not collector._snapshot[2].is_deleted
+    assert collector._snapshot[2].is_new
+
+
+def test_the_new_flag_lapses(qapp):
+    import modules.process_explorer.process_collector as module
+
+    collector = _collector_with({1: _n(1)}, qapp)
+    collector._on_snapshot({1: _n(1), 2: _n(2)})
+    assert collector._snapshot[2].is_new
+
+    collector._first_seen[2] = time.monotonic() - module.HIGHLIGHT_SECONDS - 1
+    collector._on_snapshot({1: _n(1), 2: _n(2)})
+    assert not collector._snapshot[2].is_new
+
+
+def test_the_first_seen_map_does_not_grow_for_ever(qapp):
+    """A machine that churns processes -- a build, a script loop -- would
+    otherwise accumulate a pid per process for the life of the pane."""
+    collector = _collector_with({1: _n(1)}, qapp)
+    for pid in range(2, 60):
+        collector._on_snapshot({1: _n(1), pid: _n(pid)})
+    assert len(collector._first_seen) <= 3

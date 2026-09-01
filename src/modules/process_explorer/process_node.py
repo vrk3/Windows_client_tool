@@ -31,6 +31,22 @@ class ProcessNode:
     is_suspended: bool = False
     integrity_level: str = "Medium"  # Low | Medium | High | System
 
+    # Process Explorer's remaining row categories.
+    #: Runs as the user we are, which is the distinction that makes a
+    #: process list readable at a glance.
+    is_own: bool = False
+    #: Has an AppX package identity -- a Store/packaged app.
+    is_immersive: bool = False
+    #: The image LOOKS compressed. A heuristic, hence the entropy beside
+    #: it: see procengine/classify.py for what it gets wrong.
+    is_packed: bool = False
+    packed_entropy: Optional[float] = None
+    #: Appeared, or vanished, within the highlight window. Transient --
+    #: these are the only two fields here that are not stable for the
+    #: life of the process.
+    is_new: bool = False
+    is_deleted: bool = False
+
     # VirusTotal (populated on demand)
     sha256: Optional[str] = None
     vt_score: Optional[str] = None   # e.g. "3/72"
