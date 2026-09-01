@@ -202,8 +202,9 @@ and the wall time between them.
 
 ## Where this stopped (2026-09-01, end of session)
 
-**Waves 1 and 2 are COMPLETE.** Committed on `feat/dashboard-gpu`, not yet
-merged to `master` and not yet built into the deployed portable.
+**Waves 1 and 2 are COMPLETE, merged to `master`, built and deployed.**
+The portable in `OneDrive/1 Personal/Aplicații/` is this work (58 MB,
+hash-verified against `dist/`).
 
 | | |
 |---|---|
@@ -226,29 +227,32 @@ New engine modules this session, both Qt-free and both tested:
 
 ### Pick up here
 
-**Two things are owed before wave 3:**
+**Nothing is owed.** Wave 2 is merged, built and deployed, and the pid 4
+`cmdline=''` bug the previous session flagged is fixed.
 
-1. **Merge `feat/dashboard-gpu` to `master`, then build and deploy the
-   portable** — CLAUDE.md makes the deploy step to
-   `OneDrive/1 Personal/Aplicații/` a hard requirement, and it has not been
-   done for either W2-05 or W2-06.
-2. **Four tests fail, and none of them are this work.** They fail
-   identically on `master` at `4d70217` — verified by checking out master
-   and running them — so they are drift since the ledger last claimed all
-   green, not a regression:
-   - `test_procengine_details.py::test_nothing_is_ever_the_empty_string_instead_of_none`
-     — pid 4 (System) now returns `cmdline=''` where the rule requires
-     `None` plus a reason. This is in the Dashboard's OWN engine and is
-     the same class of bug the project keeps legislating against, so it
-     should be fixed before wave 3 builds on `details.py`.
-   - `test_firewall_rule_actions.py` (3 tests) — unrelated to the Dashboard.
+**Wave 3** is next, the big one: the 11-tab properties dialog, the DLL and
+handle lower panes, find-handle, signature verification. Two things wave 2
+left in good shape for it — `process_collector` is now a thin translation
+from the engine's `ProcessInfo` to `ProcessNode`, so the lower panes can be
+fed from the same snapshot; and `DetailCache.get` takes a cold budget, which
+any new pane doing per-process work should use rather than paying 2.2s on
+the tick it opens.
 
-Then **wave 3**, the big one: the 11-tab properties dialog, the DLL and
-handle lower panes, find-handle, signature verification.
+**Three tests fail and they are NOT the Dashboard.**
+`test_firewall_rule_actions.py` expects Calculator's MUI resource string to
+resolve. Diagnosed 2026-09-01: the firewall rule names
+`Microsoft.WindowsCalculator_11.2606.0.0`, the installed package is
+`11.2607.0.0`, so `SHLoadIndirectString` returns `ERROR_NOT_FOUND`
+(`0x80070490`) and the resolver correctly falls back to the raw string. The
+CODE is right; the test asserts a machine fact that expired when Calculator
+updated. Whoever owns the firewall module should decide whether the test
+should pick an installed package or accept the fallback — and separately,
+whether showing a raw `@{...}` string to the user is good enough or should
+say why it could not be resolved.
 
 ### What to run first
 
-- `pytest tests/ -q` — 3,694 pass, 3 skip, and the 4 failures above.
+- `pytest tests/ -q` — 3,720 pass, 3 skip, and the 3 firewall failures above.
 - The engine is `src/modules/dashboard/procengine/` and is **Qt-free**;
   every module there has a test asserting it does not import PyQt6.
 - Screenshots have caught more real bugs here than the tests have. Render
@@ -432,3 +436,44 @@ Recorded as they are learned, the way the Log Viewer plan did.
   this Windows build". Free system PTEs looked equally wrong at
   4,288,176,072 and turned out to be REAL — PDH reports 4,288,175,957 — so
   the two had to be told apart by checking, not by how they looked.
+- **2026-09-01 (five bugs from ONE session of looking at the running app):**
+  the tests were green for all of these. Launching the real `MainWindow`,
+  navigating the sidebar and screenshotting each tab found: seven disks
+  stacked past the bottom of the window with no scroll; the Overview RAM
+  row reading "B/61.6 GB)" because a fixed 60px value label clips
+  right-aligned text from the LEFT; a Process Explorer tab that sat empty
+  for five seconds; and its GPU column reading 0.0 for every process since
+  the day it was added. Rendering a widget in isolation would have caught
+  none of them -- they are all about the app at its real size, with this
+  machine's real number of devices.
+- **2026-09-01:** the cold sweep's cost depends on PRIVILEGE, which the
+  wave-1 measurement did not capture. Unelevated, half the processes refuse
+  at once and a full sweep is ~141 ms; elevated, nothing refuses and the
+  same sweep is **2,252 ms** against 8.5 ms warm. A pane pays that on the
+  tick it is opened, which is the tick someone is watching it. Hence the
+  cold budget: 60 new resolutions a tick, list first, paths behind it. Any
+  measurement of a permission-sensitive path should be taken BOTH ways.
+- **2026-09-01:** a `QTimer` does not fire until its first interval has
+  elapsed, so `start()`ing a 1 Hz collector buys a guaranteed second of
+  empty table. Read once immediately as well.
+- **2026-09-01:** `diff_snapshots` decided "changed" from CPU, memory and
+  status only. That was harmless while nothing wrote to the GPU column and
+  became a bug the moment something did -- a row whose only movement is on
+  the GPU never repaints, so the column shows whatever it read the last
+  time some other number happened to move. When you start writing to a
+  field, check what decides whether it is drawn.
+- **2026-09-01:** `psutil.Process(pid).cmdline()` returns an empty LIST for
+  the kernel processes rather than raising, so `" ".join(...)` produced
+  `""` -- the one value `details.py` promises never to emit. pid 4 has no
+  user-mode PEB and therefore no command line, which is a different fact
+  from an empty one. A library that answers instead of refusing is its own
+  trap: the refusal rule has to be checked at the boundary, not assumed.
+- **2026-09-01 (a wrong suspicion, recorded so the method is not lost):**
+  the Details tab showed Ascension.exe holding 639,325 handles, which
+  looked impossible beside a system total seen at ~521,000 earlier. It was
+  CORRECT -- per-process handles summed to 819,630 against a system total
+  of 826,100 at the same instant, and the game really is leaking handles.
+  Free system PTEs at 4,288,176,072 looked equally broken and was also
+  real. The lesson is the one W2-06 already paid for in the other
+  direction: a number that looks wrong and a number that is wrong are told
+  apart by a second source, never by how they look.
