@@ -25,7 +25,7 @@ import logging
 import os
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -167,12 +167,36 @@ class DetailCache:
     def tracked(self) -> int:
         return len(self._entries)
 
-    def get(self, pid: int, create_time: int) -> ProcessDetails:
+    def get(self, pid: int, create_time: int,
+            budget: Optional[List[int]] = None) -> ProcessDetails:
+        """The cold details for one process, resolving them if needed.
+
+        `budget` is an optional one-element list used as a mutable counter,
+        decremented on every resolution actually performed. At zero, this
+        returns an UNRESOLVED `ProcessDetails` -- every field `None` -- and
+        does not cache it, so the next tick tries again.
+
+        The counter exists because the cold sweep's cost depends entirely
+        on how much the caller is allowed to see. Unelevated, half the
+        processes refuse immediately and a full sweep is ~141 ms; ELEVATED,
+        nothing refuses and the same sweep costs **2,252 ms**, which is a
+        pane that sits empty for two seconds on the tick it is opened.
+        Spreading that over a few ticks shows names and rates at once and
+        fills the paths in behind them.
+
+        An unresolved record is not a refused one, and neither is a lie:
+        both are `None` with no claim attached.
+        """
         key = (pid, create_time)
         found = self._entries.get(key)
-        if found is None:
-            found = resolve(pid)
-            self._entries[key] = found
+        if found is not None:
+            return found
+        if budget is not None:
+            if budget[0] <= 0:
+                return ProcessDetails(pid=pid)
+            budget[0] -= 1
+        found = resolve(pid)
+        self._entries[key] = found
         return found
 
     def retain(self, live_pids: Set[int]) -> None:
@@ -206,9 +230,19 @@ def _command_line(pid: int) -> Tuple[Optional[str], Optional[str]]:
     try:
         import psutil
 
-        return " ".join(psutil.Process(pid).cmdline()), None
+        parts = psutil.Process(pid).cmdline()
     except Exception as error:  # noqa: BLE001 - the reason is the product
         return None, _describe(error)
+
+    if not parts:
+        # psutil hands back an EMPTY LIST here rather than raising, and
+        # joining that produced `""` -- the one value this module promises
+        # never to emit. It happens for the kernel processes (pid 4 and
+        # its kin): they have no user-mode PEB, so there is no command
+        # line to read, which is a different fact from an empty one.
+        return None, "the process has no command line (kernel processes " \
+                     "have no user-mode PEB to read one from)"
+    return " ".join(parts), None
 
 
 def _token_facts(handle):

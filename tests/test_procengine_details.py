@@ -192,3 +192,79 @@ def test_the_engine_does_not_import_qt():
     from modules.dashboard.procengine import details
 
     assert "PyQt6" not in inspect.getsource(details)
+
+
+# ---- the cold budget ----------------------------------------------------
+
+def test_a_budget_caps_how_many_are_resolved_per_sweep():
+    """Elevated, a full cold sweep of ~270 processes measures 2,252 ms
+    against 8.5 ms warm, so an unbounded first tick leaves a live pane
+    blank for over two seconds."""
+    from modules.dashboard.procengine.details import DetailCache
+    from modules.dashboard.procengine.ntquery import system_processes
+
+    rows = system_processes()
+    cache = DetailCache()
+    budget = [5]
+    for row in rows:
+        cache.get(row.pid, row.create_time, budget)
+    assert cache.tracked() == 5
+
+
+def test_what_the_budget_skipped_is_none_not_a_claim():
+    from modules.dashboard.procengine.details import DetailCache
+
+    cache = DetailCache()
+    skipped = cache.get(os.getpid(), 0, [0])
+    assert skipped.path is None and skipped.cmdline is None
+    assert skipped.user is None
+    # And not recorded as a refusal either -- nothing was attempted.
+    assert skipped.path_error is None
+
+
+def test_a_skipped_process_is_retried_on_the_next_sweep():
+    """It must not be cached as unresolved, or it stays blank forever."""
+    from modules.dashboard.procengine.details import DetailCache
+
+    cache = DetailCache()
+    assert cache.get(os.getpid(), 0, [0]).path is None
+    assert cache.tracked() == 0
+    assert cache.get(os.getpid(), 0, [1]).path is not None
+
+
+def test_an_already_cached_process_does_not_spend_budget():
+    from modules.dashboard.procengine.details import DetailCache
+
+    cache = DetailCache()
+    budget = [1]
+    cache.get(os.getpid(), 0, budget)
+    assert budget == [0]
+    cache.get(os.getpid(), 0, budget)      # cached, costs nothing
+    assert budget == [0]
+
+
+def test_no_budget_resolves_everything():
+    from modules.dashboard.procengine.details import DetailCache
+    from modules.dashboard.procengine.ntquery import system_processes
+
+    rows = system_processes()[:20]
+    cache = DetailCache()
+    for row in rows:
+        cache.get(row.pid, row.create_time)
+    assert cache.tracked() == len(rows)
+
+
+def test_the_snapshot_source_honours_a_budget():
+    from modules.dashboard.procengine.snapshot import SnapshotSource
+
+    source = SnapshotSource()
+    first = source.read(cold_budget=10)
+    resolved = sum(1 for info in first.by_pid.values()
+                   if info.details.path is not None)
+    assert resolved <= 10
+    # And the rest arrive over later reads rather than never.
+    for _ in range(4):
+        later = source.read(cold_budget=10)
+    grew = sum(1 for info in later.by_pid.values()
+               if info.details.path is not None)
+    assert grew > resolved

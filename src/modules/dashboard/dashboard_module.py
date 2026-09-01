@@ -119,7 +119,12 @@ class _StatBar(QWidget):
         self._bar.setFixedHeight(14)
         self._bar.setTextVisible(False)
         self._val = QLabel("—")
-        self._val.setFixedWidth(60)
+        # A MINIMUM, not a fixed width. The CPU rows put "2.8%" here and fit
+        # in 60px, but the memory rows put "30%  (18.6 GB/61.6 GB)" here --
+        # and a fixed 60px right-aligned label clips from the LEFT, so the
+        # RAM row read "B/61.6 GB)" and the page-file row ") B/3.9 GB)".
+        # Clipped text that still looks like text is worse than an ellipsis.
+        self._val.setMinimumWidth(60)
         self._val.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )

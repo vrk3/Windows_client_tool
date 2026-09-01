@@ -16,8 +16,8 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QFormLayout, QGridLayout, QHBoxLayout, QLabel,
-                             QListWidget, QListWidgetItem, QStackedWidget,
-                             QVBoxLayout, QWidget)
+                             QListWidget, QListWidgetItem, QScrollArea,
+                             QStackedWidget, QVBoxLayout, QWidget)
 
 from core.semantic_colors import semantic
 
@@ -159,65 +159,67 @@ class PerformanceTab(QWidget):
         self.panels.addWidget(panel)
         self.chooser.addItem(QListWidgetItem("Memory"))
 
+    def _stacked_panel(self, title_text: str):
+        """A scrolling panel of stacked device graphs.
+
+        Scrolling because how many devices there are is the machine's
+        business, not the layout's: this machine has SEVEN physical disks,
+        and unscrolled the seventh was drawn past the bottom of the window
+        with no way to reach it. The GPU panel has the same shape and the
+        same exposure on a machine with three adapters.
+
+        Returns `(area, page)` -- the layout new rows are added to, and the
+        widget holding the graphs, which is what has to grow rather than
+        squash so the scrollbar actually appears.
+        """
+        panel = QWidget(self)
+        column = QVBoxLayout(panel)
+        title = QLabel(title_text, panel)
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        column.addWidget(title)
+
+        scroller = QScrollArea(panel)
+        scroller.setWidgetResizable(True)
+        scroller.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroller.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        page = QWidget(scroller)
+        area = QVBoxLayout(page)
+        # No trailing stretch: the row builders append with `addWidget`, and
+        # anything appended after a stretch lands below it -- off the page.
+        scroller.setWidget(page)
+        column.addWidget(scroller, 1)
+
+        self.panels.addWidget(panel)
+        self.chooser.addItem(QListWidgetItem(title_text))
+        return area, page
+
     def _add_disk_panel(self) -> None:
-        """One graph for every physical disk, stacked.
+        """One graph for every physical disk, stacked and scrolling.
 
         Task Manager gives each disk its own entry in the chooser. Stacking
         them in one panel says the same thing in less clicking, and this
         machine has seven.
         """
-        panel = QWidget(self)
-        column = QVBoxLayout(panel)
-        title = QLabel("Disk", panel)
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        column.addWidget(title)
-
-        self.disk_area = QVBoxLayout()
-        column.addLayout(self.disk_area, 1)
-        column.addStretch(0)
+        self.disk_area, self._disk_page = self._stacked_panel("Disk")
         #: index -> (graph, caption). Built on the first reading, because
         #: how many disks there are is not known until then.
         self._disk_rows = {}
 
-        self.panels.addWidget(panel)
-        self.chooser.addItem(QListWidgetItem("Disk"))
-
     def _add_network_panel(self) -> None:
-        panel = QWidget(self)
-        column = QVBoxLayout(panel)
-        title = QLabel("Network", panel)
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        column.addWidget(title)
-
-        self.network_area = QVBoxLayout()
-        column.addLayout(self.network_area, 1)
-        column.addStretch(0)
+        self.network_area, self._network_page = self._stacked_panel("Network")
         self._network_rows = {}
 
-        self.panels.addWidget(panel)
-        self.chooser.addItem(QListWidgetItem("Network"))
-
     def _add_gpu_panel(self) -> None:
-        """One block per adapter, stacked like the disks.
+        """One block per adapter, stacked and scrolling like the disks.
 
         Built on the first reading rather than here: how many adapters a
         machine has, and which of them the graphics stack actually reports,
         is not known until PDH has been asked.
         """
-        panel = QWidget(self)
-        column = QVBoxLayout(panel)
-        title = QLabel("GPU", panel)
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        column.addWidget(title)
-
-        self.gpu_area = QVBoxLayout()
-        column.addLayout(self.gpu_area, 1)
-        column.addStretch(0)
+        self.gpu_area, self._gpu_page = self._stacked_panel("GPU")
         #: luid -> the widgets for that adapter.
         self._gpu_rows = {}
-
-        self.panels.addWidget(panel)
-        self.chooser.addItem(QListWidgetItem("GPU"))
 
     # ---- lifecycle ------------------------------------------------------
 

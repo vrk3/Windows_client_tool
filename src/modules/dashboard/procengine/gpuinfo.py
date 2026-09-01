@@ -229,6 +229,34 @@ def summarise_engines(
     return out
 
 
+def summarise_processes(readings: Dict[str, float]) -> Dict[int, float]:
+    """Per PID, how much GPU it is using -- Task Manager's "GPU" column.
+
+    Aggregated differently from the per-adapter figure, and the difference
+    matters. An adapter's utilisation is its busiest ENGINE, because two
+    engines running at once do not make the card 160% busy. A process's
+    figure is the busiest engine of ITS work, for the same reason -- but
+    taken across every adapter it touches, since a process rendering on
+    the discrete card and decoding on the integrated one is using both.
+
+    Summing a process's instances instead would report 200% for something
+    doing two things at once, which is the number Task Manager's column
+    conspicuously never shows.
+    """
+    per_engine: Dict[Tuple[int, int, str, int], float] = {}
+    for name, value in readings.items():
+        parsed = parse_engine_instance(name)
+        if parsed is None:
+            continue
+        key = (parsed.pid, parsed.luid, parsed.engtype, parsed.engine)
+        per_engine[key] = per_engine.get(key, 0.0) + float(value)
+
+    out: Dict[int, float] = {}
+    for (pid, _luid, _engtype, _engine), percent in per_engine.items():
+        out[pid] = max(out.get(pid, 0.0), min(100.0, max(0.0, percent)))
+    return out
+
+
 def _summarise_memory(readings: Dict[str, float]) -> Dict[int, int]:
     """Per adapter, the total bytes reported by a memory counter set."""
     out: Dict[int, int] = {}
@@ -341,6 +369,16 @@ class GpuSampler:
                               shared_bytes=shared.get(luid))
                  for luid in sorted(luids)]
         return usage
+
+    def process_usage(self) -> Dict[int, float]:
+        """Per-pid GPU percentages from the LAST collection.
+
+        Deliberately does not collect: `sample()` and this are read from the
+        same tick by the process panes, and collecting twice would halve
+        each interval and report figures for windows that do not line up
+        with the rest of the row.
+        """
+        return summarise_processes(self._array("engine"))
 
     def _array(self, name: str) -> Dict[str, float]:
         """One counter's instances, or nothing when PDH has no answer yet.
