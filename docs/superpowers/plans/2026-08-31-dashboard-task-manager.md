@@ -200,66 +200,62 @@ and the wall time between them.
 
 ---
 
-## Where this stopped (2026-09-01, end of session)
+## Where this stopped (2026-09-01, 10:36)
 
-**Waves 1 and 2 are COMPLETE, merged to `master`, built and deployed.**
-The portable in `OneDrive/1 Personal/Aplicații/` is this work (58 MB,
-hash-verified against `dist/`).
+**Waves 1 and 2 COMPLETE. Wave 3 is four of six** -- W3-01..W3-04 done,
+merged to `master`, built and deployed. The portable in
+`OneDrive/1 Personal/Aplicatii/` is this work (58 MB, sha256
+b634bfaa8023a08e0ddfc15561e5f2cad960e15f636304e4c33c4f4719ac4032).
 
 | | |
 |---|---|
 | W1-01..W1-08 | engine, Details tab, Processes tab, actions, menu, composite |
-| W2-01 | CPU: per-core load, processor facts |
-| W2-02 | Memory: the whole panel |
-| W2-03 | Disk: per-drive active time, throughput, queue depth |
-| W2-04 | Network: per-interface send/receive, link speed |
-| W2-05 | GPU: per-engine utilisation, adapter memory, driver + DirectX |
-| W2-06 | Process Explorer's System Information window, five tabs |
+| W2-01..W2-06 | CPU, Memory, Disk, Network, GPU, System Information |
+| W3-01 | row colour categories (9, ordered) -- `procengine/classify.py` |
+| W3-02 | the 11-tab properties dialog -- `procengine/procwatch.py` |
+| W3-03 | DLL + handle lower panes -- `procengine/handles.py`, `modinfo.py` |
+| W3-04 | find handle or DLL -- `procengine/findref.py` + `find_dialog.py` |
 
-The Dashboard is a `CompositeModule` with five tabs: **Overview, Processes,
-Performance, Details, Process Explorer**, and the Performance tab now has
-six panels (CPU, Memory, Disk, Network, GPU). System Information opens
-from the Process Explorer toolbar, modeless and reused.
-
-New engine modules this session, both Qt-free and both tested:
-`procengine/gpuinfo.py` (PDH, query held open) and `procengine/sysinfo.py`
-(`NtQuerySystemInformation(SystemPerformanceInformation)`).
+The Qt-free engine is now seventeen modules: `ntquery`, `rates`,
+`details`, `snapshot`, `columns`, `grouping`, `actions`, `cpuinfo`,
+`meminfo`, `ioinfo`, `gpuinfo`, `sysinfo`, `classify`, `procwatch`,
+`handles`, `modinfo`, `findref`. Every one has a test asserting it does
+not import PyQt6.
 
 ### Pick up here
 
-**Nothing is owed.** Wave 2 is merged, built and deployed, and the pid 4
-`cmdline=''` bug the previous session flagged is fixed.
+**W3-05 -- verify signatures; VirusTotal.** Reuses the existing
+`virustotal_client.py`. Signature verification wants `WinVerifyTrust`
+(wintrust.dll); the natural home is `procengine/` beside `modinfo.py`,
+which already reads the version resource of the same files and already
+caches per path -- signatures should cache the same way, since a
+signature is a fact about a FILE and a machine loads the same hundred
+system DLLs in every process.
 
-**Wave 3** is next, the big one: the 11-tab properties dialog, the DLL and
-handle lower panes, find-handle, signature verification. Two things wave 2
-left in good shape for it — `process_collector` is now a thin translation
-from the engine's `ProcessInfo` to `ProcessNode`, so the lower panes can be
-fed from the same snapshot; and `DetailCache.get` takes a cold budget, which
-any new pane doing per-process work should use rather than paying 2.2s on
-the tick it opens.
+**W3-06 -- suspend/resume, restart, run as, create dump.** These are
+destructive, so the standing rule applies: every one confirms first, and
+every one reports the REAL outcome rather than assuming (W1-06 already
+paid for that lesson with `psutil.kill()` returning before the process is
+gone). `process_actions.py` has suspend/resume/kill already; restart and
+run-as are new, and `MiniDumpWriteDump` is the dump path.
 
-**Three tests fail and they are NOT the Dashboard.**
-`test_firewall_rule_actions.py` expects Calculator's MUI resource string to
-resolve. Diagnosed 2026-09-01: the firewall rule names
-`Microsoft.WindowsCalculator_11.2606.0.0`, the installed package is
-`11.2607.0.0`, so `SHLoadIndirectString` returns `ERROR_NOT_FOUND`
-(`0x80070490`) and the resolver correctly falls back to the raw string. The
-CODE is right; the test asserts a machine fact that expired when Calculator
-updated. Whoever owns the firewall module should decide whether the test
-should pick an installed package or accept the fallback — and separately,
-whether showing a raw `@{...}` string to the user is good enough or should
-say why it could not be resolved.
+**Three tests fail and they are not the Dashboard.**
+`test_firewall_rule_actions.py` expects Calculator's MUI string to
+resolve; the rule names package 11.2606.0.0, the installed one is
+11.2607.0.0, so `SHLoadIndirectString` returns ERROR_NOT_FOUND and the
+resolver correctly falls back. The code is right; the test asserts a
+machine fact that expired when Calculator updated.
 
 ### What to run first
 
-- `pytest tests/ -q` — 3,720 pass, 3 skip, and the 3 firewall failures above.
-- The engine is `src/modules/dashboard/procengine/` and is **Qt-free**;
-  every module there has a test asserting it does not import PyQt6.
-- Screenshots have caught more real bugs here than the tests have. Render
-  the tab and LOOK at it before believing it works — see the findings
-  below, where FIVE separate bugs produced entirely plausible numbers.
-  `scratchpad/` (gitignored) holds this session's harnesses:
-  `shoot_gpu_panel.py`, `shoot_sysinfo.py`, `gpu_load_check.py`.
+- `pytest tests/ -q` -- 3,874 pass, 3 skip, and the 3 firewall failures.
+- Screenshot harnesses in `scratchpad/` (gitignored):
+  `drive_dashboard.py` (launches the real app and walks every tab),
+  `shoot_properties.py`, `shoot_lower_pane.py`, `shoot_find.py`,
+  `check_colors.py`, `check_highlight.py`.
+- **Launch the app, do not only render widgets.** Five of this session's
+  bugs were only visible at real size with this machine's real device
+  count.
 
 ## Findings
 
