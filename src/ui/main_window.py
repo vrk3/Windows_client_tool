@@ -509,15 +509,13 @@ class MainWindow(QMainWindow):
         self._filter_panel.setVisible(False)
 
     def closeEvent(self, event) -> None:
-        # Stop all refresh timers
-        for timer in self._module_refresh_timers.values():
-            timer.stop()
-        self._module_refresh_timers.clear()
-
-        update_worker = getattr(self, "_update_worker", None)
-        if update_worker is not None:
-            update_worker.cancel()
-
+        # The minimize-to-tray branch comes FIRST, and returns without
+        # touching the timers. Tearing them down above it and then calling
+        # event.ignore() left showEvent's resume loop with an empty dict, so
+        # hiding to the tray silently ended auto-refresh for the rest of the
+        # session — the Dashboard just stopped updating and looked like a
+        # very idle machine. hideEvent stops the timers on its own when the
+        # window hides, so nothing is left ticking behind a hidden window.
         if self._app.config.get("app.minimize_to_tray", False):
             event.ignore()
             self.hide()
@@ -526,7 +524,17 @@ class MainWindow(QMainWindow):
                 "Windows Tweaker is minimized to the tray. Double-click to restore.",
             )
             return
+
+        for timer in self._module_refresh_timers.values():
+            timer.stop()
+        self._module_refresh_timers.clear()
+
+        update_worker = getattr(self, "_update_worker", None)
+        if update_worker is not None:
+            update_worker.cancel()
+
         size = self.size()
         self._app.config.set("app.window_size", [size.width(), size.height()])
         self._app.shutdown()
         event.accept()
+        super().closeEvent(event)
