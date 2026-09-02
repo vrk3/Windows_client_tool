@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -165,6 +166,24 @@ class _DashboardWidget(QWidget):
 
     def set_app(self, app) -> None:
         self.app = app
+        # The refresh slider controls how often the live pane repaints.
+        # Persisted, so a slower laptop can ask for 10s and a demo can ask
+        # for 1s without re-doing it every launch.
+        seconds = 5
+        if app is not None and getattr(app, "config", None) is not None:
+            try:
+                seconds = int(app.config.get("modules.dashboard.refresh_sec", 5))
+            except (TypeError, ValueError):
+                seconds = 5
+        seconds = max(1, min(60, seconds))
+        self._refresh_slider.setValue(seconds)
+        self._on_refresh_slider(seconds)
+
+    def _on_refresh_slider(self, seconds: int) -> None:
+        self._timer.setInterval(max(1, min(60, seconds)) * 1000)
+        self._refresh_val.setText(f"{seconds} s")
+        if self.app is not None and getattr(self.app, "config", None) is not None:
+            self.app.config.set("modules.dashboard.refresh_sec", int(seconds))
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -254,6 +273,25 @@ class _DashboardWidget(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self._space_banner)
+
+        # Refresh-rate slider: how fast the live numbers repaint.
+        refresh_row = QHBoxLayout()
+        refresh_row.setContentsMargins(10, 6, 10, 0)
+        refresh_lbl = QLabel("Refresh rate")
+        refresh_lbl.setStyleSheet("color: #888;")
+        self._refresh_slider = QSlider(Qt.Orientation.Horizontal)
+        self._refresh_slider.setRange(1, 60)
+        self._refresh_slider.setSingleStep(1)
+        self._refresh_slider.setToolTip("How often the live metrics update")
+        self._refresh_slider.valueChanged.connect(self._on_refresh_slider)
+        self._refresh_val = QLabel("5 s")
+        self._refresh_val.setMinimumWidth(36)
+        self._refresh_val.setAlignment(Qt.AlignmentFlag.AlignRight)
+        refresh_row.addWidget(refresh_lbl)
+        refresh_row.addWidget(self._refresh_slider, 1)
+        refresh_row.addWidget(self._refresh_val)
+        outer.addLayout(refresh_row)
+
         outer.addWidget(scroll)
 
     def _on_clean_now(self) -> None:
@@ -447,7 +485,14 @@ class OverviewModule(BaseModule):
             self._widget._timer.stop()
 
     def get_refresh_interval(self) -> Optional[int]:
-        return 5_000
+        """The slider-driven rate, persisted under modules.dashboard.refresh_sec."""
+        seconds = 5
+        if self.app is not None and getattr(self.app, "config", None) is not None:
+            try:
+                seconds = int(self.app.config.get("modules.dashboard.refresh_sec", 5))
+            except (TypeError, ValueError):
+                seconds = 5
+        return max(1, min(60, seconds)) * 1000
 
     def refresh_data(self) -> None:
         if self._refreshing or not self._widget:
@@ -483,6 +528,8 @@ class DashboardModule(CompositeModule):
         from modules.dashboard.details_module import DetailsModule
         from modules.dashboard.performance_module import PerformanceModule
         from modules.dashboard.processes_module import ProcessesModule
+        from modules.dashboard.users_module import UsersModule
+        from modules.perfmon.perfmon_module import PerfMonModule
         from modules.process_explorer.process_explorer_module import (
             ProcessExplorerModule)
 
@@ -491,5 +538,7 @@ class DashboardModule(CompositeModule):
             ProcessesModule(),
             PerformanceModule(),
             DetailsModule(),
+            UsersModule(),
             ProcessExplorerModule(),
+            PerfMonModule(),
         ]

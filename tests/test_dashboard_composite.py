@@ -16,9 +16,12 @@ def module():
 
 def test_the_dashboard_hosts_the_process_views(module):
     """Processes before Details: the grouped view is the one most people
-    want, and the 40-column table is the one you go to next."""
+    want, and the 40-column table is the one you go to next. Users files
+    every process under its account. PerfMon was absorbed as its last tab
+    -- one place for the live performance picture."""
     assert [child.name for child in module.children] == \
-        ["Overview", "Processes", "Performance", "Details", "Process Explorer"]
+        ["Overview", "Processes", "Performance", "Details", "Users",
+         "Process Explorer", "PerfMon"]
 
 
 def test_the_old_overview_is_still_the_first_tab(module):
@@ -64,5 +67,7 @@ def test_every_child_is_in_hidden_imports():
     source = io.open("pyinstaller_common.py", encoding="utf-8").read()
     for name in ("modules.dashboard.details_module",
                  "modules.process_explorer.process_explorer_module",
-                 "modules.dashboard.procengine.ntquery"):
+                 "modules.dashboard.procengine.ntquery",
+                 "modules.perfmon.perfmon_module",
+                 "modules.dashboard.users_module"):
         assert f'"{name}"' in source, f"{name} is not in HIDDEN_IMPORTS"
