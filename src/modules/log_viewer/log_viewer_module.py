@@ -186,6 +186,25 @@ class LogViewerWidget(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
+        # Construction in the order the pane reads, top to bottom.
+        # This was one 480-line __init__; nothing about it could be
+        # read or tested in pieces, in a module whose parser and
+        # reader are deliberately separable and separately tested.
+        self._build_toolbar(layout)
+        self._build_find_row(layout)
+        self._build_range_row(layout)
+        self._build_markers(layout)
+        self._build_table(layout)
+        self._build_status(layout)
+        self._wire_signals(layout)
+
+
+    def _build_toolbar(self, layout) -> None:
+        """The open/reload/follow row, and the source and severity filters."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+
         top = QHBoxLayout()
         # A split button: pressing it browses, the arrow lists the logs this
         # machine actually has. Same idea as TreeSize's scan target -- offer
@@ -288,6 +307,12 @@ class LogViewerWidget(QWidget):
         top.addStretch(1)
         layout.addLayout(top)
 
+    def _build_find_row(self, layout) -> None:
+        """Find, Filter and Exclude.
+
+        Find JUMPS to the next match and leaves everything on screen;
+        Filter HIDES everything that does not match. Two jobs, two
+        boxes — a single shared box only re-applied when toggled."""
         find_row = QHBoxLayout()
         find_row.addWidget(QLabel("Find:", self))
         self.find_box = QLineEdit(self)
@@ -347,6 +372,8 @@ class LogViewerWidget(QWidget):
         find_row.addWidget(self.exclude_box, 1)
         layout.addLayout(find_row)
 
+    def _build_range_row(self, layout) -> None:
+        """Thread, component, time range and the regex switch."""
         range_row = QHBoxLayout()
         range_row.addWidget(QLabel("Thread:", self))
         # Editable with a completer, not a plain dropdown: DISM carries 329
@@ -438,6 +465,12 @@ class LogViewerWidget(QWidget):
         range_row.addStretch(1)
         layout.addLayout(range_row)
 
+    def _build_markers(self, layout) -> None:
+        """The pinned-rows table and the density strip.
+
+        The pinned table has its OWN model rather than a proxy over the
+        main one: a pinned row has to survive a filter that would hide
+        it, and a proxy cannot show a row the source has excluded."""
         # Rows kept in view while you scroll. Its OWN model rather than a
         # proxy over the main one: a pinned row has to survive a filter that
         # would hide it, and a proxy cannot show a row the source model has
@@ -468,6 +501,8 @@ class LogViewerWidget(QWidget):
         self.density.setVisible(False)
         layout.addWidget(self.density)
 
+    def _build_table(self, layout) -> None:
+        """The log table and the detail panel, in their splitter."""
         self.table = QTableView(self)
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(
@@ -523,6 +558,8 @@ class LogViewerWidget(QWidget):
         self.splitter.setSizes([600, 160])
         layout.addWidget(self.splitter, 1)
 
+    def _build_status(self, layout) -> None:
+        """The failure-summary panel and the status line."""
         # Counts of what is failing, over whatever the filter has left.
         # Hidden until asked for: top_codes costs 297 ms over the real
         # archive's 138,683 records, which is not a per-keystroke expense.
@@ -578,9 +615,15 @@ class LogViewerWidget(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
 
+    def _wire_signals(self, layout) -> None:
+        """Connections that need the widgets above to exist.
+
+        Scroll, context menus, shortcuts and the follow timer. Kept
+        last because every one of them names a widget built earlier."""
         # Reaching the top is a request for what comes before it. Connected
         # after the table exists, and guarded by _loading_earlier, since
         # prepending rows moves the bar and would otherwise re-enter here.
+        header = self.table.horizontalHeader()
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         header.customContextMenuRequested.connect(self._on_header_menu)
 
@@ -603,6 +646,7 @@ class LogViewerWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(FOLLOW_MS)
         self._timer.timeout.connect(self._poll)
+
 
     # ---- opening --------------------------------------------------------
 
