@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from modules.cleanup.cleanup_scanner import _common  # noqa: E402
 from modules.cleanup.cleanup_scanner.catalog import (  # noqa: E402
-    load_catalog, targets_of,
+    expand, load_catalog, targets_of,
 )
 
 CATEGORY_MODULES = {
@@ -108,15 +108,53 @@ def _paths_the_original_would_measure(fn) -> set:
         else:
             expanded.add(path)
 
-    # Drop paths that are merely INSIDE something the scanner walked --
-    # get_dir_size recurses with os.path.getsize, and those children are
-    # not targets. Keep only the outermost of any nested pair.
-    normalised = {_norm(p) for p in expanded if p}
-    outermost = set()
-    for path in sorted(normalised, key=len):
-        if not any(path.startswith(other + os.sep) for other in outermost):
-            outermost.add(path)
-    return outermost
+    # No "outermost" collapsing here. An earlier version kept only the
+    # outermost of any nested pair, applied to the ORIGINAL's set but not
+    # the spec's, and that asymmetry alone produced four false differences
+    # (docker, google_drive, sharex, zed all list a parent AND its
+    # children deliberately). get_dir_size recurses through os.walk and
+    # os.path.getsize, neither of which is hooked, so there is nothing to
+    # collapse in the first place.
+    return {_norm(p) for p in expanded if p}
+
+
+
+def _equivalent(theirs: set, ours: set, declared: set) -> bool:
+    """Whether the two path sets mean the same thing.
+
+    Exactly equal, or differing only by a GUARD DIRECTORY. An original that
+    writes
+
+        if not os.path.isdir(steam_dir): return
+        for sub in ("steamapps", "shadercache"): ...
+
+    records `steam_dir` because it TESTED it, and — when the guard fails,
+    as it does on a machine without Steam — records nothing else. The spec
+    lists the leaves. Neither side is wrong: on a machine with Steam both
+    resolve to the same directories, and on one without, both measure
+    nothing.
+
+    So a path on only one side is accepted when it is an ancestor of, or a
+    descendant of, a path the other side declares. `declared` is the spec's
+    paths with variables expanded but globs NOT resolved, because a glob
+    that currently matches nothing still says where it would look —
+    comparing against the resolved set would make every unmatched glob look
+    like a missing path.
+    """
+    if theirs == ours:
+        return True
+
+    def related(path, others):
+        return any(path.startswith(o + os.sep) or o.startswith(path + os.sep)
+                   for o in others)
+
+    for extra in theirs - ours:
+        if not related(extra, ours | declared):
+            return False
+    for extra in ours - theirs:
+        if not related(extra, theirs):
+            return False
+    return True
 
 
 def main() -> int:
@@ -147,10 +185,17 @@ def main() -> int:
 
         theirs = _paths_the_original_would_measure(original)
         ours = {_norm(p) for p in targets_of(spec)}
+        # The spec's paths with variables expanded but globs left alone: a
+        # glob matching nothing today still says where it would look.
+        declared = set()
+        for raw in spec.paths:
+            resolved = expand(raw)
+            if resolved:
+                declared.add(_norm(resolved))
 
         if any(p.startswith("<raised") for p in theirs):
             unresolved.append((spec_id, next(iter(theirs))))
-        elif theirs == ours:
+        elif _equivalent(theirs, ours, declared):
             same.append(spec_id)
             if args.verbose:
                 print(f"  same  {spec_id}: {len(ours)} path(s)")

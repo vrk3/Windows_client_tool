@@ -2,30 +2,136 @@
   "category": "games",
   "scanners": [
     {
-      "id": "xbox_cache",
-      "label": "Xbox Gaming Services, Xbox Gaming Overlay, FamilyNotifications cache",
+      "id": "apex_cache",
+      "label": "Apex Legends shader preload and Respawn log files",
       "paths": [
-        "%LOCALAPPDATA%\\Packages\\Microsoft.GamingServices_*\\LocalCache",
-        "%LOCALAPPDATA%\\Packages\\Microsoft.XboxGamingOverlay_*\\LocalCache",
-        "%LOCALAPPDATA%\\Packages\\FamilyNotifications.*\\LocalState",
-        "%ProgramData%\\XboxLiveDeviceInfo"
+        "%LOCALAPPDATA%\\Respawn\\Apex\\logs",
+        "%LOCALAPPDATA%\\Respawn\\Apex\\local"
       ],
       "safety": "safe",
-      "description": "Xbox Gaming Services, Xbox Gaming Overlay, FamilyNotifications cache."
+      "description": "Apex Legends shader preload and Respawn log files."
     },
     {
-      "id": "epic_launcher_cache",
-      "label": "Epic Games Launcher download cache, shader cache, and web data",
+      "id": "arma_cache",
+      "label": "Arma 3 profile logs, mission temp, and BattlEye filter cache",
       "paths": [
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Portal\\Cache",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Manifests",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\ShaderCompiler",
-        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
+        "%APPDATA%\\Arma 3",
+        "%LOCALAPPDATA%\\Arma 3"
       ],
       "safety": "safe",
-      "description": "Epic Games Launcher download cache, shader cache, and web data."
+      "description": "Arma 3 profile logs, mission temp, and BattlEye filter cache."
+    },
+    {
+      "id": "battle_net_auth_cache",
+      "label": "Battle.net authentication ticket cache and launcher webcache data",
+      "paths": [
+        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
+        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
+        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
+      ],
+      "safety": "safe",
+      "description": "Battle.net authentication ticket cache and launcher webcache data."
+    },
+    {
+      "id": "battlenet_cache",
+      "label": "Battle.net cache, webcache, and agent logs",
+      "paths": [
+        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
+        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
+        "%APPDATA%\\Blizzard\\Battle.net\\logs",
+        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
+      ],
+      "safety": "safe",
+      "description": "Battle.net cache, webcache, and agent logs."
+    },
+    {
+      "id": "beamng_cache",
+      "label": "BeamNG.drive logs, replay cache, and crash reports",
+      "paths": [
+        "%APPDATA%\\BeamNG\\logs",
+        "%LOCALAPPDATA%\\BeamNG.drive"
+      ],
+      "safety": "safe",
+      "description": "BeamNG.drive logs, replay cache, and crash reports."
+    },
+    {
+      "id": "blizzard_downloads_cache",
+      "label": "Blizzard games downloaded patch staging and content manifest cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs",
+        "%APPDATA%\\Blizzard\\Diablo III\\Logs"
+      ],
+      "safety": "safe",
+      "description": "Blizzard games downloaded patch staging and content manifest cache."
+    },
+    {
+      "id": "bsd_wine_cache",
+      "label": "Battle.net Desktop App (new) cache and Blizzard update staging",
+      "paths": [
+        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
+        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
+        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
+      ],
+      "safety": "safe",
+      "description": "Battle.net Desktop App (new) cache and Blizzard update staging."
+    },
+    {
+      "id": "cities_skylines_cache",
+      "label": "Cities: Skylines savegame backup and Colossal Order mod staging",
+      "paths": [
+        "%APPDATA%\\Colossal Order\\Cities Skylines\\logs",
+        "%LOCALAPPDATA%\\Colossal Order\\Cities Skylines"
+      ],
+      "safety": "safe",
+      "description": "Cities: Skylines savegame backup and Colossal Order mod staging."
+    },
+    {
+      "id": "ck2_cache",
+      "label": "Crusader Kings II replay cache and DLC download staging",
+      "paths": [
+        "%APPDATA%\\Paradox Interactive\\Crusader Kings II\\logs"
+      ],
+      "safety": "safe",
+      "description": "Crusader Kings II replay cache and DLC download staging."
+    },
+    {
+      "id": "ck3_cache",
+      "label": "Crusader Kings III autosave staging and Paradox Launcher logs",
+      "paths": [
+        "%APPDATA%\\Paradox Interactive\\Crusader Kings III\\logs",
+        "%LOCALAPPDATA%\\Paradox Interactive\\Crusader Kings III"
+      ],
+      "safety": "safe",
+      "description": "Crusader Kings III autosave staging and Paradox Launcher logs."
+    },
+    {
+      "id": "csgo_cache",
+      "label": "CS2/CS:GO shader cache, demo temp, and console logs",
+      "paths": [
+        "%APPDATA%\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\local\\cfg"
+      ],
+      "safety": "safe",
+      "description": "CS2/CS:GO shader cache, demo temp, and console logs."
+    },
+    {
+      "id": "destiny2_cache",
+      "label": "Destiny 2 shader preload, logs, and Bungie.net manifest cache",
+      "paths": [
+        "%APPDATA%\\Bungie\\DestinyActivityFeed",
+        "%LOCALAPPDATA%\\Bungie\\Destiny2"
+      ],
+      "safety": "safe",
+      "description": "Destiny 2 shader preload, logs, and Bungie.net manifest cache."
+    },
+    {
+      "id": "diablo4_cache",
+      "label": "Diablo IV shader cache and Blizzard Battle.net game session logs",
+      "paths": [
+        "%APPDATA%\\Blizzard\\Diablo IV\\Logs",
+        "%LOCALAPPDATA%\\Blizzard\\Diablo IV\\Logs"
+      ],
+      "safety": "safe",
+      "description": "Diablo IV shader cache and Blizzard Battle.net game session logs."
     },
     {
       "id": "ea_app_cache",
@@ -44,52 +150,119 @@
       "description": "EA app (new) and Origin cache — download cache and web data."
     },
     {
-      "id": "gog_cache",
-      "label": "GOG Galaxy cache, web cache, and game manager data",
+      "id": "ea_desktop_full_cache",
+      "label": "EA app (new) download cache, web cache, and game content staging",
       "paths": [
-        "%APPDATA%\\GOG.com\\Galaxy\\Cache",
-        "%APPDATA%\\GOG.com\\Galaxy\\WebCache",
-        "%APPDATA%\\GOG.com\\Galaxy\\logs",
-        "%LOCALAPPDATA%\\GOG.com\\Galaxy\\Cache"
+        "%APPDATA%\\EA Desktop\\Cache",
+        "%APPDATA%\\EA Desktop\\logs",
+        "%LOCALAPPDATA%\\EA Desktop\\Cache"
       ],
       "safety": "safe",
-      "description": "GOG Galaxy cache, web cache, and game manager data."
+      "description": "EA app (new) download cache, web cache, and game content staging."
     },
     {
-      "id": "ubisoft_cache",
-      "label": "Ubisoft Connect cache, download, and shader cache",
+      "id": "epic_games_cache",
+      "label": "Epic Games Store shader compiler staging and manifest data",
       "paths": [
-        "%APPDATA%\\Ubisoft\\Connect\\cache",
-        "%APPDATA%\\Ubisoft\\Connect\\downloads",
-        "%APPDATA%\\Ubisoft\\Connect\\logs",
-        "%APPDATA%\\Ubisoft\\Connect\\shader-cache",
-        "%LOCALAPPDATA%\\Ubisoft\\Connect\\Cache",
-        "%LOCALAPPDATA%\\Ubisoft\\Connect\\Logs"
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Portal\\Cache",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache",
+        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
       ],
       "safety": "safe",
-      "description": "Ubisoft Connect cache, download, and shader cache."
+      "description": "Epic Games Store shader compiler staging and manifest data."
     },
     {
-      "id": "humble_cache",
-      "label": "Humble Bundle app cache and downloads",
+      "id": "epic_launcher_cache",
+      "label": "Epic Games Launcher download cache, shader cache, and web data",
       "paths": [
-        "%LOCALAPPDATA%\\Humble Bundle\\Humble App\\Cache",
-        "%LOCALAPPDATA%\\Humble Bundle\\Humble App\\logs",
-        "%APPDATA%\\HumbleBundle\\Humble App\\Cache"
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Portal\\Cache",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Manifests",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\ShaderCompiler",
+        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
       ],
       "safety": "safe",
-      "description": "Humble Bundle app cache and downloads."
+      "description": "Epic Games Launcher download cache, shader cache, and web data."
     },
     {
-      "id": "itch_cache",
-      "label": "itch.io game manager cache and downloads",
+      "id": "epic_manifest_cache",
+      "label": "Epic Games Launcher manifest data and download URL redirect cache",
       "paths": [
-        "%LOCALAPPDATA%\\itch\\apps",
-        "%LOCALAPPDATA%\\itch\\buckets",
-        "%LOCALAPPDATA%\\itch\\logs"
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Manifests",
+        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
+        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
       ],
       "safety": "safe",
-      "description": "itch.io game manager cache and downloads."
+      "description": "Epic Games Launcher manifest data and download URL redirect cache."
+    },
+    {
+      "id": "eso_cache",
+      "label": "Elder Scrolls Online logs, audio cache, and shader staging",
+      "paths": [
+        "%APPDATA%\\ZeniMax Online\\gamepadcache",
+        "%LOCALAPPDATA%\\Documents\\Elder Scrolls Online\\live\\logs"
+      ],
+      "safety": "safe",
+      "description": "Elder Scrolls Online logs, audio cache, and shader staging."
+    },
+    {
+      "id": "eu4_cache",
+      "label": "Europa Universalis IV autosave cache and Paradox mod staging",
+      "paths": [
+        "%APPDATA%\\Paradox Interactive\\Europa Universalis IV\\logs",
+        "%LOCALAPPDATA%\\Paradox Interactive\\Europa Universalis IV"
+      ],
+      "safety": "safe",
+      "description": "Europa Universalis IV autosave cache and Paradox mod staging."
+    },
+    {
+      "id": "factorio_cache",
+      "label": "Factorio script output, save game, and factorio-data cache",
+      "paths": [
+        "%APPDATA%\\Factorio"
+      ],
+      "safety": "safe",
+      "description": "Factorio script output, save game, and factorio-data cache."
+    },
+    {
+      "id": "fortnite_cache",
+      "label": "Fortnite Epic Games cache, D3D shader cache, and reports",
+      "paths": [
+        "%LOCALAPPDATA%\\FortniteGame\\Saved\\D3DCache",
+        "%LOCALAPPDATA%\\Frostbite\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Fortnite Epic Games cache, D3D shader cache, and reports."
+    },
+    {
+      "id": "forza_cache",
+      "label": "Forza Horizon / Motorsport logs, clips, and capture gallery",
+      "paths": [
+        "%APPDATA%\\ForzaHorizon*",
+        "%LOCALAPPDATA%\\ForzaHorizon*"
+      ],
+      "safety": "safe",
+      "description": "Forza Horizon / Motorsport logs, clips, and capture gallery."
+    },
+    {
+      "id": "game_bar_widget_cache",
+      "label": "Xbox Game Bar widget logs and performance overlay cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\GameBar"
+      ],
+      "safety": "safe",
+      "description": "Xbox Game Bar widget logs and performance overlay cache."
+    },
+    {
+      "id": "gamejolt_cache",
+      "label": "GameJolt client cache and game data staging",
+      "paths": [
+        "%APPDATA%\\GameJolt"
+      ],
+      "safety": "safe",
+      "description": "GameJolt client cache and game data staging."
     },
     {
       "id": "gamepass_cache",
@@ -106,394 +279,25 @@
       "description": "Xbox Game Pass (PC) app cache, downloads, and shader cache."
     },
     {
-      "id": "unity_cache",
-      "label": "Unity Editor cache, library, and build cache folders",
+      "id": "godot_cache",
+      "label": "Godot Engine editor cache, import, and remote debug temp",
       "paths": [
-        "%LOCALAPPDATA%\\Unity\\Editor\\Cache",
-        "%LOCALAPPDATA%\\Unity\\Editor\\logs",
-        "%LOCALAPPDATA%\\Unity\\Editor\\Library",
-        "%LOCALAPPDATA%\\Unity\\Hub\\logs",
-        "%LOCALAPPDATA%\\Unity\\Hub\\Cache",
-        "%USERPROFILE%\\Unity\\Projects"
-      ],
-      "safety": "caution",
-      "description": "Unity Editor cache, library, and build cache folders."
-    },
-    {
-      "id": "unreal_cache",
-      "label": "Unreal Engine build, intermediate, and saved folders",
-      "paths": [
-        "%LOCALAPPDATA%\\UnrealEngine\\Engine\\DerivedDataCache",
-        "%LOCALAPPDATA%\\UnrealEngine\\Projects",
-        "%USERPROFILE%\\Unreal Projects",
-        "%USERPROFILE%\\Documents\\Unreal Projects"
-      ],
-      "safety": "caution",
-      "description": "Unreal Engine build, intermediate, and saved folders."
-    },
-    {
-      "id": "unity_hub_cache",
-      "label": "Unity Hub cache, downloaded editor installs, and logs",
-      "paths": [
-        "%LOCALAPPDATA%\\Unity Hub\\logs",
-        "%LOCALAPPDATA%\\Unity Hub\\Cache"
-      ],
-      "safety": "caution",
-      "description": "Unity Hub cache, downloaded editor installs, and logs."
-    },
-    {
-      "id": "battlenet_cache",
-      "label": "Battle.net cache, webcache, and agent logs",
-      "paths": [
-        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
-        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
-        "%APPDATA%\\Blizzard\\Battle.net\\logs",
-        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
+        "%APPDATA%\\Godot"
       ],
       "safety": "safe",
-      "description": "Battle.net cache, webcache, and agent logs."
+      "description": "Godot Engine editor cache, import, and remote debug temp."
     },
     {
-      "id": "rockstar_cache",
-      "label": "Rockstar Games Launcher cache, Social Club cache, and update downloads",
+      "id": "gog_cache",
+      "label": "GOG Galaxy cache, web cache, and game manager data",
       "paths": [
-        "%APPDATA%\\Rockstar Games\\Launcher\\logs",
-        "%APPDATA%\\Rockstar Games\\Social Club",
-        "%LOCALAPPDATA%\\Rockstar Games\\Social Club"
+        "%APPDATA%\\GOG.com\\Galaxy\\Cache",
+        "%APPDATA%\\GOG.com\\Galaxy\\WebCache",
+        "%APPDATA%\\GOG.com\\Galaxy\\logs",
+        "%LOCALAPPDATA%\\GOG.com\\Galaxy\\Cache"
       ],
       "safety": "safe",
-      "description": "Rockstar Games Launcher cache, Social Club cache, and update downloads."
-    },
-    {
-      "id": "paradox_cache",
-      "label": "Paradox Interactive launcher cache, mods, and save game staging",
-      "paths": [
-        "%APPDATA%\\Paradox Interactive\\common\\apps",
-        "%LOCALAPPDATA%\\Paradox Interactive\\mods"
-      ],
-      "safety": "caution",
-      "description": "Paradox Interactive launcher cache, mods, and save game staging."
-    },
-    {
-      "id": "lutris_cache",
-      "label": "Lutris wine prefix staging and runner install cache",
-      "paths": [
-        "%USERPROFILE%\\.lutris\\wine",
-        "%USERPROFILE%\\.lutris\\runners"
-      ],
-      "safety": "caution",
-      "description": "Lutris wine prefix staging and runner install cache."
-    },
-    {
-      "id": "minedrive_cache",
-      "label": "Minesweeper and casual game app caches",
-      "paths": [
-        "%LOCALAPPDATA%\\Microsoft\\Minesweeper",
-        "%LOCALAPPDATA%\\Microsoft\\YourPhone"
-      ],
-      "safety": "safe",
-      "description": "Minesweeper and casual game app caches."
-    },
-    {
-      "id": "steamCMD_cache",
-      "label": "steamcmd downloaded game content and workshop staging",
-      "paths": [
-        "%LOCALAPPDATA%\\steamcmd",
-        "%LOCALAPPDATA%\\steam-console"
-      ],
-      "safety": "safe",
-      "description": "steamcmd downloaded game content and workshop staging."
-    },
-    {
-      "id": "minecraft_cache",
-      "label": "Minecraft (Java + Bedrock) shader cache, resource packs staging, and logs",
-      "paths": [
-        "%APPDATA%\\.minecraft\\logs",
-        "%APPDATA%\\.minecraft\\shaderpacks",
-        "%LOCALAPPDATA%\\Packages\\Microsoft.MinecraftUWP*"
-      ],
-      "safety": "safe",
-      "description": "Minecraft (Java + Bedrock) shader cache, resource packs staging, and logs."
-    },
-    {
-      "id": "roblox_cache",
-      "label": "Roblox player cache, shader cache, and logs",
-      "paths": [
-        "%LOCALAPPDATA%\\Roblox\\logs",
-        "%LOCALAPPDATA%\\Roblox\\_downloads"
-      ],
-      "safety": "safe",
-      "description": "Roblox player cache, shader cache, and logs."
-    },
-    {
-      "id": "lol_cache",
-      "label": "League of Legends replay cache, logs, and Riot crash reports",
-      "paths": [
-        "%APPDATA%\\Riot Games\\League of Legends\\logs",
-        "%APPDATA%\\Riot Games\\League of Legends\\replays",
-        "%LOCALAPPDATA%\\Riot Games\\League of Legends\\Config"
-      ],
-      "safety": "safe",
-      "description": "League of Legends replay cache, logs, and Riot crash reports."
-    },
-    {
-      "id": "valorant_cache",
-      "label": "Valorant game logs and Riot Vanguard logs",
-      "paths": [
-        "%APPDATA%\\Riot Games\\Valheim",
-        "%APPDATA%\\Riot Games\\Valorant\\logs",
-        "%APPDATA%\\Riot Games\\Signip\\Saved\\Logs"
-      ],
-      "safety": "safe",
-      "description": "Valorant game logs and Riot Vanguard logs."
-    },
-    {
-      "id": "fortnite_cache",
-      "label": "Fortnite Epic Games cache, D3D shader cache, and reports",
-      "paths": [
-        "%LOCALAPPDATA%\\FortniteGame\\Saved\\D3DCache",
-        "%LOCALAPPDATA%\\Frostbite\\Cache"
-      ],
-      "safety": "safe",
-      "description": "Fortnite Epic Games cache, D3D shader cache, and reports."
-    },
-    {
-      "id": "csgo_cache",
-      "label": "CS2/CS:GO shader cache, demo temp, and console logs",
-      "paths": [
-        "%APPDATA%\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\local\\cfg"
-      ],
-      "safety": "safe",
-      "description": "CS2/CS:GO shader cache, demo temp, and console logs."
-    },
-    {
-      "id": "apex_cache",
-      "label": "Apex Legends shader preload and Respawn log files",
-      "paths": [
-        "%LOCALAPPDATA%\\Respawn\\Apex\\logs",
-        "%LOCALAPPDATA%\\Respawn\\Apex\\local"
-      ],
-      "safety": "safe",
-      "description": "Apex Legends shader preload and Respawn log files."
-    },
-    {
-      "id": "rust_game_cache",
-      "label": "Rust game logs, crash dumps, and shader cache",
-      "paths": [
-        "%APPDATA%\\Facepunch Studios\\Rust\\logs",
-        "%APPDATA%\\Facepunch Studios\\Rust\\crash-reports"
-      ],
-      "safety": "safe",
-      "description": "Rust game logs, crash dumps, and shader cache."
-    },
-    {
-      "id": "pubg_cache",
-      "label": "PUBG lite/cache files and TslGame logs",
-      "paths": [
-        "%APPDATA%\\TslGame\\Saved\\Logs",
-        "%LOCALAPPDATA%\\TslGame\\Saved\\CrashReportClient"
-      ],
-      "safety": "safe",
-      "description": "PUBG lite/cache files and TslGame logs."
-    },
-    {
-      "id": "warcraft_cache",
-      "label": "World of Warcraft, Diablo, Hearthstone logs and cache",
-      "paths": [
-        "%APPDATA%\\Blizzard\\World of Warcraft\\Logs",
-        "%APPDATA%\\Blizzard\\Diablo III\\Logs",
-        "%APPDATA%\\Blizzard\\Hearthstone\\Logs",
-        "%LOCALAPPDATA%\\Blizzard\\World of Warcraft\\Logs"
-      ],
-      "safety": "safe",
-      "description": "World of Warcraft, Diablo, Hearthstone logs and cache."
-    },
-    {
-      "id": "overwatch_cache",
-      "label": "Overwatch 2 hero profile cache and Blizzard internal logs",
-      "paths": [
-        "%APPDATA%\\Blizzard\\Overwatch\\Logs",
-        "%APPDATA%\\Blizzard\\Overwatch\\Cache"
-      ],
-      "safety": "safe",
-      "description": "Overwatch 2 hero profile cache and Blizzard internal logs."
-    },
-    {
-      "id": "eso_cache",
-      "label": "Elder Scrolls Online logs, audio cache, and shader staging",
-      "paths": [
-        "%APPDATA%\\ZeniMax Online\\gamepadcache",
-        "%LOCALAPPDATA%\\Documents\\Elder Scrolls Online\\live\\logs"
-      ],
-      "safety": "safe",
-      "description": "Elder Scrolls Online logs, audio cache, and shader staging."
-    },
-    {
-      "id": "path_of_exile_cache",
-      "label": "Path of Exile log files and shader cache",
-      "paths": [
-        "%APPDATA%\\Grinding Gear Games\\Path of Exile\\logs",
-        "%APPDATA%\\Grinding Gear Games\\Path of Exile\\shaderCache"
-      ],
-      "safety": "safe",
-      "description": "Path of Exile log files and shader cache."
-    },
-    {
-      "id": "steam_full_cache",
-      "label": "Steam download manifest cache, workshop staging, and shader pre-caching",
-      "paths": [
-        "%LOCALAPPDATA%\\Programs\\Steam\\logs",
-        "%LOCALAPPDATA%\\Programs\\Steam\\htmlcache",
-        "%LOCALAPPDATA%\\Programs\\Steam\\shadercache",
-        "%LOCALAPPDATA%\\Programs\\Steam\\downloads",
-        "%APPDATA%\\Steam\\htmlcache"
-      ],
-      "safety": "safe",
-      "description": "Steam download manifest cache, workshop staging, and shader pre-caching."
-    },
-    {
-      "id": "xbox_live_cache",
-      "label": "Xbox Live device info cache, achievements staging, and gaming services logs",
-      "paths": [
-        "%LOCALAPPDATA%\\Microsoft\\XboxLiveDeviceInfo",
-        "%LOCALAPPDATA%\\MicrosoftGameBar\\logs",
-        "%ProgramData%\\XboxLiveDeviceInfo"
-      ],
-      "safety": "safe",
-      "description": "Xbox Live device info cache, achievements staging, and gaming services logs."
-    },
-    {
-      "id": "destiny2_cache",
-      "label": "Destiny 2 shader preload, logs, and Bungie.net manifest cache",
-      "paths": [
-        "%APPDATA%\\Bungie\\DestinyActivityFeed",
-        "%LOCALAPPDATA%\\Bungie\\Destiny2"
-      ],
-      "safety": "safe",
-      "description": "Destiny 2 shader preload, logs, and Bungie.net manifest cache."
-    },
-    {
-      "id": "warframe_cache",
-      "label": "Warframe shader cache, relay logs, and update staging",
-      "paths": [
-        "%APPDATA%\\Warframe",
-        "%APPDATA%\\Digital Extremes\\Warframe"
-      ],
-      "safety": "safe",
-      "description": "Warframe shader cache, relay logs, and update staging."
-    },
-    {
-      "id": "beamng_cache",
-      "label": "BeamNG.drive logs, replay cache, and crash reports",
-      "paths": [
-        "%APPDATA%\\BeamNG\\logs",
-        "%LOCALAPPDATA%\\BeamNG.drive"
-      ],
-      "safety": "safe",
-      "description": "BeamNG.drive logs, replay cache, and crash reports."
-    },
-    {
-      "id": "forza_cache",
-      "label": "Forza Horizon / Motorsport logs, clips, and capture gallery",
-      "paths": [
-        "%APPDATA%\\ForzaHorizon*",
-        "%LOCALAPPDATA%\\ForzaHorizon*"
-      ],
-      "safety": "safe",
-      "description": "Forza Horizon / Motorsport logs, clips, and capture gallery."
-    },
-    {
-      "id": "steamvr_cache",
-      "label": "SteamVR logs, compositor cache, and tracked device config",
-      "paths": [
-        "%LOCALAPPDATA%\\SteamVR",
-        "%APPDATA%\\Steam\\config"
-      ],
-      "safety": "safe",
-      "description": "SteamVR logs, compositor cache, and tracked device config."
-    },
-    {
-      "id": "oculus_cache",
-      "label": "Meta/Oculus home environment cache and manifest staging",
-      "paths": [
-        "%APPDATA%\\Software\\Microsoft\\Windows\\CurrentVersion\\Shell\\Oculus",
-        "%LOCALAPPDATA%\\Oculus"
-      ],
-      "safety": "safe",
-      "description": "Meta/Oculus home environment cache and manifest staging."
-    },
-    {
-      "id": "gta_v_cache",
-      "label": "GTA V shader cache, social club cache, and crash handler logs",
-      "paths": [
-        "%APPDATA%\\Rockstar Games\\GTA V",
-        "%LOCALAPPDATA%\\Rockstar Games\\GTA V"
-      ],
-      "safety": "safe",
-      "description": "GTA V shader cache, social club cache, and crash handler logs."
-    },
-    {
-      "id": "arma_cache",
-      "label": "Arma 3 profile logs, mission temp, and BattlEye filter cache",
-      "paths": [
-        "%APPDATA%\\Arma 3",
-        "%LOCALAPPDATA%\\Arma 3"
-      ],
-      "safety": "safe",
-      "description": "Arma 3 profile logs, mission temp, and BattlEye filter cache."
-    },
-    {
-      "id": "wineprefix_cache",
-      "label": "Wine/PlayOnLinux prefix cache and Winetricks download staging",
-      "paths": [
-        "%USERPROFILE%\\.wine",
-        "%USERPROFILE%\\.PlayOnLinux",
-        "%USERPROFILE%\\.winetricks"
-      ],
-      "safety": "caution",
-      "description": "Wine/PlayOnLinux prefix cache and Winetricks download staging."
-    },
-    {
-      "id": "lutris_runs_cache",
-      "label": "Lutris wine runners, DXVK cache, and runtime environment",
-      "paths": [
-        "%USERPROFILE%\\.lutris\\runners",
-        "%USERPROFILE%\\.lutris\\wine",
-        "%USERPROFILE%\\.local\\share\\lutris"
-      ],
-      "safety": "caution",
-      "description": "Lutris wine runners, DXVK cache, and runtime environment."
-    },
-    {
-      "id": "steam_proton_cache",
-      "label": "Steam Proton (Linux game compatibility layer) prefix cache",
-      "paths": [
-        "%LOCALAPPDATA%\\steamapps\\compatdata",
-        "%LOCALAPPDATA%\\Steam\\steamapps\\compatdata"
-      ],
-      "safety": "caution",
-      "description": "Steam Proton (Linux game compatibility layer) prefix cache."
-    },
-    {
-      "id": "steam_cloud_sync_cache",
-      "label": "Steam Cloud sync conflict backups and pending upload staging",
-      "paths": [
-        "%LOCALAPPDATA%\\steamapps\\backups"
-      ],
-      "safety": "safe",
-      "description": "Steam Cloud sync conflict backups and pending upload staging."
-    },
-    {
-      "id": "epic_games_cache",
-      "label": "Epic Games Store shader compiler staging and manifest data",
-      "paths": [
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Portal\\Cache",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache",
-        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
-      ],
-      "safety": "safe",
-      "description": "Epic Games Store shader compiler staging and manifest data."
+      "description": "GOG Galaxy cache, web cache, and game manager data."
     },
     {
       "id": "gog_galaxy2_cache",
@@ -506,6 +310,46 @@
       ],
       "safety": "safe",
       "description": "GOG Galaxy 2.0 game manager cache, web cache, and sync data."
+    },
+    {
+      "id": "gog_offline_cache",
+      "label": "GOG Galaxy offline installer cache and game backup metadata",
+      "paths": [
+        "%APPDATA%\\GOG.com\\Galaxy\\Cache",
+        "%APPDATA%\\GOG.com\\Galaxy\\logs"
+      ],
+      "safety": "safe",
+      "description": "GOG Galaxy offline installer cache and game backup metadata."
+    },
+    {
+      "id": "gta_v_cache",
+      "label": "GTA V shader cache, social club cache, and crash handler logs",
+      "paths": [
+        "%APPDATA%\\Rockstar Games\\GTA V",
+        "%LOCALAPPDATA%\\Rockstar Games\\GTA V"
+      ],
+      "safety": "safe",
+      "description": "GTA V shader cache, social club cache, and crash handler logs."
+    },
+    {
+      "id": "hoi4_cache",
+      "label": "Hearts of Iron IV replay cache and DX12 diagnostic logs",
+      "paths": [
+        "%APPDATA%\\Paradox Interactive\\Hearts of Iron IV\\logs"
+      ],
+      "safety": "safe",
+      "description": "Hearts of Iron IV replay cache and DX12 diagnostic logs."
+    },
+    {
+      "id": "humble_cache",
+      "label": "Humble Bundle app cache and downloads",
+      "paths": [
+        "%LOCALAPPDATA%\\Humble Bundle\\Humble App\\Cache",
+        "%LOCALAPPDATA%\\Humble Bundle\\Humble App\\logs",
+        "%APPDATA%\\HumbleBundle\\Humble App\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Humble Bundle app cache and downloads."
     },
     {
       "id": "humble_choice_cache",
@@ -530,6 +374,17 @@
       "description": "itch.io app cache, downloads, and community data."
     },
     {
+      "id": "itch_cache",
+      "label": "itch.io game manager cache and downloads",
+      "paths": [
+        "%LOCALAPPDATA%\\itch\\apps",
+        "%LOCALAPPDATA%\\itch\\buckets",
+        "%LOCALAPPDATA%\\itch\\logs"
+      ],
+      "safety": "safe",
+      "description": "itch.io game manager cache and downloads."
+    },
+    {
       "id": "kongregate_cache",
       "label": "Kongregate game launcher cache",
       "paths": [
@@ -539,35 +394,214 @@
       "description": "Kongregate game launcher cache."
     },
     {
-      "id": "gamejolt_cache",
-      "label": "GameJolt client cache and game data staging",
+      "id": "lol_cache",
+      "label": "League of Legends replay cache, logs, and Riot crash reports",
       "paths": [
-        "%APPDATA%\\GameJolt"
+        "%APPDATA%\\Riot Games\\League of Legends\\logs",
+        "%APPDATA%\\Riot Games\\League of Legends\\replays",
+        "%LOCALAPPDATA%\\Riot Games\\League of Legends\\Config"
       ],
       "safety": "safe",
-      "description": "GameJolt client cache and game data staging."
+      "description": "League of Legends replay cache, logs, and Riot crash reports."
     },
     {
-      "id": "bsd_wine_cache",
-      "label": "Battle.net Desktop App (new) cache and Blizzard update staging",
+      "id": "lutris_cache",
+      "label": "Lutris wine prefix staging and runner install cache",
       "paths": [
-        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
-        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
-        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
+        "%USERPROFILE%\\.lutris\\wine",
+        "%USERPROFILE%\\.lutris\\runners"
       ],
-      "safety": "safe",
-      "description": "Battle.net Desktop App (new) cache and Blizzard update staging."
+      "safety": "caution",
+      "description": "Lutris wine prefix staging and runner install cache."
     },
     {
-      "id": "ea_desktop_full_cache",
-      "label": "EA app (new) download cache, web cache, and game content staging",
+      "id": "lutris_runs_cache",
+      "label": "Lutris wine runners, DXVK cache, and runtime environment",
       "paths": [
-        "%APPDATA%\\EA Desktop\\Cache",
-        "%APPDATA%\\EA Desktop\\logs",
-        "%LOCALAPPDATA%\\EA Desktop\\Cache"
+        "%USERPROFILE%\\.lutris\\runners",
+        "%USERPROFILE%\\.lutris\\wine",
+        "%USERPROFILE%\\.local\\share\\lutris"
+      ],
+      "safety": "caution",
+      "description": "Lutris wine runners, DXVK cache, and runtime environment."
+    },
+    {
+      "id": "minecraft_cache",
+      "label": "Minecraft (Java + Bedrock) shader cache, resource packs staging, and logs",
+      "paths": [
+        "%APPDATA%\\.minecraft\\logs",
+        "%APPDATA%\\.minecraft\\shaderpacks",
+        "%LOCALAPPDATA%\\Packages\\Microsoft.MinecraftUWP*"
       ],
       "safety": "safe",
-      "description": "EA app (new) download cache, web cache, and game content staging."
+      "description": "Minecraft (Java + Bedrock) shader cache, resource packs staging, and logs."
+    },
+    {
+      "id": "minecraft_launcher_cache",
+      "label": "Minecraft Launcher game logs, crash reports, and resourcepack staging",
+      "paths": [
+        "%APPDATA%\\.minecraft\\logs",
+        "%APPDATA%\\.minecraft\\crash-reports"
+      ],
+      "safety": "safe",
+      "description": "Minecraft Launcher game logs, crash reports, and resourcepack staging."
+    },
+    {
+      "id": "minedrive_cache",
+      "label": "Minesweeper and casual game app caches",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Minesweeper",
+        "%LOCALAPPDATA%\\Microsoft\\YourPhone"
+      ],
+      "safety": "safe",
+      "description": "Minesweeper and casual game app caches."
+    },
+    {
+      "id": "oculus_cache",
+      "label": "Meta/Oculus home environment cache and manifest staging",
+      "paths": [
+        "%APPDATA%\\Software\\Microsoft\\Windows\\CurrentVersion\\Shell\\Oculus",
+        "%LOCALAPPDATA%\\Oculus"
+      ],
+      "safety": "safe",
+      "description": "Meta/Oculus home environment cache and manifest staging."
+    },
+    {
+      "id": "overwatch_cache",
+      "label": "Overwatch 2 hero profile cache and Blizzard internal logs",
+      "paths": [
+        "%APPDATA%\\Blizzard\\Overwatch\\Logs",
+        "%APPDATA%\\Blizzard\\Overwatch\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Overwatch 2 hero profile cache and Blizzard internal logs."
+    },
+    {
+      "id": "paradox_cache",
+      "label": "Paradox Interactive launcher cache, mods, and save game staging",
+      "paths": [
+        "%APPDATA%\\Paradox Interactive\\common\\apps",
+        "%LOCALAPPDATA%\\Paradox Interactive\\mods"
+      ],
+      "safety": "caution",
+      "description": "Paradox Interactive launcher cache, mods, and save game staging."
+    },
+    {
+      "id": "path_of_exile_cache",
+      "label": "Path of Exile log files and shader cache",
+      "paths": [
+        "%APPDATA%\\Grinding Gear Games\\Path of Exile\\logs",
+        "%APPDATA%\\Grinding Gear Games\\Path of Exile\\shaderCache"
+      ],
+      "safety": "safe",
+      "description": "Path of Exile log files and shader cache."
+    },
+    {
+      "id": "protonvpn_cache",
+      "label": "Proton VPN session logs and Network Lock cache",
+      "paths": [
+        "%APPDATA%\\ProtonVPN"
+      ],
+      "safety": "safe",
+      "description": "Proton VPN session logs and Network Lock cache."
+    },
+    {
+      "id": "pubg_cache",
+      "label": "PUBG lite/cache files and TslGame logs",
+      "paths": [
+        "%APPDATA%\\TslGame\\Saved\\Logs",
+        "%LOCALAPPDATA%\\TslGame\\Saved\\CrashReportClient"
+      ],
+      "safety": "safe",
+      "description": "PUBG lite/cache files and TslGame logs."
+    },
+    {
+      "id": "rimworld_cache",
+      "label": "RimWorld mod staging and Ludeon Studio debug logs",
+      "paths": [
+        "%APPDATA%\\Ludeon Studios\\RimWorld by Ludeon Studios"
+      ],
+      "safety": "caution",
+      "description": "RimWorld mod staging and Ludeon Studio debug logs."
+    },
+    {
+      "id": "roblox_cache",
+      "label": "Roblox player cache, shader cache, and logs",
+      "paths": [
+        "%LOCALAPPDATA%\\Roblox\\logs",
+        "%LOCALAPPDATA%\\Roblox\\_downloads"
+      ],
+      "safety": "safe",
+      "description": "Roblox player cache, shader cache, and logs."
+    },
+    {
+      "id": "rockstar_cache",
+      "label": "Rockstar Games Launcher cache, Social Club cache, and update downloads",
+      "paths": [
+        "%APPDATA%\\Rockstar Games\\Launcher\\logs",
+        "%APPDATA%\\Rockstar Games\\Social Club",
+        "%LOCALAPPDATA%\\Rockstar Games\\Social Club"
+      ],
+      "safety": "safe",
+      "description": "Rockstar Games Launcher cache, Social Club cache, and update downloads."
+    },
+    {
+      "id": "rust_game_cache",
+      "label": "Rust game logs, crash dumps, and shader cache",
+      "paths": [
+        "%APPDATA%\\Facepunch Studios\\Rust\\logs",
+        "%APPDATA%\\Facepunch Studios\\Rust\\crash-reports"
+      ],
+      "safety": "safe",
+      "description": "Rust game logs, crash dumps, and shader cache."
+    },
+    {
+      "id": "snowrunner_cache",
+      "label": "Snowrunner save backups and rendered truck config cache",
+      "paths": [
+        "%APPDATA%\\ Snowrunner"
+      ],
+      "safety": "safe",
+      "description": "Snowrunner save backups and rendered truck config cache."
+    },
+    {
+      "id": "stardew_cache",
+      "label": "Stardew Valley save backup and ConcernedApe mod config cache",
+      "paths": [
+        "%APPDATA%\\StardewValley"
+      ],
+      "safety": "safe",
+      "description": "Stardew Valley save backup and ConcernedApe mod config cache."
+    },
+    {
+      "id": "steamCMD_cache",
+      "label": "steamcmd downloaded game content and workshop staging",
+      "paths": [
+        "%LOCALAPPDATA%\\steamcmd",
+        "%LOCALAPPDATA%\\steam-console"
+      ],
+      "safety": "safe",
+      "description": "steamcmd downloaded game content and workshop staging."
+    },
+    {
+      "id": "steam_cache",
+      "label": "Steam download cache and update files",
+      "paths": [
+        "%LOCALAPPDATA%\\Programs\\Steam\\steamapps",
+        "%LOCALAPPDATA%\\Programs\\Steam\\shadercache",
+        "%LOCALAPPDATA%\\Programs\\Steam\\htmlcache"
+      ],
+      "safety": "safe",
+      "description": "Steam download cache and update files. Written by hand: the extractor recorded the loop variable names (steamapps, shadercache, htmlcache) as bare relative paths instead of joining them onto the Steam directory."
+    },
+    {
+      "id": "steam_cloud_sync_cache",
+      "label": "Steam Cloud sync conflict backups and pending upload staging",
+      "paths": [
+        "%LOCALAPPDATA%\\steamapps\\backups"
+      ],
+      "safety": "safe",
+      "description": "Steam Cloud sync conflict backups and pending upload staging."
     },
     {
       "id": "steam_deck_cache",
@@ -578,47 +612,6 @@
       ],
       "safety": "caution",
       "description": "Steam Deck game mode logs, Proton prefix cache, and shader staging."
-    },
-    {
-      "id": "game_bar_widget_cache",
-      "label": "Xbox Game Bar widget logs and performance overlay cache",
-      "paths": [
-        "%LOCALAPPDATA%\\Microsoft\\GameBar"
-      ],
-      "safety": "safe",
-      "description": "Xbox Game Bar widget logs and performance overlay cache."
-    },
-    {
-      "id": "xbox_app_cache",
-      "label": "Xbox app full cache: achievements, game clips, and social data",
-      "paths": [
-        "%LOCALAPPDATA%\\Packages\\Microsoft.GamingServices_*\\LocalCache",
-        "%LOCALAPPDATA%\\Packages\\Microsoft.XboxGamingOverlay_*\\LocalCache",
-        "%LOCALAPPDATA%\\MicrosoftGameBar"
-      ],
-      "safety": "safe",
-      "description": "Xbox app full cache: achievements, game clips, and social data."
-    },
-    {
-      "id": "battle_net_auth_cache",
-      "label": "Battle.net authentication ticket cache and launcher webcache data",
-      "paths": [
-        "%APPDATA%\\Blizzard\\Battle.net\\Cache",
-        "%APPDATA%\\Blizzard\\Battle.net\\WebCache",
-        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs"
-      ],
-      "safety": "safe",
-      "description": "Battle.net authentication ticket cache and launcher webcache data."
-    },
-    {
-      "id": "blizzard_downloads_cache",
-      "label": "Blizzard games downloaded patch staging and content manifest cache",
-      "paths": [
-        "%LOCALAPPDATA%\\Blizzard\\Battle.net\\logs",
-        "%APPDATA%\\Blizzard\\Diablo III\\Logs"
-      ],
-      "safety": "safe",
-      "description": "Blizzard games downloaded patch staging and content manifest cache."
     },
     {
       "id": "steam_download_cache",
@@ -632,6 +625,38 @@
       "description": "Steam downloaded game content and workshop item download staging."
     },
     {
+      "id": "steam_full_cache",
+      "label": "Steam download manifest cache, workshop staging, and shader pre-caching",
+      "paths": [
+        "%LOCALAPPDATA%\\Programs\\Steam\\logs",
+        "%LOCALAPPDATA%\\Programs\\Steam\\htmlcache",
+        "%LOCALAPPDATA%\\Programs\\Steam\\shadercache",
+        "%LOCALAPPDATA%\\Programs\\Steam\\downloads",
+        "%APPDATA%\\Steam\\htmlcache"
+      ],
+      "safety": "safe",
+      "description": "Steam download manifest cache, workshop staging, and shader pre-caching."
+    },
+    {
+      "id": "steam_logs",
+      "label": "Steam client logs — safe to clear",
+      "paths": [
+        "%ProgramFiles(x86)%\\Steam\\logs"
+      ],
+      "safety": "safe",
+      "description": "Steam client logs — safe to clear."
+    },
+    {
+      "id": "steam_proton_cache",
+      "label": "Steam Proton (Linux game compatibility layer) prefix cache",
+      "paths": [
+        "%LOCALAPPDATA%\\steamapps\\compatdata",
+        "%LOCALAPPDATA%\\Steam\\steamapps\\compatdata"
+      ],
+      "safety": "caution",
+      "description": "Steam Proton (Linux game compatibility layer) prefix cache."
+    },
+    {
       "id": "steam_shader_cache",
       "label": "Steam per-game shader pre-caching and dx9shader cache",
       "paths": [
@@ -642,83 +667,23 @@
       "description": "Steam per-game shader pre-caching and dx9shader cache."
     },
     {
-      "id": "epic_manifest_cache",
-      "label": "Epic Games Launcher manifest data and download URL redirect cache",
+      "id": "steam_webhelper_cache",
+      "label": "Steam WebHelper browser cache (htmlcache folder)",
       "paths": [
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Data\\Manifests",
-        "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs",
-        "%APPDATA%\\Epic\\EpicGamesLauncher\\Data\\Manifests"
+        "%APPDATA%\\Steam\\htmlcache"
       ],
       "safety": "safe",
-      "description": "Epic Games Launcher manifest data and download URL redirect cache."
+      "description": "Steam WebHelper browser cache (htmlcache folder)."
     },
     {
-      "id": "gog_offline_cache",
-      "label": "GOG Galaxy offline installer cache and game backup metadata",
+      "id": "steamvr_cache",
+      "label": "SteamVR logs, compositor cache, and tracked device config",
       "paths": [
-        "%APPDATA%\\GOG.com\\Galaxy\\Cache",
-        "%APPDATA%\\GOG.com\\Galaxy\\logs"
+        "%LOCALAPPDATA%\\SteamVR",
+        "%APPDATA%\\Steam\\config"
       ],
       "safety": "safe",
-      "description": "GOG Galaxy offline installer cache and game backup metadata."
-    },
-    {
-      "id": "minecraft_launcher_cache",
-      "label": "Minecraft Launcher game logs, crash reports, and resourcepack staging",
-      "paths": [
-        "%APPDATA%\\.minecraft\\logs",
-        "%APPDATA%\\.minecraft\\crash-reports"
-      ],
-      "safety": "safe",
-      "description": "Minecraft Launcher game logs, crash reports, and resourcepack staging."
-    },
-    {
-      "id": "warcraft_3_cache",
-      "label": "Warcraft III replay cache, ladder save data, and custom map staging",
-      "paths": [
-        "%APPDATA%\\Warcraft III"
-      ],
-      "safety": "safe",
-      "description": "Warcraft III replay cache, ladder save data, and custom map staging."
-    },
-    {
-      "id": "diablo4_cache",
-      "label": "Diablo IV shader cache and Blizzard Battle.net game session logs",
-      "paths": [
-        "%APPDATA%\\Blizzard\\Diablo IV\\Logs",
-        "%LOCALAPPDATA%\\Blizzard\\Diablo IV\\Logs"
-      ],
-      "safety": "safe",
-      "description": "Diablo IV shader cache and Blizzard Battle.net game session logs."
-    },
-    {
-      "id": "ck3_cache",
-      "label": "Crusader Kings III autosave staging and Paradox Launcher logs",
-      "paths": [
-        "%APPDATA%\\Paradox Interactive\\Crusader Kings III\\logs",
-        "%LOCALAPPDATA%\\Paradox Interactive\\Crusader Kings III"
-      ],
-      "safety": "safe",
-      "description": "Crusader Kings III autosave staging and Paradox Launcher logs."
-    },
-    {
-      "id": "eu4_cache",
-      "label": "Europa Universalis IV autosave cache and Paradox mod staging",
-      "paths": [
-        "%APPDATA%\\Paradox Interactive\\Europa Universalis IV\\logs",
-        "%LOCALAPPDATA%\\Paradox Interactive\\Europa Universalis IV"
-      ],
-      "safety": "safe",
-      "description": "Europa Universalis IV autosave cache and Paradox mod staging."
-    },
-    {
-      "id": "hoi4_cache",
-      "label": "Hearts of Iron IV replay cache and DX12 diagnostic logs",
-      "paths": [
-        "%APPDATA%\\Paradox Interactive\\Hearts of Iron IV\\logs"
-      ],
-      "safety": "safe",
-      "description": "Hearts of Iron IV replay cache and DX12 diagnostic logs."
+      "description": "SteamVR logs, compositor cache, and tracked device config."
     },
     {
       "id": "stellaris_cache",
@@ -730,24 +695,6 @@
       "description": "Stellaris game save staging and Paradox launcher update cache."
     },
     {
-      "id": "rimworld_cache",
-      "label": "RimWorld mod staging and Ludeon Studio debug logs",
-      "paths": [
-        "%APPDATA%\\Ludeon Studios\\RimWorld by Ludeon Studios"
-      ],
-      "safety": "caution",
-      "description": "RimWorld mod staging and Ludeon Studio debug logs."
-    },
-    {
-      "id": "factorio_cache",
-      "label": "Factorio script output, save game, and factorio-data cache",
-      "paths": [
-        "%APPDATA%\\Factorio"
-      ],
-      "safety": "safe",
-      "description": "Factorio script output, save game, and factorio-data cache."
-    },
-    {
       "id": "terraria_cache",
       "label": "Terraria player backup files and Re-Logic game logs",
       "paths": [
@@ -757,41 +704,42 @@
       "description": "Terraria player backup files and Re-Logic game logs."
     },
     {
-      "id": "stardew_cache",
-      "label": "Stardew Valley save backup and ConcernedApe mod config cache",
+      "id": "ubisoft_cache",
+      "label": "Ubisoft Connect cache, download, and shader cache",
       "paths": [
-        "%APPDATA%\\StardewValley"
+        "%APPDATA%\\Ubisoft\\Connect\\cache",
+        "%APPDATA%\\Ubisoft\\Connect\\downloads",
+        "%APPDATA%\\Ubisoft\\Connect\\logs",
+        "%APPDATA%\\Ubisoft\\Connect\\shader-cache",
+        "%LOCALAPPDATA%\\Ubisoft\\Connect\\Cache",
+        "%LOCALAPPDATA%\\Ubisoft\\Connect\\Logs"
       ],
       "safety": "safe",
-      "description": "Stardew Valley save backup and ConcernedApe mod config cache."
+      "description": "Ubisoft Connect cache, download, and shader cache."
     },
     {
-      "id": "ck2_cache",
-      "label": "Crusader Kings II replay cache and DLC download staging",
+      "id": "unity_cache",
+      "label": "Unity Editor cache, library, and build cache folders",
       "paths": [
-        "%APPDATA%\\Paradox Interactive\\Crusader Kings II\\logs"
+        "%LOCALAPPDATA%\\Unity\\Editor\\Cache",
+        "%LOCALAPPDATA%\\Unity\\Editor\\logs",
+        "%LOCALAPPDATA%\\Unity\\Editor\\Library",
+        "%LOCALAPPDATA%\\Unity\\Hub\\logs",
+        "%LOCALAPPDATA%\\Unity\\Hub\\Cache",
+        "%USERPROFILE%\\Unity\\Projects"
       ],
-      "safety": "safe",
-      "description": "Crusader Kings II replay cache and DLC download staging."
+      "safety": "caution",
+      "description": "Unity Editor cache, library, and build cache folders."
     },
     {
-      "id": "cities_skylines_cache",
-      "label": "Cities: Skylines savegame backup and Colossal Order mod staging",
+      "id": "unity_hub_cache",
+      "label": "Unity Hub cache, downloaded editor installs, and logs",
       "paths": [
-        "%APPDATA%\\Colossal Order\\Cities Skylines\\logs",
-        "%LOCALAPPDATA%\\Colossal Order\\Cities Skylines"
+        "%LOCALAPPDATA%\\Unity Hub\\logs",
+        "%LOCALAPPDATA%\\Unity Hub\\Cache"
       ],
-      "safety": "safe",
-      "description": "Cities: Skylines savegame backup and Colossal Order mod staging."
-    },
-    {
-      "id": "snowrunner_cache",
-      "label": "Snowrunner save backups and rendered truck config cache",
-      "paths": [
-        "%APPDATA%\\ Snowrunner"
-      ],
-      "safety": "safe",
-      "description": "Snowrunner save backups and rendered truck config cache."
+      "safety": "caution",
+      "description": "Unity Hub cache, downloaded editor installs, and logs."
     },
     {
       "id": "unity_hub_full_cache",
@@ -805,40 +753,58 @@
       "description": "Unity Hub downloaded editors, module cache, and logs."
     },
     {
-      "id": "godot_cache",
-      "label": "Godot Engine editor cache, import, and remote debug temp",
+      "id": "unreal_cache",
+      "label": "Unreal Engine build, intermediate, and saved folders",
       "paths": [
-        "%APPDATA%\\Godot"
+        "%LOCALAPPDATA%\\UnrealEngine\\Engine\\DerivedDataCache",
+        "%LOCALAPPDATA%\\UnrealEngine\\Projects",
+        "%USERPROFILE%\\Unreal Projects",
+        "%USERPROFILE%\\Documents\\Unreal Projects"
       ],
-      "safety": "safe",
-      "description": "Godot Engine editor cache, import, and remote debug temp."
+      "safety": "caution",
+      "description": "Unreal Engine build, intermediate, and saved folders."
     },
     {
-      "id": "protonvpn_cache",
-      "label": "Proton VPN session logs and Network Lock cache",
+      "id": "valorant_cache",
+      "label": "Valorant game logs and Riot Vanguard logs",
       "paths": [
-        "%APPDATA%\\ProtonVPN"
+        "%APPDATA%\\Riot Games\\Valheim",
+        "%APPDATA%\\Riot Games\\Valorant\\logs",
+        "%APPDATA%\\Riot Games\\Signip\\Saved\\Logs"
       ],
       "safety": "safe",
-      "description": "Proton VPN session logs and Network Lock cache."
+      "description": "Valorant game logs and Riot Vanguard logs."
     },
     {
-      "id": "steam_logs",
-      "label": "Steam client logs — safe to clear",
+      "id": "warcraft_3_cache",
+      "label": "Warcraft III replay cache, ladder save data, and custom map staging",
       "paths": [
-        "%ProgramFiles(x86)%\\Steam\\logs"
+        "%APPDATA%\\Warcraft III"
       ],
       "safety": "safe",
-      "description": "Steam client logs — safe to clear."
+      "description": "Warcraft III replay cache, ladder save data, and custom map staging."
     },
     {
-      "id": "steam_webhelper_cache",
-      "label": "Steam WebHelper browser cache (htmlcache folder)",
+      "id": "warcraft_cache",
+      "label": "World of Warcraft, Diablo, Hearthstone logs and cache",
       "paths": [
-        "%APPDATA%\\Steam\\htmlcache"
+        "%APPDATA%\\Blizzard\\World of Warcraft\\Logs",
+        "%APPDATA%\\Blizzard\\Diablo III\\Logs",
+        "%APPDATA%\\Blizzard\\Hearthstone\\Logs",
+        "%LOCALAPPDATA%\\Blizzard\\World of Warcraft\\Logs"
       ],
       "safety": "safe",
-      "description": "Steam WebHelper browser cache (htmlcache folder)."
+      "description": "World of Warcraft, Diablo, Hearthstone logs and cache."
+    },
+    {
+      "id": "warframe_cache",
+      "label": "Warframe shader cache, relay logs, and update staging",
+      "paths": [
+        "%APPDATA%\\Warframe",
+        "%APPDATA%\\Digital Extremes\\Warframe"
+      ],
+      "safety": "safe",
+      "description": "Warframe shader cache, relay logs, and update staging."
     },
     {
       "id": "windows_game_bar_cache",
@@ -859,6 +825,51 @@
       ],
       "safety": "safe",
       "description": "WineHQ (Linux compatibility layer) prefix cache and logs."
+    },
+    {
+      "id": "wineprefix_cache",
+      "label": "Wine/PlayOnLinux prefix cache and Winetricks download staging",
+      "paths": [
+        "%USERPROFILE%\\.wine",
+        "%USERPROFILE%\\.PlayOnLinux",
+        "%USERPROFILE%\\.winetricks"
+      ],
+      "safety": "caution",
+      "description": "Wine/PlayOnLinux prefix cache and Winetricks download staging."
+    },
+    {
+      "id": "xbox_app_cache",
+      "label": "Xbox app full cache: achievements, game clips, and social data",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.GamingServices_*\\LocalCache",
+        "%LOCALAPPDATA%\\Packages\\Microsoft.XboxGamingOverlay_*\\LocalCache",
+        "%LOCALAPPDATA%\\MicrosoftGameBar"
+      ],
+      "safety": "safe",
+      "description": "Xbox app full cache: achievements, game clips, and social data."
+    },
+    {
+      "id": "xbox_cache",
+      "label": "Xbox Gaming Services, Xbox Gaming Overlay, FamilyNotifications cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.GamingServices_*\\LocalCache",
+        "%LOCALAPPDATA%\\Packages\\Microsoft.XboxGamingOverlay_*\\LocalCache",
+        "%LOCALAPPDATA%\\Packages\\FamilyNotifications.*\\LocalState",
+        "%ProgramData%\\XboxLiveDeviceInfo"
+      ],
+      "safety": "safe",
+      "description": "Xbox Gaming Services, Xbox Gaming Overlay, FamilyNotifications cache."
+    },
+    {
+      "id": "xbox_live_cache",
+      "label": "Xbox Live device info cache, achievements staging, and gaming services logs",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\XboxLiveDeviceInfo",
+        "%LOCALAPPDATA%\\MicrosoftGameBar\\logs",
+        "%ProgramData%\\XboxLiveDeviceInfo"
+      ],
+      "safety": "safe",
+      "description": "Xbox Live device info cache, achievements staging, and gaming services logs."
     }
   ]
 }

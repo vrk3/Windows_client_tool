@@ -63,34 +63,6 @@ def scan_adobe_cache(min_age_days: int = 0) -> ScanResult:
                 logger.debug("Ignored OSError", exc_info=True)
     return result
 
-def scan_clipboard(min_age_days: int = 0) -> ScanResult:
-    """Windows clipboard pending/in-progress temp files."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"Microsoft\Windows\Clipboard\pending*.tmp"),
-        os.path.join(local, r"Microsoft\Windows\Clipboard\inProgress*.tmp"),
-        os.path.join(local, r"Microsoft\Windows\INetCache\Clipboard"),
-    ]
-    for t in targets:
-        if "*" in t:
-            dir_path = os.path.dirname(t)
-            pattern = os.path.basename(t)
-            if not os.path.isdir(dir_path):
-                continue
-            for f in glob.glob(os.path.join(dir_path, pattern)):
-                item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-                if item:
-                    result.items.append(item)
-                    result.total_size += item.size
-        else:
-            if os.path.isdir(t):
-                item = _make_item(t, safety="safe", min_age_days=min_age_days)
-                if item and item.size > 0:
-                    result.items.append(item)
-                    result.total_size += item.size
-    return result
-
 def scanetcher_cache(min_age_days: int = 0) -> ScanResult:
     """Balena Etcher cache, image stage, and flash logs."""
     result = ScanResult()
@@ -111,7 +83,6 @@ def scanetcher_cache(min_age_days: int = 0) -> ScanResult:
 
 __all__ = [
     'scan_adobe_cache',
-    'scan_clipboard',
     'scan_outlook_cache',
     'scanetcher_cache',
 ]

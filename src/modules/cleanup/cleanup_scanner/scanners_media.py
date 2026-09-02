@@ -29,24 +29,6 @@ def scan_stremio_cache(min_age_days: int = 0) -> ScanResult:
             logger.debug("Ignored OSError", exc_info=True)
     return result
 
-def scan_sharex_cache(min_age_days: int = 0) -> ScanResult:
-    """ShareX screenshot history, image history, and upload logs."""
-    result = ScanResult()
-    appdata = os.environ.get("APPDATA", "")
-    targets = [
-        os.path.join(appdata, r"ShareX"),
-        os.path.join(appdata, r"ShareX\Screenshots"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 __all__ = [
-    'scan_sharex_cache',
     'scan_stremio_cache',
 ]

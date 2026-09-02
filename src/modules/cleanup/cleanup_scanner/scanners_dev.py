@@ -24,59 +24,6 @@ def scan_winget_packages(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_docker_desktop_cache(min_age_days: int = 0) -> ScanResult:
-    """Docker Desktop VM disk image, build cache, and container logs."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"Docker\Wsl"),
-        os.path.join(local, r"Docker\containers"),
-        os.path.join(local, r"docker"),
-        os.path.join(local, r"Kubernetes"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_zed_cache(min_age_days: int = 0) -> ScanResult:
-    """Zed editor logs, LSP cache, and extension data."""
-    result = ScanResult()
-    appdata = os.environ.get("APPDATA", "")
-    targets = [
-        os.path.join(appdata, r"Zed"),
-        os.path.join(appdata, r"Zed\rustup"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_net_sdk_cache(min_age_days: int = 0) -> ScanResult:
-    """.NET SDK NuGet package cache and build MSBuild task inputs cache."""
-    result = ScanResult()
-    home = os.path.expanduser("~")
-    targets = [
-        os.path.join(home, r".nuget\packages"),
-        os.path.join(home, r"\.dotnet"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_yarn_cache(min_age_days: int = 0) -> ScanResult:
     """Yarn package manager cache."""
     result = ScanResult()
@@ -95,9 +42,6 @@ def scan_yarn_cache(min_age_days: int = 0) -> ScanResult:
     return result
 
 __all__ = [
-    'scan_docker_desktop_cache',
-    'scan_net_sdk_cache',
     'scan_winget_packages',
     'scan_yarn_cache',
-    'scan_zed_cache',
 ]
