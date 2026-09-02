@@ -199,6 +199,7 @@ def _describe(code: int) -> str:
         if text:
             return f"WinVerifyTrust refused: {text} (0x{code & 0xFFFFFFFF:08X})"
     except Exception:  # noqa: BLE001 - a missing WinError is not fatal
+        logger.debug("_describe: giving up on this read", exc_info=True)
         pass
     return f"WinVerifyTrust refused (0x{code & 0xFFFFFFFF:08X})"
 

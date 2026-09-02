@@ -41,6 +41,9 @@ def _collect_disabled_names(approved_key: str) -> set:
                         disabled.add(name)
                     i += 1
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_collect_disabled_names: registry enumeration finished", exc_info=True)
                     break
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)
@@ -64,6 +67,9 @@ def _read_run_values(hive, key_path: str, source: str,
                     ))
                     i += 1
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_read_run_values: registry enumeration finished", exc_info=True)
                     break
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)
@@ -125,6 +131,7 @@ def remove_registry_entry(name: str) -> None:
                             0, winreg.KEY_SET_VALUE) as k:
             winreg.DeleteValue(k, name)
     except FileNotFoundError:
+        logger.warning("remove_registry_entry: could not remove %r from the registry; the entry stays enabled", name, exc_info=True)
         pass
 
 
@@ -183,6 +190,7 @@ def remove_startup_folder_entry(name: str) -> None:
                             0, winreg.KEY_SET_VALUE) as k:
             winreg.DeleteValue(k, name)
     except FileNotFoundError:
+        logger.warning("remove_startup_folder_entry: could not remove %r from the Startup folder", name, exc_info=True)
         pass
 
 
@@ -248,6 +256,7 @@ def get_service_entries() -> List[StartupEntry]:
                         extra="Running" if running else "Stopped",
                     ))
             except Exception:
+                logger.debug("get_service_entries: skipping an item that could not be read", exc_info=True)
                 continue
         win32service.CloseServiceHandle(scm)
     except Exception as e:
@@ -289,5 +298,6 @@ def get_browser_extensions() -> List[StartupEntry]:
                     ))
                     break
                 except Exception:
+                    logger.debug("get_browser_extensions: skipping an item that could not be read", exc_info=True)
                     continue
     return entries

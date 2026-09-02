@@ -128,6 +128,7 @@ def _wmi_failure_reason(exc: Exception) -> str:
         if isinstance(exc, wmi.x_access_denied):
             return NEEDS_ADMIN
     except ImportError:
+        logger.debug("_wmi_failure_reason: giving up on this read", exc_info=True)
         pass
     com_error = getattr(exc, "com_error", None)
     if getattr(com_error, "hresult", None) == _WBEM_E_ACCESS_DENIED:

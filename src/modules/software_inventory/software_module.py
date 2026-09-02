@@ -66,6 +66,9 @@ def _read_registry_uninstall(hive, key_path: str, type_label: str) -> List[Softw
                         ))
                     i += 1
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_read_registry_uninstall: registry enumeration finished", exc_info=True)
                     break
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)

@@ -1,9 +1,12 @@
+import logging
 import re
 from datetime import datetime
 from typing import List
 
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
 from core.types import LogEntry
+
+logger = logging.getLogger(__name__)
 
 
 class PerfMonSearchProvider(SearchProvider):
@@ -30,6 +33,7 @@ class PerfMonSearchProvider(SearchProvider):
                         if not re.search(query.text, haystack, re.IGNORECASE):
                             continue
                     except re.error:
+                        logger.debug("search: skipping an item that could not be read", exc_info=True)
                         continue
                 else:
                     if query.text.lower() not in haystack.lower():

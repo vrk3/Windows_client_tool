@@ -41,6 +41,9 @@ class _Node:
                             self._children.append(_Node(sub, self.hive, child_path, self))
                             i += 1
                         except OSError:
+                            # OSError here is how winreg says the enumeration is
+                            # finished. Control flow, not a failure.
+                            logger.debug("children: registry enumeration finished", exc_info=True)
                             break
             except (OSError, PermissionError):
                 logger.debug("Ignored (OSError, PermissionError)", exc_info=True)
@@ -160,6 +163,9 @@ class RegistryTreeModel(QAbstractItemModel):
                         results.append((name or "(Default)", _kind_str(kind), _fmt_data(data, kind)))
                         i += 1
                     except OSError:
+                        # OSError here is how winreg says the enumeration is
+                        # finished. Control flow, not a failure.
+                        logger.debug("values_for: registry enumeration finished", exc_info=True)
                         break
         except (OSError, PermissionError):
             logger.debug("Ignored (OSError, PermissionError)", exc_info=True)

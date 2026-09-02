@@ -53,6 +53,7 @@ def matching_rule(rules, entry) -> Optional[HighlightRule]:
             except re.error:
                 # A half-typed pattern is a typo, not a failure. The editor
                 # flags it; matching just declines.
+                logger.debug("matching_rule: skipping an item that could not be read", exc_info=True)
                 continue
         elif rule.pattern.lower() in lowered:
             return rule

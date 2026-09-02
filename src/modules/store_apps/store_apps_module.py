@@ -750,8 +750,10 @@ class StoreAppsModule(BaseModule):
                     try:
                         total += os.path.getsize(os.path.join(root, f))
                     except OSError:
+                        logger.debug("_dir_size: giving up on this read", exc_info=True)
                         pass
         except OSError:
+            logger.debug("_dir_size: giving up on this read", exc_info=True)
             pass
         return total
 

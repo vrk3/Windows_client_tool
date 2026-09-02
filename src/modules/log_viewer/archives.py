@@ -83,6 +83,7 @@ def largest_cbs_cab(environ=None) -> str:
         try:
             size = os.path.getsize(path)
         except OSError:
+            logger.debug("largest_cbs_cab: skipping an item that could not be read", exc_info=True)
             continue
         if size > biggest_size:
             biggest, biggest_size = path, size

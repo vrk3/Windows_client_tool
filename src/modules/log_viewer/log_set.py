@@ -27,6 +27,7 @@ Two properties of the merge key are load-bearing:
 
 No Qt here, like the reader and the parser it sits beside.
 """
+import logging
 import heapq
 import os
 from datetime import datetime
@@ -34,6 +35,8 @@ from datetime import datetime
 from . import cmtrace_parser
 from .cmtrace_parser import UNKNOWN_TIME
 from .log_reader import DEFAULT_MAX_BYTES, LogReader
+
+logger = logging.getLogger(__name__)
 
 #: What a folder scan takes. Deliberately not `*.txt`: some installers write
 #: logs as .txt, but so does every readme and licence file that would come
@@ -79,6 +82,7 @@ def preselected(paths) -> set:
             if os.path.getsize(path) <= PRESELECT_MAX_BYTES:
                 ticked.add(path)
         except OSError:
+            logger.debug("preselected: skipping an item that could not be read", exc_info=True)
             continue
     return ticked
 

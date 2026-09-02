@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 """Remote credentials in Windows Credential Manager (spec 6.2).
 
 Spec 6.2 is explicit: credentials go to Credential Manager through pywin32,
@@ -100,4 +103,5 @@ class CredentialStore:
         try:
             self._vault.erase(credential_key(target_id, host, username))
         except Exception:                           # noqa: BLE001
+            logger.debug("forget: giving up on this read", exc_info=True)
             pass

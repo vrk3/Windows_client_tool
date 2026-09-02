@@ -20,12 +20,15 @@ Every one of them sets `alloc` equal to `size`: none has cluster geometry, and
 rounding up to a block size the service never mentioned would be inventing
 data.
 """
+import logging
 from ..store.node_store import DIR
 from . import device_flow
 from .base import (
     Credentials, PrefixTreeBuilder, RemoteEnumerator, ScanTarget, TargetError,
     register, retry_on_throttle, unix_to_filetime,
 )
+
+logger = logging.getLogger(__name__)
 
 #: What Drive calls a folder. There is no other flag for it.
 GOOGLE_FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -369,6 +372,7 @@ def _drive_size(record: dict) -> int:
             try:
                 return int(value)
             except (TypeError, ValueError):
+                logger.debug("_drive_size: skipping an item that could not be read", exc_info=True)
                 continue
     return 0
 
@@ -443,6 +447,7 @@ class SharePointTarget(ScanTarget):
             try:
                 self._client.close()
             except Exception:                       # noqa: BLE001
+                logger.debug("close: cleanup failed while unwinding", exc_info=True)
                 pass
         self._client = None
 

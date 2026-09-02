@@ -15,10 +15,13 @@ uncoloured lines.
 No Qt here, so the parsing rules are testable without a display -- the same
 split the CBS and DISM parsers use.
 """
+import logging
 import re
 from datetime import datetime
 
 from core.types import LogEntry
+
+logger = logging.getLogger(__name__)
 
 #: A record whose date cannot be read still has its message. Losing the line
 #: is the one outcome a log viewer must never produce, so a bad timestamp
@@ -130,6 +133,7 @@ def _timestamp(attrs: dict) -> datetime:
                 return datetime.strptime(f"{date_text} {clock}",
                                          f"{date_format} {time_format}")
             except ValueError:
+                logger.debug("_timestamp: skipping an item that could not be read", exc_info=True)
                 continue
     return UNKNOWN_TIME
 

@@ -34,6 +34,9 @@ def _read_env_vars(hive, path: str) -> List[Tuple[str, str]]:
                     pairs.append((name, str(data)))
                     i += 1
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_read_env_vars: registry enumeration finished", exc_info=True)
                     break
     except OSError as e:
         logger.warning("Could not read env vars from %s: %s", path, e)

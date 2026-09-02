@@ -8,6 +8,7 @@ breaks. `paramiko` and `httpx` are optional: a missing one is reported by
 `is_available()` so the UI can grey the target out rather than failing at the
 moment someone tries to use it.
 """
+import logging
 import time
 from xml.etree import ElementTree
 
@@ -16,6 +17,8 @@ from .base import (
     RemoteEnumerator, ScanTarget, TargetError, register, retry_on_throttle,
     unix_to_filetime,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SshTarget(ScanTarget):
@@ -76,6 +79,7 @@ class SshTarget(ScanTarget):
             try:
                 self._client.close()
             except Exception:                       # noqa: BLE001
+                logger.debug("close: cleanup failed while unwinding", exc_info=True)
                 pass
         self._client = self._sftp = None
 
@@ -153,6 +157,7 @@ class WebDavTarget(ScanTarget):
             try:
                 self._client.close()
             except Exception:                       # noqa: BLE001
+                logger.debug("close: cleanup failed while unwinding", exc_info=True)
                 pass
         self._client = None
 

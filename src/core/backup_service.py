@@ -465,6 +465,7 @@ class BackupService:
                         with winreg.OpenKey(hive, sub, 0, winreg.KEY_SET_VALUE) as k:
                             winreg.DeleteValue(k, value_name)
                     except FileNotFoundError:
+                        logger.warning("revert_step: this step could not be reverted; the machine is left as the tweak set it", exc_info=True)
                         pass  # already absent — fine
                     if row["key_created"]:
                         # The apply made this key too, so the value going away

@@ -15,6 +15,7 @@ The shell owns wiring and no scanning: it hands a target to a Worker and turns
 results into widget state. That keeps the whole file readable and means the
 engine stays testable without a display.
 """
+import logging
 import os
 
 from PyQt6.QtCore import QModelIndex, Qt, QThreadPool, pyqtSignal
@@ -47,6 +48,8 @@ from .views.history import HistoryView
 from .views.tables import (
     AgeView, ExtensionsView, FileGroupsView, TopFilesView, UsersView,
 )
+
+logger = logging.getLogger(__name__)
 
 MODE_ACTIONS = {
     "mode.size": Mode.SIZE,
@@ -940,6 +943,7 @@ class TreeSizeShell(QWidget):
         except (ValueError, KeyError):
             # A stored value from an older build should not stop the module
             # opening; the defaults already loaded are usable.
+            logger.debug("apply_settings: giving up on this read", exc_info=True)
             pass
         self._filters.exclude_hidden = bool(settings.get("exclude_hidden", False))
         self._permanent_excludes = tuple(settings.get("exclude_patterns") or ())

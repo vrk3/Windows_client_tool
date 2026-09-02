@@ -512,6 +512,9 @@ def _directx_rows() -> List[Dict[str, object]]:
                 try:
                     name = winreg.EnumKey(key, index)
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_directx_rows: registry enumeration finished", exc_info=True)
                     break
                 index += 1
                 values = _key_values(key, name)
@@ -531,6 +534,9 @@ def _key_values(parent, name: str) -> Dict[str, object]:
                 try:
                     key, value, _kind = winreg.EnumValue(sub, index)
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("_key_values: registry enumeration finished", exc_info=True)
                     break
                 index += 1
                 values[key] = value

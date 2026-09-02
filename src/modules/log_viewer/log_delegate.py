@@ -10,6 +10,7 @@ CBS.log, 4,553 lines carry a hex code and 4,427 of them carry nothing but
 0x00000000 -- painting those would be four thousand successes on screen to
 surface nine failures.
 """
+import logging
 import re
 from html import escape
 
@@ -20,6 +21,8 @@ from PyQt6.QtWidgets import QStyledItemDelegate, QStyle
 from core.semantic_colors import semantic
 
 from .error_codes import _is_failure, code_spans, corruption_spans
+
+logger = logging.getLogger(__name__)
 
 
 class LogMessageDelegate(QStyledItemDelegate):
@@ -80,6 +83,7 @@ class LogMessageDelegate(QStyledItemDelegate):
                 out.append(re.compile(
                     pattern if regex else re.escape(pattern), re.IGNORECASE))
             except re.error:
+                logger.debug("compiled: skipping an item that could not be read", exc_info=True)
                 continue
         return out
 

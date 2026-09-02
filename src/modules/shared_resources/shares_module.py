@@ -79,6 +79,9 @@ def get_mapped_drives() -> List[Dict]:
                     })
                     i += 1
                 except OSError:
+                    # OSError here is how winreg says the enumeration is
+                    # finished. Control flow, not a failure.
+                    logger.debug("get_mapped_drives: registry enumeration finished", exc_info=True)
                     break
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)

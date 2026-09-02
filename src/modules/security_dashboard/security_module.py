@@ -1060,6 +1060,7 @@ class SecurityDashboardModule(BaseModule):
             try:
                 self._workers.remove(worker)
             except ValueError:
+                logger.debug("on_finished: giving up on this read", exc_info=True)
                 pass   # cancel_all_workers() cleared the list first
 
         worker.signals.finished.connect(on_finished)

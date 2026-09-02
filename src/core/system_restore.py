@@ -101,6 +101,7 @@ def sequence_numbers_to_prune(points: List[dict]) -> List[int]:
         try:
             seq = int(pt.get("SequenceNumber"))
         except (TypeError, ValueError):
+            logger.debug("sequence_numbers_to_prune: skipping an item that could not be read", exc_info=True)
             continue
         usable.append((pt, seq))
     if len(usable) < 2:

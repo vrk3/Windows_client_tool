@@ -10,12 +10,15 @@ reported as "not installed" rather than crashing the export menu, and
 `available_formats()` lets the UI show only what can actually be produced.
 Text, XML, SQLite, CSV and HTML need nothing beyond the standard library.
 """
+import logging
 import csv
 import html
 import json
 import os
 import sqlite3
 import xml.sax.saxutils as saxutils
+
+logger = logging.getLogger(__name__)
 
 
 class ExportError(Exception):
@@ -45,11 +48,13 @@ def available_formats() -> dict:
         __import__("openpyxl")
         formats["xlsx"] = "Excel (*.xlsx)"
     except ImportError:
+        logger.debug("available_formats: giving up on this read", exc_info=True)
         pass
     try:
         __import__("reportlab")
         formats["pdf"] = "PDF (*.pdf)"
     except ImportError:
+        logger.debug("available_formats: giving up on this read", exc_info=True)
         pass
     return formats
 

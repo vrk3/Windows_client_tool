@@ -232,8 +232,14 @@ class AppCatalog:
                                 if display_name:
                                     names.add(display_name)
                         except OSError:
+                            # OSError here is how winreg says the enumeration is
+                            # finished. Control flow, not a failure.
+                            logger.debug("detect_installed_win32: registry enumeration finished", exc_info=True)
                             continue
             except OSError:
+                # OSError here is how winreg says the enumeration is
+                # finished. Control flow, not a failure.
+                logger.debug("detect_installed_win32: registry enumeration finished", exc_info=True)
                 continue
         return names
 

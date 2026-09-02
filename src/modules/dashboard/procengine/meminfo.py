@@ -181,6 +181,7 @@ def memory_modules() -> List[MemoryModule]:
     try:
         pythoncom.CoInitialize()
     except Exception:  # noqa: BLE001 - already initialised is fine
+        logger.debug("memory_modules: giving up on this read", exc_info=True)
         pass
 
     try:

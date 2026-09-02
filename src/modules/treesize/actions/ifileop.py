@@ -213,6 +213,7 @@ class _Com:
             try:
                 self._pythoncom.CoUninitialize()
             except Exception:                       # noqa: BLE001
+                logger.debug("__exit__: giving up on this read", exc_info=True)
                 pass
         return False
 
@@ -295,6 +296,7 @@ def run(paths, *, operation: str = "delete", destination: str = "",
                 try:
                     op.Unadvise(cookie)
                 except Exception:                   # noqa: BLE001
+                    logger.debug("run: giving up on this read", exc_info=True)
                     pass
 
     failures = [i for i in sink.items if not i.ok]

@@ -100,6 +100,7 @@ class StringsView(QWidget):
             if sip.isdeleted(self._ascii_list):
                 return
         except ImportError:
+            logger.debug("_on_strings_ready: giving up on this read", exc_info=True)
             pass
         self._all_ascii, self._all_unicode = result
         self._apply_filter(self._filter.text())

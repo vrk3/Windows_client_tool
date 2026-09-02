@@ -147,6 +147,7 @@ def end_process(pid: int, timeout: float = KILL_TIMEOUT) -> Result:
             False,
             f"Process {pid} did not exit within {timeout:.0f} seconds.")
     except psutil.NoSuchProcess:
+        logger.warning("end_process: the process could not be ended", exc_info=True)
         pass
 
     if is_running(pid):

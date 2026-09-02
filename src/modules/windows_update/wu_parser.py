@@ -35,6 +35,7 @@ def _parse_timestamp(value: str) -> Optional[datetime]:
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
+            logger.debug("_parse_timestamp: skipping an item that could not be read", exc_info=True)
             continue
     # Fallback: strip dot-fractional seconds
     if "." in value:
@@ -43,6 +44,7 @@ def _parse_timestamp(value: str) -> Optional[datetime]:
             try:
                 return datetime.strptime(base, fmt)
             except ValueError:
+                logger.debug("_parse_timestamp: skipping an item that could not be read", exc_info=True)
                 continue
     return None
 

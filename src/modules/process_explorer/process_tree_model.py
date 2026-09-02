@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from typing import Dict, List
 
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
@@ -7,6 +8,8 @@ from PyQt6.QtGui import QColor
 from modules.process_explorer.process_node import ProcessNode
 from modules.process_explorer.color_scheme import (describe, get_row_color,
                                                    get_row_text_color)
+
+logger = logging.getLogger(__name__)
 
 # Column indices
 COL_NAME  = 0
@@ -112,6 +115,7 @@ class ProcessTreeModel(QAbstractItemModel):
                     try:
                         row = siblings.index(node)
                     except ValueError:
+                        logger.debug("update_nodes: skipping an item that could not be read", exc_info=True)
                         continue
                     tl = self.createIndex(row, 0, node)
                     br = self.createIndex(row, len(COLUMNS) - 1, node)

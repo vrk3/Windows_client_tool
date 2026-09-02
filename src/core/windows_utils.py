@@ -1,5 +1,8 @@
 # src/core/windows_utils.py
+import logging
 import winreg
+
+logger = logging.getLogger(__name__)
 
 
 def ps_quote(value: str) -> str:
@@ -32,5 +35,6 @@ def is_reboot_pending() -> bool:
                 winreg.QueryValueEx(k, value)
                 return True
         except OSError:
+            logger.debug("is_reboot_pending: skipping an item that could not be read", exc_info=True)
             continue
     return False

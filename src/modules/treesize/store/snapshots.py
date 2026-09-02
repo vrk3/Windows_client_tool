@@ -5,12 +5,15 @@ by the History view. The only difference is the header's `kind` and where they
 live, which is deliberate: one format means one loader, one set of bugs, and a
 snapshot can be opened as an ordinary scan whenever that is useful.
 """
+import logging
 import os
 import re
 import time
 from dataclasses import dataclass
 
 from .scan_file import ScanFileError, ScanHeader, load, save
+
+logger = logging.getLogger(__name__)
 
 SNAPSHOT_SUFFIX = ".tssnap"
 
@@ -79,6 +82,7 @@ def enumerate_snapshots(directory: str | None = None,
         try:
             store, root, header = load(path)
         except (ScanFileError, OSError):
+            logger.debug("enumerate_snapshots: skipping an item that could not be read", exc_info=True)
             continue
         if target and header.target.lower() != target.lower():
             continue

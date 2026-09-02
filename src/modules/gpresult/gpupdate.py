@@ -548,6 +548,7 @@ def _pump_stdout(proc, options: GpupdateOptions,
         try:
             item = inbox.get(timeout=_POLL_SECONDS)
         except queue.Empty:
+            logger.debug("_pump_stdout: skipping an item that could not be read", exc_info=True)
             continue
         if item is sentinel:
             break
@@ -563,6 +564,7 @@ def _pump_stdout(proc, options: GpupdateOptions,
             try:
                 item = inbox.get_nowait()
             except queue.Empty:
+                logger.debug("_pump_stdout: stopping, nothing more could be read", exc_info=True)
                 break
             if item is sentinel:
                 continue
