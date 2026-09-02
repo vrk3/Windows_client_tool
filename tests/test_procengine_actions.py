@@ -10,6 +10,7 @@ can return without raising and the process never goes at all. Reporting that
 as success is how a process manager tells you it killed something that is
 still running.
 """
+import os
 import subprocess
 import sys
 import time
@@ -18,7 +19,8 @@ import pytest
 
 from modules.dashboard.procengine.actions import (
     Result, create_dump, end_process, end_process_tree, is_running,
-    resume_process, set_affinity, set_priority, suspend_process,
+    restart_process, resume_process, run_as, set_affinity, set_priority,
+    suspend_process,
 )
 
 SLEEPER = [sys.executable, "-c", "import time; time.sleep(120)"]
@@ -182,20 +184,108 @@ def test_a_dump_of_a_process_we_cannot_open_is_refused(tmp_path):
     assert result.message
 
 
-# ---- the shape of an answer ---------------------------------------------
+# ---- restart and run-as -------------------------------------------------
+
+def test_restart_ends_the_process_and_relaunches_it(sleeper, monkeypatch):
+    """Restart = end + relaunch with the same executable.
+
+    The real launch is monkeypatched so the test does not spawn a stray
+    120-second sleeper; what is asserted is the flow: the old process is
+    ended and verified gone, and the launch step is asked for the right
+    file and command line.
+    """
+    launched = []
+    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+                        lambda exe, cmdline, runas: launched.append(
+                            (exe, cmdline, runas)) or Result(True, ""))
+
+    old_pid = sleeper.pid
+    result = restart_process(old_pid)
+
+    assert result.ok, result.message
+    assert not is_running(old_pid), "the old process survived the restart"
+    assert launched, "restart did not launch a replacement"
+    exe, cmdline, runas = launched[0]
+    assert os.path.normcase(exe) == os.path.normcase(sys.executable)
+    assert runas is False
+
+
+def test_restart_passes_the_process_arguments_through(sleeper, monkeypatch):
+    """The relaunch reproduces how the process was started."""
+    launched = []
+    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+                        lambda exe, cmdline, runas: launched.append(cmdline)
+                        or Result(True, ""))
+
+    restart_process(sleeper.pid)
+
+    assert launched
+    assert "time.sleep" in launched[0], \
+        "the new instance did not get the sleeper's own arguments"
+
+
+def test_restart_reports_a_failed_relaunch(sleeper, monkeypatch):
+    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+                        lambda exe, cmdline, runas:
+                        Result(False, "The launch failed: error 5."))
+    result = restart_process(sleeper.pid)
+    assert not result.ok
+    assert result.message
+    assert not is_running(sleeper.pid), "the process was killed and not replaced"
+
+
+def test_restarting_the_system_process_is_refused():
+    result = restart_process(4)
+    assert not result.ok
+    assert result.message
+
+
+def test_restarting_a_dead_pid_is_refused():
+    result = restart_process(999_999)
+    assert not result.ok
+    assert "no longer running" in result.message.lower()
+
+
+def test_run_as_launches_elevated_and_leaves_the_original_running(
+        sleeper, monkeypatch):
+    """The distinction from restart: the original keeps running."""
+    launched = []
+    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+                        lambda exe, cmdline, runas: launched.append(runas)
+                        or Result(True, ""))
+
+    result = run_as(sleeper.pid)
+
+    assert result.ok, result.message
+    assert launched and launched[0] is True, "run_as did not elevate"
+    assert is_running(sleeper.pid), "run_as ended the original process"
+
+
+def test_run_as_on_a_dead_pid_is_refused():
+    result = run_as(999_999)
+    assert not result.ok
+    assert "no longer running" in result.message.lower()
+
+
+def test_run_as_on_the_system_process_is_refused():
+    result = run_as(4)
+    assert not result.ok
+    assert result.message
+
+
+def test_a_failure_always_carries_a_message():
+    for result in (end_process(4), suspend_process(4),
+                   set_priority(4, "high"), restart_process(4),
+                   run_as(4)):
+        assert not result.ok
+        assert result.message, "a failure said nothing about why"
+
 
 def test_a_result_is_never_a_bare_boolean(sleeper):
     """Every action answers with a reason, so a caller can show it."""
     result = end_process(sleeper.pid)
     assert isinstance(result, Result)
     assert hasattr(result, "ok") and hasattr(result, "message")
-
-
-def test_a_failure_always_carries_a_message():
-    for result in (end_process(4), suspend_process(4),
-                   set_priority(4, "high")):
-        assert not result.ok
-        assert result.message, "a failure said nothing about why"
 
 
 # ---- Qt-free ------------------------------------------------------------

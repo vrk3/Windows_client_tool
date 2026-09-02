@@ -20,6 +20,7 @@ Qt-free, like the rest of the engine.
 import ctypes
 import logging
 import os
+import subprocess
 import sys
 import time
 from ctypes import wintypes
@@ -42,8 +43,13 @@ KILL_TIMEOUT = 5.0
 #: Attempting it produces a confusing refusal rather than an honest one.
 UNKILLABLE = {0: "the System Idle Process", 4: "the System process"}
 
+#: A ShellExecuteW return of 32 or below is an error code (31 = no app
+#: association, 5 = access denied, 1223 = the user cancelled the UAC prompt).
+SE_ERR_MAX = 32
+
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 _ntdll = ctypes.WinDLL("ntdll")
+_shell32 = ctypes.WinDLL("shell32", use_last_error=True)
 
 # Prototypes are declared for the same reason as in `details.py`: ctypes
 # assumes a function returns c_int, so an undeclared HANDLE return is
@@ -58,6 +64,10 @@ _ntdll.NtSuspendProcess.restype = ctypes.c_long
 _ntdll.NtSuspendProcess.argtypes = [wintypes.HANDLE]
 _ntdll.NtResumeProcess.restype = ctypes.c_long
 _ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
+_shell32.ShellExecuteW.restype = wintypes.HINSTANCE
+_shell32.ShellExecuteW.argtypes = [wintypes.HWND, wintypes.LPCWSTR,
+                                   wintypes.LPCWSTR, wintypes.LPCWSTR,
+                                   wintypes.LPCWSTR, ctypes.c_int]
 
 if sys.platform == "win32":
     PRIORITY_LEVELS = {
@@ -312,6 +322,112 @@ def _verify_dump(path: str) -> Result:
     if size < 4096:
         return Result(False, f"The dump is only {size} bytes; it is truncated.")
     return Result(True, "")
+
+
+def restart_process(pid: int, timeout: float = KILL_TIMEOUT) -> Result:
+    """End `pid` and start it again the same way it was running.
+
+    "Restart" only means what it can honestly deliver: the old process is
+    ended and verified gone, and its executable is launched again with the
+    same command line. Whether the new instance runs AS the same account
+    or with the same window state is Windows' decision, not ours to claim
+    -- a service or a protected process refuses here with a reason rather
+    than pretending.
+
+    The relaunch is verified only as far as ShellExecute answers: a code
+    at or below 32 is an error (5 = access denied, 31 = no association),
+    anything above it means the launch was accepted. Whether the new
+    process survives is not something a single call can know, so this
+    does not claim it.
+    """
+    if pid in UNKILLABLE:
+        return Result(False, f"{UNKILLABLE[pid].capitalize()} cannot be "
+                             f"restarted.")
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return Result(False, f"Process {pid} is no longer running.")
+
+    exe, command_line = _launch_facts(process)
+    if not exe:
+        return Result(False, f"Could not read the executable path of "
+                             f"process {pid} to restart it.")
+
+    ended = end_process(pid, timeout=timeout)
+    if not ended.ok:
+        return Result(False, f"Could not end process {pid}: {ended.message}")
+
+    return _launch(exe, command_line, runas=False)
+
+
+def run_as(pid: int) -> Result:
+    """Start the process's executable elevated, leaving `pid` alone.
+
+    "Run as administrator": a new, elevated instance of the same program.
+    The original process keeps running -- that is the point of the
+    distinction from restart. The launch goes through ShellExecute's
+    `runas` verb, so Windows itself raises the UAC prompt; a code of 1223
+    from ShellExecute means the user declined the prompt, which is their
+    answer, not a failure we should relabel.
+    """
+    if pid in UNKILLABLE:
+        return Result(False, f"{UNKILLABLE[pid].capitalize()} cannot be "
+                             f"run elevated.")
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return Result(False, f"Process {pid} is no longer running.")
+
+    exe, command_line = _launch_facts(process)
+    if not exe:
+        return Result(False, f"Could not read the executable path of "
+                             f"process {pid} to run it elevated.")
+
+    return _launch(exe, command_line, runas=True)
+
+
+def _launch_facts(process):
+    """`(exe, command_line)` reproducing how `process` was started.
+
+    The command line is rebuilt from psutil's parsed argv via
+    `list2cmdline`, which restores the quoting Windows needs -- the naive
+    " ".join() of admin_utils.py is exactly what breaks paths with spaces.
+    """
+    try:
+        exe = process.exe()
+    except (psutil.AccessDenied, psutil.NoSuchProcess) as error:
+        logger.debug("Could not read exe for restart/run-as: %s", error)
+        return None, ""
+    try:
+        parts = process.cmdline()
+    except (psutil.AccessDenied, psutil.NoSuchProcess) as error:
+        logger.debug("Could not read command line for restart/run-as: %s",
+                     error)
+        parts = []
+    if not parts:
+        return exe, ""
+    # cmdline() is argv INCLUDING the program itself; ShellExecute takes
+    # the file separately and wants only the arguments.
+    if os.path.normcase(parts[0]) == os.path.normcase(exe):
+        parts = parts[1:]
+    return exe, subprocess.list2cmdline(parts)
+
+
+def _launch(exe: str, command_line: str, runas: bool) -> Result:
+    """ShellExecuteW, `open` or `runas`, and translate the verdict."""
+    verb = "runas" if runas else None
+    result = _shell32.ShellExecuteW(None, verb, exe, command_line or None,
+                                    None, 1)
+    code = int(result)
+    if code > SE_ERR_MAX:
+        return Result(True, "")
+    if code == 1223:
+        return Result(False, "The elevation prompt was cancelled.")
+    if code == 5:
+        return Result(False, "Access is denied — try running as "
+                             "administrator.")
+    text = ctypes.WinError(code).strerror if code else "unknown error"
+    return Result(False, f"The launch failed: {text or f'error {code}'}.")
 
 
 def _reason(code: int) -> str:

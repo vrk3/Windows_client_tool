@@ -180,7 +180,7 @@ and the wall time between them.
 - [x] W3-03 Lower pane: DLLs and Handles, with the driver limits stated.
 - [x] W3-04 Find handle or DLL.
 - [x] W3-05 Verify signatures; VirusTotal (reuses `virustotal_client.py`).
-- [ ] W3-06 Suspend/resume, restart, run as, create dump.
+- [x] W3-06 Suspend/resume, restart, run as, create dump.
 
 ## Wave 4 -- The remaining tabs
 
@@ -200,11 +200,10 @@ and the wall time between them.
 
 ---
 
-## Where this stopped (2026-09-01, 10:36)
+## Where this stopped (2026-09-02)
 
-**Waves 1 and 2 COMPLETE. Wave 3 is five of six** -- W3-01..W3-05 done;
-W3-06 (restart, run-as) remains. This wave has not yet been merged, built
-or deployed.
+**Waves 1, 2 and 3 COMPLETE** -- W3-01..W3-06 done. Wave 4 (Users, App
+history, Startup apps, Services tabs) is next.
 
 | | |
 |---|---|
@@ -215,6 +214,7 @@ or deployed.
 | W3-03 | DLL + handle lower panes -- `procengine/handles.py`, `modinfo.py` |
 | W3-04 | find handle or DLL -- `procengine/findref.py` + `find_dialog.py` |
 | W3-05 | signatures -- `procengine/signatures.py` + VirusTotal in the menu |
+| W3-06 | restart + run-as -- `procengine/actions.py` + menu entries |
 
 The Qt-free engine is now EIGHTEEN modules: `ntquery`, `rates`,
 `details`, `snapshot`, `columns`, `grouping`, `actions`, `cpuinfo`,
@@ -224,12 +224,22 @@ asserting it does not import PyQt6.
 
 ### Pick up here
 
-**W3-06 -- suspend/resume, restart, run as, create dump.** These are
-destructive, so the standing rule applies: every one confirms first, and
-every one reports the REAL outcome rather than assuming (W1-06 already
-paid for that lesson with `psutil.kill()` returning before the process is
-gone). `process_actions.py` has suspend/resume/kill already; restart and
-run-as are new, and `MiniDumpWriteDump` is the dump path.
+**Wave 4** adds the last four Task Manager tabs, each a thin child module
+wrapping a widget and registered in `DashboardModule.children`:
+
+- **W4-01 Users** -- per-user resource totals, expandable to that user's
+  processes. Reuses the snapshot's per-process `details.user`, summed in
+  a grouped view like the Processes tab.
+- **W4-02 App history** -- CPU time, network, metered network, tile
+  updates. Nothing exists to reuse; the readable per-process CPU times in
+  `ntquery` are the only data currently collected, so this starts from a
+  fresh data source or a documented "not tracked by Windows here" state.
+- **W4-03 Startup apps** -- reuse `startup_reader.py` (registry/startup
+  folder/tasks/services/browser extensions) which is already a plain
+  scanner; note there is NO impact scoring yet anywhere.
+- **W4-04 Services** -- reuse `services_manager.services_module`'s
+  module-level `get_services`/`query_service_config`/
+  `query_required_by`/`service_action` (WMI-based, COMWorker-only).
 
 **Three tests fail and they are not the Dashboard.**
 `test_firewall_rule_actions.py` expects Calculator's MUI string to
@@ -594,3 +604,20 @@ Recorded as they are learned, the way the Log Viewer plan did.
   skips rather than asserting a machine fact a vendor update could
   quietly change. The malformed-PE case is asserted for what it is: a
   refusal with a reason, never a claim of "unsigned".
+- **2026-09-02, W3-06:** "restart" can only honestly mean "end the old
+  process, verified gone, and ask Windows to start its executable again
+  with the same command line." Whether the new instance runs as the same
+  account, or keeps a window state, or survives at all, is not knowable
+  from one call -- so the engine claims none of it. ShellExecute's verdict
+  (>32 accepted, <=32 an error code like 5=access denied) is the only
+  launch truth available, and the code says exactly that.
+- **2026-09-02, W3-06:** a command line is rebuilt with
+  `subprocess.list2cmdline`, never `" ".join`. The latter is exactly what
+  breaks a path containing spaces -- the flaw `elevated_helper.py`
+  already documents in `core/admin_utils.py`. psutil hands back a parsed
+  argv list, which is a lossless way to get quoting back.
+- **2026-09-02, W3-06:** `run_as` and `restart` deliberately do NOT
+  reproduce the original's working directory or user token. Reading cwd
+  via `psutil.Process(pid).cwd()` is cheap but was never collected, and
+  re-running as the logged-on user is what "run as administrator" means --
+  ShellExecute's `runas` verb is the feature, not an approximation.

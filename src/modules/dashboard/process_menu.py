@@ -24,8 +24,9 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QInputDialog, QMenu,
                              QMessageBox)
 
 from .procengine.actions import (PRIORITY_LABELS, create_dump, end_process,
-                                 end_process_tree, resume_process,
-                                 set_affinity, set_priority, suspend_process)
+                                 end_process_tree, restart_process,
+                                 resume_process, run_as, set_affinity,
+                                 set_priority, suspend_process)
 from .procengine.snapshot import descendants_of
 
 logger = logging.getLogger(__name__)
@@ -76,11 +77,19 @@ class ProcessMenu(QObject):
         tree.setEnabled(not many)
         tree.triggered.connect(lambda: self._end_tree(pids[0]))
 
+        restart = menu.addAction("Restart")
+        restart.setEnabled(not many)
+        restart.triggered.connect(lambda: self._restart(pids[0]))
+
         menu.addSeparator()
         menu.addAction("Suspend").triggered.connect(
             lambda: self._simple(pids, suspend_process, "Suspend", True))
         menu.addAction("Resume").triggered.connect(
             lambda: self._simple(pids, resume_process, "Resume", False))
+
+        runas = menu.addAction("Run as administrator")
+        runas.setEnabled(not many)
+        runas.triggered.connect(lambda: self._run_as(pids[0]))
 
         priority = menu.addMenu("Set priority")
         for key, label in PRIORITY_LABELS:
@@ -146,6 +155,24 @@ class ProcessMenu(QObject):
                 "Unsaved work in any of them will be lost."):
             return
         self._report("End process tree", [(pid, end_process_tree(pid))])
+
+    def _restart(self, pid: int) -> None:
+        if not self._confirm(
+                "Restart",
+                f"Restart process {pid}?",
+                "The process will be ended and started again. Unsaved work "
+                "in it will be lost."):
+            return
+        self._report("Restart", [(pid, restart_process(pid))])
+
+    def _run_as(self, pid: int) -> None:
+        if not self._confirm(
+                "Run as administrator",
+                f"Start a new elevated instance of process {pid}?",
+                "This process keeps running. Windows will ask to elevate "
+                "the new instance."):
+            return
+        self._report("Run as administrator", [(pid, run_as(pid))])
 
     def _simple(self, pids, action, title: str, confirm: bool) -> None:
         if confirm and not self._confirm(
