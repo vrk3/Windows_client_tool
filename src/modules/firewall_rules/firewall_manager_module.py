@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
+from core.semantic_colors import semantic
 from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 
@@ -1117,9 +1118,9 @@ class FirewallManagerModule(BaseModule):
                 item.setToolTip(tip)
                 # Colour coding
                 if rule.action == "Allow":
-                    item.setForeground(QColor("#2ecc71"))
+                    item.setForeground(QColor(semantic("success")))
                 elif rule.action == "Block":
-                    item.setForeground(QColor("#e74c3c"))
+                    item.setForeground(QColor(semantic("error")))
                 if rule.enabled == "No":
                     item.setForeground(QColor("#888888"))
                 self._table.setItem(row, col, item)

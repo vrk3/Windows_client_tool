@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.base_module import BaseModule
+from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.composite_module import CompositeModule
 from core.events import NAV_REQUEST_MODULE, NavRequestData
@@ -139,7 +140,7 @@ class _StatBar(QWidget):
         if pct >= 90:
             color = "#e06c75"
         elif pct >= 70:
-            color = "#e5c07b"
+            color = semantic("warning")
         else:
             color = "#98c379"
         self._bar.setStyleSheet(

@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.base_module import BaseModule
+from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
@@ -313,9 +314,9 @@ class WifiAnalyzerModule(BaseModule):
         for r, net in enumerate(networks):
             sig = net.get("Signal %", 0)
             color = (
-                QColor("#2ecc71") if sig >= 70
-                else QColor("#f39c12") if sig >= 40
-                else QColor("#e74c3c")
+                QColor(semantic("success")) if sig >= 70
+                else QColor(semantic("warning")) if sig >= 40
+                else QColor(semantic("error"))
             )
             for c, col in enumerate(_NET_COLS):
                 val = str(net.get(col, ""))

@@ -209,7 +209,7 @@ class _AppUpdatesTab(QWidget):
             if result_text == "CONFIRMED":
                 result_item.setForeground(QColor(semantic("success")))
             elif result_text == "UNCHANGED":
-                result_item.setForeground(QColor("#e5c07b"))
+                result_item.setForeground(QColor(semantic("warning")))
             self._table.setItem(row, 5, result_item)
         self._apply_filter(self._filter_edit.text())
 

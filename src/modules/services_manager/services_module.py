@@ -13,6 +13,7 @@ from PyQt6.QtGui import QColor
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.run import run
+from core.semantic_colors import semantic
 from core.windows_utils import ps_quote
 from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker, Worker
@@ -44,16 +45,32 @@ _LOW_IMPACT_KEYWORDS = [
     "client", "cloud", "drive", "edge", "browser", "slack", "zoom",
     "teams", "discord", "spotify", "spotlight",
 ]
-_STATUS_COLORS = {
-    "Running": "#2ecc71",
-    "Stopped": "#e74c3c",
-    "Paused": "#f39c12",
+#: Status and impact both map onto the app's semantic palette. These are
+#: functions rather than dicts because semantic() resolves against the
+#: theme in force NOW — a module-level dict froze whichever theme happened
+#: to be active when this module was first imported.
+_STATUS_MEANING = {
+    "Running": "success",
+    "Stopped": "error",
+    "Paused": "warning",
 }
-_IMPACT_COLORS = {
-    "High": "#e74c3c",
-    "Medium": "#f39c12",
-    "Low": "#2ecc71",
+_IMPACT_MEANING = {
+    "High": "error",
+    "Medium": "warning",
+    "Low": "success",
 }
+
+
+def status_colour(status: str):
+    """The colour for a service state, or None for one we do not rank."""
+    meaning = _STATUS_MEANING.get(status)
+    return semantic(meaning) if meaning else None
+
+
+def impact_colour(impact: str):
+    """The colour for an impact rating, or None for one we do not rank."""
+    meaning = _IMPACT_MEANING.get(impact)
+    return semantic(meaning) if meaning else None
 
 # ----------------------------------------------------------------------
 # Service data fetchers
@@ -494,11 +511,11 @@ class ServicesModule(BaseModule):
             for c, val in enumerate(values):
                 item = centered_item(val)
                 if c == 2:  # Status
-                    color = _STATUS_COLORS.get(svc["Status"])
+                    color = status_colour(svc["Status"])
                     if color:
                         item.setForeground(QColor(color))
                 elif c == 4:  # Impact
-                    color = _IMPACT_COLORS.get(svc["Impact"])
+                    color = impact_colour(svc["Impact"])
                     if color:
                         item.setForeground(QColor(color))
                 item.setData(Qt.ItemDataRole.UserRole, svc["Name"])
@@ -546,7 +563,7 @@ class ServicesModule(BaseModule):
         self._detail_desc_value.setText(svc.get("Description", ""))
         self._detail_desc_value.setWordWrap(True)
         self._detail_impact_value.setText(svc.get("Impact", "-"))
-        imp_color = _IMPACT_COLORS.get(svc.get("Impact", ""), "")
+        imp_color = impact_colour(svc.get("Impact", ""))
         if imp_color:
             self._detail_impact_value.setStyleSheet(f"color: {imp_color}; font-weight: bold;")
         else:
