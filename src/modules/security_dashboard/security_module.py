@@ -10,6 +10,7 @@ import ctypes
 import os
 import threading
 import re
+import shutil
 import tempfile
 from ctypes import wintypes
 from datetime import datetime
@@ -430,6 +431,20 @@ _SEE_MASK_NOCLOSEPROCESS = 0x00000040
 _SEE_MASK_NOASYNC = 0x00000100
 _SW_HIDE = 0
 
+#: The user said No to the UAC prompt. Far and away the commonest reason a
+#: launch does not happen, and NOT an error — reporting it as one teaches
+#: people to distrust the pane's other messages.
+ERROR_CANCELLED = 1223
+
+#: Bound with use_last_error so ctypes actually captures GetLastError after
+#: the call. Reading `ctypes.get_last_error()` after a `ctypes.windll.*`
+#: call returns ctypes' private copy, which that path never populates — so
+#: the code logged was zero or a leftover from something unrelated, and a
+#: declined prompt was indistinguishable from a real failure.
+#: dashboard/procengine/actions.py has always done it this way.
+_shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
 
 def run_elevated_batch(changes, timeout_ms: int = 15 * 60 * 1000):
     """Run one batch through the elevated helper and read its report.
@@ -445,6 +460,17 @@ def run_elevated_batch(changes, timeout_ms: int = 15 * 60 * 1000):
     None means UNKNOWN: the caller re-reads and shows what the machine says.
     """
     folder = tempfile.mkdtemp(prefix="security-batch-")
+    try:
+        return _run_elevated_batch_in(folder, changes, timeout_ms)
+    finally:
+        # batch.json holds the staged changes AND the previous value of
+        # each one, so leaving it behind is both litter and a small
+        # disclosure. Every apply used to leave one in %TEMP% permanently.
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def _run_elevated_batch_in(folder: str, changes, timeout_ms: int):
+    """The body of run_elevated_batch, with the staging folder supplied."""
     batch_path = os.path.join(folder, "batch.json")
     result_path = os.path.join(folder, "result.json")
     write_batch_file(changes, batch_path)
@@ -458,17 +484,21 @@ def run_elevated_batch(changes, timeout_ms: int = 15 * 60 * 1000):
     info.lpParameters = arguments
     info.nShow = _SW_HIDE
 
-    if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)):
-        # The commonest case by far is the user saying No to the prompt.
-        # Cancelling is not an error and must not be reported as one.
+    if not _shell32.ShellExecuteExW(ctypes.byref(info)):
         code = ctypes.get_last_error()
-        logger.info("the elevated helper was not started (error %s)", code)
+        if code == ERROR_CANCELLED:
+            # Declining the prompt is a decision, not a failure.
+            logger.info("the elevated helper was cancelled at the UAC prompt")
+        else:
+            logger.warning(
+                "the elevated helper was not started (error %s)", code)
         return None
 
     try:
-        ctypes.windll.kernel32.WaitForSingleObject(info.hProcess, timeout_ms)
+        _kernel32.WaitForSingleObject(info.hProcess, timeout_ms)
     finally:
-        ctypes.windll.kernel32.CloseHandle(info.hProcess)
+        _kernel32.CloseHandle(info.hProcess)
+    # Read before the caller's finally removes the folder.
     return read_result_file(result_path)
 
 
