@@ -4,15 +4,17 @@ Everything specific to Windows Update is its parser and its search provider; the
 `LogPane` by way of `LogReaderModule`.
 """
 import logging
+import os
 
 from core.log_reader_module import LogReaderModule
+from core.windows_utils import system_root
 
 from modules.windows_update.wu_parser import WUParser
 from modules.windows_update.wu_search_provider import WUSearchProvider
 
 logger = logging.getLogger(__name__)
 
-WU_LOG_PATH = r"C:\Windows\SoftwareDistribution\ReportingEvents.log"
+WU_LOG_PATH = os.path.join(system_root(), "SoftwareDistribution", "ReportingEvents.log")
 
 
 class WindowsUpdateModule(LogReaderModule):

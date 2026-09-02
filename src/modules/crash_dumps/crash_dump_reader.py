@@ -5,10 +5,11 @@ from datetime import datetime
 from typing import List, Optional, Callable
 
 from core.types import LogEntry
+from core.windows_utils import system_root
 
 logger = logging.getLogger(__name__)
 
-MINIDUMP_DIR = r"C:\Windows\Minidump"
+MINIDUMP_DIR = os.path.join(system_root(), "Minidump")
 
 
 def read_crash_dumps(

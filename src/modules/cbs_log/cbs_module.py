@@ -8,14 +8,17 @@ in load_entries is the path that actually runs.
 """
 import logging
 
+import os
+
 from core.log_reader_module import LogReaderModule
+from core.windows_utils import program_files, system_root
 
 from modules.cbs_log.cbs_parser import CBSParser
 from modules.cbs_log.cbs_search_provider import CBSSearchProvider
 
 logger = logging.getLogger(__name__)
 
-CBS_LOG_PATH = r"C:\Windows\Logs\CBS\CBS.log"
+CBS_LOG_PATH = os.path.join(system_root(), "Logs", "CBS", "CBS.log")
 
 
 class CBSLogModule(LogReaderModule):
@@ -49,9 +52,9 @@ class CBSLogModule(LogReaderModule):
             latest_cab = cab_files[0]
 
             # Try 7z if available
-            seven_zip = r"C:\Program Files\7-Zip\7z.exe"
+            seven_zip = os.path.join(program_files(), "7-Zip", "7z.exe")
             if not os.path.exists(seven_zip):
-                seven_zip = r"C:\Program Files (x86)\7-Zip\7z.exe"
+                seven_zip = os.path.join(program_files(x86=True), "7-Zip", "7z.exe")
 
             tmp_dir = tempfile.mkdtemp(prefix="cbs_")
             log_path = os.path.join(tmp_dir, "CBS_extracted.log")

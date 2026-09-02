@@ -12,13 +12,14 @@ from PyQt6.QtWidgets import (
 )
 
 from core.base_module import BaseModule
+from core.windows_utils import system32
 from core.module_groups import ModuleGroup
 from core.table_ui import centered_item, center_header, fit_table
 import logging
 
 logger = logging.getLogger(__name__)
 
-HOSTS_PATH = r"C:\Windows\System32\drivers\etc\hosts"
+HOSTS_PATH = os.path.join(system32(), "drivers", "etc", "hosts")
 
 # Pre-built telemetry blocklist
 TELEMETRY_BLOCKLIST = [

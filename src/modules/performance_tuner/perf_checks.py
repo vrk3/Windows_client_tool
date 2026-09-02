@@ -13,6 +13,9 @@ Each check is a dict:
 """
 import logging
 import os
+import os
+
+from core.windows_utils import system_drive
 import subprocess
 import winreg
 
@@ -133,7 +136,7 @@ def _detect_power_throttling():
 
 
 def _detect_hibernate():
-    if not os.path.exists(r"C:\hiberfil.sys"):
+    if not os.path.exists(os.path.join(system_drive() + os.sep, "hiberfil.sys")):
         return "optimal"
     return "suboptimal"
 

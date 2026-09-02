@@ -7,14 +7,17 @@ Falls back to Get-HotFix when there is no DISM.log to read.
 """
 import logging
 
+import os
+
 from core.log_reader_module import LogReaderModule
+from core.windows_utils import system_root
 
 from modules.dism_log.dism_parser import DISMParser
 from modules.dism_log.dism_search_provider import DISMSearchProvider
 
 logger = logging.getLogger(__name__)
 
-DISM_LOG_PATH = r"C:\Windows\Logs\DISM\dism.log"
+DISM_LOG_PATH = os.path.join(system_root(), "Logs", "DISM", "dism.log")
 
 
 class DISMLogModule(LogReaderModule):
