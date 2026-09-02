@@ -25,6 +25,19 @@
 
 ## Status — all forty addressed
 
+**Everything below shipped and is on `origin/master`.** After the forty, the
+scanner work continued past what the audit asked for:
+
+- 537 of 537 scanners are data or reachable code; **none is unreachable**
+  (404 were).
+- Double-counting fixed in all three panes that total scanner results.
+  System Junk claimed 88.2 GB against 47.9 GB real; Quick Cleanup claimed
+  2.10 GB against 1.39 GB.
+- Bugs found only because the scanners became legible: 62 with a glob that
+  never matched, `net_sdk_cache` looking at `C:\.dotnet`, ten pairs of
+  exact duplicates.
+
+
 **P1 (14 items) shipped** on `feat/audit-p1`, 14 commits.
 **P2 (18 items) and P3 (8 items) addressed** on `feat/audit-p2`.
 
