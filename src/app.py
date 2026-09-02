@@ -50,6 +50,7 @@ class App:
             raise RuntimeError("App is a singleton — use App.get()")
         App.instance = self
 
+        self._shut_down = False
         self._app_data_dir = app_data_dir or _get_app_data_dir()
         self.app_data_dir = self._app_data_dir  # public alias for modules
 
@@ -111,7 +112,18 @@ class App:
         self.module_registry.start_all(self)
 
     def shutdown(self) -> None:
-        """Stop modules, save config, shut down logging."""
+        """Stop modules, save config, shut down logging.
+
+        Idempotent: it is reachable from MainWindow.closeEvent AND from
+        QApplication.aboutToQuit, and a Windows session logoff or any
+        qApp.quit() takes only the second of those. Running it twice would
+        stop already-stopped modules and close an already-closed backup
+        database.
+        """
+        if getattr(self, "_shut_down", False):
+            return
+        self._shut_down = True
+
         self.module_registry.stop_all()
         self.backup.close()
         self.config.save()

@@ -96,7 +96,7 @@ class CleanupConfig:
                 self._config.update(**self._filter_user_config(user_config))
                 self._last_config = self._config.copy()
             except Exception as e:
-                print(f"Config loading error: {e}")
+                logger.warning("cleanup config could not be loaded; using defaults", exc_info=True)
 
     def _filter_user_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Filter valid user config entries."""
@@ -283,7 +283,7 @@ class CleanupConfig:
             with open(backup_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2)
         except Exception as e:
-            print(f"Config save error: {e}")
+            logger.error("cleanup config could not be saved; changes are lost", exc_info=True)
             # Restore backup if available
             backup_path = Path(str(self._CONFIG_PATH) + "_backup")
             if backup_path.exists():

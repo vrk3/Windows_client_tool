@@ -1,0 +1,36 @@
+# Line endings.
+#
+# Without this, every `git diff` on this tree printed a wall of
+#     warning: in the working copy of '...', LF will be replaced by CRLF
+# which trains you to stop reading git's output — and git's output is where
+# the next real warning is going to appear.
+#
+# Python, QSS, JSON and Markdown are LF: they are read by tooling that does
+# not care, and LF keeps diffs clean across the CI runner and this machine.
+# PowerShell and batch are CRLF, which is what Windows script hosts expect
+# and what a .bat file needs to parse reliably.
+
+* text=auto
+
+*.py    text eol=lf
+*.pyi   text eol=lf
+*.qss   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.spec  text eol=lf
+*.txt   text eol=lf
+*.in    text eol=lf
+
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Binary — never touched.
+*.png   binary
+*.ico   binary
+*.exe   binary
+*.db    binary
+*.cab   binary

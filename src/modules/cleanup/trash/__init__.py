@@ -73,7 +73,7 @@ class TrashManager:
                         shutil.move(item_path, str(target_path))
                     trash_paths.append(str(target_path))
             except Exception as e:
-                print(f"Failed to move {item_path} to trash: {e}")
+                logger.warning("could not move %s to the trash", item_path, exc_info=True)
                 # Move to permanent delete if trash failed
                 try:
                     if os.path.exists(item_path):
@@ -108,7 +108,7 @@ class TrashManager:
                         )
                     )
                 except Exception as e:
-                    print(f"Error reading trash item {trash_item_path}: {e}")
+                    logger.warning("could not read the trash item %s", trash_item_path, exc_info=True)
 
         return sorted(items, key=lambda x: x.deleted_date)
 
@@ -131,7 +131,7 @@ class TrashManager:
             shutil.move(str(item_path), str(dest_path))
             return True
         except Exception as e:
-            print(f"Failed to restore {item_path}: {e}")
+            logger.warning("could not restore %s from the trash", item_path, exc_info=True)
             return False
 
     def restore_all(self, original_location: str) -> int:
@@ -157,6 +157,6 @@ class TrashManager:
                 os.remove(item.target_path)
                 restored += 1
             except Exception as e:
-                print(f"Failed to delete trash item: {e}")
+                logger.warning("could not delete the trash item", exc_info=True)
 
         return (restored, 0)

@@ -13,7 +13,6 @@ Each check is a dict:
 """
 import logging
 import os
-import os
 
 from core.windows_utils import system_drive
 import subprocess

@@ -113,18 +113,34 @@ class LoggingService:
                 logging.getLogger().addHandler(file_handler)
                 self._handlers.append(file_handler)
             except Exception as e:
-                print(f"Could not create log file handler: {e}")
+                print(f"Could not create log file handler: {e}", file=sys.stderr)
 
         # Console handler — skip when stdout is unavailable (frozen windowed mode)
         if hasattr(sys, "stdout") and sys.stdout is not None and hasattr(sys.stdout, "write"):
             try:
+                # A default Windows console is cp1252, and these messages
+                # carry em-dashes and arrows. Observed live:
+                #     Module 'Tweaks' requires admin ? disabled
+                # main.py's _s() already works around this for its own
+                # prints; the handler needs it too. errors="replace" rather
+                # than strict, because losing a whole log line to a
+                # UnicodeEncodeError is worse than one replacement glyph.
+                try:
+                    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+                except (AttributeError, ValueError, OSError):
+                    # Not a real text stream (pytest capture, a pipe wrapper,
+                    # a frozen build's stub). Nothing to reconfigure, and
+                    # nothing the user can do about it.
+                    logging.getLogger(__name__).debug(
+                        "stdout could not be reconfigured to UTF-8; console "
+                        "output may mangle non-ASCII", exc_info=True)
                 console_handler = logging.StreamHandler(sys.stdout)
                 console_handler.setFormatter(formatter)
                 console_handler.setLevel(self._console_level)
                 logging.getLogger().addHandler(console_handler)
                 self._handlers.append(console_handler)
             except Exception as e:
-                print(f"Could not create console handler: {e}")
+                print(f"Could not create console handler: {e}", file=sys.stderr)
 
     def _session_fallback_dir(self) -> str:
         """App-data logs directory, used when the exe dir is unwritable or

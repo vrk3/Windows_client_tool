@@ -211,6 +211,13 @@ def main():
     for module in app.module_registry.modules:
         window.register_module(module)
 
+    # Also on aboutToQuit: shutdown saves config, closes the backup
+    # database and drains the thread pool, and MainWindow.closeEvent is not
+    # the only way out — a Windows session logoff and any qApp.quit() skip
+    # it entirely, losing whatever config changes were pending.
+    # App.shutdown is idempotent, so both paths firing is fine.
+    qt_app.aboutToQuit.connect(app.shutdown)
+
     window.show()
     sys.exit(qt_app.exec())
 

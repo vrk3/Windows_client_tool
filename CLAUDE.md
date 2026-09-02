@@ -707,6 +707,15 @@ Note: EventViewer, CBS, DISM, WU, Reliability, and CrashDumps are embedded in Di
 
 ## Important Gotchas
 
+- **This application is English-only, deliberately.** There are zero
+  `self.tr()` calls in 92,000 lines and that is a decision, not an
+  oversight: it is a single-machine Windows utility with one user, and
+  wrapping every string would cost more than it returns. Do NOT half-start
+  it — a handful of `tr()` calls scattered through new panes is worse than
+  none, because it looks like a translation path that works and does not.
+  If that changes, the whole surface goes at once, with a .ts file and a
+  lupdate step in the build; until then, write plain strings.
+
 - `sys.stdout` is `None` in onefile windowed mode — guard with `hasattr(sys.stdout, 'isatty')`
 - `tempfile` module must be explicitly imported — PyInstaller may miss it
 - The walrus operator `:=` inside PyQt `addRow()` calls causes Python 3.12 parser failures — use separate assignment lines

@@ -8,6 +8,7 @@ import html
 import logging
 import os
 import socket
+from core.formatting import format_size as _fmt_size
 from datetime import datetime
 from typing import List, Optional
 
@@ -16,15 +17,6 @@ logger = logging.getLogger(__name__)
 
 def _esc(v) -> str:
     return html.escape(str(v) if v is not None else "")
-
-
-def _fmt_size(num_bytes: int) -> str:
-    b = float(num_bytes or 0)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if b < 1024:
-            return f"{b:.1f} {unit}"
-        b /= 1024
-    return f"{b:.1f} PB"
 
 
 def render_update_report_html(data: dict, history: List[dict]) -> str:

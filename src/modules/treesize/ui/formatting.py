@@ -14,6 +14,11 @@ Kept free of Qt so it can be tested without a display.
 """
 from enum import Enum
 
+# Unit and format_bytes moved to core.formatting — five copies of
+# this existed and disagreed below 1 KB. Re-exported so every
+# `from .formatting import Unit, format_bytes` still resolves.
+from core.formatting import Unit, format_bytes  # noqa: F401
+
 from ..store.node_store import DIR
 
 
@@ -24,44 +29,6 @@ class Mode(str, Enum):
     PERCENT = "Percent"
 
 
-class Unit(str, Enum):
-    AUTO = "Auto"
-    TB = "TB"
-    GB = "GB"
-    MB = "MB"
-    KB = "KB"
-    B = "B"
-
-
-# Ordered largest-first; Auto walks this and takes the first that fits.
-_SCALE = (
-    (Unit.TB, 1024 ** 4),
-    (Unit.GB, 1024 ** 3),
-    (Unit.MB, 1024 ** 2),
-    (Unit.KB, 1024),
-    (Unit.B, 1),
-)
-_DIVISOR = dict(_SCALE)
-
-
-def format_bytes(value: int, unit: Unit = Unit.AUTO, decimals: int = 1) -> str:
-    """Render a byte count. Negative values keep their sign, for size deltas."""
-    sign = "-" if value < 0 else ""
-    magnitude = abs(value)
-
-    if unit is Unit.AUTO:
-        for candidate, divisor in _SCALE:
-            if magnitude >= divisor:
-                unit = candidate
-                break
-        else:
-            unit = Unit.B
-
-    divisor = _DIVISOR[unit]
-    if unit is Unit.B:
-        # Bytes are whole things; a fractional byte is noise, not precision.
-        return f"{sign}{magnitude:,} B"
-    return f"{sign}{magnitude / divisor:,.{decimals}f} {unit.value}"
 
 
 def format_count(value: int) -> str:

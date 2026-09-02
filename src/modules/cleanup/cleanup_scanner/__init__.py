@@ -29,3 +29,19 @@ from modules.cleanup.cleanup_scanner.catalog import (  # noqa: E402
 )
 
 globals().update(all_scanners())
+
+
+# What this package exports, said out loud.
+#
+# The eight `import *` lines above are what the scanners still look like;
+# until audit #14's remaining batches turn them into data, listing every
+# name by hand would be a second copy of the same 500 names to keep in
+# step. `__all__` is therefore COMPUTED from what actually got bound —
+# which is still a real improvement on nothing, because it makes
+# `from ... import *` on THIS package deterministic and lets a reader ask
+# the package what it has.
+__all__ = sorted(
+    name for name in dict(globals())
+    if not name.startswith("_")
+    and name not in {"annotations"}
+)

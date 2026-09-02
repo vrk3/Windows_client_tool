@@ -10,21 +10,13 @@ thread (COMWorker on the GUI side, explicit pythoncom.CoInitialize() in the
 unattended runner).
 """
 import logging
+from core.formatting import format_size as _fmt_size
 from typing import Callable
 
 logger = logging.getLogger(__name__)
 
 LogFn = Callable[[str], None]
 CancelFn = Callable[[], bool]
-
-
-def _fmt_size(num_bytes: int) -> str:
-    b = float(num_bytes or 0)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if b < 1024:
-            return f"{b:.1f} {unit}"
-        b /= 1024
-    return f"{b:.1f} PB"
 
 
 def run_wu_stage(app, log: LogFn, is_cancelled: CancelFn) -> dict:

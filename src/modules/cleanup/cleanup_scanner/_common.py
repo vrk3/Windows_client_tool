@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from core.formatting import format_size
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -35,13 +36,6 @@ def get_dir_size(path: str) -> int:
     except OSError:
         logger.debug("Ignored OSError", exc_info=True)
     return total
-
-def format_size(size: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
 
 def _make_item(path: str, safety: str = "safe", min_age_days: int = 0) -> Optional[ScanItem]:
     """Return ScanItem for path if it exists, else None. Respects min_age_days."""

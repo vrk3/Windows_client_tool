@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
+from core.formatting import human_size
 from core.appx_service import dedupe_by_name, fetch_packages
 from core.backup_service import StepRecord
 from core.base_module import BaseModule
@@ -147,20 +148,6 @@ def is_system_package(name: str, location: str) -> bool:
         return True
     loc = (location or "").replace("/", "\\").lower()
     return loc.startswith(r"c:\windows\systemapps")
-
-
-def human_size(size: int) -> str:
-    """Format a byte count compactly; negative means 'too large to scan'."""
-    if size < 0:
-        return "n/a"
-    if size == 0:
-        return "0 B"
-    value = float(size)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if value < 1024 or unit == "TB":
-            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
-        value /= 1024
-    return f"{int(value)} TB"
 
 
 def failure_hint(output: str) -> str:

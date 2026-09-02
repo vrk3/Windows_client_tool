@@ -21,7 +21,9 @@ def test_get_dir_size_with_files(tmp_path):
 
 
 def test_format_size_bytes():
-    assert format_size(500) == "500.0 B"
+    assert format_size(500) == "500 B"   # whole bytes carry no decimal:
+    # the five formatters disagreed here (0.0 B vs 0 B) until they were
+    # consolidated on core.formatting (audit #18).
 
 
 def test_format_size_kb():
