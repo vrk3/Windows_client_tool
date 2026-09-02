@@ -3,7 +3,7 @@ import datetime
 import logging
 from typing import Dict, Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QByteArray, Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
@@ -31,7 +31,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._app = app_instance
         self.setWindowTitle("Windows 11 Tweaker & Optimizer")
-        self._restore_window_size()
+        self._restore_window_geometry()
 
         self._module_map: Dict[str, BaseModule] = {}
         self._module_widgets: Dict[str, QWidget] = {}
@@ -145,9 +145,59 @@ class MainWindow(QMainWindow):
     def _on_nav_request(self, data) -> None:
         self._navigate_to_module(data.module_name)
 
-    def _restore_window_size(self) -> None:
+    def _restore_window_geometry(self) -> None:
+        """Put the window back where it was, on the screen it was on.
+
+        Only [width, height] used to be saved, so maximise-quit-reopen
+        came back windowed and centred on the primary display — the app you
+        keep on the second screen opened on the first one every launch.
+        saveGeometry/restoreGeometry encode position, size, maximised state
+        and screen identity together.
+        """
+        blob = self._app.config.get("app.window_geometry", None)
+        if blob:
+            try:
+                if self.restoreGeometry(QByteArray.fromBase64(blob.encode("ascii"))):
+                    self._ensure_on_screen()
+                    return
+            except (ValueError, TypeError, UnicodeEncodeError):
+                # It is base64 inside a JSON file a person can edit.
+                logger.warning("stored window geometry could not be read; "
+                               "falling back to the saved size", exc_info=True)
+
+        # Pre-geometry configs, and the first run after an upgrade.
         size = self._app.config.get("app.window_size", [1400, 900])
         self.resize(size[0], size[1])
+
+    def _save_window_geometry(self) -> None:
+        self._app.config.set(
+            "app.window_geometry",
+            bytes(self.saveGeometry().toBase64()).decode("ascii"))
+        # Kept in step so a downgrade, or a config read by something older,
+        # still finds a usable size.
+        size = self.size()
+        self._app.config.set("app.window_size", [size.width(), size.height()])
+
+    def _ensure_on_screen(self) -> None:
+        """Drag the window back if the screen it was on is gone.
+
+        Restoring geometry from an unplugged monitor leaves the window
+        somewhere unreachable, and nothing on screen says so — the app
+        simply appears not to have started.
+        """
+        frame = self.frameGeometry()
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return
+        for candidate in screen.virtualSiblings():
+            if candidate.availableGeometry().intersects(frame):
+                return
+
+        available = screen.availableGeometry()
+        logger.info("saved window geometry is off-screen; recentering")
+        self.resize(min(self.width(), available.width()),
+                    min(self.height(), available.height()))
+        self.move(available.center() - self.rect().center())
 
     def _create_admin_banner(self) -> QWidget:
         banner = QWidget()
@@ -322,6 +372,7 @@ class MainWindow(QMainWindow):
             self._minimize_paused = True
             for timer in self._module_refresh_timers.values():
                 timer.stop()
+        super().hideEvent(event)
 
     def showEvent(self, event):
         """Resume refresh timers when window becomes visible again."""
@@ -340,6 +391,7 @@ class MainWindow(QMainWindow):
             self._minimize_paused = False
             for timer in self._module_refresh_timers.values():
                 timer.start()
+        super().showEvent(event)
 
     def _toggle_auto_refresh_pause(self) -> None:
         """Globally pause or resume all module auto-refresh timers."""
@@ -592,8 +644,7 @@ class MainWindow(QMainWindow):
         if update_worker is not None:
             update_worker.cancel()
 
-        size = self.size()
-        self._app.config.set("app.window_size", [size.width(), size.height()])
+        self._save_window_geometry()
         self._app.shutdown()
         event.accept()
         super().closeEvent(event)
