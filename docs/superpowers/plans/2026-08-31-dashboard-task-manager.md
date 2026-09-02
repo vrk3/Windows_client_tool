@@ -201,15 +201,16 @@ and the wall time between them.
 - [x] W5-02 Always-on-top, update speed (High/Normal/Low/Paused), minimise on use.
 - [x] W5-03 Export the process list.
 - [x] W5-04 Global search provider over processes.
-- [ ] W5-05 Real-machine harness `tools/dashboard_check.py`, the sibling of
+- [x] W5-05 Real-machine harness `tools/dashboard_check.py`, the sibling of
       `logviewer_check.py` and `treesize_scan.py`.
 
 ---
 
 ## Where this stopped (2026-09-02)
 
-**Waves 1, 2 and 3 COMPLETE** -- W3-01..W3-06 done. Wave 4 (Users, App
-history, Startup apps, Services tabs) is next.
+**The whole plan is COMPLETE** -- Waves 1-5, W1-01..W5-05. Waves 3, 4 and
+5 were committed task by task on top of the merged waves 1-2; this wave's
+work is not yet built into a portable.
 
 | | |
 |---|---|
@@ -221,31 +222,24 @@ history, Startup apps, Services tabs) is next.
 | W3-04 | find handle or DLL -- `procengine/findref.py` + `find_dialog.py` |
 | W3-05 | signatures -- `procengine/signatures.py` + VirusTotal in the menu |
 | W3-06 | restart + run-as -- `procengine/actions.py` + menu entries |
+| W4-01..W4-04 | Users, App history, Startup apps, Services tabs |
+| W5-01..W5-05 | column layouts, always-on-top, export, process search, harness |
 
-The Qt-free engine is now EIGHTEEN modules: `ntquery`, `rates`,
+The Qt-free engine is now TWENTY-ONE modules: `ntquery`, `rates`,
 `details`, `snapshot`, `columns`, `grouping`, `actions`, `cpuinfo`,
 `meminfo`, `ioinfo`, `gpuinfo`, `sysinfo`, `classify`, `procwatch`,
-`handles`, `modinfo`, `findref`, `signatures`. Every one has a test
-asserting it does not import PyQt6.
+`handles`, `modinfo`, `findref`, `signatures`, `users`, `usage`,
+`process_search`. Every engine module has a test asserting it does not
+import PyQt6; `process_search` reuses `core.search_provider`, which is
+Qt-free itself.
 
 ### Pick up here
 
-**Wave 4** adds the last four Task Manager tabs, each a thin child module
-wrapping a widget and registered in `DashboardModule.children`:
-
-- **W4-01 Users** -- per-user resource totals, expandable to that user's
-  processes. Reuses the snapshot's per-process `details.user`, summed in
-  a grouped view like the Processes tab.
-- **W4-02 App history** -- CPU time, network, metered network, tile
-  updates. Nothing exists to reuse; the readable per-process CPU times in
-  `ntquery` are the only data currently collected, so this starts from a
-  fresh data source or a documented "not tracked by Windows here" state.
-- **W4-03 Startup apps** -- reuse `startup_reader.py` (registry/startup
-  folder/tasks/services/browser extensions) which is already a plain
-  scanner; note there is NO impact scoring yet anywhere.
-- **W4-04 Services** -- reuse `services_manager.services_module`'s
-  module-level `get_services`/`query_service_config`/
-  `query_required_by`/`service_action` (WMI-based, COMWorker-only).
+Nothing remains of the plan. The outstanding work is NOT dashboard:
+the large pre-existing uncommitted batch (PerfMon absorbed earlier,
+`core/table_ui.py` and its refactor across panes, `appx_service`, the
+code-signing tool) is still sitting in the working tree, untouched by
+these commits and awaiting its own review and commit.
 
 **Three tests fail and they are not the Dashboard.**
 `test_firewall_rule_actions.py` expects Calculator's MUI string to
@@ -256,7 +250,9 @@ machine fact that expired when Calculator updated.
 
 ### What to run first
 
-- `pytest tests/ -q` -- 3,936 pass, 3 skip.
+- `pytest tests/ -q` -- full suite, expect ~3,990+ pass, 3 skip.
+- `tools\dashboard_check.py` -- the real-machine harness, the sibling of
+  `logviewer_check.py`; opens each Dashboard tab against the live machine.
 - Screenshot harnesses in `scratchpad/` (gitignored):
   `drive_dashboard.py` (launches the real app and walks every tab),
   `shoot_properties.py`, `shoot_lower_pane.py`, `shoot_find.py`,
@@ -627,3 +623,53 @@ Recorded as they are learned, the way the Log Viewer plan did.
   via `psutil.Process(pid).cwd()` is cheap but was never collected, and
   re-running as the logged-on user is what "run as administrator" means --
   ShellExecute's `runas` verb is the feature, not an approximation.
+- **2026-09-02, W4-01 (the Users tab's shaping fact):** unelevated, half
+  the machine refuses its token -- so half of the "Users" tab cannot be
+  attributed to anyone. Filing those processes under the person looking at
+  the screen would charge them for SYSTEM's work; the tab gives them their
+  own row that says "Accounts not readable (n)" rather than pretending to
+  be an account. The same refusal rule that shaped the Details tab's cells
+  shapes the tab's grouping.
+- **2026-09-02, W4-02 (a plan item that had to be told the truth):** the
+  plan asked for App history's network, metered-network and tile columns.
+  None of those are reachable through a public API -- per-process network
+  byte counters need a kernel driver, and tile updates live in Windows'
+  private usage store. A column of zeros would claim "used no network".
+  The tab shows cumulative per-program CPU time (real, from the syscall)
+  and its own header line names what is absent and why. This is the plan's
+  standing rule applied to its own wish list.
+- **2026-09-02, W4-03 (startup "impact" is a boot trace, not a fact):**
+  Task Manager's startup-impact grades come from boot telemetry Windows
+  records over several starts. This tool reads none of it, so the Startup
+  apps tab has NO impact column and a note saying so -- inventing
+  High/Medium/Low would be the "0 handles for every process" lie in a new
+  costume.
+- **2026-09-02, W4-04:** the Services tab is read-mostly unelevated, which
+  is a deliberate choice -- WMI's service list needs no privilege, and the
+  Dashboard's other tabs all run unelevated. Actions are refused by the OS
+  when not elevated and the tab REPORTS the refusal. Gating the whole tab
+  behind elevation would hide a list that is fully readable without it.
+- **2026-09-02, W5-01:** restoring saved column widths re-fires
+  `sectionResized` for every column. If that re-saved, restoring 333px
+  would immediately write the default back over it -- the restore would
+  destroy what it was restoring. The guard (`_applying_layout`) is the
+  whole test; it failed before it was added.
+- **2026-09-02, W5-03 (export must match the screen):** exporting "all
+  processes" while a filter is active would hand someone a CSV that does
+  not match the table they are looking at. The export iterates the proxy
+  -- the filtered, sorted rows -- so the file is the screen. utf-8-sig,
+  not utf-8, so Excel opens an accented name without mojibake (the choice
+  treesize's exporters already made).
+- **2026-09-02, W5-04:** a process-search provider registered on BOTH the
+  Details and the Processes children would surface twice (the composite
+  aggregates children's providers and the engine does not de-duplicate),
+  doubling every hit. One child owns it -- Details, the process-detail
+  home -- and the composite routes it up.
+- **2026-09-02, W5-05 (a harness bug, caught by running it):** the Details
+  tab stores its snapshot in its MODEL, not in a `_snapshot` attribute the
+  way the Processes/Users tabs do. A harness written against `_snapshot`
+  reported "the table never filled" while the table was full -- the first
+  version of `tools/dashboard_check.py` failed on a tab that had worked
+  fine. A harness that checks a widget by the attribute another widget
+  happens to use is the same bug class as a pane reading another pane's
+  field.
