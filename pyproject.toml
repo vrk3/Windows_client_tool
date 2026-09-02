@@ -54,3 +54,47 @@ mypy_path = "src"
 # Tightening this is a later task's job, not this one's.
 ignore_missing_imports = true
 check_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# --timeout is a safety net against a genuine hang eating a whole CI job
+# silently. It uses pytest-timeout's "thread" method, which can only
+# interrupt regular Python execution — a test blocked in a native Qt call
+# (a stray dialog .exec()) is not preempted by it. Still worth having for
+# the commoner case: an accidental infinite loop, a background op that
+# never returns.
+#
+# These flags live here rather than in the CI workflow so that `pytest` is
+# the same command everywhere. It was not: CI passed --timeout=120 while
+# pytest-timeout was absent from the local venv, so the identical command
+# exited 4 here with "unrecognized arguments".
+#
+# --basetemp is the load-bearing flag. pytest's default temp root is
+# %TEMP%\pytest-of-<user>, and it keeps a `pytest-current` symlink there
+# pointing at the newest run. On this machine that symlink cannot be
+# stat'd at all:
+#
+#     PermissionError: [WinError 5] Access is denied:
+#     ...\Temp\pytest-of-iorda\pytest-current
+#
+# and `cleanup_dead_symlinks` walks it from pytest_sessionfinish — after
+# the last test, before the summary is printed. So a full run ended in a
+# traceback with no pass/fail line and no failure details: the suite's
+# real state was invisible, and the 5 failures it was hiding had been
+# there for some time. Pointing basetemp somewhere else means that
+# directory is never walked.
+#
+# NOTE: pytest empties basetemp at the start of every run, and two pytest
+# processes sharing one basetemp will clobber each other. Pass an explicit
+# --basetemp if you need to run two at once.
+# -m 'not real_machine' keeps the default run about the code. The
+# excluded tests are not disabled — CI runs them as a separate,
+# non-gating step, and `pytest -m real_machine` runs them here.
+addopts = "-q --timeout=120 --basetemp=build/pytest-tmp -m 'not real_machine'"
+# Belt and braces: don't accumulate numbered run directories either.
+tmp_path_retention_policy = "none"
+markers = [
+    "slow: takes seconds, not milliseconds",
+    "real_machine: reads or writes the actual machine (WMI, registry, services, live font metrics) rather than a fixture — excluded from the default run because it fails for environmental rather than code reasons",
+    "needs_admin: requires an elevated process; skipped otherwise",
+]

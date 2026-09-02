@@ -254,6 +254,8 @@ def test_no_budget_resolves_everything():
     assert cache.tracked() == len(rows)
 
 
+@pytest.mark.slow
+@pytest.mark.real_machine
 def test_the_snapshot_source_honours_a_budget():
     from modules.dashboard.procengine.snapshot import SnapshotSource
 

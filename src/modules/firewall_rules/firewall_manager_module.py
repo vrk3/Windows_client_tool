@@ -61,6 +61,32 @@ _FONT_CFG_KEY = "firewall.font_point_size"
 # No column may swallow the pane on "Fit Columns": one WindowsApps path is
 # 645px wide at 9pt and would push Profile off-screen on its own.
 _FIT_MAX_WIDTH = 520
+# Slack added around a measured text width, so a value does not sit flush
+# against the column edge. The same number tests/test_firewall_table_fit.py
+# uses in its _needed() helper — they have to agree, or the guard is testing
+# a different rule from the one the pane implements.
+_FIT_PADDING = 12
+
+# The widest value each column must be able to show, measured live against
+# whatever font this display actually renders. Only columns with a definite
+# answer appear here.
+#
+# Indices 1-4 and 8 have a bounded vocabulary: netsh emits exactly these
+# words, so "wide enough for the longest of them" is a complete requirement.
+# Index 7 (Program) is unbounded, but an ordinary system32 path is the case
+# it must not clip — a WindowsApps path is allowed to elide, and every cell
+# carries its full value as a tooltip.
+#
+# Index 0 (Name) is deliberately absent. Sizing it to its widest real value
+# puts a 544-rule table at _FIT_MAX_WIDTH on the first row that runs long.
+_COL_EXEMPLARS = {
+    1: "Enabled",                        # Yes / No, header is the widest
+    2: "Direction",                      # In / Out
+    3: "Action",                         # Allow / Block
+    4: "ICMPv6",                         # TCP / UDP / ICMPv4 / ICMPv6 / Any
+    7: r"C:\WINDOWS\system32\CastSrv.exe",
+    8: "Domain,Private,Public",          # every profile at once
+}
 
 
 class _CtrlWheelZoom(QObject):
@@ -650,7 +676,10 @@ class FirewallManagerModule(BaseModule):
 
         scale = self._font_pt / float(self._base_font_pt or 9)
         for i, width in enumerate(_COL_WIDTHS):
-            self._table.setColumnWidth(i, max(24, int(round(width * scale))))
+            # The tuned constant scaled by point size, but never narrower
+            # than this display actually needs — see _measured_floor.
+            self._table.setColumnWidth(
+                i, max(24, int(round(width * scale)), self._measured_floor(i)))
 
     def _nudge_font(self, step: int) -> None:
         new_pt = max(_MIN_FONT_PT, min(_MAX_FONT_PT, self._font_pt + step))
@@ -1099,8 +1128,35 @@ class FirewallManagerModule(BaseModule):
         total = len(self._all_rules)
         self._status_lbl.setText(
             f"Showing {len(visible)} / {total} rule(s)"
-            + (f" (filtered)" if total != len(visible) else "")
+            + (" (filtered)" if total != len(visible) else "")
         )
+
+    def _measured_floor(self, col: int) -> int:
+        """The width column `col` needs on THIS display, measured live.
+
+        `_COL_WIDTHS` are pixel constants measured on one machine at 9pt and
+        then scaled by the point-size ratio. Scaling by point size is not the
+        same thing as the text fitting: Qt's advance width for a string also
+        moves with the display's DPI, the installed UI font and the Windows
+        text scale. 70px held "Allow" on the CI runner and clipped it at 72px
+        here — a real failure of the rule, which read as a flaky test.
+
+        So each column is also measured against its own exemplar and its
+        header, and the wider of constant-and-measurement wins. Only columns
+        with something definite to fit have an exemplar: Name is deliberately
+        allowed to elide (every cell carries the full value as a tooltip),
+        and sizing it to its widest real value would put a 544-rule table at
+        the cap on every column.
+        """
+        metrics = self._table.fontMetrics()
+        header_metrics = self._table.horizontalHeader().fontMetrics()
+
+        head = self._table.horizontalHeaderItem(col)
+        needed = header_metrics.horizontalAdvance(head.text()) if head else 0
+        exemplar = _COL_EXEMPLARS.get(col)
+        if exemplar:
+            needed = max(needed, metrics.horizontalAdvance(exemplar))
+        return min(needed + _FIT_PADDING, _FIT_MAX_WIDTH)
 
     # ------------------------------------------------------------------
     # Helpers

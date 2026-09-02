@@ -22,6 +22,14 @@ from PyQt6.QtWidgets import QLabel, QMessageBox
 from modules.dashboard.services_tab import ServicesTab
 from modules.services_manager import services_module
 
+#: Every test in this file reads the live Win32_Service list through a
+#: COM-initialised worker, as the module docstring above says. That is a
+#: real dependency on the machine, not a fixture: the scan takes ~12s of
+#: fixture setup and, when the service host is slow to answer, fails with
+#: "the service table never filled from WMI" — a red suite for a reason
+#: that has nothing to do with the code under test.
+pytestmark = [pytest.mark.real_machine, pytest.mark.slow]
+
 #: The states Win32_Service.State can report; anything a real machine sends
 #: must be one of these (the tab substitutes "Unknown" for an empty read).
 VALID_STATES = {"Running", "Stopped", "Paused", "Start Pending",

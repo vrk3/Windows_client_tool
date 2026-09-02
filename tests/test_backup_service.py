@@ -320,6 +320,8 @@ def test_a_refused_export_is_reported_as_a_failure(svc):
     assert "access is denied" in outcome.reason.lower()
 
 
+@pytest.mark.real_machine
+@pytest.mark.needs_admin
 def test_a_real_export_reports_the_file_it_wrote(svc):
     """A key that exists and can be read: the .reg lands, and the outcome says
     so. This is the only case that leaves a way back on disk."""

@@ -1885,6 +1885,16 @@ def _fit_columns(table, padding: int = 24, cap: int = 520) -> None:
     rest off the pane, and left Interactive -- QHeaderView.Fixed refuses a
     user's drag SILENTLY.
     """
+    # Interactive FIRST. A section in Stretch or ResizeToContents mode
+    # silently ignores setColumnWidth — it computes its own — so setting the
+    # widths and then switching modes threw every width away. The history
+    # table is built with `fit_table(..., stretch=[1], content=[0, 2, 3])`,
+    # so that was all four columns: the Label column came out at whatever
+    # share of the pane the stretch gave it (224px) rather than the 444px
+    # its content needed.
+    table.horizontalHeader().setSectionResizeMode(
+        QHeaderView.ResizeMode.Interactive)
+
     metrics = table.fontMetrics()
     for column in range(table.columnCount()):
         header_item = table.horizontalHeaderItem(column)
@@ -1895,8 +1905,6 @@ def _fit_columns(table, padding: int = 24, cap: int = 520) -> None:
             if item is not None:
                 widest = max(widest, metrics.horizontalAdvance(item.text()))
         table.setColumnWidth(column, min(widest + padding, cap))
-    table.horizontalHeader().setSectionResizeMode(
-        QHeaderView.ResizeMode.Interactive)
 
 def _on_label_error(label, message: str):
     """Helper: show error on a QLabel if it still exists."""
