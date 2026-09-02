@@ -31,6 +31,22 @@ from .procengine.snapshot import descendants_of
 logger = logging.getLogger(__name__)
 
 
+def _widget_valid(widget) -> bool:
+    """Whether the widget a worker result wants to paint on still exists.
+
+    A Verify-signature or VirusTotal check runs on a Worker, and the menu
+    can be closed while it is out. A worker that fired after its host
+    widget was deleted is guarded with sip -- the same guard the lower
+    panes use -- because a Qt call on a deleted object is a dead process,
+    not a traceback.
+    """
+    try:
+        import sip
+    except ImportError:  # pragma: no cover
+        return widget is not None
+    return widget is not None and not sip.isdeleted(widget)
+
+
 class ProcessMenu(QObject):
     """Builds and runs the context menu for the selected processes."""
 
@@ -40,6 +56,12 @@ class ProcessMenu(QObject):
     def __init__(self, widget) -> None:
         super().__init__(widget)
         self._widget = widget
+        self._app = None
+
+    def set_app(self, app) -> None:
+        """The app gives access to config (VirusTotal API key) and the
+        thread pool for background checks."""
+        self._app = app
 
     def show(self, pids: List[int], info, position) -> None:
         if not pids:
@@ -82,6 +104,14 @@ class ProcessMenu(QObject):
         search = menu.addAction("Search online")
         search.setEnabled(not many)
         search.triggered.connect(lambda: self._search(info))
+
+        signature = menu.addAction("Verify signature")
+        signature.setEnabled(not many and bool(_path_of(info)))
+        signature.triggered.connect(lambda: self._signature(info))
+
+        vt = menu.addAction("Check VirusTotal")
+        vt.setEnabled(not many and bool(_path_of(info)))
+        vt.triggered.connect(lambda: self._virustotal(info))
 
         copy = menu.addAction("Copy details")
         copy.triggered.connect(lambda: self._copy(info))
@@ -169,6 +199,104 @@ class ProcessMenu(QObject):
         if name:
             webbrowser.open(
                 f"https://www.bing.com/search?q={name}+process")
+
+    def _signature(self, info) -> None:
+        """The Authenticode verdict on the process's own executable.
+
+        Read on the worker when there is a pool, inline otherwise -- the
+        engine caches per path, so a repeat check is free.
+        """
+        path = _path_of(info)
+        if not path:
+            return
+        if self._app is not None and getattr(self._app, "thread_pool", None):
+            from core.worker import Worker
+            from .procengine.signatures import verify_signature
+
+            w = Worker(lambda _worker: verify_signature(path))
+            w.signals.result.connect(
+                lambda facts: self._show_signature(facts))
+            self._app.thread_pool.start(w)
+        else:
+            from .procengine.signatures import verify_signature
+
+            self._show_signature(verify_signature(path))
+
+    def _show_signature(self, facts) -> None:
+        if self._widget is None or not _widget_valid(self._widget):
+            return
+        from .procengine.signatures import (COULD_NOT_VERIFY, INVALID,
+                                            NOT_SIGNED, VALID)
+
+        if facts.status == VALID:
+            icon, text = "🟢", f"Valid — signed by {facts.signer or 'unknown'}"
+        elif facts.status == NOT_SIGNED:
+            icon, text = "🟡", "Not signed"
+        elif facts.status == INVALID:
+            icon, text = "🔴", f"Invalid — {facts.reason or 'signature does not hold'}"
+        else:
+            icon, text = "⚪", f"Could not verify — {facts.reason or 'unknown'}"
+        QMessageBox.information(
+            self._widget, "Signature",
+            f"{icon} {facts.path}\n\n{text}")
+
+    def _virustotal(self, info) -> None:
+        """Query VirusTotal for the executable's SHA-256.
+
+        Requires the API key configured as `virustotal.api_key`, so it is
+        told apart from a check that was merely refused: no key is a
+        message, not a silent disable. Runs on a Worker -- hashing a large
+        binary and a network call are both off the UI thread.
+        """
+        path = _path_of(info)
+        if not path:
+            return
+        api_key = ""
+        if self._app is not None and getattr(self._app, "config", None) is not None:
+            api_key = self._app.config.get("virustotal.api_key", "")
+        if not api_key:
+            QMessageBox.information(
+                self._widget, "VirusTotal",
+                "No API key configured. Set 'virustotal.api_key' in settings.")
+            return
+        from modules.process_explorer.virustotal_client import (VTClient,
+                                                                compute_sha256)
+
+        sha = compute_sha256(path)
+        if not sha:
+            QMessageBox.warning(self._widget, "VirusTotal",
+                                "Could not compute SHA-256 of the executable.")
+            return
+        client = VTClient(api_key=api_key)
+
+        def do_check(_worker):
+            return client.check(sha)
+
+        if self._app is not None and getattr(self._app, "thread_pool", None):
+            from core.worker import Worker
+
+            w = Worker(do_check)
+            w.signals.result.connect(self._on_vt_result)
+            self._app.thread_pool.start(w)
+        else:
+            self._on_vt_result(client.check(sha))
+
+    def _on_vt_result(self, result) -> None:
+        if self._widget is None or not _widget_valid(self._widget):
+            return
+        from modules.process_explorer.virustotal_client import VTResult
+
+        if not result.found:
+            QMessageBox.information(
+                self._widget, "VirusTotal",
+                "This file is unknown to VirusTotal (0 detections "
+                "recorded). SHA-256:\n" + result.sha256)
+            return
+        icon = "🟢" if result.malicious == 0 else (
+            "🟠" if result.malicious <= 3 else "🔴")
+        QMessageBox.information(
+            self._widget, "VirusTotal",
+            f"{icon} {result.score}\nSHA-256: {result.sha256}")
 
     def _copy(self, info) -> None:
         if info is None:

@@ -96,6 +96,12 @@ class ProcessPropertiesDialog(QDialog):
         layout.addWidget(self._row("Status", n.status))
         layout.addWidget(self._row("Integrity", n.integrity_level))
 
+        if n.exe:
+            signature = _exe_signature(n.exe)
+            layout.addWidget(self._row("Signature", signature))
+        else:
+            layout.addWidget(self._row("Signature", "no executable to verify"))
+
         open_btn = QPushButton("Open File Location")
         open_btn.clicked.connect(lambda: subprocess.Popen(
             ["explorer", "/select,", n.exe]) if n.exe else None)
@@ -413,6 +419,31 @@ class ProcessPropertiesDialog(QDialog):
 
 #: 100-nanosecond ticks per second, the unit the process times use.
 HUNDRED_NS = 10_000_000
+
+
+def _exe_signature(exe: str) -> str:
+    """The Authenticode signature of the executable, for the Image tab.
+
+    `verify_signature` never raises and caches per path, so this costs
+    nothing on repeat reads and cannot crash the dialog on a file that is
+    gone. The wording follows the engine's statuses: an unsigned file says
+    so plainly, and a refusal names its reason rather than reading as a
+    clean bill of health.
+    """
+    try:
+        from modules.dashboard.procengine.signatures import (
+            INVALID, NOT_SIGNED, VALID, verify_signature)
+    except ImportError:  # pragma: no cover
+        return "signature check unavailable"
+
+    facts = verify_signature(exe)
+    if facts.status == VALID:
+        return f"Valid — signed by {facts.signer or 'an unknown signer'}"
+    if facts.status == NOT_SIGNED:
+        return "Not signed"
+    if facts.status == INVALID:
+        return f"Invalid — {facts.reason or 'the signature does not hold'}"
+    return f"Could not verify — {facts.reason or 'unknown reason'}"
 
 
 def _percent(value) -> str:

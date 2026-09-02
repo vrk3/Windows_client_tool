@@ -56,6 +56,35 @@ def test_the_dll_pane_fills_size_company_and_version(qapp):
     assert filled > view._table.rowCount() * 0.5
 
 
+def test_the_dll_pane_counts_signed_modules(qapp):
+    """The Signed column's whole reason to exist: a machine loads the same
+    hundred system DLLs in every process, so most of our modules should
+    verify as signed -- and the label must say how many did."""
+    view = DllView()
+    view.load_pid(MY_PID)
+    assert _settle(qapp, view, lambda: view._table.rowCount() > 0)
+
+    signed = sum(1 for row in range(view._table.rowCount())
+                 if view._table.item(row, 7).text() == "Yes")
+    assert signed > view._table.rowCount() * 0.5, \
+        "most system DLLs are Authenticode-signed"
+    assert "signed" in view._label.text()
+
+
+def test_the_signed_column_only_claims_what_the_engine_said(qapp):
+    """The renderer maps the engine's statuses to Yes/No/Invalid and
+    anything else to a dash -- it must never invent a claim of its own."""
+    from modules.dashboard.procengine.signatures import clear_cache
+
+    clear_cache()
+    view = DllView()
+    view.load_pid(MY_PID)
+    assert _settle(qapp, view, lambda: view._table.rowCount() > 0)
+
+    for row in range(view._table.rowCount()):
+        assert view._table.item(row, 7).text() in ("Yes", "No", "Invalid", "—")
+
+
 def test_a_process_it_cannot_read_says_why_rather_than_showing_nothing(qapp):
     view = DllView()
     view.load_pid(4)          # the kernel; refuses

@@ -116,6 +116,7 @@ HIDDEN_IMPORTS = [
     "modules.dashboard.procengine.snapshot",
     "modules.dashboard.procengine.columns",
     "modules.dashboard.procengine.actions",
+    "modules.dashboard.procengine.signatures",
     "modules.process_explorer.process_explorer_module",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means

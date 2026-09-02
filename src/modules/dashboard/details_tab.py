@@ -121,6 +121,7 @@ class DetailsTab(QWidget):
             stored = self._config.get(CONFIG_KEY, None)
             if stored:
                 self.model.set_columns(stored)
+        self.menu.set_app(app)
         self._resize_columns()
 
     def start(self) -> None:

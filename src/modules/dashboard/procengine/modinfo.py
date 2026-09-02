@@ -71,6 +71,11 @@ class LoadedModule:
     company: Optional[str] = None
     version: Optional[str] = None
     description: Optional[str] = None
+    #: The Authenticode signature status, filled by the DLL pane's worker
+    #: via `signatures.verify_signature` -- per-file, so it is cached by
+    #: path and never re-verified for every process that loads the file.
+    #: None here means "not asked for", not "unsigned".
+    signature: Optional[str] = None
 
 
 #: path -> (company, version, description). A per-file fact, so it is

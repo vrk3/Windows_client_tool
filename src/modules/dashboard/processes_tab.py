@@ -108,6 +108,7 @@ class ProcessesTab(QWidget):
 
     def set_app(self, app) -> None:
         self._app = app
+        self.menu.set_app(app)
 
     def start(self) -> None:
         self.refresh()

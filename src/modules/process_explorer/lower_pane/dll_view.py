@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Name", "Description", "Company", "Version", "Base address",
-            "Size", "Full path"]
+            "Size", "Full path", "Signed"]
 
 
 def _bytes(size: int) -> str:
@@ -31,6 +31,22 @@ def _bytes(size: int) -> str:
             return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
         value /= 1024.0
     return f"{value:.1f} GB"
+
+
+def _signed(status) -> str:
+    """The Signed column's text.
+
+    The engine's statuses are the truth here: a file that could not be
+    verified says so -- a dash would read as "unsigned", which is a claim
+    about a file the machine did not get to examine.
+    """
+    if status == "valid":
+        return "Yes"
+    if status == "not_signed":
+        return "No"
+    if status == "invalid":
+        return "Invalid"
+    return "—"
 
 
 class DllView(QWidget):
@@ -54,6 +70,7 @@ class DllView(QWidget):
         # The full path takes the slack -- it is the widest and the one a
         # truncation makes useless.
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
@@ -72,13 +89,22 @@ class DllView(QWidget):
         self._thread.start()
 
     def _load(self, pid: int) -> None:
+        from dataclasses import replace
+
         from modules.dashboard.procengine.modinfo import loaded_modules
+        from modules.dashboard.procengine.signatures import verify_signature
 
         try:
             modules, reason = loaded_modules(pid)
         except Exception as error:  # noqa: BLE001
             logger.warning("Reading modules for pid %d failed: %s", pid, error)
             modules, reason = None, str(error)
+        if modules is not None:
+            # A signature is a fact about a FILE, cached per path, so a
+            # machine that loads the same hundred DLLs in every process
+            # pays the verification once. Still worth doing on the worker.
+            modules = [replace(module, signature=verify_signature(module.path).status)
+                       for module in modules]
         self._ready.emit(pid, modules, reason)
 
     @pyqtSlot(int, object, object)
@@ -107,9 +133,10 @@ class DllView(QWidget):
                 f"0x{module.base:X}",
                 _bytes(module.size),
                 module.path,
+                _signed(module.signature),
             ]
             for column, text in enumerate(cells):
                 self._table.setItem(index, column, QTableWidgetItem(text))
-        signed = sum(1 for module in modules if module.company)
+        signed = sum(1 for module in modules if module.signature == "valid")
         self._label.setText(
-            f"{len(modules):,} modules · {signed:,} name a company")
+            f"{len(modules):,} modules · {signed:,} signed")

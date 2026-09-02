@@ -179,7 +179,7 @@ and the wall time between them.
       Job, Strings.
 - [x] W3-03 Lower pane: DLLs and Handles, with the driver limits stated.
 - [x] W3-04 Find handle or DLL.
-- [ ] W3-05 Verify signatures; VirusTotal (reuses `virustotal_client.py`).
+- [x] W3-05 Verify signatures; VirusTotal (reuses `virustotal_client.py`).
 - [ ] W3-06 Suspend/resume, restart, run as, create dump.
 
 ## Wave 4 -- The remaining tabs
@@ -202,10 +202,9 @@ and the wall time between them.
 
 ## Where this stopped (2026-09-01, 10:36)
 
-**Waves 1 and 2 COMPLETE. Wave 3 is four of six** -- W3-01..W3-04 done,
-merged to `master`, built and deployed. The portable in
-`OneDrive/1 Personal/Aplicatii/` is this work (58 MB, sha256
-b634bfaa8023a08e0ddfc15561e5f2cad960e15f636304e4c33c4f4719ac4032).
+**Waves 1 and 2 COMPLETE. Wave 3 is five of six** -- W3-01..W3-05 done;
+W3-06 (restart, run-as) remains. This wave has not yet been merged, built
+or deployed.
 
 | | |
 |---|---|
@@ -215,22 +214,15 @@ b634bfaa8023a08e0ddfc15561e5f2cad960e15f636304e4c33c4f4719ac4032).
 | W3-02 | the 11-tab properties dialog -- `procengine/procwatch.py` |
 | W3-03 | DLL + handle lower panes -- `procengine/handles.py`, `modinfo.py` |
 | W3-04 | find handle or DLL -- `procengine/findref.py` + `find_dialog.py` |
+| W3-05 | signatures -- `procengine/signatures.py` + VirusTotal in the menu |
 
-The Qt-free engine is now seventeen modules: `ntquery`, `rates`,
+The Qt-free engine is now EIGHTEEN modules: `ntquery`, `rates`,
 `details`, `snapshot`, `columns`, `grouping`, `actions`, `cpuinfo`,
 `meminfo`, `ioinfo`, `gpuinfo`, `sysinfo`, `classify`, `procwatch`,
-`handles`, `modinfo`, `findref`. Every one has a test asserting it does
-not import PyQt6.
+`handles`, `modinfo`, `findref`, `signatures`. Every one has a test
+asserting it does not import PyQt6.
 
 ### Pick up here
-
-**W3-05 -- verify signatures; VirusTotal.** Reuses the existing
-`virustotal_client.py`. Signature verification wants `WinVerifyTrust`
-(wintrust.dll); the natural home is `procengine/` beside `modinfo.py`,
-which already reads the version resource of the same files and already
-caches per path -- signatures should cache the same way, since a
-signature is a fact about a FILE and a machine loads the same hundred
-system DLLs in every process.
 
 **W3-06 -- suspend/resume, restart, run as, create dump.** These are
 destructive, so the standing rule applies: every one confirms first, and
@@ -248,7 +240,7 @@ machine fact that expired when Calculator updated.
 
 ### What to run first
 
-- `pytest tests/ -q` -- 3,874 pass, 3 skip, and the 3 firewall failures.
+- `pytest tests/ -q` -- 3,936 pass, 3 skip.
 - Screenshot harnesses in `scratchpad/` (gitignored):
   `drive_dashboard.py` (launches the real app and walks every tab),
   `shoot_properties.py`, `shoot_lower_pane.py`, `shoot_find.py`,
@@ -569,3 +561,36 @@ Recorded as they are learned, the way the Log Viewer plan did.
   find its own file. The engine test covers the same behaviour
   deterministically. Duplicating an end-to-end assertion at a second
   layer bought flakiness and no coverage.
+- **2026-09-02, W3-05:** `WinVerifyTrust` returns its HRESULT through a
+  ctypes `c_long`, so on success it is 0 and every failure is NEGATIVE.
+  Comparing an undeclared call's return against the `0x8...`/`0xC...`
+  trust constants NEVER matches -- `TRUST_E_NOSIGNATURE` reads as
+  `-2146762752`, not `0x800B0100` -- and every status fell through to
+  "could not verify". This is the same bug W3-03 recorded for the handle
+  syscall, showing up in a different shape: there the unsigned int was
+  compared against a negative; here the signed long is compared against
+  positive constants. Mask `& 0xFFFFFFFF` before any comparison.
+- **2026-09-02, W3-05:** the signer is the LEAF of the embedded
+  certificate chain, and it is found structurally, not by position.
+  `CryptQueryObject`'s store enumerates CA-first and some files embed
+  their root -- for Git for Windows the enumeration is [PCA, intermediate,
+  signer, root] -- so neither "first" nor "last" is reliable. The signer
+  is the one certificate that is not itself the issuer of any other
+  certificate in the store. Two lines, and it survives chains of any
+  length.
+- **2026-09-02, W3-05 (found by cross-checking, the W2-06 lesson in the
+  other direction):** Git for Windows' signing certificate lapsed in May
+  2026, and its binaries now read `0x800B0101` (`CERT_E_EXPIRED`) from
+  WinVerifyTrust. It is NOT a refusal -- the file WAS signed and the
+  signature has lapsed, which is a verdict the user can act on. Mapping
+  it to "could not verify" would hide that the signature expired; the
+  expiry is the answer. Cross-checked against PowerShell's
+  `Get-AuthenticodeSignature`, which agrees the certificate is out of
+  validity period.
+- **2026-09-02, W3-05 (a machine fact asserted by its absence):** an
+  unsigned file is a STATUS (`not_signed`), not a fall-through. Finding a
+  genuinely unsigned, genuinely valid PE on a real machine is harder than
+  it sounds -- Git's `cygwin-console-helper.exe` is one, and its test
+  skips rather than asserting a machine fact a vendor update could
+  quietly change. The malformed-PE case is asserted for what it is: a
+  refusal with a reason, never a claim of "unsigned".
