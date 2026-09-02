@@ -23,9 +23,9 @@ from PyQt6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QPushButton,
 from core.semantic_colors import semantic
 from core.worker import Worker
 
-from .procengine.columns import fmt_cpu_time, fmt_count
-from .procengine.snapshot import SnapshotSource
-from .procengine.usage import app_usage
+from core.procengine.columns import fmt_cpu_time, fmt_count
+from core.procengine.snapshot import SnapshotSource
+from core.procengine.usage import app_usage
 
 logger = logging.getLogger(__name__)
 

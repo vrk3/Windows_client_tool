@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from dataclasses import dataclass, field
 
-from modules.config.config_manager import CleanupConfig
+from modules.cleanup.cleanup_config import CleanupConfig
 import logging
 logger = logging.getLogger(__name__)
 

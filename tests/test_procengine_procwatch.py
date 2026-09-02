@@ -12,8 +12,8 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.ntquery import system_processes
-from modules.dashboard.procengine.procwatch import (
+from core.procengine.ntquery import system_processes
+from core.procengine.procwatch import (
     HISTORY, ProcessWatch, Series,
 )
 
@@ -157,7 +157,7 @@ def test_the_same_process_keeps_being_watched(fake_rows):
 
 @pytest.fixture
 def fake_rows():
-    from modules.dashboard.procengine.ntquery import ProcessRaw
+    from core.procengine.ntquery import ProcessRaw
 
     def build(pid, create_time):
         return [ProcessRaw(
@@ -182,7 +182,7 @@ def test_gpu_figures_are_none_without_a_sampler():
 
 
 def test_gpu_figures_arrive_when_a_sampler_is_given():
-    from modules.dashboard.procengine.gpuinfo import GpuSampler
+    from core.procengine.gpuinfo import GpuSampler
 
     with GpuSampler() as sampler:
         sampler.sample()
@@ -198,7 +198,7 @@ def test_gpu_figures_arrive_when_a_sampler_is_given():
 
 
 def test_process_gpu_memory_is_attributed_per_pid():
-    from modules.dashboard.procengine.gpuinfo import GpuSampler
+    from core.procengine.gpuinfo import GpuSampler
 
     with GpuSampler() as sampler:
         sampler.sample()
@@ -216,6 +216,6 @@ def test_process_gpu_memory_is_attributed_per_pid():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import procwatch
+    from core.procengine import procwatch
 
     assert "PyQt6" not in inspect.getsource(procwatch)

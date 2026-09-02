@@ -17,10 +17,10 @@ import sys
 
 import pytest
 
-from modules.dashboard.procengine.details import (
+from core.procengine.details import (
     DetailCache, ProcessDetails, resolve,
 )
-from modules.dashboard.procengine.ntquery import system_processes
+from core.procengine.ntquery import system_processes
 
 
 def _create_time(pid):
@@ -189,7 +189,7 @@ def test_the_second_sweep_is_effectively_free():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import details
+    from core.procengine import details
 
     assert "PyQt6" not in inspect.getsource(details)
 
@@ -200,8 +200,8 @@ def test_a_budget_caps_how_many_are_resolved_per_sweep():
     """Elevated, a full cold sweep of ~270 processes measures 2,252 ms
     against 8.5 ms warm, so an unbounded first tick leaves a live pane
     blank for over two seconds."""
-    from modules.dashboard.procengine.details import DetailCache
-    from modules.dashboard.procengine.ntquery import system_processes
+    from core.procengine.details import DetailCache
+    from core.procengine.ntquery import system_processes
 
     rows = system_processes()
     cache = DetailCache()
@@ -212,7 +212,7 @@ def test_a_budget_caps_how_many_are_resolved_per_sweep():
 
 
 def test_what_the_budget_skipped_is_none_not_a_claim():
-    from modules.dashboard.procengine.details import DetailCache
+    from core.procengine.details import DetailCache
 
     cache = DetailCache()
     skipped = cache.get(os.getpid(), 0, [0])
@@ -224,7 +224,7 @@ def test_what_the_budget_skipped_is_none_not_a_claim():
 
 def test_a_skipped_process_is_retried_on_the_next_sweep():
     """It must not be cached as unresolved, or it stays blank forever."""
-    from modules.dashboard.procengine.details import DetailCache
+    from core.procengine.details import DetailCache
 
     cache = DetailCache()
     assert cache.get(os.getpid(), 0, [0]).path is None
@@ -233,7 +233,7 @@ def test_a_skipped_process_is_retried_on_the_next_sweep():
 
 
 def test_an_already_cached_process_does_not_spend_budget():
-    from modules.dashboard.procengine.details import DetailCache
+    from core.procengine.details import DetailCache
 
     cache = DetailCache()
     budget = [1]
@@ -244,8 +244,8 @@ def test_an_already_cached_process_does_not_spend_budget():
 
 
 def test_no_budget_resolves_everything():
-    from modules.dashboard.procengine.details import DetailCache
-    from modules.dashboard.procengine.ntquery import system_processes
+    from core.procengine.details import DetailCache
+    from core.procengine.ntquery import system_processes
 
     rows = system_processes()[:20]
     cache = DetailCache()
@@ -257,7 +257,7 @@ def test_no_budget_resolves_everything():
 @pytest.mark.slow
 @pytest.mark.real_machine
 def test_the_snapshot_source_honours_a_budget():
-    from modules.dashboard.procengine.snapshot import SnapshotSource
+    from core.procengine.snapshot import SnapshotSource
 
     source = SnapshotSource()
     first = source.read(cold_budget=10)

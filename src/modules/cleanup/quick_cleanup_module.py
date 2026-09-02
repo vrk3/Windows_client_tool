@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QWidget
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from modules.ui.components.quick_cleanup_tab import QuickCleanupTab, ADVANCED_CATEGORIES
+from modules.cleanup.components.quick_cleanup_tab import QuickCleanupTab, ADVANCED_CATEGORIES
 
 
 class QuickCleanupModule(BaseModule):

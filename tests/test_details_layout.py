@@ -12,7 +12,7 @@ import pytest
 
 from core.config_manager import ConfigManager
 from modules.dashboard.details_tab import ORDER_KEY, WIDTHS_KEY, DetailsTab
-from modules.dashboard.procengine.columns import COLUMNS, DEFAULT_KEYS
+from core.procengine.columns import COLUMNS, DEFAULT_KEYS
 
 
 def _column_index(tab, key):

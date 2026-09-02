@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.ioinfo import (
+from core.procengine.ioinfo import (
     DiskCounters, InterfaceCounters, disk_counters, disk_rates,
     interface_counters, interface_rates,
 )
@@ -71,7 +71,7 @@ def test_disk_throughput_is_bytes_per_second():
 
 def test_a_fully_idle_disk_reads_as_zero_active():
     """Idle moved by the whole interval, so nothing was done."""
-    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+    from core.procengine.ioinfo import HUNDRED_NS
 
     rates = disk_rates([_disk(idle=0, at=0.0)],
                        [_disk(idle=HUNDRED_NS, at=1.0)])
@@ -86,7 +86,7 @@ def test_a_fully_busy_disk_reads_as_one_hundred_active():
 def test_active_time_comes_from_idle_not_from_read_plus_write():
     """Read and write time overlap on a queued device, so adding them can
     exceed the interval. Active is the remainder of idle."""
-    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+    from core.procengine.ioinfo import HUNDRED_NS
 
     rates = disk_rates([_disk(idle=0, at=0.0)],
                        [_disk(idle=HUNDRED_NS // 2, at=1.0)])
@@ -213,7 +213,7 @@ def test_the_real_interfaces_produce_plausible_rates():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import ioinfo
+    from core.procengine import ioinfo
 
     assert "PyQt6" not in inspect.getsource(ioinfo)
 
@@ -223,7 +223,7 @@ def test_the_drivers_own_timestamp_measures_the_interval():
     stale by the time the last one answers, and that skew is the entire
     signal when the true active time is zero -- it put a permanent 2-3%
     ripple on disks doing nothing."""
-    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+    from core.procengine.ioinfo import HUNDRED_NS
 
     # The driver says exactly one second passed; the wall clock disagrees.
     # Both timestamps are non-zero: 0 is the sentinel for "the driver gave
@@ -236,7 +236,7 @@ def test_the_drivers_own_timestamp_measures_the_interval():
 
 
 def test_the_wall_clock_is_used_when_the_driver_gives_no_timestamp():
-    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+    from core.procengine.ioinfo import HUNDRED_NS
 
     before = _disk(idle=0, at=0.0, query_time=0)
     after = _disk(idle=HUNDRED_NS // 2, at=1.0, query_time=0)
@@ -251,8 +251,8 @@ def test_a_real_idle_disk_reads_as_near_zero_active(monkeypatch):
     Runs against controlled counters so the machine's actual disk activity
     (some disks are never quiet) cannot make the assertion flaky.
     """
-    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
-    import modules.dashboard.procengine.ioinfo as ioinfo_mod
+    from core.procengine.ioinfo import HUNDRED_NS
+    import core.procengine.ioinfo as ioinfo_mod
 
     calls = {"n": 0}
 
@@ -284,7 +284,7 @@ def test_the_loopback_adapter_is_flagged():
 def test_loopback_is_detected_by_address_not_by_name():
     """"Loopback Pseudo-Interface 1" is the English name only; a name match
     would quietly start listing it on a German install."""
-    from modules.dashboard.procengine.ioinfo import _is_loopback
+    from core.procengine.ioinfo import _is_loopback
 
     class _Entry:
         def __init__(self, address):

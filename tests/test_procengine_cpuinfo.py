@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.cpuinfo import (
+from core.procengine.cpuinfo import (
     CoreTimes, core_loads, cpu_static, processor_times, uptime_seconds,
 )
 
@@ -201,6 +201,6 @@ def test_uptime_moves_forwards():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import cpuinfo
+    from core.procengine import cpuinfo
 
     assert "PyQt6" not in inspect.getsource(cpuinfo)

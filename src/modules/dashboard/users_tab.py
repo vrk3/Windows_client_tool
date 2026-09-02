@@ -20,9 +20,9 @@ from PyQt6.QtWidgets import (QHeaderView, QLabel, QTreeWidget,
 from core.semantic_colors import semantic
 from core.worker import Worker
 
-from .procengine.columns import fmt_bytes, fmt_percent, fmt_rate
-from .procengine.snapshot import SnapshotSource
-from .procengine.users import UNKNOWN, group_by_user
+from core.procengine.columns import fmt_bytes, fmt_percent, fmt_rate
+from core.procengine.snapshot import SnapshotSource
+from core.procengine.users import UNKNOWN, group_by_user
 
 logger = logging.getLogger(__name__)
 

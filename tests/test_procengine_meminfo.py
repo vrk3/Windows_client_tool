@@ -7,7 +7,7 @@ error, which is exactly the kind of wrong that ships.
 """
 import pytest
 
-from modules.dashboard.procengine.meminfo import (
+from core.procengine.meminfo import (
     memory_modules, memory_status,
 )
 
@@ -111,7 +111,7 @@ def test_the_thread_and_handle_counts_are_plausible(status):
 def test_the_counts_agree_with_the_process_engine(status):
     """Two different APIs describing one machine. A large disagreement
     means one of them is being read wrong."""
-    from modules.dashboard.procengine.ntquery import system_processes
+    from core.procengine.ntquery import system_processes
 
     counted = len(system_processes())
     assert abs(counted - status.processes) < 25
@@ -163,6 +163,6 @@ def test_nothing_in_a_module_is_an_empty_string():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import meminfo
+    from core.procengine import meminfo
 
     assert "PyQt6" not in inspect.getsource(meminfo)

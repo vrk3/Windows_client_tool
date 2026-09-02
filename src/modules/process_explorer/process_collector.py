@@ -123,9 +123,9 @@ def build_snapshot(service_names: Set[str],
     paths). Passing `None` builds a throwaway one, which is correct only
     for a single reading -- every rate will be 0.0.
     """
-    from modules.dashboard.procengine.snapshot import SnapshotSource
+    from core.procengine.snapshot import SnapshotSource
 
-    from modules.dashboard.procengine.classify import service_pids
+    from core.procengine.classify import service_pids
 
     if source is None:
         source = SnapshotSource()
@@ -281,14 +281,14 @@ class ProcessCollector(QObject):
 
         def do_work(worker):
             if self._source is None:
-                from modules.dashboard.procengine.snapshot import \
+                from core.procengine.snapshot import \
                     SnapshotSource
                 self._source = SnapshotSource()
             if self._gpu is None:
-                from modules.dashboard.procengine.gpuinfo import GpuSampler
+                from core.procengine.gpuinfo import GpuSampler
                 self._gpu = GpuSampler()
             if self._kinds is None:
-                from modules.dashboard.procengine.classify import \
+                from core.procengine.classify import \
                     ClassifyCache
                 self._kinds = ClassifyCache(want_packed=self._want_packed)
             # Collect once, then read the per-pid slice of that same

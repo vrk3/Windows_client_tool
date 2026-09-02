@@ -26,7 +26,7 @@ from typing import List, Optional
 from core.search_provider import (FilterField, SearchProvider, SearchQuery,
                                   SearchResult)
 
-from .procengine.snapshot import SnapshotSource
+from core.procengine.snapshot import SnapshotSource
 
 logger = logging.getLogger(__name__)
 

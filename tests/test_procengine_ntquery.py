@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.ntquery import (
+from core.procengine.ntquery import (
     ProcessRaw, system_processes,
 )
 
@@ -155,7 +155,7 @@ def test_the_engine_does_not_import_qt():
     what lets these tests run with no display."""
     import inspect
 
-    from modules.dashboard.procengine import ntquery
+    from core.procengine import ntquery
 
     source = inspect.getsource(ntquery)
     assert "PyQt6" not in source

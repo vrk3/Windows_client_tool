@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from modules.ui.components.quick_cleanup_tab import _SliceCard
+from modules.cleanup.components.quick_cleanup_tab import _SliceCard
 
 
 def _luminance(colour: QColor) -> float:

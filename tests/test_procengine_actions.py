@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.actions import (
+from core.procengine.actions import (
     Result, create_dump, end_process, end_process_tree, is_running,
     restart_process, resume_process, run_as, set_affinity, set_priority,
     suspend_process,
@@ -195,7 +195,7 @@ def test_restart_ends_the_process_and_relaunches_it(sleeper, monkeypatch):
     file and command line.
     """
     launched = []
-    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+    monkeypatch.setattr("core.procengine.actions._launch",
                         lambda exe, cmdline, runas: launched.append(
                             (exe, cmdline, runas)) or Result(True, ""))
 
@@ -213,7 +213,7 @@ def test_restart_ends_the_process_and_relaunches_it(sleeper, monkeypatch):
 def test_restart_passes_the_process_arguments_through(sleeper, monkeypatch):
     """The relaunch reproduces how the process was started."""
     launched = []
-    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+    monkeypatch.setattr("core.procengine.actions._launch",
                         lambda exe, cmdline, runas: launched.append(cmdline)
                         or Result(True, ""))
 
@@ -225,7 +225,7 @@ def test_restart_passes_the_process_arguments_through(sleeper, monkeypatch):
 
 
 def test_restart_reports_a_failed_relaunch(sleeper, monkeypatch):
-    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+    monkeypatch.setattr("core.procengine.actions._launch",
                         lambda exe, cmdline, runas:
                         Result(False, "The launch failed: error 5."))
     result = restart_process(sleeper.pid)
@@ -250,7 +250,7 @@ def test_run_as_launches_elevated_and_leaves_the_original_running(
         sleeper, monkeypatch):
     """The distinction from restart: the original keeps running."""
     launched = []
-    monkeypatch.setattr("modules.dashboard.procengine.actions._launch",
+    monkeypatch.setattr("core.procengine.actions._launch",
                         lambda exe, cmdline, runas: launched.append(runas)
                         or Result(True, ""))
 
@@ -293,6 +293,6 @@ def test_a_result_is_never_a_bare_boolean(sleeper):
 def test_the_actions_do_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import actions
+    from core.procengine import actions
 
     assert "PyQt6" not in inspect.getsource(actions)

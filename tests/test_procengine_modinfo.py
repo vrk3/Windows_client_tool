@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.modinfo import (
+from core.procengine.modinfo import (
     LoadedModule, loaded_modules, version_info,
 )
 
@@ -104,6 +104,6 @@ def test_a_missing_file_does_not_raise():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import modinfo
+    from core.procengine import modinfo
 
     assert "PyQt6" not in inspect.getsource(modinfo)

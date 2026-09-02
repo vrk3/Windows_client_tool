@@ -74,7 +74,7 @@ class HandleView(QWidget):
         self._thread.start()
 
     def _load(self, pid: int) -> None:
-        from modules.dashboard.procengine.handles import (
+        from core.procengine.handles import (
             HandleNamer, system_handles,
         )
 
@@ -90,7 +90,7 @@ class HandleView(QWidget):
     def _populate(self, pid: int, rows: list, note) -> None:
         if pid != self._pid:
             return
-        from modules.dashboard.procengine.handles import access_flags
+        from core.procengine.handles import access_flags
 
         self._table.setRowCount(len(rows))
         for index, row in enumerate(rows):

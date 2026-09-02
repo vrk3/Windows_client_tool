@@ -21,7 +21,7 @@ import re
 
 import pytest
 
-from modules.config import config_manager as cc
+from modules.cleanup import cleanup_config as cc
 
 
 def test_the_class_no_longer_shares_a_name_with_the_app_config():

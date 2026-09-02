@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt, QTimer
 from core.semantic_colors import semantic
 from core.table_ui import centered_item, center_header, fit_table
 
-from modules.dashboard.perf_graph import PerfGraph
+from ui.perf_graph import PerfGraph
 from modules.process_explorer.process_node import ProcessNode
 from modules.process_explorer.lower_pane.thread_view import ThreadView
 from modules.process_explorer.lower_pane.network_view import NetworkView
@@ -228,8 +228,8 @@ class ProcessPropertiesDialog(QDialog):
     # ---- the live half --------------------------------------------------
 
     def _start_watching(self):
-        from modules.dashboard.procengine.gpuinfo import GpuSampler
-        from modules.dashboard.procengine.procwatch import ProcessWatch
+        from core.procengine.gpuinfo import GpuSampler
+        from core.procengine.procwatch import ProcessWatch
 
         try:
             self._gpu_sampler = GpuSampler()
@@ -432,7 +432,7 @@ def _exe_signature(exe: str) -> str:
     clean bill of health.
     """
     try:
-        from modules.dashboard.procengine.signatures import (
+        from core.procengine.signatures import (
             INVALID, NOT_SIGNED, VALID, verify_signature)
     except ImportError:  # pragma: no cover
         return "signature check unavailable"

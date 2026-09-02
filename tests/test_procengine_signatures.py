@@ -24,7 +24,7 @@ import os
 import sys
 import time
 
-from modules.dashboard.procengine.signatures import (
+from core.procengine.signatures import (
     COULD_NOT_VERIFY, INVALID, NOT_SIGNED, VALID,
     SignatureFacts, clear_cache, verify_signature,
 )
@@ -185,6 +185,6 @@ def test_an_empty_path_is_could_not_verify():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import signatures
+    from core.procengine import signatures
 
     assert "PyQt6" not in inspect.getsource(signatures)

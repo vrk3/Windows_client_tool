@@ -8,12 +8,12 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.columns import (
+from core.procengine.columns import (
     BY_KEY, COLUMNS, DEFAULT_KEYS, GROUPS, UNKNOWN, cell_text, cell_tooltip,
     fmt_bytes, fmt_count, fmt_cpu_time, fmt_percent, fmt_rate,
     fmt_start_time, sort_key,
 )
-from modules.dashboard.procengine.snapshot import SnapshotSource
+from core.procengine.snapshot import SnapshotSource
 
 
 @pytest.fixture(scope="module")
@@ -63,7 +63,7 @@ def test_task_managers_memory_column_is_the_private_working_set():
     """The one people read as "Memory". Using the working set instead
     overstates every process that maps a shared DLL, which is all of them."""
     assert BY_KEY["memory"].value.__closure__ is not None
-    from modules.dashboard.procengine.ntquery import ProcessRaw
+    from core.procengine.ntquery import ProcessRaw
     assert "working_set_private" in ProcessRaw.__annotations__
 
 
@@ -109,7 +109,7 @@ def test_a_start_time_of_zero_is_not_1601():
 
 def test_a_real_start_time_renders():
     """Our own process started at a sane moment."""
-    from modules.dashboard.procengine.ntquery import system_processes
+    from core.procengine.ntquery import system_processes
 
     mine = next(row for row in system_processes() if row.pid == os.getpid())
     rendered = fmt_start_time(mine.create_time)
@@ -200,6 +200,6 @@ def test_no_column_ever_renders_a_bare_zero_for_something_unknown(snapshot):
 def test_the_columns_do_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import columns
+    from core.procengine import columns
 
     assert "PyQt6" not in inspect.getsource(columns)

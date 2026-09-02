@@ -9,10 +9,10 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.details import ProcessDetails
-from modules.dashboard.procengine.ntquery import ProcessRaw
-from modules.dashboard.procengine.rates import Rates
-from modules.dashboard.procengine.snapshot import ProcessInfo, SnapshotSource
+from core.procengine.details import ProcessDetails
+from core.procengine.ntquery import ProcessRaw
+from core.procengine.rates import Rates
+from core.procengine.snapshot import ProcessInfo, SnapshotSource
 from modules.process_explorer.process_collector import (
     ProcessCollector, build_snapshot, diff_snapshots, node_from_info,
 )
@@ -178,7 +178,7 @@ def test_a_process_the_gpu_never_saw_reads_zero():
 
 
 def test_the_real_machine_attributes_gpu_to_some_process():
-    from modules.dashboard.procengine.gpuinfo import GpuSampler
+    from core.procengine.gpuinfo import GpuSampler
 
     with GpuSampler() as sampler:
         sampler.sample()
@@ -230,7 +230,7 @@ def test_an_unchanged_row_is_not_reported_as_changed():
 def test_stopping_releases_the_gpu_query(qapp):
     """The PDH query lives in the performance-counter service, so an
     abandoned one outlives the collector that opened it."""
-    from modules.dashboard.procengine.gpuinfo import GpuSampler
+    from core.procengine.gpuinfo import GpuSampler
 
     collector = ProcessCollector()
     collector._gpu = GpuSampler()

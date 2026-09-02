@@ -74,7 +74,7 @@ def test_the_dll_pane_counts_signed_modules(qapp):
 def test_the_signed_column_only_claims_what_the_engine_said(qapp):
     """The renderer maps the engine's statuses to Yes/No/Invalid and
     anything else to a dash -- it must never invent a claim of its own."""
-    from modules.dashboard.procengine.signatures import clear_cache
+    from core.procengine.signatures import clear_cache
 
     clear_cache()
     view = DllView()

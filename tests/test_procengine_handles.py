@@ -10,11 +10,11 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.handles import (
+from core.procengine.handles import (
     HandleEntry, HandleNamer, STATUS_INFO_LENGTH_MISMATCH, access_flags,
     system_handles,
 )
-from modules.dashboard.procengine.ntquery import system_processes
+from core.procengine.ntquery import system_processes
 
 MY_PID = os.getpid()
 
@@ -55,7 +55,7 @@ def test_the_retry_loop_can_actually_fire():
     """
     import ctypes
 
-    from modules.dashboard.procengine import handles as module
+    from core.procengine import handles as module
 
     assert module._ntdll.NtQuerySystemInformation.restype is ctypes.c_ulong
     assert STATUS_INFO_LENGTH_MISMATCH == 0xC0000004
@@ -68,7 +68,7 @@ def test_the_pid_field_is_full_width():
     """Class 16 stores UniqueProcessId in a USHORT. Windows pids are
     DWORDs -- this machine is already past 35,000 -- and beyond 65,535
     that field wraps and gives one process another's handles."""
-    from modules.dashboard.procengine.handles import (
+    from core.procengine.handles import (
         SystemExtendedHandleInformation, _EXTENDED_HANDLE,
     )
     import ctypes
@@ -210,7 +210,7 @@ def test_no_access_is_said_plainly():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import handles
+    from core.procengine import handles
 
     assert "PyQt6" not in inspect.getsource(handles)
 
@@ -228,7 +228,7 @@ def test_the_process_handle_is_closed_by_the_worker_not_the_caller():
     """
     import inspect
 
-    from modules.dashboard.procengine import handles as module
+    from core.procengine import handles as module
 
     source = inspect.getsource(module.HandleNamer.describe)
     worker = source[source.index("def work("):]
@@ -240,7 +240,7 @@ def test_the_process_handle_is_closed_by_the_worker_not_the_caller():
 def test_repeated_timed_out_passes_do_not_leak():
     """Measured directly: 20 abandoned passes over 660 handles grow this
     process's handle count by zero."""
-    from modules.dashboard.procengine.ntquery import system_processes
+    from core.procengine.ntquery import system_processes
 
     def held() -> int:
         return [r for r in system_processes() if r.pid == MY_PID][0].handles
@@ -264,7 +264,7 @@ def test_a_named_pipe_is_skipped_rather_than_risked():
     1.2s -- the hang risk was also the dominant cost."""
     import inspect
 
-    from modules.dashboard.procengine import handles as module
+    from core.procengine import handles as module
 
     assert module.FILE_TYPE_PIPE == 3
     source = inspect.getsource(module.HandleNamer._one)

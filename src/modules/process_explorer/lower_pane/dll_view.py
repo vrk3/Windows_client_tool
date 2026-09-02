@@ -94,8 +94,8 @@ class DllView(QWidget):
     def _load(self, pid: int) -> None:
         from dataclasses import replace
 
-        from modules.dashboard.procengine.modinfo import loaded_modules
-        from modules.dashboard.procengine.signatures import verify_signature
+        from core.procengine.modinfo import loaded_modules
+        from core.procengine.signatures import verify_signature
 
         try:
             modules, reason = loaded_modules(pid)

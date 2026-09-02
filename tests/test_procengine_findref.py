@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.findref import FindReport, Match, find
+from core.procengine.findref import FindReport, Match, find
 
 MY_PID = os.getpid()
 
@@ -146,7 +146,7 @@ def test_a_whole_machine_search_finishes_in_reasonable_time():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import findref
+    from core.procengine import findref
 
     assert "PyQt6" not in inspect.getsource(findref)
 
@@ -181,7 +181,7 @@ def test_truncation_does_not_always_sacrifice_the_newest_processes():
     """
     import inspect
 
-    from modules.dashboard.procengine import findref
+    from core.procengine import findref
 
     source = inspect.getsource(findref._find_handles)
     assert "len(item[1])" in source, \

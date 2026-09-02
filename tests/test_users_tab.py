@@ -9,7 +9,7 @@ import os
 import pytest
 
 from modules.dashboard.users_tab import UsersTab
-from modules.dashboard.procengine.users import UNKNOWN, group_by_user
+from core.procengine.users import UNKNOWN, group_by_user
 
 
 @pytest.fixture

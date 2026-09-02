@@ -48,7 +48,7 @@ def menu(qapp):
 # ---- Verify signature ----------------------------------------------------
 
 def test_the_signature_handler_shows_a_verdict(menu, qapp, monkeypatch):
-    from modules.dashboard.procengine.signatures import SignatureFacts, VALID
+    from core.procengine.signatures import SignatureFacts, VALID
 
     shown = []
     monkeypatch.setattr(
@@ -106,7 +106,7 @@ def test_virustotal_computes_the_hash_and_queries(menu, qapp, monkeypatch):
     menu._app = _FakeApp(api_key="test-key")
 
     from modules.dashboard.process_menu import ProcessMenu as PM
-    from modules.process_explorer import virustotal_client as vtc
+    from core import virustotal_client as vtc
 
     hashed = []
     queried = []
@@ -138,7 +138,7 @@ def test_virustotal_reports_an_unknown_file_honestly(menu, qapp, monkeypatch):
         "modules.dashboard.process_menu.QMessageBox.information",
         lambda widget, title, text: shown.append(text))
 
-    from modules.process_explorer.virustotal_client import VTResult
+    from core.virustotal_client import VTResult
 
     menu._on_vt_result(VTResult(found=False, sha256="a" * 64))
     assert any("unknown to VirusTotal" in text for text in shown)
@@ -152,7 +152,7 @@ def test_virustotal_reports_a_detection_with_its_score(menu, qapp,
         "modules.dashboard.process_menu.QMessageBox.information",
         lambda widget, title, text: shown.append(text))
 
-    from modules.process_explorer.virustotal_client import VTResult
+    from core.virustotal_client import VTResult
 
     menu._on_vt_result(VTResult(found=True, sha256="a" * 64, malicious=3,
                                 total=72, score="3/72"))

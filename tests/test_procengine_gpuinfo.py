@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.gpuinfo import (
+from core.procengine.gpuinfo import (
     AdapterUsage, EngineLoad, GpuSampler, adapter_facts, feature_level_name,
     parse_engine_instance, parse_memory_instance, summarise_engines,
 )
@@ -320,6 +320,6 @@ def test_sampling_after_close_is_none_rather_than_a_crash():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import gpuinfo
+    from core.procengine import gpuinfo
 
     assert "PyQt6" not in inspect.getsource(gpuinfo)

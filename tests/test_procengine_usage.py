@@ -5,10 +5,10 @@ summed the way the Processes tab sums an app -- and the network/tile
 columns Task Manager shows are NOT invented, because a per-process network
 counter needs a kernel driver this tool does not ship.
 """
-from modules.dashboard.procengine.ntquery import ProcessRaw
-from modules.dashboard.procengine.rates import Rates
-from modules.dashboard.procengine.snapshot import ProcessInfo
-from modules.dashboard.procengine.usage import AppUsage, app_usage
+from core.procengine.ntquery import ProcessRaw
+from core.procengine.rates import Rates
+from core.procengine.snapshot import ProcessInfo
+from core.procengine.usage import AppUsage, app_usage
 
 
 def _raw(pid, name, kernel_time=0, user_time=0, create_time=100):
@@ -99,6 +99,6 @@ def test_every_row_is_an_app_usage():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import usage
+    from core.procengine import usage
 
     assert "PyQt6" not in inspect.getsource(usage)

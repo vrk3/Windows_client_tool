@@ -125,7 +125,7 @@ class FindHandleDialog(QDialog):
         want_modules = self._modules.isChecked()
 
         def work(worker=None):
-            from modules.dashboard.procengine.findref import find
+            from core.procengine.findref import find
 
             return find(
                 text, handles=want_handles, modules=want_modules,

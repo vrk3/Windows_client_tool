@@ -242,7 +242,7 @@ class ProcessExplorerModule(BaseModule):
         the GPU and performance engines in at startup -- which is why it is
         in HIDDEN_IMPORTS.
         """
-        from modules.dashboard.system_information import \
+        from ui.system_information import \
             SystemInformationDialog
 
         existing = getattr(self, "_sysinfo_dialog", None)
@@ -474,7 +474,7 @@ class ProcessExplorerModule(BaseModule):
                 self._widget, "VirusTotal",
                 "No API key configured. Set 'virustotal.api_key' in settings.")
             return
-        from modules.process_explorer.virustotal_client import VTClient, compute_sha256
+        from core.virustotal_client import VTClient, compute_sha256
         sha = compute_sha256(exe)
         if not sha:
             QMessageBox.warning(self._widget, "VirusTotal", "Could not compute SHA256.")
@@ -491,7 +491,7 @@ class ProcessExplorerModule(BaseModule):
             self.app.thread_pool.start(w)
 
     def _on_vt_result(self, result):
-        from modules.process_explorer.virustotal_client import VTResult
+        from core.virustotal_client import VTResult
         if not result.found:
             reply = QMessageBox.question(
                 self._widget, "VirusTotal — Unknown File",
@@ -501,7 +501,7 @@ class ProcessExplorerModule(BaseModule):
             )
             if reply == QMessageBox.StandardButton.Yes and self._selected_node:
                 api_key = self.app.config.get("virustotal.api_key", "") if self.app else ""
-                from modules.process_explorer.virustotal_client import VTClient
+                from core.virustotal_client import VTClient
                 client = VTClient(api_key=api_key)
                 analysis_id = client.submit_file(self._selected_node.exe)
                 if analysis_id:

@@ -25,13 +25,13 @@ from PyQt6.QtWidgets import (QDialog, QFormLayout, QGridLayout, QHBoxLayout,
 
 from core.semantic_colors import semantic
 
-from .perf_graph import CoreGrid, PerfGraph
-from .procengine.columns import fmt_bytes
-from .procengine.cpuinfo import core_loads, cpu_static, processor_times, \
+from ui.perf_graph import CoreGrid, PerfGraph
+from core.procengine.columns import fmt_bytes
+from core.procengine.cpuinfo import core_loads, cpu_static, processor_times, \
     uptime_seconds
-from .procengine.gpuinfo import GpuSampler, adapter_facts
-from .procengine.meminfo import memory_status
-from .procengine.sysinfo import page_size, system_counters, system_rates
+from core.procengine.gpuinfo import GpuSampler, adapter_facts
+from core.procengine.meminfo import memory_status
+from core.procengine.sysinfo import page_size, system_counters, system_rates
 
 logger = logging.getLogger(__name__)
 

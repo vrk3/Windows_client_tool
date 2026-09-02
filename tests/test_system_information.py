@@ -8,7 +8,7 @@ raises inside `paintEvent`, a Qt virtual, where the exception goes to
 import pytest
 from PyQt6.QtGui import QImage, QPainter
 
-from modules.dashboard.system_information import (
+from ui.system_information import (
     SystemInformationDialog, _delta, _per_second, _rate,
 )
 
@@ -108,7 +108,7 @@ def test_the_first_reading_draws_no_rate(qapp):
 
 def test_a_failed_reading_does_not_kill_the_timer(window, monkeypatch):
     """One bad tick must not leave the window permanently dead."""
-    import modules.dashboard.system_information as module
+    import ui.system_information as module
 
     def boom():
         raise OSError("the counters went away")
@@ -160,7 +160,7 @@ def test_the_pool_allocation_counters_really_are_untracked_here():
     """Pins the machine fact the wording above rests on, so that if a
     future Windows starts maintaining these, the panel stops lying in the
     other direction and someone is told."""
-    from modules.dashboard.procengine.sysinfo import system_counters
+    from core.procengine.sysinfo import system_counters
 
     counters = system_counters()
     assert counters.paged_pool_pages > 0, "the paged pool is not empty"

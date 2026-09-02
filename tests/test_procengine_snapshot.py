@@ -13,8 +13,8 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.ntquery import ProcessRaw
-from modules.dashboard.procengine.snapshot import SnapshotSource, build_tree
+from core.procengine.ntquery import ProcessRaw
+from core.procengine.snapshot import SnapshotSource, build_tree
 
 
 def _raw(pid, ppid=0, name="test.exe", create_time=100):
@@ -166,6 +166,6 @@ def test_a_snapshot_reports_when_it_could_not_see_everything(snapshot):
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import snapshot as module
+    from core.procengine import snapshot as module
 
     assert "PyQt6" not in inspect.getsource(module)

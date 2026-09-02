@@ -8,12 +8,12 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.rates import Rates
-from modules.dashboard.procengine.snapshot import ProcessInfo
-from modules.dashboard.procengine.users import (
+from core.procengine.rates import Rates
+from core.procengine.snapshot import ProcessInfo
+from core.procengine.users import (
     UNKNOWN, UserGroup, group_by_user,
 )
-from modules.dashboard.procengine.ntquery import ProcessRaw
+from core.procengine.ntquery import ProcessRaw
 
 
 def _raw(pid, name="test.exe", session=1):
@@ -114,6 +114,6 @@ def test_every_group_is_a_user_group():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import users
+    from core.procengine import users
 
     assert "PyQt6" not in inspect.getsource(users)

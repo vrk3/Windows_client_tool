@@ -11,7 +11,7 @@ import time
 import pytest
 
 from modules.process_explorer.find_dialog import FindHandleDialog
-from modules.dashboard.procengine.findref import FindReport, Match
+from core.procengine.findref import FindReport, Match
 
 MY_PID = os.getpid()
 

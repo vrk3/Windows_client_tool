@@ -15,8 +15,8 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.ntquery import ProcessRaw, system_processes
-from modules.dashboard.procengine.rates import HUNDRED_NS, RateTracker
+from core.procengine.ntquery import ProcessRaw, system_processes
+from core.procengine.rates import HUNDRED_NS, RateTracker
 
 #: One second, in the 100-nanosecond ticks the kernel counts CPU time in.
 ONE_SECOND = HUNDRED_NS

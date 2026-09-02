@@ -29,8 +29,8 @@ from core.worker import Worker
 
 from .details_model import DetailsModel, DetailsProxy
 from .process_menu import ProcessMenu
-from .procengine.columns import COLUMNS, DEFAULT_KEYS, GROUPS, cell_text
-from .procengine.snapshot import SnapshotSource
+from core.procengine.columns import COLUMNS, DEFAULT_KEYS, GROUPS, cell_text
+from core.procengine.snapshot import SnapshotSource
 
 logger = logging.getLogger(__name__)
 

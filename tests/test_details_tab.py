@@ -8,7 +8,7 @@ import os
 import pytest
 
 from modules.dashboard.details_tab import DetailsTab
-from modules.dashboard.procengine.columns import BY_KEY, DEFAULT_KEYS, UNKNOWN
+from core.procengine.columns import BY_KEY, DEFAULT_KEYS, UNKNOWN
 
 
 @pytest.fixture
@@ -314,7 +314,7 @@ def test_a_failed_action_is_reported_rather_than_swallowed(tab, qapp,
     """A refusal that says nothing is how someone concludes the button is
     broken."""
     from PyQt6.QtWidgets import QMessageBox
-    from modules.dashboard.procengine.actions import Result
+    from core.procengine.actions import Result
 
     shown = []
 

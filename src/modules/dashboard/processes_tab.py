@@ -22,9 +22,9 @@ from PyQt6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QLineEdit,
 from core.semantic_colors import semantic
 from core.worker import Worker
 
-from .procengine.columns import fmt_bytes, fmt_percent, fmt_rate
-from .procengine.grouping import GROUP_ORDER, group_processes, totals
-from .procengine.snapshot import SnapshotSource
+from core.procengine.columns import fmt_bytes, fmt_percent, fmt_rate
+from core.procengine.grouping import GROUP_ORDER, group_processes, totals
+from core.procengine.snapshot import SnapshotSource
 from .process_menu import ProcessMenu
 
 logger = logging.getLogger(__name__)

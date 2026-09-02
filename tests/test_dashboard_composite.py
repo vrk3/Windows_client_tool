@@ -70,7 +70,7 @@ def test_every_child_is_in_hidden_imports():
     source = io.open("pyinstaller_common.py", encoding="utf-8").read()
     for name in ("modules.dashboard.details_module",
                  "modules.process_explorer.process_explorer_module",
-                 "modules.dashboard.procengine.ntquery",
+                 "core.procengine.ntquery",
                  "modules.perfmon.perfmon_module",
                  "modules.dashboard.users_module",
                  "modules.dashboard.app_history_module",

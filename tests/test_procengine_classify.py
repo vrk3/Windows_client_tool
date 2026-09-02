@@ -9,11 +9,11 @@ import sys
 
 import pytest
 
-from modules.dashboard.procengine.classify import (
+from core.procengine.classify import (
     PACKED_ENTROPY, ClassifyCache, Classification, classify, is_dotnet,
     loaded_modules, package_family_name, packed_guess, shannon_entropy,
 )
-from modules.dashboard.procengine.ntquery import system_processes
+from core.procengine.ntquery import system_processes
 
 MY_PID = os.getpid()
 
@@ -210,7 +210,7 @@ def test_dead_processes_are_dropped():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import classify as module
+    from core.procengine import classify as module
 
     assert "PyQt6" not in inspect.getsource(module)
 
@@ -224,7 +224,7 @@ def test_the_dotnet_shim_is_not_the_dotnet_runtime():
     """
     import win32pdh
 
-    from modules.dashboard.procengine.classify import _CLR_MODULES
+    from core.procengine.classify import _CLR_MODULES
 
     assert "mscoree.dll" not in _CLR_MODULES
     assert "mscoreei.dll" not in _CLR_MODULES

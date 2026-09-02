@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from modules.dashboard.procengine.sysinfo import (
+from core.procengine.sysinfo import (
     SystemCounters, SystemRates, page_size, system_counters, system_rates,
 )
 
@@ -66,7 +66,7 @@ def test_the_head_of_the_struct_agrees_with_getperformanceinfo():
     future Windows inserts a field near the front, these three stop
     matching and this test is how anyone finds out -- rather than by
     reading a commit figure that is wrong but plausible."""
-    from modules.dashboard.procengine.meminfo import memory_status
+    from core.procengine.meminfo import memory_status
 
     counters = system_counters()
     status = memory_status()
@@ -169,6 +169,6 @@ def test_the_real_machine_produces_rates():
 def test_the_engine_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import sysinfo
+    from core.procengine import sysinfo
 
     assert "PyQt6" not in inspect.getsource(sysinfo)

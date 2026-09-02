@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 
 from core.long_op_pool import get_long_op_pool
 from core.worker import Worker
-from modules.ui.components.category_group import CategoryGroup
+from modules.cleanup.components.category_group import CategoryGroup
 from core.semantic_colors import semantic
 
 CREATE_NO_WINDOW = 0x08000000

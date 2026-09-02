@@ -399,6 +399,6 @@ def service_pids() -> Optional[Set[int]]:
 
 
 def _reason() -> str:
-    from modules.dashboard.procengine.details import _reason as describe
+    from core.procengine.details import _reason as describe
 
     return describe(ctypes.get_last_error())

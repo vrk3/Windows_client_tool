@@ -22,7 +22,7 @@ from PyQt6.QtGui import QColor
 
 from core.semantic_colors import semantic
 
-from .procengine.columns import (BY_KEY, DEFAULT_KEYS, RIGHT, Column,
+from core.procengine.columns import (BY_KEY, DEFAULT_KEYS, RIGHT, Column,
                                  cell_text, cell_tooltip, sort_key)
 
 #: A custom role so the proxy can ask for the row's ProcessInfo without

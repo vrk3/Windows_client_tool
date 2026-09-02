@@ -7,7 +7,7 @@ import pytest
 
 from modules.dashboard.processes_tab import (CPU, MEMORY, PID_ROLE,
                                              ProcessesTab, VALUE_ROLE, _heat)
-from modules.dashboard.procengine.grouping import GROUP_ORDER
+from core.procengine.grouping import GROUP_ORDER
 
 
 @pytest.fixture

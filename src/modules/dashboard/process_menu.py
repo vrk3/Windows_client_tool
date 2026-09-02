@@ -23,11 +23,11 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QInputDialog, QMenu,
                              QMessageBox)
 
-from .procengine.actions import (PRIORITY_LABELS, create_dump, end_process,
+from core.procengine.actions import (PRIORITY_LABELS, create_dump, end_process,
                                  end_process_tree, restart_process,
                                  resume_process, run_as, set_affinity,
                                  set_priority, suspend_process)
-from .procengine.snapshot import descendants_of
+from core.procengine.snapshot import descendants_of
 
 logger = logging.getLogger(__name__)
 
@@ -238,21 +238,21 @@ class ProcessMenu(QObject):
             return
         if self._app is not None and getattr(self._app, "thread_pool", None):
             from core.worker import Worker
-            from .procengine.signatures import verify_signature
+            from core.procengine.signatures import verify_signature
 
             w = Worker(lambda _worker: verify_signature(path))
             w.signals.result.connect(
                 lambda facts: self._show_signature(facts))
             self._app.thread_pool.start(w)
         else:
-            from .procengine.signatures import verify_signature
+            from core.procengine.signatures import verify_signature
 
             self._show_signature(verify_signature(path))
 
     def _show_signature(self, facts) -> None:
         if self._widget is None or not _widget_valid(self._widget):
             return
-        from .procengine.signatures import (COULD_NOT_VERIFY, INVALID,
+        from core.procengine.signatures import (COULD_NOT_VERIFY, INVALID,
                                             NOT_SIGNED, VALID)
 
         if facts.status == VALID:
@@ -286,7 +286,7 @@ class ProcessMenu(QObject):
                 self._widget, "VirusTotal",
                 "No API key configured. Set 'virustotal.api_key' in settings.")
             return
-        from modules.process_explorer.virustotal_client import (VTClient,
+        from core.virustotal_client import (VTClient,
                                                                 compute_sha256)
 
         sha = compute_sha256(path)
@@ -311,7 +311,7 @@ class ProcessMenu(QObject):
     def _on_vt_result(self, result) -> None:
         if self._widget is None or not _widget_valid(self._widget):
             return
-        from modules.process_explorer.virustotal_client import VTResult
+        from core.virustotal_client import VTResult
 
         if not result.found:
             QMessageBox.information(

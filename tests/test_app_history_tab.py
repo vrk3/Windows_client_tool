@@ -7,7 +7,7 @@ one "Google Chrome", sorted so the most expensive program is on top.
 import pytest
 
 from modules.dashboard.app_history_tab import AppHistoryTab
-from modules.dashboard.procengine.usage import app_usage
+from core.procengine.usage import app_usage
 
 
 def _settle(qapp, widget, predicate, seconds=8.0):
@@ -56,7 +56,7 @@ def test_rows_sum_multiple_processes(qapp):
         for row in range(view._table.rowCount()):
             processes = int(view._table.item(row, 2).text().replace(",", ""))
             totals += processes
-        from modules.dashboard.procengine.ntquery import system_processes
+        from core.procengine.ntquery import system_processes
 
         assert totals >= len(system_processes()) - 10, \
             "the row count does not add up to the machine's processes"

@@ -8,11 +8,11 @@ import os
 
 import pytest
 
-from modules.dashboard.procengine.grouping import (
+from core.procengine.grouping import (
     APPS, BACKGROUND, GROUP_ORDER, WINDOWS, group_processes,
     is_windows_process, totals, windowed_pids,
 )
-from modules.dashboard.procengine.snapshot import SnapshotSource
+from core.procengine.snapshot import SnapshotSource
 
 
 @pytest.fixture(scope="module")
@@ -237,7 +237,7 @@ def test_grouping_the_real_machine_is_fast_enough_for_a_one_second_tick(
 def test_the_grouping_does_not_import_qt():
     import inspect
 
-    from modules.dashboard.procengine import grouping
+    from core.procengine import grouping
 
     assert "PyQt6" not in inspect.getsource(grouping)
 
