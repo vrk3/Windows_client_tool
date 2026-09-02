@@ -15,6 +15,7 @@ Three things here are deliberate and worth not undoing:
   Unelevated, about half the processes refuse their details. A pane that
   quietly shows half a machine is worse than one that says so.
 """
+import csv
 import logging
 from typing import Optional
 
@@ -28,12 +29,20 @@ from core.worker import Worker
 
 from .details_model import DetailsModel, DetailsProxy
 from .process_menu import ProcessMenu
-from .procengine.columns import COLUMNS, DEFAULT_KEYS, GROUPS
+from .procengine.columns import COLUMNS, DEFAULT_KEYS, GROUPS, cell_text
 from .procengine.snapshot import SnapshotSource
 
 logger = logging.getLogger(__name__)
 
 CONFIG_KEY = "dashboard.details_columns"
+#: Where the user's column WIDTHS are kept, keyed per column. Widths are a
+#: layout fact (the eye finds a column by where its edge is), so they
+#: persist next to the shown-column choice, not inside it.
+WIDTHS_KEY = "dashboard.details_widths"
+#: Where the user's DRAG ORDER is kept, as a list of column keys in the
+#: order they sit on screen. The header is movable, so the order someone
+#: drags it into should survive a restart like the widths do.
+ORDER_KEY = "dashboard.details_order"
 
 #: Task Manager's own default. Fast enough to feel live, slow enough that
 #: the numbers are readable rather than flickering.
@@ -76,6 +85,13 @@ class DetailsTab(QWidget):
             "Choose which of the forty columns to show.")
         self.columns_button.clicked.connect(self._show_column_menu)
         top.addWidget(self.columns_button)
+
+        self.export_button = QPushButton("Export…", self)
+        self.export_button.setToolTip(
+            "Save the process list as CSV — the columns currently shown, "
+            "in their current order, with the current filter applied.")
+        self.export_button.clicked.connect(self.export_csv)
+        top.addWidget(self.export_button)
         layout.addLayout(top)
 
         self.model = DetailsModel(self)
@@ -102,6 +118,12 @@ class DetailsTab(QWidget):
         header.customContextMenuRequested.connect(
             lambda _pos: self._show_column_menu())
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        # A user-dragged width or reorder is a layout fact worth keeping.
+        # Saved on the event so nothing needs a separate "apply" step; the
+        # config's autosave debounce absorbs the drag's many signals.
+        self._applying_layout = False
+        header.sectionResized.connect(self._on_section_resized)
+        header.sectionMoved.connect(self._on_section_moved)
         layout.addWidget(self.table, 1)
 
         self.status = QLabel("", self)
@@ -123,6 +145,47 @@ class DetailsTab(QWidget):
                 self.model.set_columns(stored)
         self.menu.set_app(app)
         self._resize_columns()
+        self._apply_saved_layout()
+
+    def _apply_saved_layout(self) -> None:
+        """Restore the widths and order the user last left them in.
+
+        Guarded: applying widths re-fires `sectionResized` for every
+        column, and nothing should be re-saved because of a restore.
+        """
+        if self._config is None:
+            return
+        self._applying_layout = True
+        try:
+            widths = self._config.get(WIDTHS_KEY, {}) or {}
+            header = self.table.horizontalHeader()
+            for section, column in enumerate(self.model.columns()):
+                width = widths.get(column.key)
+                if isinstance(width, int) and width > 0:
+                    header.resizeSection(section, width)
+
+            order = self._config.get(ORDER_KEY, None)
+            if isinstance(order, list) and order:
+                keys = [column.key for column in self.model.columns()]
+                self._apply_order(keys, order, header)
+        finally:
+            self._applying_layout = False
+
+    def _apply_order(self, keys, order, header) -> None:
+        """Reorder sections to match the saved `order`.
+
+        Walks the saved order left to right; each column not already in its
+        place is dragged to the current front position, and that slot is
+        then taken so the next move targets the slot after it.
+        """
+        by_key = {key: index for index, key in enumerate(keys)}
+        wanted = [key for key in order if key in by_key]
+        wanted += [key for key in keys if key not in set(wanted)]
+        for target, key in enumerate(wanted):
+            section = by_key[key]
+            current = header.visualIndex(section)
+            if current != target:
+                header.moveSection(current, target)
 
     def start(self) -> None:
         self.refresh()
@@ -207,6 +270,40 @@ class DetailsTab(QWidget):
                 f"administrator to see them)")
         self.status.setText("   ·   ".join(parts))
 
+    def export_csv(self, file_path: str = "") -> Optional[str]:
+        """Save the process list as CSV and return the path, or None.
+
+        What is exported is what is on screen: the columns currently shown,
+        in their current order, over the rows the filter leaves and the
+        sort orders. A file's worth of numbers that do not match the table
+        the user is looking at would be a trap.
+        """
+        from PyQt6.QtWidgets import QFileDialog
+
+        if not file_path:
+            file_path, _filter = QFileDialog.getSaveFileName(
+                self, "Export processes", "processes.csv",
+                "CSV files (*.csv)")
+        if not file_path:
+            return None
+        columns = self.model.columns()
+        rows = 0
+        # utf-8-sig so Excel opens a value like "—" or an accented name
+        # without mojibake -- the same choice treesize's exporters make.
+        with open(file_path, "w", newline="", encoding="utf-8-sig") as handle:
+            writer = csv.writer(handle)
+            writer.writerow([column.title for column in columns])
+            for row in range(self.proxy.rowCount()):
+                source = self.proxy.mapToSource(self.proxy.index(row, 0))
+                info = self.model.info(source.row())
+                if info is None:
+                    continue
+                writer.writerow([cell_text(column, info)
+                                 for column in columns])
+                rows += 1
+        self.status.setText(f"Exported {rows:,} processes to {file_path}")
+        return file_path
+
     # ---- columns --------------------------------------------------------
 
     def _show_column_menu(self) -> None:
@@ -244,11 +341,15 @@ class DetailsTab(QWidget):
         self.model.set_columns(keys)
         self._save_columns()
         self._resize_columns()
+        # A toggle must not undo the widths of the columns that were
+        # already there; only the newly shown one lacks a saved width.
+        self._apply_saved_layout()
 
     def _reset_columns(self) -> None:
         self.model.set_columns(list(DEFAULT_KEYS))
         self._save_columns()
         self._resize_columns()
+        self._apply_saved_layout()
 
     def _save_columns(self) -> None:
         if self._config is None:
@@ -263,10 +364,43 @@ class DetailsTab(QWidget):
         NOT ResizeToContents: it measures the widest value in the whole
         model, which on a Command line column is a 900-character string --
         the mistake the Log Viewer's Package column already made.
+
+        Guarded: these are programmatic resizes, and nothing should be
+        saved because of one -- `sectionResized` fires for every column.
         """
+        self._applying_layout = True
+        try:
+            header = self.table.horizontalHeader()
+            for section, column in enumerate(self.model.columns()):
+                header.resizeSection(section, _width_for(column.key))
+        finally:
+            self._applying_layout = False
+
+    # ---- persisting the layout ------------------------------------------
+
+    def _on_section_resized(self, *_args) -> None:
+        if self._applying_layout:
+            return
+        if self._config is None:
+            return
         header = self.table.horizontalHeader()
-        for section, column in enumerate(self.model.columns()):
-            header.resizeSection(section, _width_for(column.key))
+        widths = {column.key: header.sectionSize(section)
+                  for section, column in enumerate(self.model.columns())}
+        self._config.set(WIDTHS_KEY, widths)
+
+    def _on_section_moved(self, *_args) -> None:
+        if self._applying_layout:
+            return
+        if self._config is None:
+            return
+        header = self.table.horizontalHeader()
+        columns = self.model.columns()
+        # The order the columns sit on screen: sorted by each one's visual
+        # position in the header.
+        by_visual = sorted(range(len(columns)),
+                           key=lambda section: header.visualIndex(section))
+        self._config.set(ORDER_KEY,
+                         [columns[section].key for section in by_visual])
 
     def _show_row_menu(self, position) -> None:
         pids = self.selected_pids()

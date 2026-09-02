@@ -197,10 +197,10 @@ and the wall time between them.
 
 ## Wave 5 -- Polish
 
-- [ ] W5-01 Column layouts saved per tab.
-- [ ] W5-02 Always-on-top, update speed (High/Normal/Low/Paused), minimise on use.
-- [ ] W5-03 Export the process list.
-- [ ] W5-04 Global search provider over processes.
+- [x] W5-01 Column layouts saved per tab.
+- [x] W5-02 Always-on-top, update speed (High/Normal/Low/Paused), minimise on use.
+- [x] W5-03 Export the process list.
+- [x] W5-04 Global search provider over processes.
 - [ ] W5-05 Real-machine harness `tools/dashboard_check.py`, the sibling of
       `logviewer_check.py` and `treesize_scan.py`.
 

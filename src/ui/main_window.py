@@ -39,6 +39,9 @@ class MainWindow(QMainWindow):
         self._auto_refresh_paused: bool = self._app.config.get(
             "app.auto_refresh_paused", False
         )
+        self._always_on_top: bool = self._app.config.get(
+            "app.always_on_top", False
+        )
         self._minimize_paused: bool = False  # True if WE paused due to window hide
         self._first_show: bool = True  # Defer first module activation until after show()
 
@@ -110,6 +113,10 @@ class MainWindow(QMainWindow):
         self._setup_menus()
         self._setup_shortcuts()
         self._setup_tray()
+        # Apply before the window is shown: on a fresh window setWindowFlag
+        # takes effect directly, no re-show required.
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,
+                           self._always_on_top)
         self._sidebar.module_selected.connect(self._on_module_selected)
         self._app.event_bus.subscribe(NOTIFY_BALLOON, self._on_notify_balloon)
         self._app.event_bus.subscribe(NAV_REQUEST_MODULE, self._on_nav_request)
@@ -308,6 +315,12 @@ class MainWindow(QMainWindow):
         theme_action = QAction("Toggle &Theme", self)
         theme_action.triggered.connect(self._toggle_theme)
         view_menu.addAction(theme_action)
+        self._always_on_top_action = QAction("Always on &top", self)
+        self._always_on_top_action.setCheckable(True)
+        self._always_on_top_action.setChecked(self._always_on_top)
+        self._always_on_top_action.triggered.connect(
+            self._toggle_always_on_top)
+        view_menu.addAction(self._always_on_top_action)
 
     def _setup_shortcuts(self) -> None:
         QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
@@ -440,6 +453,23 @@ class MainWindow(QMainWindow):
     def _toggle_theme(self) -> None:
         new_theme = self._app.theme.toggle()
         self._app.config.set("app.theme", new_theme)
+
+    def _toggle_always_on_top(self, checked: bool) -> None:
+        """Keep the window above other windows, Task Manager style.
+
+        Changing the WindowStaysOnTopHint flag after the window is shown
+        needs the window re-shown for the flag to take effect; the same
+        call that works on a fresh window silently does nothing on a shown
+        one.
+        """
+        self._always_on_top = bool(checked)
+        self._app.config.set("app.always_on_top", self._always_on_top)
+        self._apply_always_on_top()
+
+    def _apply_always_on_top(self) -> None:
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,
+                           self._always_on_top)
+        self.show()
 
     def _on_search(self, text: str, regex: bool) -> None:
         if not text.strip():

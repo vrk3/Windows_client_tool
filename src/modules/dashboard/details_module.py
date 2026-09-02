@@ -9,6 +9,10 @@ number the kernel gives up for free -- about half the machine's paths and
 users are refused, and the pane says so rather than pretending. Gating the
 whole tab behind elevation would hide a table that is most of the way useful
 without it.
+
+This module also owns the Dashboard's global-search provider (W5-04): one
+place for the process data, so Details and Processes do not each register a
+second provider that would double every hit.
 """
 from typing import Optional
 
@@ -16,8 +20,10 @@ from PyQt6.QtWidgets import QWidget
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.search_provider import SearchProvider
 
 from .details_tab import DetailsTab
+from .process_search import ProcessSearchProvider
 
 
 class DetailsModule(BaseModule):
@@ -30,6 +36,10 @@ class DetailsModule(BaseModule):
     def __init__(self) -> None:
         super().__init__()
         self._widget: Optional[DetailsTab] = None
+        # Built in __init__, not on_start: the registry may ask for the
+        # provider before the widget has ever been shown (CLAUDE.md, and the
+        # same choice TreeSize makes).
+        self._search_provider = ProcessSearchProvider()
 
     def on_start(self, app) -> None:
         # Only the app reference here: `create_widget` has not run, so there
@@ -65,6 +75,9 @@ class DetailsModule(BaseModule):
         tick for one table.
         """
         return None
+
+    def get_search_provider(self) -> Optional[SearchProvider]:
+        return self._search_provider
 
     def get_status_info(self) -> str:
         if self._widget is None:

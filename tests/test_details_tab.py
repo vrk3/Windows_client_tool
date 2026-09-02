@@ -329,3 +329,43 @@ def test_a_failed_action_is_reported_rather_than_swallowed(tab, qapp,
     tab.menu._end([999_999])
 
     assert any("Access is denied." in text for text in shown)
+
+
+# ---- export (W5-03) -----------------------------------------------------
+
+def test_export_writes_a_csv_of_the_shown_columns(tab, tmp_path):
+    target = tmp_path / "processes.csv"
+    path = tab.export_csv(str(target))
+    assert path == str(target)
+    assert target.exists()
+
+    import csv
+
+    with open(target, newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.reader(handle))
+    headers = rows[0]
+    # The header row carries the CURRENT shown columns' titles.
+    assert headers == [column.title for column in tab.model.columns()]
+    assert len(rows) - 1 >= 20, "the export should list most of the machine"
+
+
+def test_export_respects_the_filter(tab, tmp_path):
+    import csv
+
+    tab.filter_box.setText("python")
+    target = tmp_path / "filtered.csv"
+    tab.export_csv(str(target))
+    with open(target, newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.reader(handle))
+    assert len(rows) - 1 >= 1
+    # A filtered export must not quietly contain the whole machine.
+    assert len(rows) - 1 <= 10, "the filter did not narrow the export"
+
+
+def test_a_cancelled_export_writes_nothing(tab, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: ("", ""))
+    assert tab.export_csv() is None
+
