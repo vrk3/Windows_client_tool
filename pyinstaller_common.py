@@ -32,6 +32,43 @@ def get_datas(project_root: str) -> list:
     ]
 
 
+def read_version(project_root: str) -> str:
+    """The application version, from the one file that holds it."""
+    import re
+    source = os.path.join(project_root, "src", "_version.py")
+    with open(source, encoding="utf-8") as handle:
+        match = re.search(r"__version__\s*=\s*[\"']([^\"']+)[\"']", handle.read())
+    if not match:
+        raise RuntimeError(f"no __version__ in {source}")
+    return match.group(1)
+
+
+def render_version_info(project_root: str) -> str:
+    """version_info.txt.in with the real version filled in.
+
+    Windows shows FileVersion/ProductVersion in the exe's Properties dialog
+    and installers read them. Hand-maintaining that alongside
+    src/_version.py meant three numbers agreeing by luck: the first release
+    where one is bumped and the other forgotten ships an exe whose
+    Properties disagree with its own About box.
+    """
+    version = read_version(project_root)
+    template = os.path.join(project_root, "version_info.txt.in")
+    with open(template, encoding="utf-8") as handle:
+        text = handle.read()
+    # Windows version resources are four-part; _version.py is three.
+    return text.format(version=version,
+                       version_tuple=", ".join(version.split(".") + ["0"]))
+
+
+def write_version_info(project_root: str) -> str:
+    """Render the resource next to the spec and return its path."""
+    out = os.path.join(project_root, "version_info.txt")
+    with open(out, "w", encoding="utf-8") as handle:
+        handle.write(render_version_info(project_root))
+    return out
+
+
 HIDDEN_IMPORTS = [
     "PyQt6", "PyQt6.QtCore", "PyQt6.QtWidgets", "PyQt6.QtGui",
     "pywin32", "pywin32_bootstrap",

@@ -6,7 +6,12 @@ import sys
 
 project_root = os.path.dirname(os.path.abspath(SPEC))
 sys.path.insert(0, project_root)
-from pyinstaller_common import get_main_script, get_datas, HIDDEN_IMPORTS
+from pyinstaller_common import (get_main_script, get_datas, HIDDEN_IMPORTS,
+                                write_version_info)
+
+# Generated from version_info.txt.in + src/_version.py, so the exe's
+# Properties dialog cannot drift from the About pane.
+VERSION_INFO = write_version_info(project_root)
 
 a = Analysis(
     [get_main_script(project_root)],
@@ -30,7 +35,7 @@ exe = EXE(
     a.datas,
     exclude_binaries=False,  # required for onefile mode
     name='WinClientTool-Portable',
-    version='version_info.txt',
+    version=VERSION_INFO,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -8,7 +8,6 @@ import sys
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-__version__ = "0.1.0"
 
 
 class ApplicationLogger(logging.Logger):
