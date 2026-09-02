@@ -1,0 +1,148 @@
+{
+  "category": "browsers",
+  "scanners": [
+    {
+      "id": "brave_cache",
+      "label": "Brave browser cache, code cache, and GPU cache",
+      "paths": [
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Cache",
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Code Cache",
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Brave browser cache, code cache, and GPU cache."
+    },
+    {
+      "id": "vivaldi_cache",
+      "label": "Vivaldi browser cache, code cache, and blob storage",
+      "paths": [
+        "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Cache",
+        "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Code Cache",
+        "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\GPUCache",
+        "%APPDATA%\\Vivaldi\\BlobStorage"
+      ],
+      "safety": "safe",
+      "description": "Vivaldi browser cache, code cache, and blob storage."
+    },
+    {
+      "id": "opera_cache",
+      "label": "Opera browser cache, media cache, and code cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\Cache",
+        "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\Code Cache",
+        "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\GPUCache",
+        "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\Media Cache",
+        "%APPDATA%\\Opera Software\\Opera Stable"
+      ],
+      "safety": "safe",
+      "description": "Opera browser cache, media cache, and code cache."
+    },
+    {
+      "id": "yandex_cache",
+      "label": "Yandex browser cache and disk cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\Cache",
+        "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\Code Cache",
+        "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Yandex browser cache and disk cache."
+    },
+    {
+      "id": "edge_cache",
+      "label": "Microsoft Edge cache, code cache, GPU cache, and web data",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Cache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Code Cache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\GPUCache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\ShaderCache"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Edge cache, code cache, GPU cache, and web data."
+    },
+    {
+      "id": "firefox_cache",
+      "label": "Mozilla Firefox cache, startup cache, and content prefs",
+      "paths": [
+        "%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2",
+        "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2",
+        "%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\startupCache"
+      ],
+      "safety": "safe",
+      "description": "Mozilla Firefox cache, startup cache, and content prefs."
+    },
+    {
+      "id": "chrome_cache",
+      "label": "Google Chrome cache, code cache, and GPU cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Cache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Code Cache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\GPUCache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\ShaderCache"
+      ],
+      "safety": "safe",
+      "description": "Google Chrome cache, code cache, and GPU cache."
+    },
+    {
+      "id": "tor_browser_cache",
+      "label": "Tor Browser session data, cache, and circuit display logs",
+      "paths": [
+        "%APPDATA%\\Tor Browser"
+      ],
+      "safety": "safe",
+      "description": "Tor Browser session data, cache, and circuit display logs."
+    },
+    {
+      "id": "phantom_cache",
+      "label": "Phantom wallet extension cache and transaction history",
+      "paths": [
+        "%APPDATA%\\phantom"
+      ],
+      "safety": "safe",
+      "description": "Phantom wallet extension cache and transaction history."
+    },
+    {
+      "id": "chrome_cache_full",
+      "label": "Chrome full cache paths including GPUCache and Code Cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Chrome full cache paths including GPUCache and Code Cache."
+    },
+    {
+      "id": "edge_cache_full",
+      "label": "Microsoft Edge full cache paths including GPUCache and Code Cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Edge full cache paths including GPUCache and Code Cache."
+    },
+    {
+      "id": "brave_cache_full",
+      "label": "Brave full cache paths including GPUCache and Code Cache",
+      "paths": [
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache",
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Brave full cache paths including GPUCache and Code Cache."
+    },
+    {
+      "id": "inetcache_ietlc",
+      "label": "IE/Edge INetCache, Cookies, and DownloadHistory temp files",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\INetCache",
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\IEDownloadHistory"
+      ],
+      "safety": "safe",
+      "description": "IE/Edge INetCache, Cookies, and DownloadHistory temp files."
+    }
+  ]
+}

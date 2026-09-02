@@ -1,0 +1,372 @@
+{
+  "category": "comms",
+  "scanners": [
+    {
+      "id": "discord_cache",
+      "label": "Discord cache, code cache, GPU cache, video and voice cache — NOT databases/Local Storage",
+      "paths": [
+        "%APPDATA%\\discord\\Cache",
+        "%APPDATA%\\discord\\Code Cache",
+        "%APPDATA%\\discord\\GPUCache",
+        "%APPDATA%\\discord\\Video",
+        "%APPDATA%\\discord\\Voice"
+      ],
+      "safety": "safe",
+      "description": "Discord cache, code cache, GPU cache, video and voice cache — NOT databases/Local Storage."
+    },
+    {
+      "id": "zoom_cache",
+      "label": "Zoom video meeting recordings temp files and cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Zoom\\cache",
+        "%LOCALAPPDATA%\\Zoom\\thumbnail",
+        "%LOCALAPPDATA%\\Zoom\\sticker",
+        "%LOCALAPPDATA%\\Zoom\\report",
+        "%LOCALAPPDATA%\\Zoom\\logs"
+      ],
+      "safety": "safe",
+      "description": "Zoom video meeting recordings temp files and cache."
+    },
+    {
+      "id": "slack_cache",
+      "label": "Slack cache, code cache, GPU cache — NOT Local Storage/IndexedDB/databases/blob",
+      "paths": [
+        "%APPDATA%\\Slack\\Cache",
+        "%APPDATA%\\Slack\\Code Cache",
+        "%APPDATA%\\Slack\\GPUCache"
+      ],
+      "safety": "safe",
+      "description": "Slack cache, code cache, GPU cache — NOT Local Storage/IndexedDB/databases/blob."
+    },
+    {
+      "id": "telegram_cache",
+      "label": "Telegram cache, video stamps, and session data (keeps messages/contacts)",
+      "paths": [
+        "%APPDATA%\\Telegram Desktop\\cache",
+        "%APPDATA%\\Telegram Desktop\\tdata",
+        "%APPDATA%\\Telegram Desktop\\emoji",
+        "%LOCALAPPDATA%\\Telegram Desktop\\cache"
+      ],
+      "safety": "safe",
+      "description": "Telegram cache, video stamps, and session data (keeps messages/contacts)."
+    },
+    {
+      "id": "signal_cache",
+      "label": "Signal cache, attachment temp, and sticker downloads",
+      "paths": [
+        "%APPDATA%\\Signal\\Cache",
+        "%APPDATA%\\Signal\\Logs",
+        "%LOCALAPPDATA%\\Signal"
+      ],
+      "safety": "safe",
+      "description": "Signal cache, attachment temp, and sticker downloads."
+    },
+    {
+      "id": "whatsapp_cache",
+      "label": "WhatsApp media cache and attachment staging",
+      "paths": [
+        "%LOCALAPPDATA%\\WhatsApp\\Cache",
+        "%LOCALAPPDATA%\\WhatsApp\\Media"
+      ],
+      "safety": "safe",
+      "description": "WhatsApp media cache and attachment staging."
+    },
+    {
+      "id": "skype_cache",
+      "label": "Skype cache, shared files temp, and media cache",
+      "paths": [
+        "%APPDATA%\\Skype\\Media\\content",
+        "%APPDATA%\\Skype\\Caches",
+        "%LOCALAPPDATA%\\Packages\\Microsoft.SkypeApp*\\LocalState"
+      ],
+      "safety": "safe",
+      "description": "Skype cache, shared files temp, and media cache."
+    },
+    {
+      "id": "viber_cache",
+      "label": "Viber media cache, thumbnails, and download staging",
+      "paths": [
+        "%APPDATA%\\ViberPC\\cache",
+        "%APPDATA%\\ViberPC\\media",
+        "%LOCALAPPDATA%\\Viber\\Media"
+      ],
+      "safety": "safe",
+      "description": "Viber media cache, thumbnails, and download staging."
+    },
+    {
+      "id": "teams_cache",
+      "label": "Microsoft Teams cache, blob storage, GPU cache — NOT databases/IndexedDB/Local Storage",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Teams\\Cache",
+        "%APPDATA%\\Microsoft\\Teams\\blob_storage",
+        "%APPDATA%\\Microsoft\\Teams\\GPUCache",
+        "%LOCALAPPDATA%\\Microsoft\\Teams\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Teams cache, blob storage, GPU cache — NOT databases/IndexedDB/Local Storage."
+    },
+    {
+      "id": "slack_cache_full",
+      "label": "Slack full cache: cache, code cache, GPU cache, blob storage — NOT Local Storage/IndexedDB/databases",
+      "paths": [
+        "%APPDATA%\\Slack\\Cache",
+        "%APPDATA%\\Slack\\Code Cache",
+        "%APPDATA%\\Slack\\GPUCache",
+        "%APPDATA%\\Slack\\blob_storage"
+      ],
+      "safety": "safe",
+      "description": "Slack full cache: cache, code cache, GPU cache, blob storage — NOT Local Storage/IndexedDB/databases."
+    },
+    {
+      "id": "discord_full_cache",
+      "label": "Discord full cache: video, voice, GPU cache — keeps login/servers",
+      "paths": [
+        "%APPDATA%\\discord\\Cache",
+        "%APPDATA%\\discord\\Code Cache",
+        "%APPDATA%\\discord\\GPUCache",
+        "%APPDATA%\\discord\\blob_storage",
+        "%APPDATA%\\discord\\Video",
+        "%APPDATA%\\discord\\Voice"
+      ],
+      "safety": "safe",
+      "description": "Discord full cache: video, voice, GPU cache — keeps login/servers."
+    },
+    {
+      "id": "mumble_cache",
+      "label": "Mumble voice chat logs and overlay cache",
+      "paths": [
+        "%APPDATA%\\Mumble\\Mumble\\logs",
+        "%APPDATA%\\Mumble\\Overlay\\logs"
+      ],
+      "safety": "safe",
+      "description": "Mumble voice chat logs and overlay cache."
+    },
+    {
+      "id": "teamspeak_cache",
+      "label": "TeamSpeak 3/5 cache, logs, and client query interface",
+      "paths": [
+        "%APPDATA%\\TS3Client\\logs",
+        "%APPDATA%\\TeamSpeak\\logs",
+        "%LOCALAPPDATA%\\TeamSpeak"
+      ],
+      "safety": "safe",
+      "description": "TeamSpeak 3/5 cache, logs, and client query interface."
+    },
+    {
+      "id": "rdp_cache",
+      "label": "Remote Desktop Protocol clipboard temp and redirected drive cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Terminal Server Client\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Remote Desktop Protocol clipboard temp and redirected drive cache. NOT the Vault."
+    },
+    {
+      "id": "teamviewer_cache",
+      "label": "TeamViewer remote session logs and RemoteFX data",
+      "paths": [
+        "%APPDATA%\\TeamViewer",
+        "%APPDATA%\\TeamViewer11",
+        "%APPDATA%\\TeamViewer12",
+        "%APPDATA%\\TeamViewer14",
+        "%APPDATA%\\TeamViewer15"
+      ],
+      "safety": "safe",
+      "description": "TeamViewer remote session logs and RemoteFX data."
+    },
+    {
+      "id": "anydesk_cache",
+      "label": "AnyDesk custom session recordings and address book logs",
+      "paths": [
+        "%APPDATA%\\AnyDesk",
+        "%LOCALAPPDATA%\\AnyDesk"
+      ],
+      "safety": "safe",
+      "description": "AnyDesk custom session recordings and address book logs."
+    },
+    {
+      "id": "parsec_cache",
+      "label": "Parsec virtual display driver logs and encode cache",
+      "paths": [
+        "%APPDATA%\\Parsec\\logs",
+        "%APPDATA%\\Parsec\\cache"
+      ],
+      "safety": "safe",
+      "description": "Parsec virtual display driver logs and encode cache."
+    },
+    {
+      "id": "sunshine_cache",
+      "label": "Sunshine GameStream logs and configuration cache",
+      "paths": [
+        "%APPDATA%\\Sunshine\\logs",
+        "%APPDATA%\\Sunshine\\config"
+      ],
+      "safety": "safe",
+      "description": "Sunshine GameStream logs and configuration cache."
+    },
+    {
+      "id": "nordpass_cache",
+      "label": "NordPass vault cache and browser extension data",
+      "paths": [
+        "%LOCALAPPDATA%\\NordPass"
+      ],
+      "safety": "safe",
+      "description": "NordPass vault cache and browser extension data."
+    },
+    {
+      "id": "discord_canary_cache",
+      "label": "Discord Canary / PTB beta cache and crash reports",
+      "paths": [
+        "%APPDATA%\\discordcanary\\Cache",
+        "%APPDATA%\\discordptb\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Discord Canary / PTB beta cache and crash reports."
+    },
+    {
+      "id": "mattermost_cache",
+      "label": "Mattermost client cache and team data",
+      "paths": [
+        "%APPDATA%\\Mattermost"
+      ],
+      "safety": "safe",
+      "description": "Mattermost client cache and team data."
+    },
+    {
+      "id": "zulip_cache",
+      "label": "Zulip client cache and realm data",
+      "paths": [
+        "%APPDATA%\\Zulip"
+      ],
+      "safety": "safe",
+      "description": "Zulip client cache and realm data."
+    },
+    {
+      "id": "element_cache",
+      "label": "Element (Matrix) client cache and session storage",
+      "paths": [
+        "%APPDATA%\\Element",
+        "%LOCALAPPDATA%\\Element"
+      ],
+      "safety": "safe",
+      "description": "Element (Matrix) client cache and session storage."
+    },
+    {
+      "id": "teamspeak5_cache",
+      "label": "TeamSpeak 5 client cache and identity data",
+      "paths": [
+        "%LOCALAPPDATA%\\TS5",
+        "%APPDATA%\\TeamSpeak5"
+      ],
+      "safety": "safe",
+      "description": "TeamSpeak 5 client cache and identity data."
+    },
+    {
+      "id": "mumble_full_cache",
+      "label": "Mumble full cache: overlay logs, identity, and certificate store",
+      "paths": [
+        "%APPDATA%\\Mumble",
+        "%LOCALAPPDATA%\\Mumble"
+      ],
+      "safety": "safe",
+      "description": "Mumble full cache: overlay logs, identity, and certificate store."
+    },
+    {
+      "id": "nomachine_cache",
+      "label": "NoMachine NX session logs and connection history",
+      "paths": [
+        "%APPDATA%\\NoMachine"
+      ],
+      "safety": "safe",
+      "description": "NoMachine NX session logs and connection history."
+    },
+    {
+      "id": "vnc_cache",
+      "label": "VNC (RealVNC / TightVNC / UltraVNC) connection logs and settings",
+      "paths": [
+        "%APPDATA%\\RealVNC",
+        "%APPDATA%\\TightVNC",
+        "%APPDATA%\\UltraVNC"
+      ],
+      "safety": "safe",
+      "description": "VNC (RealVNC / TightVNC / UltraVNC) connection logs and settings."
+    },
+    {
+      "id": "remote_desktop_cache",
+      "label": "Windows Remote Desktop redirected print and clipboard cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Terminal Server Client"
+      ],
+      "safety": "safe",
+      "description": "Windows Remote Desktop redirected print and clipboard cache."
+    },
+    {
+      "id": "skype_for_business_cache",
+      "label": "Skype for Business / Lync meeting recording and content cache",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Office\\16.0\\Lync",
+        "%LOCALAPPDATA%\\Microsoft\\Office\\16.0\\Lync"
+      ],
+      "safety": "safe",
+      "description": "Skype for Business / Lync meeting recording and content cache."
+    },
+    {
+      "id": "zoom_recordings_cache",
+      "label": "Zoom cloud recording staging and local recording temp",
+      "paths": [
+        "%LOCALAPPDATA%\\Zoom\\recordings",
+        "%LOCALAPPDATA%\\Zoom\\logs"
+      ],
+      "safety": "safe",
+      "description": "Zoom cloud recording staging and local recording temp."
+    },
+    {
+      "id": "microsoft_teams_full_cache",
+      "label": "Microsoft Teams full cache: GPUCache, blob_storage, Cache — NOT databases/IndexedDB/Local Storage",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Teams\\Cache",
+        "%APPDATA%\\Microsoft\\Teams\\blob_storage",
+        "%APPDATA%\\Microsoft\\Teams\\GPUCache",
+        "%LOCALAPPDATA%\\Microsoft\\Teams\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Teams full cache: GPUCache, blob_storage, Cache — NOT databases/IndexedDB/Local Storage."
+    },
+    {
+      "id": "ms_teams_npc_cache",
+      "label": "Microsoft Teams (New PRC) UWP local cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.MSTeamsNPC*\\LocalCache"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Teams (New PRC) UWP local cache."
+    },
+    {
+      "id": "whatsapp_uwp_cache",
+      "label": "WhatsApp Desktop UWP local cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\WhatsAppDesktop*\\LocalCache"
+      ],
+      "safety": "safe",
+      "description": "WhatsApp Desktop UWP local cache."
+    },
+    {
+      "id": "anydesk_thumbnails",
+      "label": "AnyDesk connection thumbnails — safe to clear",
+      "paths": [
+        "%APPDATA%\\AnyDesk\\thumbnails"
+      ],
+      "safety": "safe",
+      "description": "AnyDesk connection thumbnails — safe to clear."
+    },
+    {
+      "id": "discord_developer_logs",
+      "label": "Discord logs folder — safe to clear",
+      "paths": [
+        "%APPDATA%\\discord\\logs"
+      ],
+      "safety": "safe",
+      "description": "Discord logs folder — safe to clear."
+    }
+  ]
+}

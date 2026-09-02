@@ -1,0 +1,703 @@
+{
+  "category": "apps",
+  "scanners": [
+    {
+      "id": "office_temp",
+      "label": "Microsoft Office temp, unsaved files, and OfficeFileCache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Office\\*\\OfficeFileCache",
+        "%APPDATA%\\Microsoft\\Office\\*\\UnsavedFiles",
+        "%APPDATA%\\Microsoft\\Office\\*\\OfficeFileCache",
+        "%TEMP%\\Excel*.tmp",
+        "%TEMP%\\Word*.tmp"
+      ],
+      "safety": "safe",
+      "description": "Microsoft Office temp, unsaved files, and OfficeFileCache."
+    },
+    {
+      "id": "sticky_notes",
+      "label": "Sticky Notes database and UWP sticky notes state",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Sticky Notes\\StickyNotes.sqm",
+        "%LOCALAPPDATA%\\Packages\\Microsoft.MicrosoftStickyNotes_*\\LocalState"
+      ],
+      "safety": "safe",
+      "description": "Sticky Notes database and UWP sticky notes state."
+    },
+    {
+      "id": "office_cache_extended",
+      "label": "Extended Office caches: Teams, OneNote, Publisher, Visio caches",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Teams\\Cache",
+        "%APPDATA%\\Microsoft\\Teams\\blob_storage",
+        "%APPDATA%\\Microsoft\\Teams\\GPUCache",
+        "%LOCALAPPDATA%\\Microsoft\\OneNote\\*",
+        "%LOCALAPPDATA%\\Microsoft\\OneNoteCache",
+        "%APPDATA%\\Microsoft\\UUS"
+      ],
+      "safety": "safe",
+      "description": "Extended Office caches: Teams, OneNote, Publisher, Visio caches."
+    },
+    {
+      "id": "notion_cache",
+      "label": "Notion cache, IndexedDB, and render cache",
+      "paths": [
+        "%APPDATA%\\Notion\\shared",
+        "%LOCALAPPDATA%\\Notion"
+      ],
+      "safety": "safe",
+      "description": "Notion cache, IndexedDB, and render cache."
+    },
+    {
+      "id": "obsidian_cache",
+      "label": "Obsidian vault cache, plugins, and community plugin downloads",
+      "paths": [
+        "%APPDATA%\\obsidian\\cache",
+        "%APPDATA%\\obsidian\\logs"
+      ],
+      "safety": "safe",
+      "description": "Obsidian vault cache, plugins, and community plugin downloads."
+    },
+    {
+      "id": "logseq_cache",
+      "label": "Logseq cache, Calva/REPL server logs, and graph database",
+      "paths": [
+        "%APPDATA%\\Logseq\\cache",
+        "%APPDATA%\\Logseq\\logs"
+      ],
+      "safety": "safe",
+      "description": "Logseq cache, Calva/REPL server logs, and graph database."
+    },
+    {
+      "id": "evernote_cache",
+      "label": "Evernote cache and local database temp",
+      "paths": [
+        "%APPDATA%\\Evernote\\logs",
+        "%APPDATA%\\Evernote\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Evernote cache and local database temp."
+    },
+    {
+      "id": "notezilla_cache",
+      "label": "Notezilla sticky notes cache and log files",
+      "paths": [
+        "%APPDATA%\\Notezilla\\cache",
+        "%APPDATA%\\Notezilla\\logs"
+      ],
+      "safety": "safe",
+      "description": "Notezilla sticky notes cache and log files."
+    },
+    {
+      "id": "veeam_cache",
+      "label": "Veeam Backup metadata cache and catalog staging",
+      "paths": [
+        "%APPDATA%\\Veeam\\BackupCatalog",
+        "%APPDATA%\\Veeam\\Logs"
+      ],
+      "safety": "caution",
+      "description": "Veeam Backup metadata cache and catalog staging."
+    },
+    {
+      "id": "acronis_cache",
+      "label": "Acronis True Image backup catalog and log files",
+      "paths": [
+        "%APPDATA%\\Acronis\\Logs",
+        "%ProgramData%\\Acronis\\Catalog"
+      ],
+      "safety": "caution",
+      "description": "Acronis True Image backup catalog and log files."
+    },
+    {
+      "id": "macrium_cache",
+      "label": "Macrium Reflect backup logs and differential chain metadata",
+      "paths": [
+        "%APPDATA%\\Macrium\\Reflect\\logs",
+        "%APPDATA%\\Macrium\\Reflect\\catalog"
+      ],
+      "safety": "caution",
+      "description": "Macrium Reflect backup logs and differential chain metadata."
+    },
+    {
+      "id": "thunderbird_cache",
+      "label": "Mozilla Thunderbird global inbox cache and panacea.db",
+      "paths": [
+        "%APPDATA%\\Thunderbird\\Profiles\\*\\cache2",
+        "%APPDATA%\\Thunderbird\\Profiles\\*\\startupCache"
+      ],
+      "safety": "safe",
+      "description": "Mozilla Thunderbird global inbox cache and panacea.db."
+    },
+    {
+      "id": "outlook_temp_cache",
+      "label": "Outlook send/receive offline folder, .ost compact temp, and sync logs",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Outlook",
+        "%LOCALAPPDATA%\\Microsoft\\Outlook"
+      ],
+      "safety": "safe",
+      "description": "Outlook send/receive offline folder, .ost compact temp, and sync logs."
+    },
+    {
+      "id": "em_client_cache",
+      "label": "eM Client database temp and attachment staging",
+      "paths": [
+        "%APPDATA%\\eM Client\\logs",
+        "%APPDATA%\\eM Client\\temp"
+      ],
+      "safety": "safe",
+      "description": "eM Client database temp and attachment staging."
+    },
+    {
+      "id": "ssh_keys_cache",
+      "label": "SSH known_hosts.old backup files only — NOT authorized_keys or private keys",
+      "paths": [
+        "%USERPROFILE%\\.ssh\\known_hosts.old"
+      ],
+      "safety": "safe",
+      "description": "SSH known_hosts.old backup files only — NOT authorized_keys or private keys."
+    },
+    {
+      "id": "putty_cache",
+      "label": "PuTTY session data, host keys, and scrollback logs",
+      "paths": [
+        "%APPDATA%\\SimonTatham\\PuTTY"
+      ],
+      "safety": "safe",
+      "description": "PuTTY session data, host keys, and scrollback logs."
+    },
+    {
+      "id": "winscp_cache",
+      "label": "WinSCP temporary files, synchronization archive, and cache",
+      "paths": [
+        "%APPDATA%\\WinSCP\\temp",
+        "%APPDATA%\\WinSCP\\Logs"
+      ],
+      "safety": "safe",
+      "description": "WinSCP temporary files, synchronization archive, and cache."
+    },
+    {
+      "id": "filezilla_cache",
+      "label": "FileZilla sitemanager.xml, queue, and temp transfer data",
+      "paths": [
+        "%APPDATA%\\FileZilla",
+        "%LOCALAPPDATA%\\FileZilla"
+      ],
+      "safety": "safe",
+      "description": "FileZilla sitemanager.xml, queue, and temp transfer data."
+    },
+    {
+      "id": "keepass_cache",
+      "label": "KeePass lock file, key file temp, and HTTP proxy credentials",
+      "paths": [
+        "%APPDATA%\\KeePass"
+      ],
+      "safety": "safe",
+      "description": "KeePass lock file, key file temp, and HTTP proxy credentials."
+    },
+    {
+      "id": "bitwarden_cache",
+      "label": "Bitwarden CLI vault lock and browser extension cache",
+      "paths": [
+        "%APPDATA%\\Bitwarden",
+        "%LOCALAPPDATA%\\Bitwarden"
+      ],
+      "safety": "safe",
+      "description": "Bitwarden CLI vault lock and browser extension cache."
+    },
+    {
+      "id": "1password_cache",
+      "label": "1Password SSH agent cache and session data",
+      "paths": [
+        "%APPDATA%\\1Password",
+        "%LOCALAPPDATA%\\1Password"
+      ],
+      "safety": "safe",
+      "description": "1Password SSH agent cache and session data."
+    },
+    {
+      "id": "lastpass_cache",
+      "label": "LastPass browser extension vault cache and LPAPI token",
+      "paths": [
+        "%LOCALAPPDATA%\\LastPass"
+      ],
+      "safety": "safe",
+      "description": "LastPass browser extension vault cache and LPAPI token."
+    },
+    {
+      "id": "dashlane_cache",
+      "label": "Dashlane credential cache and dark web monitoring data",
+      "paths": [
+        "%APPDATA%\\Dashlane"
+      ],
+      "safety": "safe",
+      "description": "Dashlane credential cache and dark web monitoring data."
+    },
+    {
+      "id": "defraggler_logs",
+      "label": "Defraggler disk analysis history and exclude list cache",
+      "paths": [
+        "%APPDATA%\\Defraggler"
+      ],
+      "safety": "safe",
+      "description": "Defraggler disk analysis history and exclude list cache."
+    },
+    {
+      "id": "crystaldiskinfo_cache",
+      "label": "CrystalDiskInfo health log and S.M.A.R.T",
+      "paths": [
+        "%APPDATA%\\CrystalDiskInfo"
+      ],
+      "safety": "safe",
+      "description": "CrystalDiskInfo health log and S.M.A.R.T. data cache."
+    },
+    {
+      "id": "hdtune_logs",
+      "label": "HD Tune health scan log and benchmark result cache",
+      "paths": [
+        "%APPDATA%\\HD Tune"
+      ],
+      "safety": "safe",
+      "description": "HD Tune health scan log and benchmark result cache."
+    },
+    {
+      "id": "msi_afterburner_cache",
+      "label": "MSI Afterburner overlay logs and hardware monitoring cache",
+      "paths": [
+        "%APPDATA%\\MSI Afterburner"
+      ],
+      "safety": "safe",
+      "description": "MSI Afterburner overlay logs and hardware monitoring cache."
+    },
+    {
+      "id": "nzxt_cam_cache",
+      "label": "NZXT CAM hardware monitor logs and RGB profile cache",
+      "paths": [
+        "%APPDATA%\\NZXT CAM"
+      ],
+      "safety": "safe",
+      "description": "NZXT CAM hardware monitor logs and RGB profile cache."
+    },
+    {
+      "id": "coretemp_logs",
+      "label": "Core Temp history log and calibration cache",
+      "paths": [
+        "%APPDATA%\\Realtech\\OpenHardwareMonitor"
+      ],
+      "safety": "safe",
+      "description": "Core Temp history log and calibration cache."
+    },
+    {
+      "id": "rufus_logs",
+      "label": "Rufus ISO download cache and log files",
+      "paths": [
+        "%LOCALAPPDATA%\\Rufus"
+      ],
+      "safety": "safe",
+      "description": "Rufus ISO download cache and log files."
+    },
+    {
+      "id": "ventoy_cache",
+      "label": "Ventoy plugin data and ISO collection config staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Ventoy"
+      ],
+      "safety": "safe",
+      "description": "Ventoy plugin data and ISO collection config staging."
+    },
+    {
+      "id": "hwinfo64_cache",
+      "label": "HWiNFO64 sensor log history and sensor data cache",
+      "paths": [
+        "%APPDATA%\\HWiNFO64"
+      ],
+      "safety": "safe",
+      "description": "HWiNFO64 sensor log history and sensor data cache."
+    },
+    {
+      "id": "aida64_cache",
+      "label": "AIDA64 sensor log and report export cache",
+      "paths": [
+        "%APPDATA%\\AIDA64"
+      ],
+      "safety": "safe",
+      "description": "AIDA64 sensor log and report export cache."
+    },
+    {
+      "id": "windows_photo_viewer_cache",
+      "label": "Windows Photo Viewer thumbnail and temporary decode cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Windows Photo Viewer"
+      ],
+      "safety": "safe",
+      "description": "Windows Photo Viewer thumbnail and temporary decode cache."
+    },
+    {
+      "id": "clevo_ControlCenter_cache",
+      "label": "Clevo ControlCenter fan profile logs and thermal sensor cache",
+      "paths": [
+        "%APPDATA%\\Clevo"
+      ],
+      "safety": "safe",
+      "description": "Clevo ControlCenter fan profile logs and thermal sensor cache."
+    },
+    {
+      "id": "thrustmaster_cache",
+      "label": "Thrustmaster T.A.R.G.E.T",
+      "paths": [
+        "%APPDATA%\\Thrustmaster"
+      ],
+      "safety": "safe",
+      "description": "Thrustmaster T.A.R.G.E.T. profile logs and firmware update staging."
+    },
+    {
+      "id": "office_clicktorun_cache",
+      "label": "Office Click-to-Run setup pipeline staging and update download cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Office\\ClickToRun",
+        "%LOCALAPPDATA%\\Microsoft\\Office\\Updates"
+      ],
+      "safety": "caution",
+      "description": "Office Click-to-Run setup pipeline staging and update download cache."
+    },
+    {
+      "id": "quickbooks_cache",
+      "label": "QuickBooks log files and transaction audit trail cache",
+      "paths": [
+        "%APPDATA%\\Intuit"
+      ],
+      "safety": "safe",
+      "description": "QuickBooks log files and transaction audit trail cache."
+    },
+    {
+      "id": "complus_cache",
+      "label": "COM+ application metadata and registration cache",
+      "paths": [
+        "%windir%\\Registration"
+      ],
+      "safety": "caution",
+      "description": "COM+ application metadata and registration cache."
+    },
+    {
+      "id": "fax_account_cache",
+      "label": "Windows Fax Service cover page cache and received fax staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\Fax"
+      ],
+      "safety": "safe",
+      "description": "Windows Fax Service cover page cache and received fax staging."
+    },
+    {
+      "id": "windows_camera_cache",
+      "label": "Windows Camera app cache, HDR photos staging, and video trim temp",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.WindowsCamera*\\LocalState"
+      ],
+      "safety": "safe",
+      "description": "Windows Camera app cache, HDR photos staging, and video trim temp."
+    },
+    {
+      "id": "voice_recorder_cache",
+      "label": "Windows Voice Recorder recordings and audio processing temp",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.WindowsSoundRecorder*\\LocalState"
+      ],
+      "safety": "safe",
+      "description": "Windows Voice Recorder recordings and audio processing temp."
+    },
+    {
+      "id": "7zip_cache",
+      "label": "7-Zip recent archive history and temporary extraction output",
+      "paths": [
+        "%APPDATA%\\7-Zip"
+      ],
+      "safety": "safe",
+      "description": "7-Zip recent archive history and temporary extraction output."
+    },
+    {
+      "id": "winrar_cache",
+      "label": "WinRAR recent archive list and temp extraction folder",
+      "paths": [
+        "%APPDATA%\\WinRAR"
+      ],
+      "safety": "safe",
+      "description": "WinRAR recent archive list and temp extraction folder."
+    },
+    {
+      "id": "peazip_cache",
+      "label": "PeaZip temp extraction and bookmark history",
+      "paths": [
+        "%APPDATA%\\PeaZip"
+      ],
+      "safety": "safe",
+      "description": "PeaZip temp extraction and bookmark history."
+    },
+    {
+      "id": "bandizip_cache",
+      "label": "Bandizip recent archive history and preview cache",
+      "paths": [
+        "%APPDATA%\\Bandizip"
+      ],
+      "safety": "safe",
+      "description": "Bandizip recent archive history and preview cache."
+    },
+    {
+      "id": "winzip_cache",
+      "label": "WinZip history database and secure temp files",
+      "paths": [
+        "%APPDATA%\\WinZip"
+      ],
+      "safety": "safe",
+      "description": "WinZip history database and secure temp files."
+    },
+    {
+      "id": "evernote_full_cache",
+      "label": "Evernote full cache: databases, thumbnails, and web clip cache",
+      "paths": [
+        "%APPDATA%\\Evernote\\logs",
+        "%APPDATA%\\Evernote\\Cache",
+        "%APPDATA%\\Evernote\\Thumbnails"
+      ],
+      "safety": "safe",
+      "description": "Evernote full cache: databases, thumbnails, and web clip cache."
+    },
+    {
+      "id": "simplenote_cache",
+      "label": "Simplenote sync cache and local database",
+      "paths": [
+        "%APPDATA%\\Simplenote"
+      ],
+      "safety": "safe",
+      "description": "Simplenote sync cache and local database."
+    },
+    {
+      "id": "joplin_cache",
+      "label": "Joplin markdown notes cache and synchronisation database",
+      "paths": [
+        "%APPDATA%\\Joplin",
+        "%LOCALAPPDATA%\\Joplin"
+      ],
+      "safety": "safe",
+      "description": "Joplin markdown notes cache and synchronisation database."
+    },
+    {
+      "id": "zotero_cache",
+      "label": "Zotero PDF index cache, translator data, and connector browser cache",
+      "paths": [
+        "%APPDATA%\\Zotero",
+        "%LOCALAPPDATA%\\Zotero"
+      ],
+      "safety": "safe",
+      "description": "Zotero PDF index cache, translator data, and connector browser cache."
+    },
+    {
+      "id": "mendeley_cache",
+      "label": "Mendeley Desktop PDF index and citation cache",
+      "paths": [
+        "%APPDATA%\\Mendeley Ltd"
+      ],
+      "safety": "safe",
+      "description": "Mendeley Desktop PDF index and citation cache."
+    },
+    {
+      "id": "readcube_cache",
+      "label": "ReadCube paper viewer cache and annotation data",
+      "paths": [
+        "%APPDATA%\\ReadCube"
+      ],
+      "safety": "safe",
+      "description": "ReadCube paper viewer cache and annotation data."
+    },
+    {
+      "id": "papers_cache",
+      "label": "Papers 3/4 PDF library index and sync cache",
+      "paths": [
+        "%APPDATA%\\Papers"
+      ],
+      "safety": "safe",
+      "description": "Papers 3/4 PDF library index and sync cache."
+    },
+    {
+      "id": "scrivener_cache",
+      "label": "Scrivener project auto-save and compile staging",
+      "paths": [
+        "%APPDATA%\\Scrivener"
+      ],
+      "safety": "safe",
+      "description": "Scrivener project auto-save and compile staging."
+    },
+    {
+      "id": "bluetooth_cache",
+      "label": "Bluetooth radio firmware cache and paired device pairing records",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\BthCache",
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\INF"
+      ],
+      "safety": "safe",
+      "description": "Bluetooth radio firmware cache and paired device pairing records."
+    },
+    {
+      "id": "wifi_profiles_cache",
+      "label": "Saved Wi-Fi network profiles (XML) and WLAN autoconfig service cache",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Windows\\WLAN"
+      ],
+      "safety": "safe",
+      "description": "Saved Wi-Fi network profiles (XML) and WLAN autoconfig service cache."
+    },
+    {
+      "id": "ccleaner_cache",
+      "label": "CCleaner scan history and custom cleaner rule cache",
+      "paths": [
+        "%APPDATA%\\CCleaner"
+      ],
+      "safety": "safe",
+      "description": "CCleaner scan history and custom cleaner rule cache."
+    },
+    {
+      "id": "bleachbit_cache",
+      "label": "BleachBit痕清理工具 cache and cleaner definition update cache",
+      "paths": [
+        "%APPDATA%\\BleachBit"
+      ],
+      "safety": "safe",
+      "description": "BleachBit痕清理工具 cache and cleaner definition update cache."
+    },
+    {
+      "id": "glary_utilities_cache",
+      "label": "Glary Utilities registry backup and disk cleaning history",
+      "paths": [
+        "%APPDATA%\\GlarySoft"
+      ],
+      "safety": "safe",
+      "description": "Glary Utilities registry backup and disk cleaning history."
+    },
+    {
+      "id": "wise_cache360_cache",
+      "label": "Wise Care 365 registry backup and system optimization history",
+      "paths": [
+        "%APPDATA%\\WiseFolderHider"
+      ],
+      "safety": "safe",
+      "description": "Wise Care 365 registry backup and system optimization history."
+    },
+    {
+      "id": "auslogics_cache",
+      "label": "Auslogics BoostSpeed registry backup and disk defrag log",
+      "paths": [
+        "%APPDATA%\\Auslogics"
+      ],
+      "safety": "safe",
+      "description": "Auslogics BoostSpeed registry backup and disk defrag log."
+    },
+    {
+      "id": "privacy_guardian_cache",
+      "label": "Privacy Guardian browser monitoring log and telemetry history",
+      "paths": [
+        "%APPDATA%\\Privacy Guardian"
+      ],
+      "safety": "safe",
+      "description": "Privacy Guardian browser monitoring log and telemetry history."
+    },
+    {
+      "id": "duplicate_cleaner_cache",
+      "label": "Duplicate Cleaner Pro scan database and thumbnail cache",
+      "paths": [
+        "%APPDATA%\\Duplicate Cleaner"
+      ],
+      "safety": "safe",
+      "description": "Duplicate Cleaner Pro scan database and thumbnail cache."
+    },
+    {
+      "id": "disk_nuker_cache",
+      "label": "Disk Ninja / Disk Pulse disk change log and alert history",
+      "paths": [
+        "%APPDATA%\\Disk Pulse"
+      ],
+      "safety": "safe",
+      "description": "Disk Ninja / Disk Pulse disk change log and alert history."
+    },
+    {
+      "id": "easeus_cache",
+      "label": "EaseUS Todo Backup image catalog and clone log",
+      "paths": [
+        "%APPDATA%\\EaseUS"
+      ],
+      "safety": "safe",
+      "description": "EaseUS Todo Backup image catalog and clone log."
+    },
+    {
+      "id": "minitool_cache",
+      "label": "Minitool partition wizard logs and data recovery scan history",
+      "paths": [
+        "%APPDATA%\\Minitool"
+      ],
+      "safety": "safe",
+      "description": "Minitool partition wizard logs and data recovery scan history."
+    },
+    {
+      "id": "aomei_cache",
+      "label": "AOMEI Backupper backup image catalog and sync log",
+      "paths": [
+        "%APPDATA%\\AOMEI"
+      ],
+      "safety": "safe",
+      "description": "AOMEI Backupper backup image catalog and sync log."
+    },
+    {
+      "id": "paragon_cache",
+      "label": "Paragon Hard Disk Manager backup catalog and imaging log",
+      "paths": [
+        "%APPDATA%\\Paragon"
+      ],
+      "safety": "safe",
+      "description": "Paragon Hard Disk Manager backup catalog and imaging log."
+    },
+    {
+      "id": "macrium_reflect_logs",
+      "label": "Macrium Reflect imaging log and differential backup catalog",
+      "paths": [
+        "%APPDATA%\\Macrium"
+      ],
+      "safety": "safe",
+      "description": "Macrium Reflect imaging log and differential backup catalog."
+    },
+    {
+      "id": "corsair_logs",
+      "label": "Corsair iCUE software logs",
+      "paths": [
+        "%LOCALAPPDATA%\\Corsair\\Logs"
+      ],
+      "safety": "safe",
+      "description": "Corsair iCUE software logs."
+    },
+    {
+      "id": "windows_photos_cache",
+      "label": "Windows Photos UWP cache and temp files",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.Windows.Photos*\\LocalCache"
+      ],
+      "safety": "safe",
+      "description": "Windows Photos UWP cache and temp files."
+    },
+    {
+      "id": "sparkle_logs",
+      "label": "Sparkle (macOS-style update checker) logs for cross-platform apps",
+      "paths": [
+        "%APPDATA%\\sparkle\\logs"
+      ],
+      "safety": "safe",
+      "description": "Sparkle (macOS-style update checker) logs for cross-platform apps."
+    },
+    {
+      "id": "bitwarden_desktop_cache",
+      "label": "Bitwarden Desktop app cache and logs",
+      "paths": [
+        "%APPDATA%\\Bitwarden\\cache",
+        "%LOCALAPPDATA%\\Bitwarden\\cache"
+      ],
+      "safety": "safe",
+      "description": "Bitwarden Desktop app cache and logs."
+    }
+  ]
+}

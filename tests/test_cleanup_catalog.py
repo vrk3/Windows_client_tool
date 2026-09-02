@@ -177,3 +177,53 @@ def test_the_package_still_exports_the_scan_names(catalog):
     for spec_id in list(catalog)[:25]:
         assert hasattr(cleanup_scanner, f"scan_{spec_id}"), spec_id
         assert callable(getattr(cleanup_scanner, f"scan_{spec_id}"))
+
+
+# ── overlap between scanners ───────────────────────────────────────────
+#
+# Something the data form made visible that 538 functions hid completely:
+# scanners that point at the SAME paths. Two rows offering the same bytes
+# means the "total to clean" figure double-counts them, and "Clean All
+# Safe" tries to delete the same directory twice.
+#
+# These are pre-existing — the duplication was written into the functions —
+# and resolving each one is a product decision about which row the user
+# should see, so they are pinned rather than fixed. The count may only
+# fall.
+
+#: Pairs whose path sets are exactly equal. Eleven when the
+#: conversion landed; ubisoft_connect_cache was dropped because it
+#: was a strict SUBSET of ubisoft_cache with the same description,
+#: so removing it was provably lossless. The remaining ten each
+#: need a decision about which row the user should see.
+KNOWN_IDENTICAL_PAIRS = 10
+
+
+def _identical_path_pairs(catalog):
+    import itertools
+    keyed = {spec_id: frozenset(p.lower() for p in spec.paths)
+             for spec_id, spec in catalog.items()}
+    return sorted(
+        (a, b) for a, b in itertools.combinations(sorted(keyed), 2)
+        if keyed[a] and keyed[a] == keyed[b]
+    )
+
+
+def test_the_number_of_exactly_overlapping_scanners_only_falls(catalog):
+    pairs = _identical_path_pairs(catalog)
+    listing = "\n  ".join(f"{a} == {b}" for a, b in pairs)
+    assert len(pairs) <= KNOWN_IDENTICAL_PAIRS, (
+        f"{len(pairs)} pairs of scanners point at identical paths, which "
+        f"double-counts them in the cleanup total (known: "
+        f"{KNOWN_IDENTICAL_PAIRS}):\n  " + listing)
+
+
+def test_no_scanner_lists_the_same_path_twice(catalog):
+    """A repeated path inside ONE scanner is unambiguous double counting."""
+    offenders = []
+    for spec_id, spec in catalog.items():
+        lowered = [p.lower() for p in spec.paths]
+        if len(set(lowered)) != len(lowered):
+            dupes = {p for p in lowered if lowered.count(p) > 1}
+            offenders.append(f"{spec_id}: {sorted(dupes)}")
+    assert offenders == [], "\n  ".join([""] + offenders)

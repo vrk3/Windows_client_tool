@@ -32,7 +32,7 @@
     },
     {
       "id": "event_logs",
-      "label": "Windows event log",
+      "label": "Windows event log .evtx files — may be needed for troubleshooting",
       "paths": [
         "%windir%\\System32\\winevt\\Logs\\*.evtx"
       ],
@@ -147,7 +147,7 @@
     },
     {
       "id": "winsat_cache",
-      "label": "Windows Performance WinSAT XML, Media",
+      "label": "Windows Performance WinSAT XML, Media.ets, and winsat.log files",
       "paths": [
         "%windir%\\Performance\\WinSAT\\*.xml",
         "%windir%\\Performance\\WinSAT\\Media.ets",
@@ -171,7 +171,7 @@
     },
     {
       "id": "font_cache",
-      "label": "Windows Font Cache service (FNTCACHE",
+      "label": "Windows Font Cache service (FNTCACHE.DAT) and font link temporary files",
       "paths": [
         "%windir%\\System32\\FNTCACHE.DAT",
         "%windir%\\ServiceProfiles\\LocalService\\AppData\\Local\\FontDrivers",
@@ -262,7 +262,7 @@
     },
     {
       "id": "thumbnail_cache_central",
-      "label": "Windows Explorer centralized thumbnail cache (thumbcache_*",
+      "label": "Windows Explorer centralized thumbnail cache (thumbcache_*.db files)",
       "paths": [
         "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_*.db",
         "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\iconcache_*.db"
@@ -303,7 +303,7 @@
     },
     {
       "id": "driver_store",
-      "label": "Windows Driver Store backup",
+      "label": "Windows Driver Store backup .inf files for uninstalled drivers (DANGER — can break hardware)",
       "paths": [
         "%windir%\\System32\\DriverStore\\FileRepository"
       ],

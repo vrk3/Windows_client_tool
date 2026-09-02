@@ -1,0 +1,497 @@
+{
+  "category": "media",
+  "scanners": [
+    {
+      "id": "spotify_cache",
+      "label": "Spotify local track cache and thumbnail cache — keeps login/settings",
+      "paths": [
+        "%LOCALAPPDATA%\\Spotify\\Data",
+        "%LOCALAPPDATA%\\Spotify\\Cache",
+        "%LOCALAPPDATA%\\Spotify\\thumbs"
+      ],
+      "safety": "safe",
+      "description": "Spotify local track cache and thumbnail cache — keeps login/settings."
+    },
+    {
+      "id": "obs_cache",
+      "label": "OBS Studio recording temp, replay buffer, and encoder logs",
+      "paths": [
+        "%APPDATA%\\OBS\\logs",
+        "%APPDATA%\\obs-studio\\logs",
+        "%LOCALAPPDATA%\\OBS\\crashreports"
+      ],
+      "safety": "safe",
+      "description": "OBS Studio recording temp, replay buffer, and encoder logs."
+    },
+    {
+      "id": "handbrake_cache",
+      "label": "HandBrake encode log and preset import cache",
+      "paths": [
+        "%APPDATA%\\HandBrake\\logs",
+        "%APPDATA%\\HandBrake\\cache"
+      ],
+      "safety": "safe",
+      "description": "HandBrake encode log and preset import cache."
+    },
+    {
+      "id": "ffmpeg_cache",
+      "label": "FFmpeg temp encoding output and stream dump files",
+      "paths": [
+        "%TEMP%\\ffmpeg",
+        "%TEMP%\\MediaFire"
+      ],
+      "safety": "safe",
+      "description": "FFmpeg temp encoding output and stream dump files."
+    },
+    {
+      "id": "audacity_cache",
+      "label": "Audacity peak files, audacity temp dir, and waveform cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Audacity\\peak",
+        "%LOCALAPPDATA%\\Audacity\\Temp",
+        "%APPDATA%\\Audacity\\ audacity.cfg"
+      ],
+      "safety": "safe",
+      "description": "Audacity peak files, audacity temp dir, and waveform cache."
+    },
+    {
+      "id": "davinci_cache",
+      "label": "DaVinci Resolve render cache, media cache, and database temp",
+      "paths": [
+        "%APPDATA%\\DaVinciResolve\\logs",
+        "%LOCALAPPDATA%\\DaVinci Resolve\\CacheClip",
+        "%LOCALAPPDATA%\\DaVinci Resolve\\OptimizedMedia",
+        "%LOCALAPPDATA%\\DaVinci Resolve\\Render Cache",
+        "%LOCALAPPDATA%\\DaVinci Resolve\\Logs"
+      ],
+      "safety": "safe",
+      "description": "DaVinci Resolve render cache, media cache, and database temp."
+    },
+    {
+      "id": "blender_cache",
+      "label": "Blender render output temp and autosave files",
+      "paths": [
+        "%LOCALAPPDATA%\\Blender Foundation\\Blender\\*\\cache",
+        "%LOCALAPPDATA%\\Blender Foundation\\Blender\\*\\render"
+      ],
+      "safety": "safe",
+      "description": "Blender render output temp and autosave files."
+    },
+    {
+      "id": "premiere_cache",
+      "label": "Adobe Premiere Pro media cache, peak files, and auto-save",
+      "paths": [
+        "%APPDATA%\\Adobe\\Common\\Media Cache Files",
+        "%APPDATA%\\Adobe\\Common\\Peak Files",
+        "%LOCALAPPDATA%\\Adobe\\Common\\Media Cache Files",
+        "%LOCALAPPDATA%\\Adobe\\Common\\Peak Files"
+      ],
+      "safety": "safe",
+      "description": "Adobe Premiere Pro media cache, peak files, and auto-save."
+    },
+    {
+      "id": "aftereffects_cache",
+      "label": "Adobe After Effects disk cache and media cache",
+      "paths": [
+        "%APPDATA%\\Adobe\\Common\\Media Cache Files",
+        "%LOCALAPPDATA%\\Adobe\\Common\\Media Cache Files",
+        "%LOCALAPPDATA%\\Adobe\\After Effects*"
+      ],
+      "safety": "safe",
+      "description": "Adobe After Effects disk cache and media cache."
+    },
+    {
+      "id": "photoshop_cache",
+      "label": "Adobe Photoshop scratch disk, history, and plugins cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Adobe\\Photoshop\\*\\Cache",
+        "%APPDATA%\\Adobe\\Photoshop\\*\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Adobe Photoshop scratch disk, history, and plugins cache."
+    },
+    {
+      "id": "illustrator_cache",
+      "label": "Adobe Illustrator cache and saved恢复了工作进度文件恢复",
+      "paths": [
+        "%APPDATA%\\Adobe\\Illustrator*\\Cache",
+        "%APPDATA%\\Adobe\\Illustrator*\\Temp"
+      ],
+      "safety": "safe",
+      "description": "Adobe Illustrator cache and saved恢复了工作进度文件恢复."
+    },
+    {
+      "id": "capture_one_cache",
+      "label": "Capture One session cache, preview files, and catalog thumbnails",
+      "paths": [
+        "%APPDATA%\\Capture One\\Cache",
+        "%APPDATA%\\Capture One\\Logs",
+        "%LOCALAPPDATA%\\Capture One\\Thumbnails"
+      ],
+      "safety": "safe",
+      "description": "Capture One session cache, preview files, and catalog thumbnails."
+    },
+    {
+      "id": "foobar_cache",
+      "label": "foobar2000 cache, thumbs, and album art staging",
+      "paths": [
+        "%APPDATA%\\foobar2000\\cache",
+        "%APPDATA%\\id3"
+      ],
+      "safety": "safe",
+      "description": "foobar2000 cache, thumbs, and album art staging."
+    },
+    {
+      "id": "blender_full_cache",
+      "label": "Blender vertex cache, render stamp, and geometry nodes staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Blender Foundation\\Blender\\*\\cache",
+        "%LOCALAPPDATA%\\Blender Foundation\\Blender\\*\\render",
+        "%LOCALAPPDATA%\\Blender Foundation\\Blender\\*\\tmp"
+      ],
+      "safety": "safe",
+      "description": "Blender vertex cache, render stamp, and geometry nodes staging."
+    },
+    {
+      "id": "nvidia_geforce_cache",
+      "label": "NVIDIA GeForce Experience logs, driver download cache, and screenshot folder",
+      "paths": [
+        "%APPDATA%\\NVIDIA\\GeForce Experience\\logs",
+        "%LOCALAPPDATA%\\NVIDIA\\GeForce Experience\\logs",
+        "%LOCALAPPDATA%\\NVIDIA\\GeForce Experience\\UpdateTemp"
+      ],
+      "safety": "safe",
+      "description": "NVIDIA GeForce Experience logs, driver download cache, and screenshot folder."
+    },
+    {
+      "id": "amd_radeon_cache",
+      "label": "AMD Radeon Software logs, driver cache, and relodge temp files",
+      "paths": [
+        "%APPDATA%\\AMD\\AGESA\\logs",
+        "%LOCALAPPDATA%\\AMD\\ Radeon\\Logs",
+        "%LOCALAPPDATA%\\AMD\\CN"
+      ],
+      "safety": "safe",
+      "description": "AMD Radeon Software logs, driver cache, and relodge temp files."
+    },
+    {
+      "id": "intel_graphics_cache",
+      "label": "Intel Graphics Command Center cache, driver logs, and shader cache",
+      "paths": [
+        "%APPDATA%\\Intel\\Graphics\\Logs",
+        "%LOCALAPPDATA%\\Intel\\Graphics\\Logs",
+        "%LOCALAPPDATA%\\Intel\\Graphics\\ShaderCache"
+      ],
+      "safety": "safe",
+      "description": "Intel Graphics Command Center cache, driver logs, and shader cache."
+    },
+    {
+      "id": "spotify_full_cache",
+      "label": "Spotify full cache: data, thumbs, users — keeps login/settings",
+      "paths": [
+        "%LOCALAPPDATA%\\Spotify\\Data",
+        "%LOCALAPPDATA%\\Spotify\\Cache",
+        "%LOCALAPPDATA%\\Spotify\\thumbs",
+        "%LOCALAPPDATA%\\Spotify\\Users"
+      ],
+      "safety": "safe",
+      "description": "Spotify full cache: data, thumbs, users — keeps login/settings."
+    },
+    {
+      "id": "tidal_cache",
+      "label": "Tidal music cache and thumbnail staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Tidal"
+      ],
+      "safety": "safe",
+      "description": "Tidal music cache and thumbnail staging."
+    },
+    {
+      "id": "deezer_cache",
+      "label": "Deezer music cache and waveform staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Deezer"
+      ],
+      "safety": "safe",
+      "description": "Deezer music cache and waveform staging."
+    },
+    {
+      "id": "qobuz_cache",
+      "label": "Qobuz download cache and offline tracks",
+      "paths": [
+        "%LOCALAPPDATA%\\Qobuz"
+      ],
+      "safety": "safe",
+      "description": "Qobuz download cache and offline tracks."
+    },
+    {
+      "id": "vegas_cache",
+      "label": "Vegas Pro autosave, GPU render cache, and proxy files",
+      "paths": [
+        "%LOCALAPPDATA%\\VEGASTemp",
+        "%APPDATA%\\VEGAS"
+      ],
+      "safety": "safe",
+      "description": "Vegas Pro autosave, GPU render cache, and proxy files."
+    },
+    {
+      "id": "filmora_cache",
+      "label": "Filmora9/10 preview cache and export temp",
+      "paths": [
+        "%LOCALAPPDATA%\\Wondershare\\Filmora*",
+        "%APPDATA%\\Wondershare\\Filmora*"
+      ],
+      "safety": "safe",
+      "description": "Filmora9/10 preview cache and export temp."
+    },
+    {
+      "id": "camtasia_cache",
+      "label": "Camtasia recording cache and editor temp",
+      "paths": [
+        "%APPDATA%\\Techsmith\\CamtasiaStudio",
+        "%APPDATA%\\Techsmith\\Camtasia"
+      ],
+      "safety": "safe",
+      "description": "Camtasia recording cache and editor temp."
+    },
+    {
+      "id": "lightshot_cache",
+      "label": "Lightshot saved screenshots and upload history",
+      "paths": [
+        "%APPDATA%\\Lightshot"
+      ],
+      "safety": "safe",
+      "description": "Lightshot saved screenshots and upload history."
+    },
+    {
+      "id": "greenshot_cache",
+      "label": "Greenshot screenshot output and plugin cache",
+      "paths": [
+        "%APPDATA%\\Greenshot"
+      ],
+      "safety": "safe",
+      "description": "Greenshot screenshot output and plugin cache."
+    },
+    {
+      "id": "snagit_cache",
+      "label": "TechSmith Snagit editor cache and captured library thumbnails",
+      "paths": [
+        "%APPDATA%\\TechSmith\\Snagit"
+      ],
+      "safety": "safe",
+      "description": "TechSmith Snagit editor cache and captured library thumbnails."
+    },
+    {
+      "id": "vst_cache",
+      "label": "VST plugin preset cache, VST3 cache, and CLAP cache",
+      "paths": [
+        "%APPDATA%\\Common Files\\VST3",
+        "%LOCALAPPDATA%\\Common Files\\VST3"
+      ],
+      "safety": "safe",
+      "description": "VST plugin preset cache, VST3 cache, and CLAP cache."
+    },
+    {
+      "id": "kontakt_cache",
+      "label": "Kontakt sample library database cache and preload cache",
+      "paths": [
+        "%APPDATA%\\Native Instruments\\Service Center"
+      ],
+      "safety": "safe",
+      "description": "Kontakt sample library database cache and preload cache."
+    },
+    {
+      "id": "reaper_cache",
+      "label": "REAPER backup files, peak data, and waveform cache",
+      "paths": [
+        "%APPDATA%\\REAPER",
+        "%LOCALAPPDATA%\\REAPER"
+      ],
+      "safety": "safe",
+      "description": "REAPER backup files, peak data, and waveform cache."
+    },
+    {
+      "id": "flstudio_cache",
+      "label": "FL Studio slicex, directwave, and autosave cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Image-Line\\FL Studio\\FL64",
+        "%APPDATA%\\Image-Line\\FL Studio"
+      ],
+      "safety": "safe",
+      "description": "FL Studio slicex, directwave, and autosave cache."
+    },
+    {
+      "id": "ableton_cache",
+      "label": "Ableton Live audio engine temp and clip deformation cache",
+      "paths": [
+        "%APPDATA%\\Ableton"
+      ],
+      "safety": "safe",
+      "description": "Ableton Live audio engine temp and clip deformation cache."
+    },
+    {
+      "id": "logic_pro_cache",
+      "label": "Logic Pro for Windows (if installed) media cache and project backups",
+      "paths": [
+        "%APPDATA%\\Logic Pro"
+      ],
+      "safety": "safe",
+      "description": "Logic Pro for Windows (if installed) media cache and project backups."
+    },
+    {
+      "id": "cubase_cache",
+      "label": "Steinberg Cubase VST3 plugin cache and project archive staging",
+      "paths": [
+        "%APPDATA%\\Steinberg",
+        "%LOCALAPPDATA%\\Steinberg"
+      ],
+      "safety": "safe",
+      "description": "Steinberg Cubase VST3 plugin cache and project archive staging."
+    },
+    {
+      "id": "nvidia_display_cache",
+      "label": "NVIDIA Display Driver container, DRS database, and telemetry cache",
+      "paths": [
+        "%ProgramData%\\NVIDIA\\Display.NvCate",
+        "%LOCALAPPDATA%\\NVIDIA\\DXCache",
+        "%LOCALAPPDATA%\\NVIDIA\\GLCache"
+      ],
+      "safety": "safe",
+      "description": "NVIDIA Display Driver container, DRS database, and telemetry cache."
+    },
+    {
+      "id": "peertube_cache",
+      "label": "PeerTube cache and download staging",
+      "paths": [
+        "%APPDATA%\\PeerTube"
+      ],
+      "safety": "safe",
+      "description": "PeerTube cache and download staging."
+    },
+    {
+      "id": "plex_cache",
+      "label": "Plex Media Server transcoding cache and thumbnail staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Plex Media Server",
+        "%APPDATA%\\Plex"
+      ],
+      "safety": "safe",
+      "description": "Plex Media Server transcoding cache and thumbnail staging."
+    },
+    {
+      "id": "jellyfin_cache",
+      "label": "Jellyfin transcoding cache, metadata, and plugin data",
+      "paths": [
+        "%LOCALAPPDATA%\\Jellyfin\\cache",
+        "%LOCALAPPDATA%\\Jellyfin\\metadata"
+      ],
+      "safety": "safe",
+      "description": "Jellyfin transcoding cache, metadata, and plugin data."
+    },
+    {
+      "id": "emby_cache",
+      "label": "Emby Server transcoding cache and dashboard temp",
+      "paths": [
+        "%LOCALAPPDATA%\\EmbyServer\\cache",
+        "%LOCALAPPDATA%\\EmbyServer\\transcoding"
+      ],
+      "safety": "safe",
+      "description": "Emby Server transcoding cache and dashboard temp."
+    },
+    {
+      "id": "kodi_cache",
+      "label": "Kodi texture cache, thumbnails, and log files",
+      "paths": [
+        "%APPDATA%\\Kodi\\cache",
+        "%APPDATA%\\Kodi\\thumbnails",
+        "%LOCALAPPDATA%\\Kodi"
+      ],
+      "safety": "safe",
+      "description": "Kodi texture cache, thumbnails, and log files."
+    },
+    {
+      "id": "vlc_cache",
+      "label": "VLC media player cache, interface extensions, and recent media history",
+      "paths": [
+        "%APPDATA%\\vlc"
+      ],
+      "safety": "safe",
+      "description": "VLC media player cache, interface extensions, and recent media history."
+    },
+    {
+      "id": "mpc_cache",
+      "label": "MPC-HC / MPC-BE cache and shader settings",
+      "paths": [
+        "%APPDATA%\\MPC"
+      ],
+      "safety": "safe",
+      "description": "MPC-HC / MPC-BE cache and shader settings."
+    },
+    {
+      "id": "potplayer_cache",
+      "label": "PotPlayer cache, thumbnail previews, and broadcast cache",
+      "paths": [
+        "%APPDATA%\\Daum"
+      ],
+      "safety": "safe",
+      "description": "PotPlayer cache, thumbnail previews, and broadcast cache."
+    },
+    {
+      "id": "mpv_cache",
+      "label": "mpv player watch later, settings, and script opts cache",
+      "paths": [
+        "%APPDATA%\\mpv",
+        "%LOCALAPPDATA%\\mpv"
+      ],
+      "safety": "safe",
+      "description": "mpv player watch later, settings, and script opts cache."
+    },
+    {
+      "id": "infuse_cache",
+      "label": "Infuse video player metadata cache and stream session data",
+      "paths": [
+        "%APPDATA%\\Firecore"
+      ],
+      "safety": "safe",
+      "description": "Infuse video player metadata cache and stream session data."
+    },
+    {
+      "id": "stremio_cache_full",
+      "label": "Stremio torrent cache, player data, and add-on config cache",
+      "paths": [
+        "%APPDATA%\\Stremio"
+      ],
+      "safety": "safe",
+      "description": "Stremio torrent cache, player data, and add-on config cache."
+    },
+    {
+      "id": "nvidia_shadowplay_cache",
+      "label": "NVIDIA ShadowPlay / GeForce Experience recorded gameplay cache",
+      "paths": [
+        "%LOCALAPPDATA%\\NVIDIA\\GeForce Experience\\Capture"
+      ],
+      "safety": "safe",
+      "description": "NVIDIA ShadowPlay / GeForce Experience recorded gameplay cache."
+    },
+    {
+      "id": "nvidia_experience_cache",
+      "label": "NVIDIA GeForce Experience cache and logs",
+      "paths": [
+        "%LOCALAPPDATA%\\NVIDIA\\GeForceExperience"
+      ],
+      "safety": "safe",
+      "description": "NVIDIA GeForce Experience cache and logs."
+    },
+    {
+      "id": "spotify_app_cache",
+      "label": "Spotify Desktop app cache and logs folders",
+      "paths": [
+        "%LOCALAPPDATA%\\Spotify\\Data",
+        "%APPDATA%\\Spotify\\Cache",
+        "%APPDATA%\\Spotify\\logs"
+      ],
+      "safety": "safe",
+      "description": "Spotify Desktop app cache and logs folders."
+    }
+  ]
+}

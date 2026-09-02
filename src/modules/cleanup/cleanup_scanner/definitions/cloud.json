@@ -1,0 +1,356 @@
+{
+  "category": "cloud",
+  "scanners": [
+    {
+      "id": "dropbox_cache",
+      "label": "Dropbox cache, cache.db, and blob metadata — keeps account data intact",
+      "paths": [
+        "%LOCALAPPDATA%\\Dropbox\\cache",
+        "%LOCALAPPDATA%\\Dropbox\\blob_store",
+        "%LOCALAPPDATA%\\Dropbox\\instance1",
+        "%APPDATA%\\Dropbox\\cache",
+        "%APPDATA%\\Dropbox\\logs"
+      ],
+      "safety": "safe",
+      "description": "Dropbox cache, cache.db, and blob metadata — keeps account data intact."
+    },
+    {
+      "id": "mega_cache",
+      "label": "MEGAsync cache, temp files, and sync database",
+      "paths": [
+        "%LOCALAPPDATA%\\MEGA Limited\\MEGAsync\\temp",
+        "%LOCALAPPDATA%\\MEGA Limited\\MEGAsync\\logs",
+        "%APPDATA%\\MEGAsync\\cache"
+      ],
+      "safety": "safe",
+      "description": "MEGAsync cache, temp files, and sync database."
+    },
+    {
+      "id": "pcloud_cache",
+      "label": "pCloud cache and temp sync data",
+      "paths": [
+        "%LOCALAPPDATA%\\pCloud\\Cache",
+        "%LOCALAPPDATA%\\pCloud\\temp",
+        "%LOCALAPPDATA%\\pCloud\\Logs"
+      ],
+      "safety": "safe",
+      "description": "pCloud cache and temp sync data."
+    },
+    {
+      "id": "icloud_cache",
+      "label": "iCloud for Windows cache and download staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Apple Computer\\iCloud\\Cache"
+      ],
+      "safety": "safe",
+      "description": "iCloud for Windows cache and download staging. NOT cookies or accounts."
+    },
+    {
+      "id": "box_cache",
+      "label": "Box Drive cache and sync staging data",
+      "paths": [
+        "%LOCALAPPDATA%\\Box\\Box\\cache",
+        "%LOCALAPPDATA%\\Box\\Box\\data",
+        "%LOCALAPPDATA%\\Box\\Box\\logs"
+      ],
+      "safety": "safe",
+      "description": "Box Drive cache and sync staging data."
+    },
+    {
+      "id": "tresorit_cache",
+      "label": "Tresorit sync cache and temp files",
+      "paths": [
+        "%APPDATA%\\Tresorit\\Cache",
+        "%APPDATA%\\Tresorit\\Logs"
+      ],
+      "safety": "safe",
+      "description": "Tresorit sync cache and temp files."
+    },
+    {
+      "id": "onedrive_cache",
+      "label": "OneDrive known folder mask and sync conflict files",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\logs",
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\cache"
+      ],
+      "safety": "safe",
+      "description": "OneDrive known folder mask and sync conflict files."
+    },
+    {
+      "id": "virtualbox_cache",
+      "label": "VirtualBox hard disk images (.vdi/.vhd), snapshots, and logs",
+      "paths": [
+        "%APPDATA%\\VirtualBox",
+        "%USERPROFILE%\\VirtualBox VMs"
+      ],
+      "safety": "caution",
+      "description": "VirtualBox hard disk images (.vdi/.vhd), snapshots, and logs."
+    },
+    {
+      "id": "sharepoint_cache",
+      "label": "SharePoint/OneDrive sync client Known folder mask and local cache",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Office\\OfficeFileCache",
+        "%LOCALAPPDATA%\\Microsoft\\Office\\OfficeFileCache"
+      ],
+      "safety": "safe",
+      "description": "SharePoint/OneDrive sync client Known folder mask and local cache."
+    },
+    {
+      "id": "onedrive_full_cache",
+      "label": "OneDrive sync conflict files, redirected folder cache, and thumbnail staging",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\logs",
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\cache",
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\ACSBackup"
+      ],
+      "safety": "safe",
+      "description": "OneDrive sync conflict files, redirected folder cache, and thumbnail staging."
+    },
+    {
+      "id": "openvpn_cache",
+      "label": "OpenVPN client logs, script temp, and unifiedpushtoken cache",
+      "paths": [
+        "%APPDATA%\\OpenVPN",
+        "%APPDATA%\\OpenVPN Connect"
+      ],
+      "safety": "safe",
+      "description": "OpenVPN client logs, script temp, and unifiedpushtoken cache."
+    },
+    {
+      "id": "wireguard_cache",
+      "label": "WireGuard interface logs and adapter state cache",
+      "paths": [
+        "%APPDATA%\\WireGuard",
+        "%LOCALAPPDATA%\\WireGuard"
+      ],
+      "safety": "safe",
+      "description": "WireGuard interface logs and adapter state cache."
+    },
+    {
+      "id": "nordvpn_cache",
+      "label": "NordVPN connection logs and settings cache",
+      "paths": [
+        "%APPDATA%\\NordVPN",
+        "%APPDATA%\\Roaming\\ClientConfig"
+      ],
+      "safety": "safe",
+      "description": "NordVPN connection logs and settings cache."
+    },
+    {
+      "id": "expressvpn_cache",
+      "label": "ExpressVPN diagnostic logs and split-tunneling config cache",
+      "paths": [
+        "%APPDATA%\\ExpressVPN",
+        "%APPDATA%\\ExpressVPN Logs"
+      ],
+      "safety": "safe",
+      "description": "ExpressVPN diagnostic logs and split-tunneling config cache."
+    },
+    {
+      "id": "aws_cli_cache",
+      "label": "AWS CLI cache, config, and SSM session cache",
+      "paths": [
+        "%USERPROFILE%\\.aws\\cli\\cache",
+        "%USERPROFILE%\\.aws\\sso\\cache"
+      ],
+      "safety": "caution",
+      "description": "AWS CLI cache, config, and SSM session cache. NOT credentials file."
+    },
+    {
+      "id": "azure_cli_cache",
+      "label": "Azure CLI access token cache, cloud shell, and arm cache",
+      "paths": [
+        "%USERPROFILE%\\.azure",
+        "%USERPROFILE%\\.cloudshell"
+      ],
+      "safety": "caution",
+      "description": "Azure CLI access token cache, cloud shell, and arm cache."
+    },
+    {
+      "id": "gcp_sdk_cache",
+      "label": "Google Cloud SDK credentials, bq cache, and gcloud config",
+      "paths": [
+        "%USERPROFILE%\\AppData\\Roaming\\gcloud",
+        "%USERPROFILE%\\AppData\\Local\\gcloud"
+      ],
+      "safety": "caution",
+      "description": "Google Cloud SDK credentials, bq cache, and gcloud config."
+    },
+    {
+      "id": "aws_toolkit_cache",
+      "label": "AWS Toolkit for VS Code cache and SAM CLI build cache",
+      "paths": [
+        "%APPDATA%\\AWStoolkit"
+      ],
+      "safety": "safe",
+      "description": "AWS Toolkit for VS Code cache and SAM CLI build cache."
+    },
+    {
+      "id": "onedrive_commercial_cache",
+      "label": "OneDrive for Business (MSOnline) sync conflict logs and local cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\logs",
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\cache",
+        "%LOCALAPPDATA%\\Microsoft\\OneDrive\\ACSBackup"
+      ],
+      "safety": "safe",
+      "description": "OneDrive for Business (MSOnline) sync conflict logs and local cache."
+    },
+    {
+      "id": "sharepoint_desktop_cache",
+      "label": "SharePoint Designer workflow cache and Office document cache",
+      "paths": [
+        "%APPDATA%\\Microsoft\\Office\\OfficeFileCache",
+        "%LOCALAPPDATA%\\Microsoft\\Office\\OfficeFileCache"
+      ],
+      "safety": "safe",
+      "description": "SharePoint Designer workflow cache and Office document cache."
+    },
+    {
+      "id": "windows_sandbox_cache",
+      "label": "Windows Sandbox base image staging and writable layer cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\Microsoft.Windows.Sandbox_*\\LocalState"
+      ],
+      "safety": "caution",
+      "description": "Windows Sandbox base image staging and writable layer cache."
+    },
+    {
+      "id": "heroku_cli_cache",
+      "label": "Heroku CLI config, plugins, and run dyno logs",
+      "paths": [
+        "%APPDATA%\\Heroku"
+      ],
+      "safety": "safe",
+      "description": "Heroku CLI config, plugins, and run dyno logs."
+    },
+    {
+      "id": "vercel_cache",
+      "label": "Vercel CLI build output and now dev server cache",
+      "paths": [
+        "%APPDATA%\\vercel"
+      ],
+      "safety": "safe",
+      "description": "Vercel CLI build output and now dev server cache."
+    },
+    {
+      "id": "netlify_cache",
+      "label": "Netlify CLI deploy cache and functions build output",
+      "paths": [
+        "%APPDATA%\\netlify"
+      ],
+      "safety": "safe",
+      "description": "Netlify CLI deploy cache and functions build output."
+    },
+    {
+      "id": "supabase_cache",
+      "label": "Supabase CLI local dev data and migration staging",
+      "paths": [
+        "%APPDATA%\\Supabase"
+      ],
+      "safety": "safe",
+      "description": "Supabase CLI local dev data and migration staging."
+    },
+    {
+      "id": "firebase_cache",
+      "label": "Firebase CLI token cache and emulator local data staging",
+      "paths": [
+        "%APPDATA%\\firebase"
+      ],
+      "safety": "safe",
+      "description": "Firebase CLI token cache and emulator local data staging."
+    },
+    {
+      "id": "planetscale_cache",
+      "label": "Planetscale CLI branch data and query result staging",
+      "paths": [
+        "%APPDATA%\\planetscale"
+      ],
+      "safety": "safe",
+      "description": "Planetscale CLI branch data and query result staging."
+    },
+    {
+      "id": "stripe_cache",
+      "label": "Stripe CLI logs and webhook event staging",
+      "paths": [
+        "%APPDATA%\\stripe"
+      ],
+      "safety": "safe",
+      "description": "Stripe CLI logs and webhook event staging."
+    },
+    {
+      "id": "ngrok_cache",
+      "label": "ngrok tunnel session logs and authtoken cache",
+      "paths": [
+        "%APPDATA%\\ngrok"
+      ],
+      "safety": "safe",
+      "description": "ngrok tunnel session logs and authtoken cache."
+    },
+    {
+      "id": "cloudflare_warp_cache",
+      "label": "Cloudflare WARP client logs and WireGuard config cache",
+      "paths": [
+        "%APPDATA%\\Cloudflare"
+      ],
+      "safety": "safe",
+      "description": "Cloudflare WARP client logs and WireGuard config cache."
+    },
+    {
+      "id": "mullvad_cache",
+      "label": "Mullvad VPN tunnel logs and exit node config cache",
+      "paths": [
+        "%APPDATA%\\Mullvad VPN"
+      ],
+      "safety": "safe",
+      "description": "Mullvad VPN tunnel logs and exit node config cache."
+    },
+    {
+      "id": "ipvanish_cache",
+      "label": "IPVanish VPN client logs and connection profile cache",
+      "paths": [
+        "%APPDATA%\\IPVanish"
+      ],
+      "safety": "safe",
+      "description": "IPVanish VPN client logs and connection profile cache."
+    },
+    {
+      "id": "tailscale_cache",
+      "label": "Tailscale SSH session logs and subnet router cache",
+      "paths": [
+        "%APPDATA%\\Tailscale"
+      ],
+      "safety": "safe",
+      "description": "Tailscale SSH session logs and subnet router cache."
+    },
+    {
+      "id": "wg_easy_cache",
+      "label": "WireGuard Easy config backups and peer connection staging",
+      "paths": [
+        "%APPDATA%\\wg-easy"
+      ],
+      "safety": "safe",
+      "description": "WireGuard Easy config backups and peer connection staging."
+    },
+    {
+      "id": "metamask_cache",
+      "label": "MetaMask extension cache, vault data, and provider cache",
+      "paths": [
+        "%APPDATA%\\MetaMask",
+        "%LOCALAPPDATA%\\MetaMask"
+      ],
+      "safety": "safe",
+      "description": "MetaMask extension cache, vault data, and provider cache."
+    },
+    {
+      "id": "coinbase_cache",
+      "label": "Coinbase wallet extension cache and tx relay data",
+      "paths": [
+        "%APPDATA%\\Coinbase Wallet"
+      ],
+      "safety": "safe",
+      "description": "Coinbase wallet extension cache and tx relay data."
+    }
+  ]
+}

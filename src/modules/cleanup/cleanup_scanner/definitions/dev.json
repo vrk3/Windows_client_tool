@@ -1,0 +1,1204 @@
+{
+  "category": "dev",
+  "scanners": [
+    {
+      "id": "java_cache",
+      "label": "Java WebStart, Maven local repo, and Gradle caches",
+      "paths": [
+        "%LOCALAPPDATA%\\Maven\\repository",
+        "%USERPROFILE%\\.m2\\repository",
+        "%USERPROFILE%\\.gradle\\caches",
+        "%USERPROFILE%\\.gradle\\daemon",
+        "%USERPROFILE%\\.ivy2\\cache",
+        "%LOCALAPPDATA%\\Sun\\Java\\Deployment\\cache"
+      ],
+      "safety": "safe",
+      "description": "Java WebStart, Maven local repo, and Gradle caches."
+    },
+    {
+      "id": "vscode_cache",
+      "label": "VS Code cache, extension cache, and log files",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\Cache",
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\CachedData",
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\CachedExtensions",
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\CachedExtensionVSIXs",
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\Code Cache",
+        "%LOCALAPPDATA%\\Microsoft\\VSCode\\logs",
+        "%APPDATA%\\Code\\Cache",
+        "%APPDATA%\\Code\\logs"
+      ],
+      "safety": "safe",
+      "description": "VS Code cache, extension cache, and log files."
+    },
+    {
+      "id": "golang_cache",
+      "label": "Go module proxy cache and build cache",
+      "paths": [
+        "%USERPROFILE%\\go\\pkg\\mod\\cache",
+        "%USERPROFILE%\\go\\build",
+        "%LOCALAPPDATA%\\go-build"
+      ],
+      "safety": "safe",
+      "description": "Go module proxy cache and build cache."
+    },
+    {
+      "id": "rust_cache",
+      "label": "Rust cargo registry and target build cache",
+      "paths": [
+        "%USERPROFILE%\\.cargo\\registry\\cache",
+        "%USERPROFILE%\\.cargo\\registry\\src",
+        "%USERPROFILE%\\.cargo\\target"
+      ],
+      "safety": "safe",
+      "description": "Rust cargo registry and target build cache."
+    },
+    {
+      "id": "npm_cache",
+      "label": "npm cache in all locations — npm, pnpm, yarn global",
+      "paths": [
+        "%APPDATA%\\npm-cache",
+        "%LOCALAPPDATA%\\npm-cache",
+        "%APPDATA%\\pnpm-store",
+        "%APPDATA%\\pnpm",
+        "%LOCALAPPDATA%\\Yarn\\Cache",
+        "%APPDATA%\\yarn\\cache",
+        "%APPDATA%\\yarn\\Data",
+        "%LOCALAPPDATA%\\pnpm-store"
+      ],
+      "safety": "safe",
+      "description": "npm cache in all locations — npm, pnpm, yarn global."
+    },
+    {
+      "id": "pip_cache",
+      "label": "pip download cache and wheel cache in all locations",
+      "paths": [
+        "%LOCALAPPDATA%\\pip\\cache",
+        "%APPDATA%\\pip\\cache",
+        "%LOCALAPPDATA%\\pip\\wheels",
+        "%APPDATA%\\pip\\wheels",
+        "%LOCALAPPDATA%\\pip\\logs"
+      ],
+      "safety": "safe",
+      "description": "pip download cache and wheel cache in all locations."
+    },
+    {
+      "id": "nuget_cache",
+      "label": "NuGet global packages folder and HTTP cache",
+      "paths": [
+        "%USERPROFILE%\\.nuget\\packages",
+        "%LOCALAPPDATA%\\nuget\\cache",
+        "%LOCALAPPDATA%\\nuget\\v3-cache"
+      ],
+      "safety": "safe",
+      "description": "NuGet global packages folder and HTTP cache."
+    },
+    {
+      "id": "vmware_cache",
+      "label": "VMware player/workstation/fusion VM virtual disks, snapshots, and logs",
+      "paths": [
+        "%APPDATA%\\VMware",
+        "%LOCALAPPDATA%\\VMware",
+        "%USERPROFILE%\\Virtual Machines"
+      ],
+      "safety": "caution",
+      "description": "VMware player/workstation/fusion VM virtual disks, snapshots, and logs."
+    },
+    {
+      "id": "wsl2_cache",
+      "label": "WSL2 ext4.vhdx virtual disk and WSL config/logs",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.UbuntuonWindows_*\\LocalState",
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.Ubuntu_*\\LocalState",
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\Containers",
+        "%LOCALAPPDATA%\\Lxss"
+      ],
+      "safety": "caution",
+      "description": "WSL2 ext4.vhdx virtual disk and WSL config/logs."
+    },
+    {
+      "id": "hyperv_cache",
+      "label": "Hyper-V virtual machines, checkpoints (snapshots), and VM configuration files",
+      "paths": [
+        "%ProgramData%\\Microsoft\\Windows\\Hyper-V",
+        "%USERPROFILE%\\Documents\\Hyper-V\\Virtual Hard Disks"
+      ],
+      "safety": "caution",
+      "description": "Hyper-V virtual machines, checkpoints (snapshots), and VM configuration files."
+    },
+    {
+      "id": "parallels_cache",
+      "label": "Parallels virtual machines and shared applications cache",
+      "paths": [
+        "%APPDATA%\\Parallels",
+        "%USERPROFILE%\\Parallels"
+      ],
+      "safety": "caution",
+      "description": "Parallels virtual machines and shared applications cache."
+    },
+    {
+      "id": "jetbrains_cache",
+      "label": "JetBrains IDE caches, logs, and index data — all products",
+      "paths": [
+        "%APPDATA%\\JetBrains\\IntelliJIdea*\\logs",
+        "%APPDATA%\\JetBrains\\IntelliJIdea*\\caches",
+        "%APPDATA%\\JetBrains\\PyCharm*\\logs",
+        "%APPDATA%\\JetBrains\\PyCharm*\\caches",
+        "%APPDATA%\\JetBrains\\WebStorm*\\logs",
+        "%APPDATA%\\JetBrains\\WebStorm*\\caches",
+        "%APPDATA%\\JetBrains\\PhpStorm*\\logs",
+        "%APPDATA%\\JetBrains\\PhpStorm*\\caches",
+        "%APPDATA%\\JetBrains\\GoLand*\\logs",
+        "%APPDATA%\\JetBrains\\GoLand*\\caches",
+        "%APPDATA%\\JetBrains\\CLion*\\logs",
+        "%APPDATA%\\JetBrains\\CLion*\\caches",
+        "%APPDATA%\\JetBrains\\Rider*\\logs",
+        "%APPDATA%\\JetBrains\\Rider*\\caches",
+        "%APPDATA%\\JetBrains\\DataGrip*\\logs",
+        "%APPDATA%\\JetBrains\\DataGrip*\\caches",
+        "%APPDATA%\\JetBrains\\AndroidStudio*\\logs",
+        "%APPDATA%\\JetBrains\\AndroidStudio*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\IntelliJIdea*",
+        "%LOCALAPPDATA%\\JetBrains\\PyCharm*",
+        "%LOCALAPPDATA%\\JetBrains\\WebStorm*"
+      ],
+      "safety": "safe",
+      "description": "JetBrains IDE caches, logs, and index data — all products."
+    },
+    {
+      "id": "eclipse_cache",
+      "label": "Eclipse IDE logs, workspace metadata, and Maven local repo",
+      "paths": [
+        "%APPDATA%\\Eclipse",
+        "%USERPROFILE%\\.eclipse",
+        "%USERPROFILE%\\.m2\\repository"
+      ],
+      "safety": "safe",
+      "description": "Eclipse IDE logs, workspace metadata, and Maven local repo."
+    },
+    {
+      "id": "netbeans_cache",
+      "label": "NetBeans IDE var/log, cache, and temp folders",
+      "paths": [
+        "%APPDATA%\\NetBeans\\**\\var\\log",
+        "%APPDATA%\\NetBeans\\**\\cache"
+      ],
+      "safety": "safe",
+      "description": "NetBeans IDE var/log, cache, and temp folders."
+    },
+    {
+      "id": "git_lfs_cache",
+      "label": "Git LFS local cache and objects store — DANGER: deleting removes actual repo files",
+      "paths": [
+        "%USERPROFILE%\\.git-lfs\\objects"
+      ],
+      "safety": "danger",
+      "description": "Git LFS local cache and objects store — DANGER: deleting removes actual repo files."
+    },
+    {
+      "id": "cocoapods_cache",
+      "label": "CocoaPods trunk specs repo and pod cache",
+      "paths": [
+        "%USERPROFILE%\\.cocoapods",
+        "%USERPROFILE%\\Library\\Caches\\CocoaPods"
+      ],
+      "safety": "safe",
+      "description": "CocoaPods trunk specs repo and pod cache."
+    },
+    {
+      "id": "ruby_gems_cache",
+      "label": "RubyGems cache, bundler gems, and Gemfile.lock backups",
+      "paths": [
+        "%USERPROFILE%\\.gem\\gems",
+        "%USERPROFILE%\\.bundle",
+        "%USERPROFILE%\\.gem\\specifications"
+      ],
+      "safety": "safe",
+      "description": "RubyGems cache, bundler gems, and Gemfile.lock backups."
+    },
+    {
+      "id": "composer_cache",
+      "label": "PHP Composer vendor cache and global packages",
+      "paths": [
+        "%USERPROFILE%\\.composer\\vendor",
+        "%USERPROFILE%\\.composer\\cache"
+      ],
+      "safety": "safe",
+      "description": "PHP Composer vendor cache and global packages."
+    },
+    {
+      "id": "bundler_cache",
+      "label": "Bundler gem cache for Ruby projects",
+      "paths": [
+        "%USERPROFILE%\\.bundle\\specifications"
+      ],
+      "safety": "safe",
+      "description": "Bundler gem cache for Ruby projects."
+    },
+    {
+      "id": "apt_cache",
+      "label": "APT package cache (WSL Ubuntu/Debian) and apt lists",
+      "paths": [
+        "%USERPROFILE%\\.apt",
+        "%USERPROFILE%\\var\\cache\\apt",
+        "%USERPROFILE%\\var\\lib\\apt\\lists"
+      ],
+      "safety": "safe",
+      "description": "APT package cache (WSL Ubuntu/Debian) and apt lists."
+    },
+    {
+      "id": "chocolatey_cache",
+      "label": "Chocolatey package download cache and lib/bad packages",
+      "paths": [
+        "%ProgramData%\\chocolatey\\cache",
+        "%ProgramData%\\chocolatey\\lib-bad",
+        "%ProgramData%\\chocolatey\\logs"
+      ],
+      "safety": "safe",
+      "description": "Chocolatey package download cache and lib/bad packages."
+    },
+    {
+      "id": "scoop_cache",
+      "label": "Scoop bucket cache, downloads, and app versions",
+      "paths": [
+        "%USERPROFILE%\\scoop\\cache",
+        "%USERPROFILE%\\scoop\\buckets"
+      ],
+      "safety": "safe",
+      "description": "Scoop bucket cache, downloads, and app versions."
+    },
+    {
+      "id": "winget_cache",
+      "label": "winget source cache and package metadata",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\winget\\cache",
+        "%LOCALAPPDATA%\\Microsoft\\winget\\logs"
+      ],
+      "safety": "safe",
+      "description": "winget source cache and package metadata."
+    },
+    {
+      "id": "sql_server_logs",
+      "label": "SQL Server error logs, agent logs, and FTData catalog files",
+      "paths": [
+        "%ProgramFiles%\\Microsoft SQL Server\\MSSQL*\\LOG",
+        "%ProgramFiles%\\Microsoft SQL Server\\MSSQL*\\MSSQL\\DATA",
+        "%ProgramFiles(x86)%\\Microsoft SQL Server"
+      ],
+      "safety": "caution",
+      "description": "SQL Server error logs, agent logs, and FTData catalog files."
+    },
+    {
+      "id": "mysql_logs",
+      "label": "MySQL general query log, slow query log, and error log files",
+      "paths": [
+        "%ProgramFiles%\\MySQL\\MySQL Server*\\Data",
+        "%ProgramFiles%\\MySQL\\MySQL Server*\\logs"
+      ],
+      "safety": "caution",
+      "description": "MySQL general query log, slow query log, and error log files."
+    },
+    {
+      "id": "postgres_logs",
+      "label": "PostgreSQL pg_log and pg_xlog archive files",
+      "paths": [
+        "%USERPROFILE%\\AppData\\Local\\PostgreSQL\\logs",
+        "%USERPROFILE%\\AppData\\Roaming\\PostgreSQL\\pg_log"
+      ],
+      "safety": "caution",
+      "description": "PostgreSQL pg_log and pg_xlog archive files."
+    },
+    {
+      "id": "autocad_cache",
+      "label": "AutoCAD plot logs, cache, and error reporting files",
+      "paths": [
+        "%APPDATA%\\Autodesk\\AutoCAD\\*\\R*\\Cache",
+        "%LOCALAPPDATA%\\Autodesk\\AutoCAD\\*\\R*\\Temp"
+      ],
+      "safety": "safe",
+      "description": "AutoCAD plot logs, cache, and error reporting files."
+    },
+    {
+      "id": "revitable_cache",
+      "label": "Revit family cache, Dynamo cache, and BIM 360 sync logs",
+      "paths": [
+        "%APPDATA%\\Autodesk\\Revit\\Autodesk Revit*\\FamilyCache",
+        "%APPDATA%\\Autodesk\\Revit\\Autodesk Revit*\\Logs",
+        "%LOCALAPPDATA%\\Autodesk\\Revit\\Autodesk Revit*\\UI\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Revit family cache, Dynamo cache, and BIM 360 sync logs."
+    },
+    {
+      "id": "sketchup_cache",
+      "label": "SketchUp shadow cache, style caches, and import logs",
+      "paths": [
+        "%APPDATA%\\SketchUp\\SketchUp*\\Logs",
+        "%LOCALAPPDATA%\\SketchUp\\SketchUp*\\SketchUp"
+      ],
+      "safety": "safe",
+      "description": "SketchUp shadow cache, style caches, and import logs."
+    },
+    {
+      "id": "wsl_installer_cache",
+      "label": "WSL distro installer staging and downloaded package cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.WSL_*\\LocalState",
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.UbuntuonWindows_*\\LocalState"
+      ],
+      "safety": "caution",
+      "description": "WSL distro installer staging and downloaded package cache."
+    },
+    {
+      "id": "sourcetree_cache",
+      "label": "Atlassian SourceTree logs, SSH keys, and Mercurial cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Atlassian\\SourceTree",
+        "%APPDATA%\\Atlassian\\SourceTree"
+      ],
+      "safety": "safe",
+      "description": "Atlassian SourceTree logs, SSH keys, and Mercurial cache."
+    },
+    {
+      "id": "gitkraken_cache",
+      "label": "GitKraken logs, keychain cache, and Git analytics data",
+      "paths": [
+        "%APPDATA%\\GitKraken",
+        "%LOCALAPPDATA%\\GitKraken"
+      ],
+      "safety": "safe",
+      "description": "GitKraken logs, keychain cache, and Git analytics data."
+    },
+    {
+      "id": "fork_cache",
+      "label": "Fork git client logs and diff cache",
+      "paths": [
+        "%APPDATA%\\Fork",
+        "%APPDATA%\\ForkLogs"
+      ],
+      "safety": "safe",
+      "description": "Fork git client logs and diff cache."
+    },
+    {
+      "id": "smartgit_cache",
+      "label": "SmartGit logs and repository metadata cache",
+      "paths": [
+        "%APPDATA%\\SmartGit"
+      ],
+      "safety": "safe",
+      "description": "SmartGit logs and repository metadata cache."
+    },
+    {
+      "id": "mercurial_cache",
+      "label": "Mercurial revlog cache and bundle staging area",
+      "paths": [
+        "%USERPROFILE%\\.hg"
+      ],
+      "safety": "safe",
+      "description": "Mercurial revlog cache and bundle staging area."
+    },
+    {
+      "id": "subversion_cache",
+      "label": "Subversion (SVN) working copy pristine text and property cache",
+      "paths": [
+        "%USERPROFILE%\\.subversion"
+      ],
+      "safety": "safe",
+      "description": "Subversion (SVN) working copy pristine text and property cache."
+    },
+    {
+      "id": "sublime_cache",
+      "label": "Sublime Text cache, index data, and syntax cache",
+      "paths": [
+        "%APPDATA%\\Sublime Text\\Cache",
+        "%APPDATA%\\Sublime Text\\Index",
+        "%APPDATA%\\Sublime Text\\Log"
+      ],
+      "safety": "safe",
+      "description": "Sublime Text cache, index data, and syntax cache."
+    },
+    {
+      "id": "atom_cache",
+      "label": "Atom editor cache, node_modules, and compile cache",
+      "paths": [
+        "%APPDATA%\\Atom\\Cache",
+        "%APPDATA%\\Atom\\blob_storage"
+      ],
+      "safety": "safe",
+      "description": "Atom editor cache, node_modules, and compile cache."
+    },
+    {
+      "id": "vscodium_cache",
+      "label": "VSCodium cache, extensions, and log files",
+      "paths": [
+        "%APPDATA%\\VSCodium\\UserData",
+        "%LOCALAPPDATA%\\VSCodium"
+      ],
+      "safety": "safe",
+      "description": "VSCodium cache, extensions, and log files."
+    },
+    {
+      "id": "qt_creator_cache",
+      "label": "Qt Creator analysis cache, autocomplete data, and build logs",
+      "paths": [
+        "%LOCALAPPDATA%\\QtProject\\QtCreator",
+        "%APPDATA%\\QtProject\\QtCreator"
+      ],
+      "safety": "safe",
+      "description": "Qt Creator analysis cache, autocomplete data, and build logs."
+    },
+    {
+      "id": "lazarus_cache",
+      "label": "Lazarus IDE compiler temp and objectPAL cache",
+      "paths": [
+        "%APPDATA%\\Lazarus"
+      ],
+      "safety": "safe",
+      "description": "Lazarus IDE compiler temp and objectPAL cache."
+    },
+    {
+      "id": "codeblocks_cache",
+      "label": "Code::Blocks default and global variable paths cache",
+      "paths": [
+        "%APPDATA%\\CodeBlocks\\default"
+      ],
+      "safety": "safe",
+      "description": "Code::Blocks default and global variable paths cache."
+    },
+    {
+      "id": "npp_cache",
+      "label": "Notepad++ backup, session, and plugin config cache",
+      "paths": [
+        "%APPDATA%\\Notepad++\\backup",
+        "%APPDATA%\\Notepad++\\plugins\\config"
+      ],
+      "safety": "safe",
+      "description": "Notepad++ backup, session, and plugin config cache."
+    },
+    {
+      "id": "vim_cache",
+      "label": "Vim undo files, swap files, and viminfo (safe to clean)",
+      "paths": [
+        "%USERPROFILE%\\.vim\\undo",
+        "%USERPROFILE%\\.vim\\swap"
+      ],
+      "safety": "safe",
+      "description": "Vim undo files, swap files, and viminfo (safe to clean)."
+    },
+    {
+      "id": "emacs_cache",
+      "label": "Emacs auto-save, backup, and elpa package cache",
+      "paths": [
+        "%USERPROFILE%\\.emacs.d\\auto-save-list",
+        "%USERPROFILE%\\.emacs.d\\elpa",
+        "%USERPROFILE%\\.emacs.d\\var"
+      ],
+      "safety": "safe",
+      "description": "Emacs auto-save, backup, and elpa package cache."
+    },
+    {
+      "id": "dbeaver_cache",
+      "label": "DBeaver workspace cache, SQL scripts, and driver cache",
+      "paths": [
+        "%APPDATA%\\DBeaver",
+        "%APPDATA%\\DBeaverData"
+      ],
+      "safety": "safe",
+      "description": "DBeaver workspace cache, SQL scripts, and driver cache."
+    },
+    {
+      "id": "heidisql_cache",
+      "label": "HeidiSQL session logs and query history cache",
+      "paths": [
+        "%APPDATA%\\HeidiSQL"
+      ],
+      "safety": "safe",
+      "description": "HeidiSQL session logs and query history cache."
+    },
+    {
+      "id": "workbench_cache",
+      "label": "MySQL Workbench connection history and SQL editor cache",
+      "paths": [
+        "%APPDATA%\\MySQL\\Workbench",
+        "%LOCALAPPDATA%\\MySQL\\Workbench"
+      ],
+      "safety": "safe",
+      "description": "MySQL Workbench connection history and SQL editor cache."
+    },
+    {
+      "id": "navicat_cache",
+      "label": "Navicat Premium connection settings backup and query result cache",
+      "paths": [
+        "%APPDATA%\\Navicat"
+      ],
+      "safety": "safe",
+      "description": "Navicat Premium connection settings backup and query result cache."
+    },
+    {
+      "id": "sqlitebrowser_cache",
+      "label": "SQLiteBrowser recent database history and export cache",
+      "paths": [
+        "%APPDATA%\\SQLiteBrowser"
+      ],
+      "safety": "safe",
+      "description": "SQLiteBrowser recent database history and export cache."
+    },
+    {
+      "id": "kubernetes_cache",
+      "label": "kubectl config, Helm cache, and K9s database",
+      "paths": [
+        "%USERPROFILE%\\.kube\\cache",
+        "%USERPROFILE%\\.helm",
+        "%USERPROFILE%\\.config\\k9s"
+      ],
+      "safety": "safe",
+      "description": "kubectl config, Helm cache, and K9s database."
+    },
+    {
+      "id": "minikube_cache",
+      "label": "minikube cluster data, addons config, and cache",
+      "paths": [
+        "%USERPROFILE%\\.minikube"
+      ],
+      "safety": "caution",
+      "description": "minikube cluster data, addons config, and cache."
+    },
+    {
+      "id": "kind_cache",
+      "label": "kind (Kubernetes in Docker) cluster config and image tar cache",
+      "paths": [
+        "%USERPROFILE%\\.kind"
+      ],
+      "safety": "caution",
+      "description": "kind (Kubernetes in Docker) cluster config and image tar cache."
+    },
+    {
+      "id": "terraform_cache",
+      "label": "Terraform provider plugin cache, .terraform directory, and plan cache",
+      "paths": [
+        "%USERPROFILE%\\.terraform.d\\plugin-cache",
+        "%USERPROFILE%\\.terraform\\providers"
+      ],
+      "safety": "safe",
+      "description": "Terraform provider plugin cache, .terraform directory, and plan cache."
+    },
+    {
+      "id": "pulumi_cache",
+      "label": "Pulumi stack logs and resource escape hatch cache",
+      "paths": [
+        "%APPDATA%\\Pulumi"
+      ],
+      "safety": "safe",
+      "description": "Pulumi stack logs and resource escape hatch cache."
+    },
+    {
+      "id": "ansible_cache",
+      "label": "Ansible vault password file, collections cache, and role cache",
+      "paths": [
+        "%USERPROFILE%\\.ansible\\collections",
+        "%USERPROFILE%\\.ansible\\tmp"
+      ],
+      "safety": "safe",
+      "description": "Ansible vault password file, collections cache, and role cache."
+    },
+    {
+      "id": "packer_cache",
+      "label": "Packer plugin cache and output artifact staging",
+      "paths": [
+        "%USERPROFILE%\\.packer.d\\plugin-cache"
+      ],
+      "safety": "safe",
+      "description": "Packer plugin cache and output artifact staging."
+    },
+    {
+      "id": "tesseract_cache",
+      "label": "Tesseract OCR trained data and tessdata cache",
+      "paths": [
+        "%APPDATA%\\Tesseract"
+      ],
+      "safety": "safe",
+      "description": "Tesseract OCR trained data and tessdata cache."
+    },
+    {
+      "id": "whisper_cache",
+      "label": "Whisper.cpp model cache and transcription temp files",
+      "paths": [
+        "%USERPROFILE%\\.whisper",
+        "%LOCALAPPDATA%\\whisper"
+      ],
+      "safety": "safe",
+      "description": "Whisper.cpp model cache and transcription temp files."
+    },
+    {
+      "id": "curl_cfgs_cache",
+      "label": "curl config (~/.curlrc) and cookie jar cache",
+      "paths": [
+        "%USERPROFILE%\\.curlrc"
+      ],
+      "safety": "safe",
+      "description": "curl config (~/.curlrc) and cookie jar cache."
+    },
+    {
+      "id": "wget_cache",
+      "label": "wgetrc config file and HSTS database cache",
+      "paths": [
+        "%USERPROFILE%\\.wgetrc",
+        "%USERPROFILE%\\.wget-hsts"
+      ],
+      "safety": "safe",
+      "description": "wgetrc config file and HSTS database cache."
+    },
+    {
+      "id": "maven_repo_cache",
+      "label": "Apache Maven local repository (~/.m2/repository)",
+      "paths": [
+        "%USERPROFILE%\\.m2\\repository"
+      ],
+      "safety": "safe",
+      "description": "Apache Maven local repository (~/.m2/repository)."
+    },
+    {
+      "id": "gradle_caches_cache",
+      "label": "Gradle daemon logs, wrapper distributions, and build cache",
+      "paths": [
+        "%USERPROFILE%\\.gradle\\caches",
+        "%USERPROFILE%\\.gradle\\daemon",
+        "%USERPROFILE%\\.gradle\\wrapper"
+      ],
+      "safety": "safe",
+      "description": "Gradle daemon logs, wrapper distributions, and build cache."
+    },
+    {
+      "id": "nvm_caches",
+      "label": "nvm (Node Version Manager) downloaded node versions and cache",
+      "paths": [
+        "%APPDATA%\\nvm"
+      ],
+      "safety": "caution",
+      "description": "nvm (Node Version Manager) downloaded node versions and cache."
+    },
+    {
+      "id": "pyenv_cache",
+      "label": "pyenv Python builds and cache of downloaded Python versions",
+      "paths": [
+        "%USERPROFILE%\\.pyenv\\cache",
+        "%USERPROFILE%\\.pyenv\\versions"
+      ],
+      "safety": "caution",
+      "description": "pyenv Python builds and cache of downloaded Python versions."
+    },
+    {
+      "id": "venv_cache",
+      "label": "Python virtualenv src and egg-link source cache",
+      "paths": [
+        "%USERPROFILE%\\.venv"
+      ],
+      "safety": "safe",
+      "description": "Python virtualenv src and egg-link source cache."
+    },
+    {
+      "id": "bazaar_cache",
+      "label": "Bazaar version control shared repository and branch cache",
+      "paths": [
+        "%USERPROFILE%\\.bazaar"
+      ],
+      "safety": "safe",
+      "description": "Bazaar version control shared repository and branch cache."
+    },
+    {
+      "id": "darcs_cache",
+      "label": "Darcs version control pristine and patches cache",
+      "paths": [
+        "%USERPROFILE%\\.darcs"
+      ],
+      "safety": "safe",
+      "description": "Darcs version control pristine and patches cache."
+    },
+    {
+      "id": "perforce_cache",
+      "label": "Perforce Helix Core p4cache and workspace metadata",
+      "paths": [
+        "%LOCALAPPDATA%\\P4",
+        "%APPDATA%\\P4"
+      ],
+      "safety": "safe",
+      "description": "Perforce Helix Core p4cache and workspace metadata."
+    },
+    {
+      "id": "logitech_g_hub_cache",
+      "label": "Logitech G HUB profiles, LED sync cache, and game detection logs",
+      "paths": [
+        "%APPDATA%\\LGHUB",
+        "%LOCALAPPDATA%\\LGHUB"
+      ],
+      "safety": "safe",
+      "description": "Logitech G HUB profiles, LED sync cache, and game detection logs."
+    },
+    {
+      "id": "vcredist_cache",
+      "label": "Visual C++ Redistributable merge modules and manifest cache",
+      "paths": [
+        "%windir%\\Installer\\VC_redist"
+      ],
+      "safety": "caution",
+      "description": "Visual C++ Redistributable merge modules and manifest cache."
+    },
+    {
+      "id": "net_framework_cache",
+      "label": ".NET Framework download cache and NGEN assembly binary cache",
+      "paths": [
+        "%windir%\\Microsoft.NET\\Framework\\*\\NGEN",
+        "%windir%\\Microsoft.NET\\Framework64\\*\\NGEN"
+      ],
+      "safety": "caution",
+      "description": ".NET Framework download cache and NGEN assembly binary cache."
+    },
+    {
+      "id": "nuget_global_packages",
+      "label": "NuGet global packages folder with all cached .nupkg files",
+      "paths": [
+        "%USERPROFILE%\\.nuget\\packages"
+      ],
+      "safety": "safe",
+      "description": "NuGet global packages folder with all cached .nupkg files."
+    },
+    {
+      "id": "rider_cache",
+      "label": "JetBrains Rider logs, caches, andresharper data",
+      "paths": [
+        "%APPDATA%\\JetBrains\\Rider*\\logs",
+        "%APPDATA%\\JetBrains\\Rider*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\Rider*"
+      ],
+      "safety": "safe",
+      "description": "JetBrains Rider logs, caches, andresharper data."
+    },
+    {
+      "id": "datagrip_cache",
+      "label": "JetBrains DataGrip schema cache and result set cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\DataGrip*\\logs",
+        "%APPDATA%\\JetBrains\\DataGrip*\\caches"
+      ],
+      "safety": "safe",
+      "description": "JetBrains DataGrip schema cache and result set cache."
+    },
+    {
+      "id": "clion_cache",
+      "label": "CLion CMake, compilation database, and debugger symbol cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\CLion*\\logs",
+        "%APPDATA%\\JetBrains\\CLion*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\CLion*"
+      ],
+      "safety": "safe",
+      "description": "CLion CMake, compilation database, and debugger symbol cache."
+    },
+    {
+      "id": "goland_cache",
+      "label": "GoLand caches, Go modules proxy cache, and test runner cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\GoLand*\\logs",
+        "%APPDATA%\\JetBrains\\GoLand*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\GoLand*"
+      ],
+      "safety": "safe",
+      "description": "GoLand caches, Go modules proxy cache, and test runner cache."
+    },
+    {
+      "id": "phpstorm_cache",
+      "label": "PHPStorm caches, composer PHP binary cache, and xdebug trace cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\PhpStorm*\\logs",
+        "%APPDATA%\\JetBrains\\PhpStorm*\\caches"
+      ],
+      "safety": "safe",
+      "description": "PHPStorm caches, composer PHP binary cache, and xdebug trace cache."
+    },
+    {
+      "id": "rubymine_cache",
+      "label": "RubyMine gem cache, bundler lock cache, and Rails asset pipeline cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\RubyMine*\\logs",
+        "%APPDATA%\\JetBrains\\RubyMine*\\caches"
+      ],
+      "safety": "safe",
+      "description": "RubyMine gem cache, bundler lock cache, and Rails asset pipeline cache."
+    },
+    {
+      "id": "pycharm_cache",
+      "label": "PyCharm caches, Python bytecode cache, and pytest result cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\PyCharm*\\logs",
+        "%APPDATA%\\JetBrains\\PyCharm*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\PyCharm*"
+      ],
+      "safety": "safe",
+      "description": "PyCharm caches, Python bytecode cache, and pytest result cache."
+    },
+    {
+      "id": "webstorm_cache",
+      "label": "WebStorm caches, npm resolution cache, and TypeScript project cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\WebStorm*\\logs",
+        "%APPDATA%\\JetBrains\\WebStorm*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\WebStorm*"
+      ],
+      "safety": "safe",
+      "description": "WebStorm caches, npm resolution cache, and TypeScript project cache."
+    },
+    {
+      "id": "intellij_cache",
+      "label": "IntelliJ IDEA caches, workspace layout cache, and task result cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\IntelliJIdea*\\logs",
+        "%APPDATA%\\JetBrains\\IntelliJIdea*\\caches",
+        "%LOCALAPPDATA%\\JetBrains\\IntelliJIdea*"
+      ],
+      "safety": "safe",
+      "description": "IntelliJ IDEA caches, workspace layout cache, and task result cache."
+    },
+    {
+      "id": "resharper_cache",
+      "label": "ReSharper cache, symbol server data, and extension host cache",
+      "paths": [
+        "%APPDATA%\\JetBrains\\Unoble\\ReSharperHost"
+      ],
+      "safety": "safe",
+      "description": "ReSharper cache, symbol server data, and extension host cache."
+    },
+    {
+      "id": "android_studio_cache",
+      "label": "Android Studio build cache, emulator HAXM logs, and SDK manager temp",
+      "paths": [
+        "%APPDATA%\\Google\\AndroidStudio*\\logs",
+        "%APPDATA%\\Google\\AndroidStudio*\\caches",
+        "%LOCALAPPDATA%\\Google\\AndroidStudio*"
+      ],
+      "safety": "safe",
+      "description": "Android Studio build cache, emulator HAXM logs, and SDK manager temp."
+    },
+    {
+      "id": "vscode_settings_sync",
+      "label": "VS Code settings sync log and workspace storage cache only — NOT user settings",
+      "paths": [
+        "%APPDATA%\\Code\\User\\log",
+        "%APPDATA%\\Code\\User\\workspaceStorage"
+      ],
+      "safety": "caution",
+      "description": "VS Code settings sync log and workspace storage cache only — NOT user settings."
+    },
+    {
+      "id": "matlab_cache",
+      "label": "MATLAB preferences, editor temp, and toolbox cache",
+      "paths": [
+        "%APPDATA%\\MathWorks",
+        "%LOCALAPPDATA%\\MathWorks"
+      ],
+      "safety": "safe",
+      "description": "MATLAB preferences, editor temp, and toolbox cache."
+    },
+    {
+      "id": "stata_cache",
+      "label": "Stata ado-file download cache and temporary dataset staging",
+      "paths": [
+        "%APPDATA%\\Stata"
+      ],
+      "safety": "safe",
+      "description": "Stata ado-file download cache and temporary dataset staging."
+    },
+    {
+      "id": "spss_cache",
+      "label": "IBM SPSS Statistics output cache and custom dialog cache",
+      "paths": [
+        "%APPDATA%\\IBM\\SPSS"
+      ],
+      "safety": "safe",
+      "description": "IBM SPSS Statistics output cache and custom dialog cache."
+    },
+    {
+      "id": "sas_cache",
+      "label": "SAS temp work library staging and output cache",
+      "paths": [
+        "%APPDATA%\\SAS"
+      ],
+      "safety": "safe",
+      "description": "SAS temp work library staging and output cache."
+    },
+    {
+      "id": "3dsmax_cache",
+      "label": "3ds Max scene explorer cache, Arnold render cache, and scene backup",
+      "paths": [
+        "%APPDATA%\\Autodesk\\3dsMax",
+        "%LOCALAPPDATA%\\Autodesk\\3dsMax"
+      ],
+      "safety": "safe",
+      "description": "3ds Max scene explorer cache, Arnold render cache, and scene backup."
+    },
+    {
+      "id": "maya_cache",
+      "label": "Maya scene temp, Bifrost cache, and render output staging",
+      "paths": [
+        "%APPDATA%\\Autodesk\\Maya*",
+        "%LOCALAPPDATA%\\Autodesk\\Maya*"
+      ],
+      "safety": "safe",
+      "description": "Maya scene temp, Bifrost cache, and render output staging."
+    },
+    {
+      "id": "zbrush_cache",
+      "label": "ZBrush ztools, thumbnails, and autosave staging",
+      "paths": [
+        "%APPDATA%\\Maxon",
+        "%LOCALAPPDATA%\\Maxon"
+      ],
+      "safety": "safe",
+      "description": "ZBrush ztools, thumbnails, and autosave staging."
+    },
+    {
+      "id": "cinema4d_cache",
+      "label": "Cinema 4D render cache, preview staging, and project backups",
+      "paths": [
+        "%APPDATA%\\Maxon"
+      ],
+      "safety": "safe",
+      "description": "Cinema 4D render cache, preview staging, and project backups."
+    },
+    {
+      "id": "fusion360_cache",
+      "label": "Autodesk Fusion 360 cloud sync cache and simulation result cache",
+      "paths": [
+        "%APPDATA%\\Autodesk\\Fusion 360",
+        "%LOCALAPPDATA%\\Autodesk\\Fusion 360"
+      ],
+      "safety": "safe",
+      "description": "Autodesk Fusion 360 cloud sync cache and simulation result cache."
+    },
+    {
+      "id": "wsl2_distro_cache",
+      "label": "WSL2 distribution ext4.vhdx and per-distro logs",
+      "paths": [
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.Ubuntu*",
+        "%LOCALAPPDATA%\\Packages\\CanonicalGroupLimited.WSL*",
+        "%LOCALAPPDATA%\\Lxss"
+      ],
+      "safety": "caution",
+      "description": "WSL2 distribution ext4.vhdx and per-distro logs."
+    },
+    {
+      "id": "hyperv_vmstate_cache",
+      "label": "Hyper-V saved VM state (.vsv) files and checkpoint differencing disks",
+      "paths": [
+        "%ProgramData%\\Microsoft\\Windows\\Hyper-V"
+      ],
+      "safety": "caution",
+      "description": "Hyper-V saved VM state (.vsv) files and checkpoint differencing disks."
+    },
+    {
+      "id": "dotnet_native_cache",
+      "label": ".NET Native AOT compilation cache and NGEN image service blob",
+      "paths": [
+        "%windir%\\SystemRuntime\\Files"
+      ],
+      "safety": "caution",
+      "description": ".NET Native AOT compilation cache and NGEN image service blob."
+    },
+    {
+      "id": "wolfram_cache",
+      "label": "Wolfram Mathematica temp evaluation and paclet download cache",
+      "paths": [
+        "%APPDATA%\\Wolfram"
+      ],
+      "safety": "safe",
+      "description": "Wolfram Mathematica temp evaluation and paclet download cache."
+    },
+    {
+      "id": "maple_cache",
+      "label": "Maple session logs and library update cache",
+      "paths": [
+        "%APPDATA%\\Maplesoft"
+      ],
+      "safety": "safe",
+      "description": "Maple session logs and library update cache."
+    },
+    {
+      "id": "matlab_full_cache",
+      "label": "MATLAB preferences, live script temp, and toolbox cache",
+      "paths": [
+        "%APPDATA%\\MathWorks\\MATLAB",
+        "%LOCALAPPDATA%\\MathWorks\\MATLAB"
+      ],
+      "safety": "safe",
+      "description": "MATLAB preferences, live script temp, and toolbox cache."
+    },
+    {
+      "id": "qgis_cache",
+      "label": "QGIS active project thumbnail cache,QGis, and processing algorithm cache",
+      "paths": [
+        "%APPDATA%\\QGIS"
+      ],
+      "safety": "safe",
+      "description": "QGIS active project thumbnail cache,QGis, and processing algorithm cache."
+    },
+    {
+      "id": "arcgis_cache",
+      "label": "ArcGIS Pro tile cache, geodatabase temp, and geoanalytics staging",
+      "paths": [
+        "%APPDATA%\\ESRI"
+      ],
+      "safety": "safe",
+      "description": "ArcGIS Pro tile cache, geodatabase temp, and geoanalytics staging."
+    },
+    {
+      "id": "cmake_cache",
+      "label": "CMake generated Ninja/Makefiles and compiler output cache",
+      "paths": [
+        "%USERPROFILE%\\.cmake"
+      ],
+      "safety": "safe",
+      "description": "CMake generated Ninja/Makefiles and compiler output cache."
+    },
+    {
+      "id": "meson_cache",
+      "label": "Meson build directory and introspection data cache",
+      "paths": [
+        "%USERPROFILE%\\.cache\\meson"
+      ],
+      "safety": "safe",
+      "description": "Meson build directory and introspection data cache."
+    },
+    {
+      "id": "conan_cache",
+      "label": "Conan C++ package manager downloads and recipe cache",
+      "paths": [
+        "%USERPROFILE%\\.conan"
+      ],
+      "safety": "safe",
+      "description": "Conan C++ package manager downloads and recipe cache."
+    },
+    {
+      "id": "vcpkg_cache",
+      "label": "vcpkg downloaded archives and built triplet staging",
+      "paths": [
+        "%USERPROFILE%\\source\\repos\\vcpkg"
+      ],
+      "safety": "safe",
+      "description": "vcpkg downloaded archives and built triplet staging."
+    },
+    {
+      "id": "scoop_bucket_cache",
+      "label": "Scoop bucket cache and downloaded app staging",
+      "paths": [
+        "%USERPROFILE%\\scoop\\buckets",
+        "%USERPROFILE%\\scoop\\cache"
+      ],
+      "safety": "safe",
+      "description": "Scoop bucket cache and downloaded app staging."
+    },
+    {
+      "id": "flatpak_cache",
+      "label": "Flatpak remote repo metadata and downloaded bundle staging",
+      "paths": [
+        "%USERPROFILE%\\.local\\share\\flatpak"
+      ],
+      "safety": "caution",
+      "description": "Flatpak remote repo metadata and downloaded bundle staging."
+    },
+    {
+      "id": "sdkman_cache",
+      "label": "SDKMAN! SDK candidate downloads and version staging",
+      "paths": [
+        "%USERPROFILE%\\.sdkman\\candidates"
+      ],
+      "safety": "caution",
+      "description": "SDKMAN! SDK candidate downloads and version staging."
+    },
+    {
+      "id": "vscode_cached_extensions",
+      "label": "VS Code downloaded extension .vsix files — safe to remove (auto-reinstalled)",
+      "paths": [
+        "%APPDATA%\\Code\\CachedExtensionVSIXs"
+      ],
+      "safety": "safe",
+      "description": "VS Code downloaded extension .vsix files — safe to remove (auto-reinstalled)."
+    },
+    {
+      "id": "vscode_dawn_cache",
+      "label": "VS Code Dawn WebGPU and Graphite shader caches",
+      "paths": [
+        "%APPDATA%\\Code\\DawnGraphiteCache",
+        "%APPDATA%\\Code\\DawnWebGPUCache"
+      ],
+      "safety": "safe",
+      "description": "VS Code Dawn WebGPU and Graphite shader caches."
+    },
+    {
+      "id": "vscode_webstorage",
+      "label": "VS Code WebStorage cache — extension web content",
+      "paths": [
+        "%APPDATA%\\Code\\WebStorage"
+      ],
+      "safety": "safe",
+      "description": "VS Code WebStorage cache — extension web content."
+    },
+    {
+      "id": "vscode_cached_data",
+      "label": "VS Code cached data (CachedData, CachedProfilesData)",
+      "paths": [
+        "%APPDATA%\\Code\\CachedData",
+        "%APPDATA%\\Code\\CachedProfilesData"
+      ],
+      "safety": "safe",
+      "description": "VS Code cached data (CachedData, CachedProfilesData)."
+    },
+    {
+      "id": "lm_studio_cache",
+      "label": "LM Studio AI model cache and logs",
+      "paths": [
+        "%APPDATA%\\LM Studio\\Cache",
+        "%APPDATA%\\LM Studio\\logs"
+      ],
+      "safety": "safe",
+      "description": "LM Studio AI model cache and logs."
+    },
+    {
+      "id": "claude_cli_cache",
+      "label": "Claude CLI Node.js cache",
+      "paths": [
+        "%LOCALAPPDATA%\\claude-cli-nodejs\\Cache"
+      ],
+      "safety": "safe",
+      "description": "Claude CLI Node.js cache."
+    },
+    {
+      "id": "msix_cache",
+      "label": "MSIX package staging and expansion cache",
+      "paths": [
+        "%LOCALAPPDATA%\\Microsoft\\Windows\\PackageManager",
+        "%LOCALAPPDATA%\\Packages\\_staging"
+      ],
+      "safety": "safe",
+      "description": "MSIX package staging and expansion cache."
+    },
+    {
+      "id": "clang_cache",
+      "label": "LLVM/Clang precompiled headers and modules cache",
+      "paths": [
+        "%USERPROFILE%\\.cache\\clang",
+        "%USERPROFILE%\\AppData\\Local\\clang\\Cache"
+      ],
+      "safety": "safe",
+      "description": "LLVM/Clang precompiled headers and modules cache."
+    },
+    {
+      "id": "pnpm_cache",
+      "label": "pnpm package manager cache",
+      "paths": [
+        "%USERPROFILE%\\.pnpm-store",
+        "%USERPROFILE%\\.local\\share\\npm\\cache"
+      ],
+      "safety": "safe",
+      "description": "pnpm package manager cache."
+    }
+  ]
+}
