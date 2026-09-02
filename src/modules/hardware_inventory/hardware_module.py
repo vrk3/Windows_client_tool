@@ -4,7 +4,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
+    QTableWidget, QTableWidgetItem, QTabWidget, QLabel,
     QFileDialog, QProgressBar,
 )
 from PyQt6.QtCore import QThreadPool
@@ -12,14 +12,14 @@ from PyQt6.QtCore import QThreadPool
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import COMWorker
+from core.table_ui import centered_item, center_header, fit_table, fit_last
 from modules.hardware_inventory import hardware_reader as hr
 
 
 def _make_kv_table(parent=None) -> QTableWidget:
     t = QTableWidget(0, 2, parent)
     t.setHorizontalHeaderLabels(["Property", "Value"])
-    t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-    t.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+    fit_table(t, stretch=[1], content=[0])
     t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     return t
@@ -28,15 +28,14 @@ def _make_kv_table(parent=None) -> QTableWidget:
 def _fill_kv(table: QTableWidget, rows):
     table.setRowCount(len(rows))
     for r, (k, v) in enumerate(rows):
-        table.setItem(r, 0, QTableWidgetItem(str(k)))
-        table.setItem(r, 1, QTableWidgetItem(str(v)))
+        table.setItem(r, 0, centered_item(str(k)))
+        table.setItem(r, 1, centered_item(str(v)))
 
 
 def _make_dict_table(columns, parent=None) -> QTableWidget:
     t = QTableWidget(0, len(columns), parent)
     t.setHorizontalHeaderLabels(columns)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    t.horizontalHeader().setStretchLastSection(True)
+    fit_last(t)
     t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     return t
@@ -46,7 +45,7 @@ def _fill_dict(table: QTableWidget, rows, columns):
     table.setRowCount(len(rows))
     for r, row in enumerate(rows):
         for c, col in enumerate(columns):
-            table.setItem(r, c, QTableWidgetItem(str(row.get(col, ""))))
+            table.setItem(r, c, centered_item(str(row.get(col, ""))))
 
 
 class _LoadingTab(QWidget):

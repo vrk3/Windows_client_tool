@@ -280,19 +280,11 @@ class OSContext:
 
     def _enumerate_appx(self) -> Optional[FrozenSet[str]]:
         try:
-            proc = subprocess.run(
-                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-                 "Get-AppxPackage | ForEach-Object { $_.Name }"],
-                capture_output=True, text=True, timeout=120,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            if proc.returncode != 0 and not proc.stdout.strip():
-                self._appx_failed = True
-                logger.warning("Get-AppxPackage enumeration failed: %s",
-                               (proc.stderr or "").strip()[:200])
-                return None
+            # Shared core.appx_service enumeration: one query, cached briefly,
+            # with the -AllUsers fallback for unelevated runs.
+            from core.appx_service import installed_names
             names = {line.strip().lower()
-                     for line in proc.stdout.splitlines() if line.strip()}
+                     for line in installed_names() if line.strip()}
             self._appx_names = frozenset(names)
             return self._appx_names
         except Exception as e:
@@ -317,6 +309,12 @@ class OSContext:
         """Call after removing a package so the next sweep sees the change."""
         self._appx_names = None
         self._appx_failed = False
+        # The shared service caches too; a removal must not serve stale names.
+        try:
+            from core.appx_service import invalidate_cache
+            invalidate_cache()
+        except Exception:
+            logger.debug("Ignored appx_service invalidate failure", exc_info=True)
 
     # -- applies_to evaluation --------------------------------------------
 

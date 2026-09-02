@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QColorDialog, QDialog,
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
+from core.table_ui import centered_item, center_header
 from .highlight import HighlightRule
 
 _COLUMNS = ("Pattern", "Colour", "Regex", "On")
@@ -24,6 +25,7 @@ class HighlightDialog(QDialog):
         layout = QVBoxLayout(self)
         self.table = QTableWidget(0, len(_COLUMNS), self)
         self.table.setHorizontalHeaderLabels(_COLUMNS)
+        center_header(self.table)
         self.table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         layout.addWidget(self.table, 1)
@@ -51,8 +53,9 @@ class HighlightDialog(QDialog):
     def add_rule(self, rule: HighlightRule) -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setItem(row, 0, QTableWidgetItem(rule.pattern))
+        self.table.setItem(row, 0, centered_item(rule.pattern))
         colour = QTableWidgetItem(rule.colour)
+        colour.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         colour.setBackground(QColor(rule.colour))
         # Colour is chosen through QColorDialog (see _add_blank), never
         # typed. QTableWidgetItem is editable by default and the table uses

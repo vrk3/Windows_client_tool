@@ -11,6 +11,8 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Protocol", "Local Address", "Local Port", "Remote Address", "Remote Port", "State"]
@@ -42,6 +44,7 @@ class NetworkView(QWidget):
 
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
+        center_header(self._table)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -113,7 +116,7 @@ class NetworkView(QWidget):
             if is_warn:
                 warn_count += 1
             for c, val in enumerate([proto, laddr, lport, raddr, rport, state]):
-                item = QTableWidgetItem(val)
+                item = centered_item(val)
                 if is_warn:
                     item.setForeground(_WARN_BRUSH)
                 self._table.setItem(r, c, item)

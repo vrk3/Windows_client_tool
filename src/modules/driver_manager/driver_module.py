@@ -13,6 +13,7 @@ from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker, Worker
 from modules.driver_manager.driver_reader import DriverInfo, fetch_drivers
 
@@ -71,6 +72,7 @@ class DriverModule(BaseModule):
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for i in range(1, len(COLUMNS)):
             self._table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSortingEnabled(True)
@@ -145,7 +147,7 @@ class DriverModule(BaseModule):
                 d.publisher, provider, "✓" if d.signed else "✗", d.flags,
             ]
             for c, val in enumerate(items):
-                item = QTableWidgetItem(str(val))
+                item = centered_item(str(val), sortable=(c == 0))
                 self._table.setItem(r, c, item)
             if d.error_code != 0 or not d.signed:
                 for c in range(len(COLUMNS)):

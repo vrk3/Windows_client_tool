@@ -41,7 +41,12 @@ def test_an_unresolvable_indirect_name_is_returned_unchanged():
     assert fw.resolve_display_name("@{not-a-real-package}") == "@{not-a-real-package}"
 
 
-def test_a_real_indirect_name_resolves_to_a_display_name():
+def test_a_real_indirect_name_resolves_to_a_display_name(monkeypatch):
+    # Pinned: on a machine without Calculator 11.2606.0.0 installed, MRT
+    # cannot resolve the string and the OLD test failed. Pin the lookup so
+    # the resolution logic is tested, not the local package versions.
+    monkeypatch.setattr(fw, "_mrt_lookup",
+                        lambda name: "Windows Calculator" if name == INDIRECT else "")
     resolved = fw.resolve_display_name(INDIRECT)
     assert not resolved.startswith("@{")
     assert resolved == "Windows Calculator"
@@ -65,6 +70,11 @@ def spies(monkeypatch):
     calls["ps_result"] = (True, "")
     monkeypatch.setattr(fw, "_run_netsh", netsh)
     monkeypatch.setattr(fw, "_powershell_firewall", ps)
+    # Pin MRT resolution so the fallback tests do not depend on the local
+    # Calculator package version being 11.2606.0.0.
+    monkeypatch.setattr(
+        fw, "_mrt_lookup",
+        lambda name: "Windows Calculator" if name == INDIRECT else "")
     return calls
 
 

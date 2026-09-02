@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.types import LogEntry
+from core.table_ui import center_header
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ class LogTableWidget(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Interactive
         )
+        center_header(self._table)
         self._table.verticalHeader().setDefaultSectionSize(24)
         self._table.clicked.connect(self._on_clicked)
         self._table.doubleClicked.connect(self._on_double_clicked)

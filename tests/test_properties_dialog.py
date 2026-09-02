@@ -202,11 +202,16 @@ def test_a_process_time_reads_as_a_duration():
     assert _duration(3600 * 10_000_000) == "1:00:00.000"
 
 
-def test_elapsed_time_converts_the_filetime_epoch():
+def test_elapsed_time_converts_the_filetime_epoch(monkeypatch):
     """A FILETIME counts from 1601. Compared with the clock without the
     offset it reads as several centuries -- wrong in a way nobody would
-    misread, and useless."""
-    import time as _time
+    misread, and useless.
 
-    one_hour_ago = int((_time.time() + 11644473600 - 3600) * 10_000_000)
+    The wall clock is pinned so a clock step between the fixture and the
+    assertion cannot push the answer onto the other side of the 1h mark.
+    """
+    now = 1_700_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+
+    one_hour_ago = int((now + 11644473600 - 3600) * 10_000_000)
     assert _elapsed(one_hour_ago).startswith("1:00")

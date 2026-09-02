@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from modules.registry_explorer.registry_model import RegistryTreeModel
 
@@ -111,6 +112,7 @@ class RegistryExplorerModule(BaseModule):
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        center_header(self._values_table)
         self._values_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._values_table.verticalHeader().setVisible(False)
         right_layout.addWidget(self._values_table)
@@ -135,9 +137,9 @@ class RegistryExplorerModule(BaseModule):
         for name, type_str, data in values:
             row = self._values_table.rowCount()
             self._values_table.insertRow(row)
-            self._values_table.setItem(row, 0, QTableWidgetItem(name))
-            self._values_table.setItem(row, 1, QTableWidgetItem(type_str))
-            self._values_table.setItem(row, 2, QTableWidgetItem(data))
+            self._values_table.setItem(row, 0, centered_item(name))
+            self._values_table.setItem(row, 1, centered_item(type_str))
+            self._values_table.setItem(row, 2, centered_item(data))
 
     def _copy_path(self) -> None:
         idx = self._tree.currentIndex()

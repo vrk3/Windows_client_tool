@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.backup_service import BackupService, RestorePointInfo
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ class RestoreManagerDialog(QDialog):
         hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._table)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
@@ -91,6 +93,7 @@ class RestoreManagerDialog(QDialog):
         dhdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         dhdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         dhdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._detail)
         self._detail.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._detail.verticalHeader().setVisible(False)
@@ -157,7 +160,7 @@ class RestoreManagerDialog(QDialog):
             status_text = _STATUS_ICON.get(rp.status, rp.status)
             values = [date_str, rp.label, rp.module, str(rp.step_count), status_text]
             for col, val in enumerate(values):
-                item = QTableWidgetItem(val)
+                item = centered_item(val)
                 item.setData(Qt.ItemDataRole.UserRole, rp.id)
                 if rp.status == "restored":
                     item.setForeground(self._table.palette().color(
@@ -220,17 +223,17 @@ class RestoreManagerDialog(QDialog):
             reverted = bool(r["reverted_at"])
             status = f"✓ reverted {r['reverted_at'][:16]}" if reverted else "applied"
 
-            item0 = QTableWidgetItem(r["step_type"].upper())
+            item0 = centered_item(r["step_type"].upper())
             item0.setData(Qt.ItemDataRole.UserRole, r["id"])
             item0.setData(Qt.ItemDataRole.UserRole + 1, reverted)
             self._detail.setItem(row, 0, item0)
-            self._detail.setItem(row, 1, QTableWidgetItem(r["target"]))
-            self._detail.setItem(row, 2, QTableWidgetItem(before_after))
-            self._detail.setItem(row, 3, QTableWidgetItem(status))
+            self._detail.setItem(row, 1, centered_item(r["target"]))
+            self._detail.setItem(row, 2, centered_item(before_after))
+            self._detail.setItem(row, 3, centered_item(status))
 
         if not rows:
             self._detail.insertRow(0)
-            placeholder = QTableWidgetItem(
+            placeholder = centered_item(
                 "No individual steps recorded (manual snapshots have none).")
             self._detail.setItem(0, 0, placeholder)
             self._detail.setSpan(0, 0, 1, 4)

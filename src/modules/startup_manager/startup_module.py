@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker, COMWorker
 from modules.startup_manager.startup_reader import (
     StartupEntry,
@@ -185,6 +186,7 @@ class _StartupTab(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(
             3, QHeaderView.ResizeMode.ResizeToContents
         )
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table, 1)
@@ -237,10 +239,10 @@ class _StartupTab(QWidget):
         ]
         self._table.setRowCount(len(visible))
         for r, e in enumerate(visible):
-            self._table.setItem(r, 0, QTableWidgetItem(e.name))
-            self._table.setItem(r, 1, QTableWidgetItem(e.command))
+            self._table.setItem(r, 0, centered_item(e.name))
+            self._table.setItem(r, 1, centered_item(e.command))
             self._table.setCellWidget(r, 2, self._make_status_dot(e.enabled))
-            self._table.setItem(r, 3, QTableWidgetItem(e.extra))
+            self._table.setItem(r, 3, centered_item(e.extra))
         shown = len(visible)
         total = len(self._entries)
         self._status.setText(

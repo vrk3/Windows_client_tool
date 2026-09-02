@@ -6,6 +6,8 @@ import re
 import subprocess
 import time
 import urllib.parse
+
+from core.windows_utils import ps_quote
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
@@ -430,7 +432,7 @@ class AppCatalog:
                           "package, so there is nothing here to remove")
             return False
 
-        cmd = f"Get-AppxPackage '{package_name}' | Remove-AppxPackage"
+        cmd = f"Get-AppxPackage '{ps_quote(package_name)}' | Remove-AppxPackage"
         started = time.monotonic()
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", cmd],

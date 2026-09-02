@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QThreadPool
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker
 from modules.scheduled_tasks.tasks_reader import (
     TaskInfo, TaskFolder, get_folder_tree, get_tasks_in_folder,
@@ -118,6 +119,7 @@ class TasksModule(BaseModule):
         task_table = QTableWidget(0, len(TASK_COLS))
         task_table.setHorizontalHeaderLabels(TASK_COLS)
         task_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        center_header(task_table)
         task_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         task_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
 
@@ -194,7 +196,7 @@ class TasksModule(BaseModule):
                         t.next_run, t.author, t.triggers,
                     ]
                     for c, v in enumerate(vals):
-                        task_table.setItem(r, c, QTableWidgetItem(str(v)))
+                        task_table.setItem(r, c, centered_item(str(v)))
                 status_lbl.setText(f"{len(tasks)} task(s) in {folder_path}")
 
             def on_error(err: str):

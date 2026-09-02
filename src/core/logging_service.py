@@ -127,17 +127,36 @@ class LoggingService:
             except Exception as e:
                 print(f"Could not create console handler: {e}")
 
+    def _session_fallback_dir(self) -> str:
+        """App-data logs directory, used when the exe dir is unwritable or
+        when running from source (never drop logs into the project root)."""
+        if self._log_dir:
+            return self._log_dir
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        directory = os.path.join(base, "WindowsTweaker", "logs")
+        os.makedirs(directory, exist_ok=True)
+        return directory
+
     def setup_session_log(self) -> None:
-        """Add a per-session log file next to the running exe.
+        """Add a per-session log file.
 
         The file is named {COMPUTERNAME}_{YYYY-MM-DD}_{HH-MM-SS}.log and placed
-        in the directory containing the executable (or cwd when running from source).
-        This lets logs from multiple machines be collected from one shared folder.
+        next to the running exe so logs from several machines can be collected
+        from one shared folder. When that folder is not writable (Program
+        Files), or when running from source, it goes to the app-data logs dir
+        instead — never into the working directory.
         """
         if getattr(sys, "frozen", False):
             out_dir = os.path.dirname(os.path.abspath(sys.executable))
+            probe = os.path.join(out_dir, f".wct_write_probe_{os.getpid()}")
+            try:
+                with open(probe, "w", encoding="utf-8"):
+                    pass
+                os.remove(probe)
+            except OSError:
+                out_dir = self._session_fallback_dir()
         else:
-            out_dir = os.getcwd()
+            out_dir = self._session_fallback_dir()
         self.session_log_dir = out_dir
 
         raw_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "unknown"

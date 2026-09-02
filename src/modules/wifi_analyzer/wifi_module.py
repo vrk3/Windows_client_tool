@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 import logging
 logger = logging.getLogger(__name__)
@@ -139,6 +140,7 @@ def _scan_all(_worker) -> Dict:
 def _make_table(cols: List[str]) -> QTableWidget:
     t = QTableWidget(0, len(cols))
     t.setHorizontalHeaderLabels(cols)
+    center_header(t)
     t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     for i in range(1, len(cols)):
         t.horizontalHeader().setSectionResizeMode(
@@ -316,7 +318,7 @@ class WifiAnalyzerModule(BaseModule):
             )
             for c, col in enumerate(_NET_COLS):
                 val = str(net.get(col, ""))
-                item = QTableWidgetItem(val)
+                item = centered_item(val)
                 if col == "Signal %":
                     item.setForeground(color)
                 self._net_table.setItem(r, c, item)
@@ -328,8 +330,8 @@ class WifiAnalyzerModule(BaseModule):
                 iface_rows.append((k, v))
         self._iface_table.setRowCount(len(iface_rows))
         for r, (k, v) in enumerate(iface_rows):
-            self._iface_table.setItem(r, 0, QTableWidgetItem(k))
-            self._iface_table.setItem(r, 1, QTableWidgetItem(v))
+            self._iface_table.setItem(r, 0, centered_item(k))
+            self._iface_table.setItem(r, 1, centered_item(v))
 
         # ── Channel map ───────────────────────────────────────────────────
         for band in ("2.4_GHz", "5_GHz"):

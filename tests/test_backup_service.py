@@ -1,4 +1,5 @@
 # tests/test_backup_service.py
+import os
 import sqlite3
 import winreg
 from unittest.mock import patch, MagicMock
@@ -17,6 +18,48 @@ def svc(tmp_path):
 def test_create_restore_point_returns_32char_hex(svc, tmp_path):
     rp_id = svc.create_restore_point("Test backup", "Tweaks")
     assert isinstance(rp_id, str) and len(rp_id) == 32
+
+
+def test_backup_appx_records_a_store_link(svc, tmp_path):
+    """#8: the removed-apps record carries a Store deep link so restore can
+    point the user at a real reinstall instead of a winget miss."""
+    rp_id = svc.create_restore_point("Appx", "Store Apps")
+    svc.backup_appx_package(
+        "Microsoft.WindowsCalculator", rp_id,
+        store_link="ms-windows-store://pdp/?PFN=Microsoft.WindowsCalculator_8wekyb3d8bbwe",
+    )
+    path = tmp_path / "backups" / os.listdir(tmp_path / "backups")[0] / "appx" / "removed_apps.json"
+    import json
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    assert entries == [{
+        "package": "Microsoft.WindowsCalculator",
+        "store_link": "ms-windows-store://pdp/?PFN=Microsoft.WindowsCalculator_8wekyb3d8bbwe",
+    }]
+
+
+def test_appx_revert_with_store_link_opens_the_store(monkeypatch, tmp_path):
+    """A step whose revert_command is a Store link launches the page rather
+    than gambling on winget knowing the package name."""
+    import core.backup_service as bs
+
+    started = []
+    monkeypatch.setattr(bs.os, "startfile", lambda url: started.append(url))
+
+    s = BackupService(data_dir=str(tmp_path))
+    try:
+        rp_id = s.create_restore_point("Appx link", "Store Apps")
+        s.record_steps(
+            "store_apps_batch",
+            [StepRecord("appx", "Microsoft.WindowsCalculator",
+                        "Microsoft.WindowsCalculator", None,
+                        revert_command="ms-windows-store://pdp/?PFN=X")],
+            rp_id,
+        )
+        result = s.restore_point(rp_id)
+        assert result.success
+        assert started == ["ms-windows-store://pdp/?PFN=X"]
+    finally:
+        s.close()
 
 
 def test_create_restore_point_creates_subfolders(svc, tmp_path):

@@ -12,6 +12,7 @@ from core.base_module import BaseModule
 from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
 from core.system_restore import parse_restore_point_time, sequence_numbers_to_prune
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 import logging
 
@@ -91,10 +92,7 @@ class RestoreManagerModule(BaseModule):
         self._table = QTableWidget()
         self._table.setColumnCount(4)
         self._table.setHorizontalHeaderLabels(["Name", "Date", "Type", "Size"])
-        self._table.setColumnWidth(0, 350)
-        self._table.setColumnWidth(1, 160)
-        self._table.setColumnWidth(2, 120)
-        self._table.setColumnWidth(3, 80)
+        fit_table(self._table, stretch=[0], content=[1, 2, 3])
         self._table.setAlternatingRowColors(True)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -190,7 +188,7 @@ class RestoreManagerModule(BaseModule):
                 date_str = str(ctime)[:14] if ctime else "Unknown"
 
             rptype = pt.get("RestorePointType", "Unknown")
-            name_item = QTableWidgetItem(name)
+            name_item = centered_item(name)
             try:
                 name_item.setData(Qt.ItemDataRole.UserRole, int(pt.get("SequenceNumber")))
             except (TypeError, ValueError):
@@ -198,9 +196,9 @@ class RestoreManagerModule(BaseModule):
                 # for deletion, so the row stays visible but unselectable-for-delete.
                 logger.warning("Restore point %r has no usable SequenceNumber", name)
             self._table.setItem(row, 0, name_item)
-            self._table.setItem(row, 1, QTableWidgetItem(date_str))
-            self._table.setItem(row, 2, QTableWidgetItem(rptype))
-            self._table.setItem(row, 3, QTableWidgetItem("~"))
+            self._table.setItem(row, 1, centered_item(date_str))
+            self._table.setItem(row, 2, centered_item(rptype))
+            self._table.setItem(row, 3, centered_item("~"))
 
         self._update_delete_buttons()
 

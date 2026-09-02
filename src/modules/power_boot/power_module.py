@@ -7,12 +7,13 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QTabWidget, QListWidget, QCheckBox, QSpinBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QListWidgetItem,
+    QTableWidget, QTableWidgetItem, QListWidgetItem,
 )
 from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from core.windows_utils import is_reboot_pending
 import logging
@@ -331,12 +332,7 @@ class PowerBootModule(BaseModule):
 
         boot_table = QTableWidget(0, 2)
         boot_table.setHorizontalHeaderLabels(["Property", "Value"])
-        boot_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        boot_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        fit_table(boot_table, stretch=[1], content=[0])
         boot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         bt_layout.addWidget(boot_table, 1)
 
@@ -356,8 +352,8 @@ class PowerBootModule(BaseModule):
                     rows.append(("---", "---"))
                 boot_table.setRowCount(len(rows))
                 for r, (k, v) in enumerate(rows):
-                    boot_table.setItem(r, 0, QTableWidgetItem(k))
-                    boot_table.setItem(r, 1, QTableWidgetItem(v))
+                    boot_table.setItem(r, 0, centered_item(k))
+                    boot_table.setItem(r, 1, centered_item(v))
 
             def on_error(err):
                 refresh_boot_btn.setEnabled(True)

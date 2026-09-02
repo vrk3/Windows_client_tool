@@ -45,3 +45,10 @@ def test_reboot_pending_wu_reboot_required():
          patch("winreg.QueryValueEx", return_value=(1, 4)):
         m = _reload()
         assert m.is_reboot_pending() is True
+
+
+def test_ps_quote_escapes_single_quotes():
+    from core.windows_utils import ps_quote
+    assert ps_quote("Microsoft.WindowsCalculator") == "Microsoft.WindowsCalculator"
+    assert ps_quote("it's a package") == "it''s a package"
+    assert ps_quote("") == ""

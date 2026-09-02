@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QPushButton, QCheckBox, QTableWidget,
                               QTableWidgetItem, QHeaderView)
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Time", "Event", "Detail"]
@@ -63,6 +65,7 @@ class ActivityView(QWidget):
 
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
+        center_header(self._table)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -169,7 +172,7 @@ class ActivityView(QWidget):
         row = self._table.rowCount()
         self._table.insertRow(row)
         for c, val in enumerate([ts, event, detail]):
-            item = QTableWidgetItem(val)
+            item = centered_item(val)
             item.setForeground(brush)
             self._table.setItem(row, c, item)
         if self._table.rowCount() > _MAX_ROWS:

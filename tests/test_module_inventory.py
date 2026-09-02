@@ -166,18 +166,28 @@ def test_the_filter_panel_offers_no_source_that_cannot_answer(registered):
     assert set(_ALL_SOURCES) <= reachable
 
 
-def test_the_sidebar_is_33_entries(registered):
-    """33, not 34: Process Explorer stopped being its own sidebar entry when
-    the Dashboard absorbed it. Two doors to the same room is two places to
-    kill a process from. It is still reachable -- as a Dashboard tab, which
+def test_the_sidebar_is_32_entries(registered):
+    """32, not 34: Process Explorer stopped being its own sidebar entry when
+    the Dashboard absorbed it, and PerfMon became a Dashboard tab too. Two
+    doors to the same room is two places to kill a process from. Absorbed
+    modules are still reachable -- as Dashboard tabs, which
     `_all_composite_children` covers."""
-    assert len(registered) == 33
+    assert len(registered) == 32
 
 
 def test_process_explorer_is_reachable_as_a_dashboard_tab(registered):
     """Absorbed, not deleted."""
     dashboard = next(m for m in registered if m.name == "Dashboard")
     assert "Process Explorer" in [c.name for c in dashboard.children]
+
+
+def test_perfmon_is_a_dashboard_tab_not_a_sidebar_entry(registered):
+    """Merged with the Dashboard: PerfMon's charts/alerts/live monitor live
+    on a Dashboard tab, so the sidebar does not double it."""
+    names = {m.name for m in registered}
+    assert "PerfMon" not in names
+    dashboard = next(m for m in registered if m.name == "Dashboard")
+    assert "PerfMon" in [c.name for c in dashboard.children]
 
 
 def _all_composite_children():

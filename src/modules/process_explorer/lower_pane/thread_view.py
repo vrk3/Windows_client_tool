@@ -8,6 +8,8 @@ import psutil
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["TID", "CPU%", "User Time", "System Time"]
@@ -23,6 +25,7 @@ class ThreadView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
+        center_header(self._table)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -66,4 +69,4 @@ class ThreadView(QWidget):
                 f"{t.user_time:.3f}s",
                 f"{t.system_time:.3f}s",
             ]):
-                self._table.setItem(r, c, QTableWidgetItem(val))
+                self._table.setItem(r, c, centered_item(val))

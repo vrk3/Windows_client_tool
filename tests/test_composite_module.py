@@ -213,6 +213,20 @@ def test_an_admin_child_is_a_disabled_tab_when_unelevated(qapp):
     assert host.requires_admin is False
 
 
+def test_a_read_only_admin_child_stays_live_when_unelevated(qapp):
+    """Per-module elevation: the tab opens unelevated; writes are gated."""
+    plain, ro_child = _Recorder("Plain"), _Recorder("RO", requires_admin=True)
+    ro_child.read_only_unelevated = True
+    host = _host(plain, ro_child, admin=False)
+
+    host.on_start(_FakeApp())
+    tabs = host.create_widget()
+
+    assert tabs.isTabEnabled(0) is True
+    assert tabs.isTabEnabled(1) is True
+    assert "start" in ro_child.calls
+
+
 def test_wrap_lets_a_host_keep_its_own_chrome_around_the_tabs(qapp):
     from PyQt6.QtWidgets import QVBoxLayout, QWidget as _QW
 

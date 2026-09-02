@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from modules.performance_tuner.perf_checks import PERF_CHECKS
 
@@ -55,6 +56,7 @@ class PerfTunerModule(BaseModule):
         # Table
         self._table = QTableWidget(0, 5)
         self._table.setHorizontalHeaderLabels(["Category", "Name", "Status", "Reboot?", "Action"])
+        center_header(self._table)
         hdr = self._table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -78,16 +80,16 @@ class PerfTunerModule(BaseModule):
         for check in PERF_CHECKS:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(check["category"]))
-            name_item = QTableWidgetItem(check["name"])
+            self._table.setItem(row, 0, centered_item(check["category"]))
+            name_item = centered_item(check["name"])
             name_item.setToolTip(check["description"])
             self._table.setItem(row, 1, name_item)
             status = self._statuses.get(check["id"], "unknown")
             icon = _STATUS_ICON[status]
             lbl = _STATUS_LABEL[status]
-            status_item = QTableWidgetItem(f"{icon} {lbl}")
+            status_item = centered_item(f"{icon} {lbl}")
             self._table.setItem(row, 2, status_item)
-            self._table.setItem(row, 3, QTableWidgetItem("Yes" if check["reboot"] else "No"))
+            self._table.setItem(row, 3, centered_item("Yes" if check["reboot"] else "No"))
             # Apply button per row
             apply_btn = QPushButton("Apply")
             apply_btn.setEnabled(status == "suboptimal")

@@ -128,6 +128,13 @@ HIDDEN_IMPORTS = [
     "modules.dashboard.services_module",
     "modules.dashboard.services_tab",
     "modules.process_explorer.process_explorer_module",
+    # PerfMon is a Dashboard tab (imported inside DashboardModule.__init__),
+    # so PyInstaller's static analysis would otherwise drop it.
+    "modules.perfmon.perfmon_module",
+    "modules.perfmon.perfmon_collector",
+    "modules.perfmon.perfmon_charts",
+    "modules.perfmon.perfmon_alerts",
+    "modules.perfmon.perfmon_search_provider",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means
     # PyInstaller cannot see it. The trap here is worse than a missing tab:

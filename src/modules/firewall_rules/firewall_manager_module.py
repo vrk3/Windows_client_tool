@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)
@@ -179,14 +180,13 @@ def _parse_rules(raw: str) -> List[FirewallRule]:
 # PowerShell is the fallback for what it cannot reach (~0.9s, only when needed).
 
 
-def resolve_display_name(name: str) -> str:
-    """Resolve an `@{Package?ms-resource://...}` rule name to its display name.
+def _mrt_lookup(indirect: str) -> str:
+    """Resolve one MRT indirect string to its display name via SHLoadIndirectString.
 
-    Returns the input unchanged for ordinary names, and also if resolution
-    fails -- the caller is no worse off than before.
+    Returns "" when MRT cannot resolve it -- the referenced package is not
+    installed on this machine. Kept separate from `resolve_display_name` so
+    tests can pin resolution without loading system DLLs.
     """
-    if not name.startswith("@{"):
-        return name
     try:
         import ctypes
         from ctypes import wintypes
@@ -195,11 +195,23 @@ def resolve_display_name(name: str) -> str:
         fn.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.UINT,
                        ctypes.c_void_p]
         buf = ctypes.create_unicode_buffer(1024)
-        if fn(name, buf, len(buf), None) == 0 and buf.value:
+        if fn(indirect, buf, len(buf), None) == 0 and buf.value:
             return buf.value
     except Exception:
-        logger.warning("Could not resolve indirect rule name %r", name, exc_info=True)
-    return name
+        logger.warning("Could not resolve indirect rule name %r", indirect,
+                       exc_info=True)
+    return ""
+
+
+def resolve_display_name(name: str) -> str:
+    """Resolve an `@{Package?ms-resource://...}` rule name to its display name.
+
+    Returns the input unchanged for ordinary names, and also if resolution
+    fails -- the caller is no worse off than before.
+    """
+    if not name.startswith("@{"):
+        return name
+    return _mrt_lookup(name) or name
 
 
 def _powershell_firewall(cmdlet: str, display_name: str, extra: str = "") -> Tuple[bool, str]:
@@ -538,6 +550,7 @@ class FirewallManagerModule(BaseModule):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(24)
+        center_header(self._table)
 
         layout.addWidget(self._table, 1)
 
@@ -1070,7 +1083,7 @@ class FirewallManagerModule(BaseModule):
                     rule.profile or "-")
             )
             for col, val in enumerate(vals):
-                item = QTableWidgetItem(val)
+                item = centered_item(val, sortable=(col == 0))
                 # Whatever the column width, the full value is one hover away.
                 item.setToolTip(tip)
                 # Colour coding

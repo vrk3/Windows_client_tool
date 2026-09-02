@@ -321,7 +321,8 @@ class BackupService:
             logger.warning("backup_service_state failed for %s: %s", service_name, e)
 
     def backup_appx_package(self, package_full_name: str,
-                            restore_point_id: str) -> None:
+                            restore_point_id: str,
+                            store_link: str = "") -> None:
         folder = self._get_restore_point_folder(restore_point_id)
         if folder is None:
             return
@@ -334,7 +335,10 @@ class BackupService:
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("backup_appx_package: could not read %s (%s), starting fresh", path, e)
                 existing = []
-        existing.append(package_full_name)
+        # Entries are dicts so a Store deep link can ride along. winget rarely
+        # knows a Store package by its AppX name, so the link is the reliable
+        # way back.
+        existing.append({"package": package_full_name, "store_link": store_link})
         with open(path, "w", encoding="utf-8") as f:
             json.dump(existing, f)
 
@@ -486,12 +490,17 @@ class BackupService:
                 win32service.CloseServiceHandle(hs)
                 win32service.CloseServiceHandle(hscm)
             elif step_type == "appx":
-                subprocess.run(
-                    ["winget", "install", target, "--silent",
-                     "--accept-package-agreements"],
-                    check=False, capture_output=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
+                if revert_cmd and revert_cmd.startswith("ms-windows-store://"):
+                    # winget rarely knows a Store app by its AppX name; open
+                    # its Store page so the user can reinstall it from there.
+                    os.startfile(revert_cmd)
+                else:
+                    subprocess.run(
+                        ["winget", "install", target, "--silent",
+                         "--accept-package-agreements"],
+                        check=False, capture_output=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
             elif step_type == "file":
                 src = before["src"]
                 dest = before["dest"]

@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+from core.table_ui import centered_item, center_header, fit_table
 import logging
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ class SoftwareModule(BaseModule):
         # --- Table ---
         table = QTableWidget(0, len(COLUMNS))
         table.setHorizontalHeaderLabels(COLUMNS)
+        center_header(table)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for i in range(1, len(COLUMNS)):
             table.horizontalHeader().setSectionResizeMode(
@@ -175,7 +177,7 @@ class SoftwareModule(BaseModule):
                     e.size_mb, e.type_, e.source,
                 ]
                 for c, v in enumerate(vals):
-                    table.setItem(r, c, QTableWidgetItem(str(v)))
+                    table.setItem(r, c, centered_item(str(v)))
                 # Store the full SoftwareEntry on the Name cell for later retrieval
                 table.item(r, 0).setData(Qt.ItemDataRole.UserRole, e)
 

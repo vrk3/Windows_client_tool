@@ -12,6 +12,7 @@ from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker, Worker
 
 CREATE_NO_WINDOW = 0x08000000
@@ -369,6 +370,7 @@ class ServicesModule(BaseModule):
         for i in range(1, len(cols)):
             self._table.horizontalHeader().setSectionResizeMode(
                 i, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setAlternatingRowColors(True)
@@ -498,7 +500,7 @@ class ServicesModule(BaseModule):
                 svc["Start Type"], svc["Impact"],
             ]
             for c, val in enumerate(values):
-                item = QTableWidgetItem(val)
+                item = centered_item(val)
                 if c == 2:  # Status
                     color = _STATUS_COLORS.get(svc["Status"])
                     if color:

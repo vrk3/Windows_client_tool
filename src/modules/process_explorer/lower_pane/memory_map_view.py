@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
                               QTableWidgetItem, QHeaderView)
 from PyQt6.QtGui import QColor
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Path", "RSS", "Size", "Permissions", "Private"]
@@ -27,6 +29,7 @@ class MemoryMapView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
+        center_header(self._table)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -64,7 +67,7 @@ class MemoryMapView(QWidget):
             private = self._fmt(getattr(m, "private", 0))
             size = self._fmt(getattr(m, "size", 0)) if getattr(m, "size", 0) else "—"
             for c, val in enumerate([m.path, self._fmt(m.rss), size, perms, private]):
-                item = QTableWidgetItem(val)
+                item = centered_item(val)
                 if perms and "w" in perms and "x" in perms:
                     item.setBackground(QColor(255, 255, 153))
                 self._table.setItem(r, c, item)

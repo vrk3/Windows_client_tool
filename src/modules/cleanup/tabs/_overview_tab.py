@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
 from modules.cleanup import browser_scanner as bs
@@ -113,6 +114,7 @@ class _OverviewTab(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setAlternatingRowColors(True)
@@ -126,11 +128,11 @@ class _OverviewTab(QWidget):
         for name, _ in _OV_GROUPS:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(name))
-            self._table.setItem(row, 1, QTableWidgetItem("—"))
-            self._table.setItem(row, 2, QTableWidgetItem("—"))
-            self._table.setItem(row, 3, QTableWidgetItem("—"))
-            status = QTableWidgetItem("Pending…")
+            self._table.setItem(row, 0, centered_item(name))
+            self._table.setItem(row, 1, centered_item("—"))
+            self._table.setItem(row, 2, centered_item("—"))
+            self._table.setItem(row, 3, centered_item("—"))
+            status = centered_item("Pending…")
             status.setForeground(QColor("#888888"))
             self._table.setItem(row, 4, status)
 
@@ -154,7 +156,7 @@ class _OverviewTab(QWidget):
                 self._table.setItem(row, 3, ct)
 
                 status_text = "✓ Clean" if total == 0 else f"{cs.format_size(total)} found"
-                st = QTableWidgetItem(status_text)
+                st = centered_item(status_text)
                 st.setForeground(QColor("#5cb85c" if total == 0 else "#cccccc"))
                 self._table.setItem(row, 4, st)
                 break

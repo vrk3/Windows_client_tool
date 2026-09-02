@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 from core.backup_service import BackupService, StepRecord
+from core.windows_utils import ps_quote
 from modules.tweaks.os_context import get_os_context
 
 logger = logging.getLogger(__name__)
@@ -439,10 +440,9 @@ class TweakEngine:
     def _apply_appx(self, step: Dict, rp_id: str) -> StepRecord:
         pkg = step["package"]
         self._backup.backup_appx_package(pkg, rp_id)
-        safe_pkg = pkg.replace("'", "''")
         subprocess.run(
             ["powershell", "-NoProfile", "-Command",
-             f"Get-AppxPackage '{safe_pkg}' | Remove-AppxPackage"],
+             f"Get-AppxPackage '{ps_quote(pkg)}' | Remove-AppxPackage"],
             check=False, capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )

@@ -11,6 +11,7 @@ from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 import logging
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ def _fill_table(table: QTableWidget, rows: List[Dict], cols: List[str]):
     table.setRowCount(len(rows))
     for r, row in enumerate(rows):
         for c, col in enumerate(cols):
-            table.setItem(r, c, QTableWidgetItem(str(row.get(col, ""))))
+            table.setItem(r, c, centered_item(str(row.get(col, ""))))
 
 
 class LocalUsersModule(BaseModule):
@@ -129,6 +130,7 @@ class LocalUsersModule(BaseModule):
         self._user_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self._user_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self._user_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        center_header(self._user_table)
         self._user_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._user_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._user_table.setAlternatingRowColors(True)
@@ -139,6 +141,7 @@ class LocalUsersModule(BaseModule):
         self._group_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self._group_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._group_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._group_table)
         self._group_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._group_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._group_table.setAlternatingRowColors(True)

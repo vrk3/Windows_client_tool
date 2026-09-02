@@ -29,6 +29,13 @@ from core.semantic_colors import semantic
 logger = logging.getLogger(__name__)
 
 
+class _SortableItem(QTableWidgetItem):
+    """QTableWidgetItem that compares case-insensitively for alpha sorting."""
+
+    def __lt__(self, other) -> bool:
+        return self.text().lower() < other.text().lower()
+
+
 class DebloatToolsModule(BaseModule):
     """Debloat's own three tabs. A child of `DebloatModule` below."""
 
@@ -36,6 +43,9 @@ class DebloatToolsModule(BaseModule):
     icon = "\u26a1"
     description = "Remove bloatware, disable telemetry, and harden privacy"
     requires_admin = True
+    #: Scanning and viewing states is safe unelevated; every Apply action is
+    #: gated via `require_admin()`.
+    read_only_unelevated = True
     group = ModuleGroup.OPTIMIZE
 
     def __init__(self):
@@ -113,7 +123,16 @@ class DebloatToolsModule(BaseModule):
         self._apps_table = QTableWidget()
         self._apps_table.setColumnCount(4)
         self._apps_table.setHorizontalHeaderLabels(["\u2610", "App Name", "Category", "Status"])
-        self._apps_table.horizontalHeader().setStretchLastSection(True)
+        header = self._apps_table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(1, Qt.SortOrder.AscendingOrder)
+        # Checkbox and Status size to content; App Name and Category share the width.
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self._apps_table.setSortingEnabled(True)
         self._apps_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._apps_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._apps_table.itemChanged.connect(self._on_item_changed)
@@ -158,7 +177,17 @@ class DebloatToolsModule(BaseModule):
         table = QTableWidget()
         table.setColumnCount(5)
         table.setHorizontalHeaderLabels(["\u2610", "Tweak", "Category", "Risk", "Status"])
-        table.horizontalHeader().setStretchLastSection(True)
+        header = table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(1, Qt.SortOrder.AscendingOrder)
+        # Tweak and Category share the width; the rest size to content.
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        table.setSortingEnabled(True)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setObjectName(f"_table_{tab_type}")
@@ -233,10 +262,11 @@ class DebloatToolsModule(BaseModule):
         self._apply_all_btn.setEnabled(len(installed) > 0)
 
     def _populate_apps_table(self, installed: List[str]) -> None:
+        self._apps_table.setSortingEnabled(False)
         self._apps_table.setRowCount(0)
         entries = self._load_debloat_entries()
 
-        for entry in entries.values():
+        for entry in sorted(entries.values(), key=lambda e: e.get("name", "").lower()):
             pkg = entry.get("package", "")
             if pkg not in installed:
                 continue
@@ -245,14 +275,23 @@ class DebloatToolsModule(BaseModule):
             chk = QTableWidgetItem()
             chk.setCheckState(Qt.CheckState.Unchecked)
             chk.setData(Qt.ItemDataRole.UserRole, entry["id"])
+            chk.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._apps_table.setItem(row, 0, chk)
-            self._apps_table.setItem(row, 1, QTableWidgetItem(entry.get("name", pkg)))
-            self._apps_table.setItem(row, 2, QTableWidgetItem(entry.get("category", "")))
+            name_item = _SortableItem(entry.get("name", pkg))
+            name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._apps_table.setItem(row, 1, name_item)
+            cat_item = QTableWidgetItem(entry.get("category", ""))
+            cat_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._apps_table.setItem(row, 2, cat_item)
             status_item = QTableWidgetItem("\u25cf Present")
+            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             status_item.setData(Qt.ItemDataRole.UserRole, entry["id"])
             if pkg in PROTECTED_APPS:
                 status_item.setForeground(QColor(semantic("warning")))
             self._apps_table.setItem(row, 3, status_item)
+
+        self._apps_table.setSortingEnabled(True)
+        self._apps_table.sortItems(1, Qt.SortOrder.AscendingOrder)
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() == 0:
@@ -263,6 +302,8 @@ class DebloatToolsModule(BaseModule):
             self._apply_selected_btn.setEnabled(checked > 0)
 
     def _on_apply_selected(self) -> None:
+        if not self.require_admin():
+            return
         selected_ids = []
         for r in range(self._apps_table.rowCount()):
             if self._apps_table.item(r, 0).checkState() != Qt.CheckState.Checked:
@@ -283,6 +324,8 @@ class DebloatToolsModule(BaseModule):
             self._do_apply_apps(selected_ids)
 
     def _on_apply_all_safe(self) -> None:
+        if not self.require_admin():
+            return
         selected_ids = []
         for r in range(self._apps_table.rowCount()):
             entry_id = self._apps_table.item(r, 3).data(Qt.ItemDataRole.UserRole)
@@ -402,20 +445,28 @@ class DebloatToolsModule(BaseModule):
             self._ai_tweaks = tweaks
 
         table.setRowCount(0)
+        table.setSortingEnabled(False)
         if not self._engine:
             self._engine = TweakEngine(self.app.backup)
         engine = self._engine
 
-        for tweak in tweaks:
+        for tweak in sorted(tweaks, key=lambda t: t.get("name", "").lower()):
             row = table.rowCount()
             table.insertRow(row)
             chk = QTableWidgetItem()
             chk.setCheckState(Qt.CheckState.Unchecked)
             chk.setData(Qt.ItemDataRole.UserRole, tweak.get("id", ""))
+            chk.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(row, 0, chk)
-            table.setItem(row, 1, QTableWidgetItem(tweak.get("name", "")))
-            table.setItem(row, 2, QTableWidgetItem(tweak.get("category", "")))
-            table.setItem(row, 3, QTableWidgetItem(tweak.get("risk", "")))
+            name_item = _SortableItem(tweak.get("name", ""))
+            name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 1, name_item)
+            cat_item = QTableWidgetItem(tweak.get("category", ""))
+            cat_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 2, cat_item)
+            risk_item = QTableWidgetItem(tweak.get("risk", ""))
+            risk_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 3, risk_item)
 
             status = engine.detect_status(tweak)
             status_map = {
@@ -425,9 +476,13 @@ class DebloatToolsModule(BaseModule):
             }
             status_text, status_color = status_map.get(status, status_map["unknown"])
             si = QTableWidgetItem(status_text)
+            si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             si.setForeground(status_color)
             si.setData(Qt.ItemDataRole.UserRole, tweak.get("id", ""))
             table.setItem(row, 4, si)
+
+        table.setSortingEnabled(True)
+        table.sortItems(1, Qt.SortOrder.AscendingOrder)
 
         if status_lbl:
             status_lbl.setText(f"{len(tweaks)} tweak(s) loaded")
@@ -470,6 +525,8 @@ class DebloatToolsModule(BaseModule):
             )
 
     def _on_apply_tweaks(self, tab_type: str) -> None:
+        if not self.require_admin():
+            return
         table: QTableWidget = self._widget.findChild(QTableWidget, f"_table_{tab_type}")
         if not table:
             return

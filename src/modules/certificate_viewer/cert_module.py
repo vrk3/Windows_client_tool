@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+from core.table_ui import centered_item, center_header, fit_table
 from modules.certificate_viewer.cert_reader import CertInfo, fetch_certs
 
 COLUMNS = [
@@ -76,6 +77,7 @@ class _CertTab(QWidget):
         # Certificate table
         self._table = QTableWidget(0, len(COLUMNS))
         self._table.setHorizontalHeaderLabels(COLUMNS)
+        center_header(self._table)
         self._table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch)
         for i in range(1, len(COLUMNS)):
@@ -153,7 +155,7 @@ class _CertTab(QWidget):
                 c.flag,
             ]
             for col, val in enumerate(vals):
-                item = QTableWidgetItem(str(val))
+                item = centered_item(str(val))
                 self._table.setItem(r, col, item)
 
             if "🔴" in c.flag:

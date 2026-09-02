@@ -48,3 +48,21 @@ def test_cancel_all_workers():
     assert w1.cancelled
     assert w2.cancelled
     assert mod._workers == []
+
+
+def test_require_admin_returns_true_when_elevated(monkeypatch):
+    mod = StubModule()
+    monkeypatch.setattr("core.admin_utils.is_admin", lambda: True)
+    assert mod.require_admin() is True
+
+
+def test_require_admin_blocks_and_explains_when_unelevated(monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    mod = StubModule()
+    monkeypatch.setattr("core.admin_utils.is_admin", lambda: False)
+    monkeypatch.setattr(
+        QMessageBox, "warning",
+        lambda *a, **k: QMessageBox.StandardButton.Cancel,
+    )
+    assert mod.require_admin() is False

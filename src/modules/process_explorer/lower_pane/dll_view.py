@@ -16,6 +16,8 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Name", "Description", "Company", "Version", "Base address",
@@ -71,6 +73,7 @@ class DllView(QWidget):
         # truncation makes useless.
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
@@ -136,7 +139,7 @@ class DllView(QWidget):
                 _signed(module.signature),
             ]
             for column, text in enumerate(cells):
-                self._table.setItem(index, column, QTableWidgetItem(text))
+                self._table.setItem(index, column, centered_item(text))
         signed = sum(1 for module in modules if module.signature == "valid")
         self._label.setText(
             f"{len(modules):,} modules · {signed:,} signed")

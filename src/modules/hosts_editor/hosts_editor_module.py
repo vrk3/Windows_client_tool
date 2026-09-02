@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 import logging
 
 logger = logging.getLogger(__name__)
@@ -82,9 +83,7 @@ class HostsEditorModule(BaseModule):
         self._table = QTableWidget()
         self._table.setColumnCount(4)
         self._table.setHorizontalHeaderLabels(["Enabled", "IP Address", "Hostname", "Comment"])
-        self._table.setColumnWidth(0, 60)
-        self._table.setColumnWidth(1, 160)
-        self._table.setColumnWidth(2, 250)
+        fit_table(self._table, stretch=[2, 3], content=[0, 1])
         self._table.setAlternatingRowColors(True)
         self._table.setStyleSheet("""
             QTableWidget { background: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; }
@@ -126,14 +125,14 @@ class HostsEditorModule(BaseModule):
         self._table.setRowCount(0)
         if not os.path.exists(HOSTS_PATH):
             self._table.setRowCount(1)
-            self._table.setItem(0, 1, QTableWidgetItem("Hosts file not found — run as admin"))
+            self._table.setItem(0, 1, centered_item("Hosts file not found — run as admin"))
             return
         try:
             with open(HOSTS_PATH, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
         except PermissionError:
             self._table.setRowCount(1)
-            self._table.setItem(0, 1, QTableWidgetItem("Permission denied — run as Administrator"))
+            self._table.setItem(0, 1, centered_item("Permission denied — run as Administrator"))
             return
 
         for line in lines:
@@ -154,9 +153,9 @@ class HostsEditorModule(BaseModule):
             cb.setChecked(enabled)
             cb.stateChanged.connect(lambda _, r=i: self._mark_modified(r))
             self._table.setCellWidget(i, 0, cb)
-            self._table.setItem(i, 1, QTableWidgetItem(ip))
-            self._table.setItem(i, 2, QTableWidgetItem(hostname))
-            self._table.setItem(i, 3, QTableWidgetItem(comment))
+            self._table.setItem(i, 1, centered_item(ip))
+            self._table.setItem(i, 2, centered_item(hostname))
+            self._table.setItem(i, 3, centered_item(comment))
 
     def _mark_modified(self, row):
         del row
@@ -213,9 +212,9 @@ class HostsEditorModule(BaseModule):
         cb.setChecked(True)
         cb.stateChanged.connect(lambda _: self._mark_modified(row))
         self._table.setCellWidget(row, 0, cb)
-        self._table.setItem(row, 1, QTableWidgetItem("0.0.0.0"))
-        self._table.setItem(row, 2, QTableWidgetItem("example.com"))
-        self._table.setItem(row, 3, QTableWidgetItem(""))
+        self._table.setItem(row, 1, centered_item("0.0.0.0"))
+        self._table.setItem(row, 2, centered_item("example.com"))
+        self._table.setItem(row, 3, centered_item(""))
         self._modified = True
 
     def _import_blocklist(self):
@@ -236,8 +235,8 @@ class HostsEditorModule(BaseModule):
             cb.setChecked(bool(enabled))
             cb.stateChanged.connect(lambda _, r=row: self._mark_modified(r))
             self._table.setCellWidget(row, 0, cb)
-            self._table.setItem(row, 1, QTableWidgetItem(ip))
-            self._table.setItem(row, 2, QTableWidgetItem(hostname))
-            self._table.setItem(row, 3, QTableWidgetItem(comment))
+            self._table.setItem(row, 1, centered_item(ip))
+            self._table.setItem(row, 2, centered_item(hostname))
+            self._table.setItem(row, 3, centered_item(comment))
         self._modified = True
         QMessageBox.information(self._widget, "Import Complete", f"Added {len(TELEMETRY_BLOCKLIST)} entries.")

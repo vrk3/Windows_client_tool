@@ -40,6 +40,12 @@ class BaseModule(ABC):
     icon: str
     description: str
     requires_admin: bool = False
+    #: A module that is safe to *open and read* unelevated even though its
+    #: writes need elevation. The registry and composite hosts keep it live
+    #: when unelevated; the module must gate its destructive actions through
+    #: `require_admin()`. Modules without this flag are fully disabled when
+    #: unelevated, as before.
+    read_only_unelevated: bool = False
     group: str
 
     def __init__(self) -> None:
@@ -49,6 +55,30 @@ class BaseModule(ABC):
         """
         self._workers: List[object] = []
         self.app: Optional[object] = None
+
+    def require_admin(self, parent=None) -> bool:
+        """Block a destructive action unless the app is running elevated.
+
+        Returns True when elevated, so callers can proceed. When unelevated
+        it explains why the action is blocked and offers to relaunch as
+        Administrator, then returns False.
+        """
+        from core.admin_utils import is_admin
+        if is_admin():
+            return True
+
+        from PyQt6.QtWidgets import QMessageBox
+        parent = parent if parent is not None else getattr(self, "_widget", None)
+        reply = QMessageBox.warning(
+            parent, "Administrator Required",
+            "This action needs Administrator rights.\n\n"
+            "Relaunch the application as Administrator and try again.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            from core.admin_utils import restart_as_admin
+            restart_as_admin()
+        return False
 
     @property
     def thread_pool(self) -> "QThreadPool":

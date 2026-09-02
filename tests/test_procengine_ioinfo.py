@@ -245,16 +245,32 @@ def test_the_wall_clock_is_used_when_the_driver_gives_no_timestamp():
         pytest.approx(50.0)
 
 
-def test_a_real_idle_disk_reads_as_near_zero_active():
-    """The symptom this fixed: idle disks drawing a permanent ripple."""
-    before = disk_counters()
-    time.sleep(0.5)
-    rates = disk_rates(before, disk_counters())
+def test_a_real_idle_disk_reads_as_near_zero_active(monkeypatch):
+    """The symptom this fixed: idle disks drawing a permanent ripple.
+
+    Runs against controlled counters so the machine's actual disk activity
+    (some disks are never quiet) cannot make the assertion flaky.
+    """
+    from modules.dashboard.procengine.ioinfo import HUNDRED_NS
+    import modules.dashboard.procengine.ioinfo as ioinfo_mod
+
+    calls = {"n": 0}
+
+    def fake_counters(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return [_disk(index=0, read=0, written=0, idle=0, at=0.0)]
+        return [_disk(index=0, read=0, written=0, idle=HUNDRED_NS, at=1.0)]
+
+    monkeypatch.setattr(ioinfo_mod, "disk_counters", fake_counters)
+
+    before = ioinfo_mod.disk_counters()
+    rates = ioinfo_mod.disk_rates(before, ioinfo_mod.disk_counters())
+
     quiet = [rate for rate in rates
              if not rate.read_bps and not rate.write_bps
              and rate.active_percent is not None]
-    if not quiet:
-        pytest.skip("every disk was busy")
+    assert quiet, "a fully idle disk must produce a quiet rate"
     assert max(rate.active_percent for rate in quiet) < 2.0
 
 

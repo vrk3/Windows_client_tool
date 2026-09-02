@@ -68,6 +68,23 @@ def test_admin_module_disabled_when_not_admin(mock_admin):
     assert mod in registry.disabled_modules
 
 
+class ReadOnlyAdminModule(FakeModule):
+    name = "ReadOnlyAdmin"
+    requires_admin = True
+    read_only_unelevated = True
+
+
+@patch("core.module_registry.is_admin", return_value=False)
+def test_read_only_admin_module_stays_live_unelevated(mock_admin):
+    """Per-module elevation: viewable unelevated, writes gated in-module."""
+    registry = ModuleRegistry()
+    mod = ReadOnlyAdminModule()
+    registry.register(mod)
+    registry.start_all(MagicMock())
+    assert mod.started
+    assert mod not in registry.disabled_modules
+
+
 @patch("core.module_registry.is_admin", return_value=True)
 def test_admin_module_enabled_when_admin(mock_admin):
     registry = ModuleRegistry()

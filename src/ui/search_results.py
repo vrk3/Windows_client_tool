@@ -3,6 +3,7 @@ from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QHeaderView, QTableView, QVBoxLayout, QWidget
 
 from core.search_provider import SearchResult
+from core.table_ui import centered_item, center_header, fit_table
 
 
 class SearchResultsTable(QWidget):
@@ -29,6 +30,7 @@ class SearchResultsTable(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
+        center_header(self._table)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
 
@@ -47,6 +49,7 @@ class SearchResultsTable(QWidget):
             ]
             for item in row:
                 item.setEditable(False)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._model.appendRow(row)
 
     def clear(self) -> None:

@@ -40,6 +40,11 @@ pyinstaller WinClientTool-portable.spec -y --distpath dist
 ```
 The portable spec must include `a.binaries` and `a.datas` in the EXE constructor — without these, the output is a ~3MB bootloader stub.
 
+**Code-signing** — the unsigned exe is blocked by SmartScreen/WDAC on many machines. After building, sign with `tools/sign_build.ps1` (a `.pfx` + password, or a SHA-1 thumbprint of a cert already in the user's store):
+```
+powershell -ExecutionPolicy Bypass -File tools\sign_build.ps1 -Pfx C:\certs\wct.pfx -Password "secret"
+```
+
 **Syntax check** (without running):
 ```
 python -c "import sys; sys.path.insert(0, 'src'); import main"

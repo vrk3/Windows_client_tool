@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
+from core.table_ui import centered_item, center_header, fit_table
 from core.types import LogEntry
 from modules.perfmon.perfmon_collector import PerfMonStore, collect_snapshot
 from modules.perfmon.perfmon_charts import PerfMonDashboard, _QtLineChart
@@ -124,7 +125,7 @@ class PerfMonModule(BaseModule):
         self._proc_table.setColumnCount(3)
         self._proc_table.setHorizontalHeaderLabels(["Process", "CPU %", "Memory MB"])
         self._proc_table.setRowCount(10)
-        self._proc_table.setColumnWidth(0, 200)
+        fit_table(self._proc_table, stretch=[0], content=[1, 2])
         self._proc_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         live_layout.addWidget(self._proc_table, 5, 0, 1, 2)
 
@@ -394,11 +395,11 @@ class PerfMonModule(BaseModule):
             for i in range(10):
                 if i < len(procs):
                     name, cpu_pct, mem_mb = procs[i]
-                    self._proc_table.setItem(i, 0, QTableWidgetItem(name))
-                    self._proc_table.setItem(i, 1, QTableWidgetItem(f"{cpu_pct:.1f}"))
-                    self._proc_table.setItem(i, 2, QTableWidgetItem(f"{mem_mb:.0f}"))
+                    self._proc_table.setItem(i, 0, centered_item(name))
+                    self._proc_table.setItem(i, 1, centered_item(f"{cpu_pct:.1f}"))
+                    self._proc_table.setItem(i, 2, centered_item(f"{mem_mb:.0f}"))
                 else:
                     for col in range(3):
-                        self._proc_table.setItem(i, col, QTableWidgetItem(""))
+                        self._proc_table.setItem(i, col, centered_item(""))
         except Exception as e:
             logger.debug("Live monitor update failed: %s", e)

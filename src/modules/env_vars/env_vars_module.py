@@ -6,13 +6,14 @@ from typing import List, Tuple, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit,
     QMessageBox, QPushButton, QSplitter, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +88,7 @@ class _EnvPanel(QWidget):
 
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(["Name", "Value"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        fit_table(self._table, stretch=[1], content=[0])
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
@@ -130,8 +130,8 @@ class _EnvPanel(QWidget):
         for name, value in filtered:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(name))
-            self._table.setItem(row, 1, QTableWidgetItem(value))
+            self._table.setItem(row, 0, centered_item(name))
+            self._table.setItem(row, 1, centered_item(value))
 
     def _selected_name(self) -> str | None:
         rows = self._table.selectedItems()

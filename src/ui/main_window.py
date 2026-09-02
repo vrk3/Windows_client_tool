@@ -1,4 +1,5 @@
 # src/ui/main_window.py
+import datetime
 import logging
 from typing import Dict, List, Optional
 
@@ -238,13 +239,25 @@ class MainWindow(QMainWindow):
 
         self._toolbar.set_module_actions(module.get_toolbar_actions())
         self._status_bar.set_module_info(module.get_status_info())
+        self._status_bar.set_last_updated(
+            datetime.datetime.now().strftime("%H:%M:%S"))
 
     def _start_module_refresh_timer(self, module: BaseModule, interval: int) -> None:
         """Start an auto-refresh QTimer for a module."""
         timer = QTimer()
         timer.setInterval(interval)
         refresh_method = getattr(module, "refresh_data", None) or module.on_activate
-        timer.timeout.connect(refresh_method)
+
+        def _tick() -> None:
+            try:
+                refresh_method()
+            except Exception:
+                logger.exception("Auto-refresh failed for %s", module.name)
+            # The status bar's "Updated HH:MM:SS" — one clock, every tab.
+            self._status_bar.set_last_updated(
+                datetime.datetime.now().strftime("%H:%M:%S"))
+
+        timer.timeout.connect(_tick)
         timer.start()
         self._module_refresh_timers[module.name] = timer
 

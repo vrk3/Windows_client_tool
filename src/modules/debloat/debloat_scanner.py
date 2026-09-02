@@ -1,8 +1,9 @@
 """debloat_scanner — detects installed bloatware apps and tweak states."""
-import json
 import logging
-import subprocess
 from typing import Dict, List
+
+from core.appx_service import installed_names
+from core.windows_utils import ps_quote
 
 logger = logging.getLogger(__name__)
 
@@ -70,25 +71,15 @@ KNOWN_PACKAGES = {
 
 
 def get_installed_packages() -> Dict[str, str]:
-    """Return {package_name: display_name} for known installed Appx packages."""
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command",
-         "Get-AppxPackage | Select-Object Name, PackageFullName | ConvertTo-Json -Compress"],
-        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    """Return {package_name: display_name} for known installed Appx packages.
+
+    Uses the shared `core.appx_service` enumeration (one query, cached, with
+    the unelevated fallback) rather than its own PowerShell.
+    """
     installed: Dict[str, str] = {}
-    if not result.stdout.strip():
-        return installed
-    try:
-        data = json.loads(result.stdout)
-        if isinstance(data, dict):
-            data = [data]
-        for entry in data:
-            name = entry.get("Name", "")
-            if name in KNOWN_PACKAGES:
-                installed[name] = name
-    except Exception as e:
-        logger.debug("Failed to parse AppxPackage output: %s", e)
+    for name in installed_names():
+        if name in KNOWN_PACKAGES:
+            installed[name] = name
     return installed
 
 
@@ -96,7 +87,7 @@ def check_app_installed(package_name: str) -> bool:
     """Return True if the given Appx package is installed."""
     result = subprocess.run(
         ["powershell", "-NoProfile", "-Command",
-         f"Get-AppxPackage '{package_name}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
+         f"Get-AppxPackage '{ps_quote(package_name)}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
         capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
     )
     return bool(result.stdout.strip())

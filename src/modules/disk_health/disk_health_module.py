@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from ui.empty_state import EmptyState
 
@@ -299,6 +300,7 @@ class _DiskCard(QFrame):
 
             tbl = QTableWidget(len(d.smart_attrs), 5)
             tbl.setHorizontalHeaderLabels(["ID", "Name", "Value", "Worst", "Threshold"])
+            center_header(tbl)
             tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
             tbl.verticalHeader().setVisible(False)
             tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -306,11 +308,11 @@ class _DiskCard(QFrame):
             tbl.setMaximumHeight(200)
 
             for row, attr in enumerate(d.smart_attrs):
-                tbl.setItem(row, 0, QTableWidgetItem(f"{attr.id:03d}"))
-                tbl.setItem(row, 1, QTableWidgetItem(attr.name))
-                tbl.setItem(row, 2, QTableWidgetItem(str(attr.value)))
-                tbl.setItem(row, 3, QTableWidgetItem(str(attr.worst)))
-                tbl.setItem(row, 4, QTableWidgetItem(str(attr.threshold)))
+                tbl.setItem(row, 0, centered_item(f"{attr.id:03d}"))
+                tbl.setItem(row, 1, centered_item(attr.name))
+                tbl.setItem(row, 2, centered_item(str(attr.value)))
+                tbl.setItem(row, 3, centered_item(str(attr.worst)))
+                tbl.setItem(row, 4, centered_item(str(attr.threshold)))
                 if attr.failing:
                     for col in range(5):
                         item = tbl.item(row, col)

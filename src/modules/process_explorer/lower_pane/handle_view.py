@@ -21,6 +21,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Type", "Name", "Handle", "Object address", "Access"]
@@ -48,6 +50,7 @@ class HandleView(QWidget):
         # default widths left a third of the table empty while truncating
         # "\REGISTRY\MACHINE\SOFTWARE\Microsoft\..." to nothing useful.
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
@@ -101,7 +104,7 @@ class HandleView(QWidget):
                 access_flags(entry.granted_access, row.type_name),
             ]
             for column, text in enumerate(cells):
-                item = QTableWidgetItem(text)
+                item = centered_item(text)
                 if column == 1 and not row.name:
                     # An unresolved name is greyed, so a glance separates
                     # "this object is called X" from "we could not ask".

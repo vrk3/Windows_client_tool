@@ -33,9 +33,11 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
 from modules.perfmon.perfmon_charts import _QtLineChart
+from ui.empty_state import EmptyState
 
 _ERROR_BRUSH = QBrush(QColor("#ff6666"))
 _WARN_BRUSH = QBrush(QColor("#ffcc66"))
@@ -192,6 +194,7 @@ def _build_traceroute_card() -> _ToolCard:
     # Results table
     table = QTableWidget(0, 3)
     table.setHorizontalHeaderLabels(["Hop", "IP", "Time"])
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -216,9 +219,9 @@ def _build_traceroute_card() -> _ToolCard:
             for hop_num, ip, time_str in hops:
                 row_idx = table.rowCount()
                 table.insertRow(row_idx)
-                table.setItem(row_idx, 0, QTableWidgetItem(str(hop_num)))
-                table.setItem(row_idx, 1, QTableWidgetItem(ip))
-                table.setItem(row_idx, 2, QTableWidgetItem(time_str))
+                table.setItem(row_idx, 0, centered_item(str(hop_num)))
+                table.setItem(row_idx, 1, centered_item(ip))
+                table.setItem(row_idx, 2, centered_item(time_str))
             if _widget_valid(status_label):
                 status_label.setText(f"Done — {len(hops)} hops.")
             if _widget_valid(trace_btn):
@@ -325,6 +328,7 @@ def _build_port_scanner_card() -> _ToolCard:
     # Results table — open ports only
     table = QTableWidget(0, 3)
     table.setHorizontalHeaderLabels(["Port", "Status", "Service"])
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -333,9 +337,9 @@ def _build_port_scanner_card() -> _ToolCard:
     # Empty state overlay for table
     table_stack = QStackedWidget()
     table_stack.addWidget(table)
-    empty_label = QLabel("No open ports found")
-    empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    empty_label.setStyleSheet("color: #888; font-size: 13px;")
+    empty_label = EmptyState(
+        "🔌", "No open ports found",
+        "The scan finished and nothing was open in that range.")
     empty_label.setMinimumHeight(140)
     table_stack.addWidget(empty_label)
     layout.addWidget(table_stack)
@@ -418,9 +422,9 @@ def _build_port_scanner_card() -> _ToolCard:
                 service = _WELL_KNOWN_PORTS.get(port, "")
                 r = table.rowCount()
                 table.insertRow(r)
-                table.setItem(r, 0, QTableWidgetItem(str(port)))
-                table.setItem(r, 1, QTableWidgetItem(state))
-                table.setItem(r, 2, QTableWidgetItem(service))
+                table.setItem(r, 0, centered_item(str(port)))
+                table.setItem(r, 1, centered_item(state))
+                table.setItem(r, 2, centered_item(service))
             if _widget_valid(table_stack):
                 table_stack.setCurrentIndex(0 if open_ports else 1)
             cancelled_msg = " (cancelled)" if _cancelled[0] else ""
@@ -479,6 +483,7 @@ def _build_connections_card() -> _ToolCard:
     cols = ["Local Address", "Remote Address", "Status", "PID", "Process"]
     table = QTableWidget(0, len(cols))
     table.setHorizontalHeaderLabels(cols)
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -491,11 +496,11 @@ def _build_connections_card() -> _ToolCard:
         for c in conns:
             r = table.rowCount()
             table.insertRow(r)
-            table.setItem(r, 0, QTableWidgetItem(c["local"]))
-            table.setItem(r, 1, QTableWidgetItem(c["remote"]))
-            table.setItem(r, 2, QTableWidgetItem(c["status"]))
-            table.setItem(r, 3, QTableWidgetItem(c["pid"]))
-            table.setItem(r, 4, QTableWidgetItem(c["process"]))
+            table.setItem(r, 0, centered_item(c["local"]))
+            table.setItem(r, 1, centered_item(c["remote"]))
+            table.setItem(r, 2, centered_item(c["status"]))
+            table.setItem(r, 3, centered_item(c["pid"]))
+            table.setItem(r, 4, centered_item(c["process"]))
         if _widget_valid(conn_count_label):
             conn_count_label.setText(f"{len(conns)} connection(s)")
 
@@ -598,6 +603,7 @@ def _build_adapter_card() -> _ToolCard:
     cols = ["Name", "IP", "MAC", "Netmask", "Gateway", "DNS", "Speed", "Up"]
     table = QTableWidget(0, len(cols))
     table.setHorizontalHeaderLabels(cols)
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -615,7 +621,7 @@ def _build_adapter_card() -> _ToolCard:
                 r = table.rowCount()
                 table.insertRow(r)
                 for col_idx, key in enumerate(cols):
-                    table.setItem(r, col_idx, QTableWidgetItem(a.get(key, "")))
+                    table.setItem(r, col_idx, centered_item(a.get(key, "")))
             if _widget_valid(refresh_btn):
                 refresh_btn.setEnabled(True)
 
@@ -653,6 +659,7 @@ def _build_network_errors_card() -> _ToolCard:
     cols = ["Category", "Counter", "Value"]
     table = QTableWidget(0, len(cols))
     table.setHorizontalHeaderLabels(cols)
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -679,7 +686,7 @@ def _build_network_errors_card() -> _ToolCard:
 
         table.setRowCount(len(rows))
         for r, (category, name, value, is_err, nonzero) in enumerate(rows):
-            items = [QTableWidgetItem(category), QTableWidgetItem(name), QTableWidgetItem(value)]
+            items = [centered_item(category), centered_item(name), centered_item(value)]
             if is_err and nonzero:
                 for it in items:
                     it.setForeground(_ERROR_BRUSH)
@@ -740,6 +747,7 @@ def _build_live_traffic_card() -> _ToolCard:
     cols = ["Adapter", "Bytes Sent", "Bytes Recv", "Errors In", "Errors Out", "Drops In", "Drops Out"]
     table = QTableWidget(0, len(cols))
     table.setHorizontalHeaderLabels(cols)
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -778,7 +786,7 @@ def _build_live_traffic_card() -> _ToolCard:
             table.setRowCount(len(adapters))
             for r, a in enumerate(adapters):
                 for c, key in enumerate(cols):
-                    item = QTableWidgetItem(str(a[key]))
+                    item = centered_item(str(a[key]))
                     if key in ("Errors In", "Errors Out", "Drops In", "Drops Out") and a[key]:
                         item.setForeground(_ERROR_BRUSH)
                     table.setItem(r, c, item)
@@ -835,6 +843,7 @@ def _build_packet_capture_card() -> _ToolCard:
     cols = ["Time", "Proto", "Source", "Destination", "Length", "Info"]
     table = QTableWidget(0, len(cols))
     table.setHorizontalHeaderLabels(cols)
+    center_header(table)
     table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -867,12 +876,12 @@ def _build_packet_capture_card() -> _ToolCard:
             for r, p in enumerate(packets):
                 rel_t = f"{p['time'] - _start_time[0]:.3f}"
                 items = [
-                    QTableWidgetItem(rel_t),
-                    QTableWidgetItem(p["proto"]),
-                    QTableWidgetItem(p["src"]),
-                    QTableWidgetItem(p["dst"]),
-                    QTableWidgetItem(str(p["length"])),
-                    QTableWidgetItem(p["info"]),
+                    centered_item(rel_t),
+                    centered_item(p["proto"]),
+                    centered_item(p["src"]),
+                    centered_item(p["dst"]),
+                    centered_item(str(p["length"])),
+                    centered_item(p["info"]),
                 ]
                 if p["is_error"]:
                     for it in items:

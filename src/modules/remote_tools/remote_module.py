@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)
@@ -180,6 +181,7 @@ class RemoteToolsModule(BaseModule):
 
         self._sweep_table = QTableWidget(0, 2)
         self._sweep_table.setHorizontalHeaderLabels(["IP Address", "Status"])
+        center_header(self._sweep_table)
         self._sweep_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self._sweep_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._sweep_table.verticalHeader().setVisible(False)
@@ -219,9 +221,9 @@ class RemoteToolsModule(BaseModule):
             for ip, alive in results:
                 row = self._sweep_table.rowCount()
                 self._sweep_table.insertRow(row)
-                self._sweep_table.setItem(row, 0, QTableWidgetItem(ip))
+                self._sweep_table.setItem(row, 0, centered_item(ip))
                 status = "🟢 Online" if alive else "⚫ Offline"
-                self._sweep_table.setItem(row, 1, QTableWidgetItem(status))
+                self._sweep_table.setItem(row, 1, centered_item(status))
 
         def on_done():
             self._sweep_btn.setEnabled(True)

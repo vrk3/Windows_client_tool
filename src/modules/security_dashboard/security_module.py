@@ -39,8 +39,10 @@ from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import Worker, COMWorker
 from ui.error_banner import ErrorBanner
+from ui.empty_state import EmptyState
 from modules.security_dashboard import snapshots
 from modules.security_dashboard.catalog import load_catalog
 from modules.security_dashboard.catalog.model import Category, ControlState
@@ -1114,14 +1116,10 @@ class SecurityDashboardModule(BaseModule):
         self._events_table.setColumnCount(4)
         self._events_table.setHorizontalHeaderLabels(
             ["Time", "Event ID", "Description", "Logon Info"])
-        self._events_table.setColumnWidth(0, 160)
-        self._events_table.setColumnWidth(1, 80)
-        self._events_table.setColumnWidth(2, 320)
-        self._events_table.setColumnWidth(3, 180)
+        fit_table(self._events_table, stretch=[2], content=[0, 1, 3])
         self._events_table.setAlternatingRowColors(True)
         self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._events_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._events_table.horizontalHeader().setStretchLastSection(True)
         self._events_table.setStyleSheet("""
             QTableWidget { background: #2d2d2d; color: #e0e0e0;
                            border: 1px solid #3c3c3c; border-radius: 4px; }
@@ -1133,10 +1131,12 @@ class SecurityDashboardModule(BaseModule):
         events_layout.addWidget(self._events_table)
 
         # Empty state
-        self._events_empty = QLabel("No recent security events found.\n"
-                                    "Click Refresh to load events from the Security log.")
-        self._events_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._events_empty.setStyleSheet("color: #888; padding: 40px;")
+        self._events_empty = EmptyState(
+            "🛡️", "No recent security events",
+            "Nothing found in the Security log yet. Refresh to check again.",
+            "Refresh",
+        )
+        self._events_empty.action_triggered.connect(self._load_events)
         events_layout.addWidget(self._events_empty)
         self._events_empty.hide()
 
@@ -1185,15 +1185,15 @@ class SecurityDashboardModule(BaseModule):
         for ev in events:
             row = self._events_table.rowCount()
             self._events_table.insertRow(row)
-            self._events_table.setItem(row, 0, QTableWidgetItem(ev.get("time", "")))
+            self._events_table.setItem(row, 0, centered_item(ev.get("time", "")))
 
             eid = ev.get("event_id", "")
-            eid_item = QTableWidgetItem(eid)
+            eid_item = centered_item(eid)
             eid_color = "#E74C3C" if eid == "1102" else "#e0e0e0"
             eid_item.setForeground(QColor(eid_color))
             self._events_table.setItem(row, 1, eid_item)
 
-            self._events_table.setItem(row, 2, QTableWidgetItem(
+            self._events_table.setItem(row, 2, centered_item(
                 ev.get("description", "")))
 
             # Logon type
@@ -1207,7 +1207,7 @@ class SecurityDashboardModule(BaseModule):
                           9: "New Credentials", 10: "Remote Interactive",
                           11: "Cached Interactive"}
                 logon_info = f"LogonType {m.group(1)} ({lt_map.get(logon_type, '')})"
-            self._events_table.setItem(row, 3, QTableWidgetItem(logon_info))
+            self._events_table.setItem(row, 3, centered_item(logon_info))
 
     # ── Quick Actions ─────────────────────────────────────────────────────
 
@@ -1759,6 +1759,7 @@ class SecurityDashboardModule(BaseModule):
         self._history_table = QTableWidget(0, 4)
         self._history_table.setHorizontalHeaderLabels(
             ["When", "What", "Changes", "State"])
+        fit_table(self._history_table, stretch=[1], content=[0, 2, 3])
         self._history_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
         self._history_table.itemSelectionChanged.connect(
@@ -1791,7 +1792,7 @@ class SecurityDashboardModule(BaseModule):
                                            str(point.step_count),
                                            point.status)):
                 self._history_table.setItem(index, column,
-                                            QTableWidgetItem(str(text)))
+                                            centered_item(str(text)))
         _fit_columns(self._history_table)
         self._history_status.setText(
             f"{len(rows)} batch(es) applied from this pane"

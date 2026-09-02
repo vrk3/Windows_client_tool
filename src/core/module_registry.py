@@ -47,7 +47,8 @@ class ModuleRegistry:
         _log = logging.getLogger("startup")
         running_as_admin = is_admin()
         for module in self._modules:
-            if module.requires_admin and not running_as_admin:
+            if (module.requires_admin and not running_as_admin
+                    and not module.read_only_unelevated):
                 logger.warning(
                     "Module '%s' requires admin — disabled", module.name
                 )

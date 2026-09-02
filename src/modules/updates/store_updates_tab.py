@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
+from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker, Worker
 from modules.updates.winget_updater import AppUpdate
 
@@ -58,6 +59,7 @@ class _StoreUpdatesTab(QWidget):
         self._table.setHorizontalHeaderLabels(["Name", "Id", "Installed", "Available"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self._table, 1)
@@ -79,10 +81,10 @@ class _StoreUpdatesTab(QWidget):
             return
         self._table.setRowCount(len(self._updates))
         for row, u in enumerate(self._updates):
-            self._table.setItem(row, 0, QTableWidgetItem(u.name))
-            self._table.setItem(row, 1, QTableWidgetItem(u.winget_id))
-            self._table.setItem(row, 2, QTableWidgetItem(u.installed_version))
-            self._table.setItem(row, 3, QTableWidgetItem(u.available_version))
+            self._table.setItem(row, 0, centered_item(u.name))
+            self._table.setItem(row, 1, centered_item(u.winget_id))
+            self._table.setItem(row, 2, centered_item(u.installed_version))
+            self._table.setItem(row, 3, centered_item(u.available_version))
         self._status_lbl.setText(
             f"{len(self._updates)} Store app(s) with updates."
             if self._updates else "No Store app updates pending (via winget)."

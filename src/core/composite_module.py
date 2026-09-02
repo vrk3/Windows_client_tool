@@ -68,7 +68,7 @@ class CompositeModule(BaseModule):
         self.app = app
         elevated = self._is_admin()
         for index, child in enumerate(self.children):
-            if child.requires_admin and not elevated:
+            if child.requires_admin and not elevated and not child.read_only_unelevated:
                 logger.info(
                     "%s: child '%s' requires admin — tab disabled",
                     self.name, child.name,

@@ -2,13 +2,14 @@ import winreg
 from typing import List, Dict, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
+    QTableWidget, QTableWidgetItem, QTabWidget, QLabel,
     QProgressBar, QSizePolicy)
 from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+from core.table_ui import centered_item, center_header, fit_table, fit_last
 import logging
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,7 @@ def get_mapped_drives() -> List[Dict]:
 def _make_table(columns) -> QTableWidget:
     t = QTableWidget(0, len(columns))
     t.setHorizontalHeaderLabels(columns)
-    t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-    t.horizontalHeader().setStretchLastSection(True)
+    fit_last(t)
     t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     return t
@@ -120,7 +120,7 @@ def _fill_table(table: QTableWidget, rows: List[Dict], columns: List[str]):
     table.setRowCount(len(rows))
     for r, row in enumerate(rows):
         for c, col in enumerate(columns):
-            table.setItem(r, c, QTableWidgetItem(str(row.get(col, ""))))
+            table.setItem(r, c, centered_item(str(row.get(col, ""))))
 
 
 class _RefreshTab(QWidget):

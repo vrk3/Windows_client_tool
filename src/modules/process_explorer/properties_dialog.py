@@ -7,11 +7,12 @@ from typing import Optional
 import psutil
 from PyQt6.QtWidgets import (QDialog, QTabWidget, QWidget, QVBoxLayout,
                               QHBoxLayout, QGridLayout, QLabel, QTextEdit,
-                              QTableWidget, QTableWidgetItem, QHeaderView,
+                              QTableWidget, QTableWidgetItem,
                               QPushButton, QDialogButtonBox, QLineEdit)
 from PyQt6.QtCore import Qt, QTimer
 
 from core.semantic_colors import semantic
+from core.table_ui import centered_item, center_header, fit_table
 
 from modules.dashboard.perf_graph import PerfGraph
 from modules.process_explorer.process_node import ProcessNode
@@ -362,7 +363,7 @@ class ProcessPropertiesDialog(QDialog):
         layout.addWidget(search)
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["Variable", "Value"])
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        fit_table(table, stretch=[1], content=[0])
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(table)
 
@@ -375,8 +376,8 @@ class ProcessPropertiesDialog(QDialog):
 
         table.setRowCount(len(env_items))
         for r, (k, v) in enumerate(env_items):
-            table.setItem(r, 0, QTableWidgetItem(k))
-            table.setItem(r, 1, QTableWidgetItem(v))
+            table.setItem(r, 0, centered_item(k))
+            table.setItem(r, 1, centered_item(v))
 
         def _filter(text):
             f = text.lower()

@@ -26,6 +26,7 @@ from core.worker import Worker, COMWorker
 from core.windows_utils import is_reboot_pending
 from core.blocklist import add_pattern, normalize_patterns
 from core.events import NOTIFY_BALLOON, BalloonNotifyData
+from core.table_ui import centered_item, center_header, fit_table
 from modules.updates.winget_updater import (
     fetch_updates, install_update, show_package_details, AppUpdate,
 )
@@ -122,6 +123,7 @@ class _AppUpdatesTab(QWidget):
         self._table.setHorizontalHeaderLabels(["Name", "ID", "Installed", "Available", "Source", "Result"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
@@ -197,13 +199,13 @@ class _AppUpdatesTab(QWidget):
     def _render_table(self, results: Optional[dict] = None) -> None:
         self._table.setRowCount(len(self._updates))
         for row, u in enumerate(self._updates):
-            self._table.setItem(row, 0, QTableWidgetItem(u.name))
-            self._table.setItem(row, 1, QTableWidgetItem(u.winget_id))
-            self._table.setItem(row, 2, QTableWidgetItem(u.installed_version))
-            self._table.setItem(row, 3, QTableWidgetItem(u.available_version))
-            self._table.setItem(row, 4, QTableWidgetItem(u.source))
+            self._table.setItem(row, 0, centered_item(u.name))
+            self._table.setItem(row, 1, centered_item(u.winget_id))
+            self._table.setItem(row, 2, centered_item(u.installed_version))
+            self._table.setItem(row, 3, centered_item(u.available_version))
+            self._table.setItem(row, 4, centered_item(u.source))
             result_text = (results or {}).get(u.winget_id, "")
-            result_item = QTableWidgetItem(result_text)
+            result_item = centered_item(result_text)
             if result_text == "CONFIRMED":
                 result_item.setForeground(QColor(semantic("success")))
             elif result_text == "UNCHANGED":
@@ -413,6 +415,7 @@ class _WinUpdatesTab(QWidget):
             ["KB", "Title", "Classification", "Size (MB)", "Released", "Result"]
         )
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
@@ -491,15 +494,15 @@ class _WinUpdatesTab(QWidget):
     def _render_table(self, results: Optional[dict] = None) -> None:
         self._table.setRowCount(len(self._updates))
         for row, u in enumerate(self._updates):
-            self._table.setItem(row, 0, QTableWidgetItem(u.kb))
+            self._table.setItem(row, 0, centered_item(u.kb))
             title = u.title + ("  [hidden]" if u.is_hidden else "")
-            self._table.setItem(row, 1, QTableWidgetItem(title))
-            self._table.setItem(row, 2, QTableWidgetItem(u.classification))
-            self._table.setItem(row, 3, QTableWidgetItem(f"{u.size_mb:.1f}"))
-            self._table.setItem(row, 4, QTableWidgetItem(u.release_date))
+            self._table.setItem(row, 1, centered_item(title))
+            self._table.setItem(row, 2, centered_item(u.classification))
+            self._table.setItem(row, 3, centered_item(f"{u.size_mb:.1f}"))
+            self._table.setItem(row, 4, centered_item(u.release_date))
             key = u.kb or u.title
             result_text = (results or {}).get(key, "")
-            result_item = QTableWidgetItem(result_text)
+            result_item = centered_item(result_text)
             if result_text.startswith("OK"):
                 result_item.setForeground(QColor(semantic("success")))
             elif result_text:

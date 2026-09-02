@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QHeaderView,
                              QLabel, QLineEdit, QProgressBar, QPushButton,
                              QTableWidget, QTableWidgetItem, QVBoxLayout)
 
+from core.table_ui import centered_item, center_header
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = ["Process", "PID", "Kind", "Type", "Name or path"]
@@ -85,6 +87,7 @@ class FindHandleDialog(QDialog):
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        center_header(self._table)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
@@ -179,7 +182,7 @@ class FindHandleDialog(QDialog):
             cells = [match.process, str(match.pid), match.kind,
                      match.type_name, match.detail]
             for column, text in enumerate(cells):
-                item = QTableWidgetItem(text)
+                item = centered_item(text)
                 item.setData(Qt.ItemDataRole.UserRole, match.pid)
                 self._table.setItem(index, column, item)
 
