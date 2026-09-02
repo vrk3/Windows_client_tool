@@ -530,6 +530,8 @@ class DashboardModule(CompositeModule):
         from modules.dashboard.performance_module import PerformanceModule
         from modules.dashboard.processes_module import ProcessesModule
         from modules.dashboard.users_module import UsersModule
+        from modules.dashboard.startup_module import StartupModule
+        from modules.dashboard.services_module import ServicesModule
         from modules.perfmon.perfmon_module import PerfMonModule
         from modules.process_explorer.process_explorer_module import (
             ProcessExplorerModule)
@@ -541,6 +543,8 @@ class DashboardModule(CompositeModule):
             DetailsModule(),
             UsersModule(),
             AppHistoryModule(),
+            StartupModule(),
+            ServicesModule(),
             ProcessExplorerModule(),
             PerfMonModule(),
         ]

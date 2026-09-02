@@ -18,11 +18,13 @@ def test_the_dashboard_hosts_the_process_views(module):
     """Processes before Details: the grouped view is the one most people
     want, and the 40-column table is the one you go to next. Users files
     every process under its account; App history sums each program's CPU.
-    PerfMon was absorbed as its last tab -- one place for the live
-    performance picture."""
+    Startup apps lists what runs at boot; Services mirrors the machine's
+    service list read-mostly. PerfMon was absorbed as its last tab -- one
+    place for the live performance picture."""
     assert [child.name for child in module.children] == \
         ["Overview", "Processes", "Performance", "Details", "Users",
-         "App history", "Process Explorer", "PerfMon"]
+         "App history", "Startup apps", "Services", "Process Explorer",
+         "PerfMon"]
 
 
 def test_the_old_overview_is_still_the_first_tab(module):
@@ -71,5 +73,7 @@ def test_every_child_is_in_hidden_imports():
                  "modules.dashboard.procengine.ntquery",
                  "modules.perfmon.perfmon_module",
                  "modules.dashboard.users_module",
-                 "modules.dashboard.app_history_module"):
+                 "modules.dashboard.app_history_module",
+                 "modules.dashboard.startup_module",
+                 "modules.dashboard.services_module"):
         assert f'"{name}"' in source, f"{name} is not in HIDDEN_IMPORTS"

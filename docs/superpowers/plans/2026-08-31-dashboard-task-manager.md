@@ -184,10 +184,16 @@ and the wall time between them.
 
 ## Wave 4 -- The remaining tabs
 
-- [ ] W4-01 Users: per-user resource totals, expandable to processes.
-- [ ] W4-02 App history: CPU time, network, metered network, tile updates.
-- [ ] W4-03 Startup apps with impact (reuses `startup_boot`).
-- [ ] W4-04 Services tab (reuses `services`), start/stop/restart, go to process.
+- [x] W4-01 Users: per-user resource totals, expandable to processes.
+- [x] W4-02 App history: CPU time per program since it started (network
+      and metered/tile columns are not reachable without a driver and are
+      named as absent rather than faked).
+- [x] W4-03 Startup apps: reuses `startup_reader.py` across all six
+      sources; startup-impact grades are boot telemetry this tool does not
+      read, so there is no impact column and the tab says why.
+- [x] W4-04 Services tab: reuses the `services_manager` data layer,
+      start/stop/restart with confirmation, "go to process" signal left
+      unwired.
 
 ## Wave 5 -- Polish
 
