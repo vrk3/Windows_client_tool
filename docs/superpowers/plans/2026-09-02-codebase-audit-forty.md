@@ -28,7 +28,7 @@
 **P1 (14 items) shipped** on `feat/audit-p1`, 14 commits.
 **P2 (18 items) and P3 (8 items) addressed** on `feat/audit-p2`.
 
-Thirty-four items were fixed. Six were measured and deliberately NOT done,
+Thirty-five items were fixed. Five were measured and deliberately NOT done,
 each recorded in its own task section above with the numbers that changed
 the decision:
 
@@ -37,7 +37,7 @@ the decision:
 | #10 Tweaks build cost | 1.28s was a cold-start artefact; 0.30s alone, and the JSON the plan blamed is 0.005s of it |
 | #11 auto-refresh threading | Steady state is <=11ms per child; the 201ms is one cold tick per activation |
 | #12 machine-facts cache | OS facts are read in ONE place; 128 redundant registry opens cost <1.2s total |
-| #14 remaining 480 scanners | The verifier disagreed on 28 of 93 checkable conversions — 30% |
+| ~~#14 remaining scanners~~ | **DONE.** A second verifier compares PATH SETS rather than what each side finds, so it works without the software installed: 408 of 416 matched exactly and were converted (-6,961 lines). Eight held back, two of them because the SPEC was wrong. |
 | #21 long functions | The worst has 12 locals captured by 15 closures; split by hand, not mechanically |
 | #22 security_reader split | 252 independent top-level functions are navigable by name; the risk is a mis-read security setting |
 
