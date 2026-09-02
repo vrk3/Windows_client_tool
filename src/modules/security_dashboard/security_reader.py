@@ -3122,12 +3122,15 @@ def check_service_defender_status():
     except Exception:
         return {"status": "Error", "color": "amber", "details": [("WinDefend", "Check failed")]}
 
-# Service toggles
-set_service_print_spooler = lambda e: _svc_toggle("Spooler", "Print Spooler", e)
-set_service_fax = lambda e: _svc_toggle("Fax", "Fax Service", e)
-set_service_xbox_live = lambda e: _svc_toggle("XboxNetApiSvc", "Xbox Networking", e)
-set_service_diagtrack = lambda e: _svc_toggle("DiagTrack", "Diagnostics Tracking", e)
-set_service_wsearch = lambda e: _svc_toggle("WSearch", "Windows Search", e)
+# Service toggles live ~500 lines above as `def set_service_*`, using
+# _set_service_startup. There used to be a second set of them here, as
+# lambdas over _svc_toggle, which silently replaced three of the defs by
+# being later in the file. The two are NOT equivalent: _set_service_startup
+# reports before_value as the start-type string from
+# snapshots.service_states(), _svc_toggle reports it as a bool, and which
+# one a caller got was decided by file order rather than by intent.
+# Nothing references any of them, so both sets were dead; the defs are kept
+# because they return the shape the applier's revert path reads.
 
 def set_remote_desktop(enabled: bool) -> Dict[str, Any]:
     key = r"HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server"

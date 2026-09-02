@@ -1605,24 +1605,70 @@ codebase caches where caching pays.
 - [ ] Delete `modules/config/config_manager.py`; update its callers.
 - [ ] Commit: `refactor(config): one persistence mechanism (audit #17)`
 
-## Task 22: Shorten the twenty longest functions (audit #21)
+## Task 22: Shorten the longest functions (audit #21) - RATCHET ONLY
 
-**Files:** `src/modules/scheduled_tasks/tasks_module.py:66` (278 lines), `src/modules/windows_features/features_module.py:111` (225), `src/modules/power_boot/power_module.py:179` (208), `src/modules/network_diagnostics/network_module.py:288` (175), `src/modules/software_inventory/software_module.py:120` (141), `src/modules/firewall_rules/firewall_manager_module.py:453` (141); test `tests/test_function_lengths.py`
+**Status: growth stopped, existing ones left alone deliberately.**
 
-- [ ] Test: an AST ratchet — no function in `src/` over 120 lines, budget lowered as each is split. Start the budget at the current maximum outside `log_viewer` (Task 12 handles that one).
-- [ ] Split each `create_widget` into `_build_<area>` helpers, mechanically. The full suite is the proof nothing changed.
-- [ ] Commit one module per commit: `refactor(<module>): split create_widget (audit #21)`
+The one that mattered is already split: `LogViewerWidget.__init__` at 480
+lines, in a class of 105 methods (Task 12 / audit #20). What remains is
+eleven functions over 120 lines, topped by
+`scheduled_tasks/tasks_module.py:66 create_widget` at 278.
 
-## Task 23: Split `security_reader.py` (audit #22)
+They are not being split mechanically, and the reason is concrete. That
+function has 18 top-level locals, **12 of which are captured by 15 nested
+closures**. Extracting `_build_toolbar` / `_build_tree` / `_build_table`
+means moving all twelve onto `self` and rewriting every closure that reads
+them. The LogViewer split - a far cleaner case - still leaked one local
+(`header`) across a seam and produced a NameError in a rarely-taken branch,
+caught only by an AST pass written for the purpose. Doing that eleven more
+times, on panes that cannot be clicked through here, buys readability and
+risks correctness.
 
-**Files:** `src/modules/security_dashboard/security_reader.py` (4,084 lines / 210 KB) → `readers/<category>.py`; test `tests/test_security_reader_*.py` (existing)
+`tests/test_function_lengths.py` is the deliverable: LIMIT (278) and
+OVER_120_BUDGET (11) only ever fall, so no new function may join them, and
+the Log Viewer cannot grow back.
 
-The `catalog/` package beside it is already split by category; the readers should follow the same seams.
+- [x] **Step 1: ratchet** - done.
+- [ ] **Step 2: split them** - one at a time, by someone who can run the
+      pane, checking closure capture first. Lower the budget with each.
 
-- [ ] Test: each new `readers/<category>.py` is under 600 lines, and `security_reader` still re-exports every name the catalog binds so no `reader=` reference breaks.
-- [ ] Move readers by category — defender, device_boot, network, account, app_browser, audit, update — keeping `security_reader.py` as the façade that re-exports them.
-- [ ] Run `tools/security_refusal_sweep.py` **unelevated** afterwards: it asks all 149 controls whether any answers with a value after being refused. Expect zero.
-- [ ] Commit: `refactor(security): split the readers by category (audit #22)`
+---
+
+## Task 23: Split security_reader.py (audit #22) - DECLINED, with a real fix instead
+
+**Status: the split is not worth its risk. The genuine defect in the file
+is fixed.**
+
+4,084 lines, but the shape matters: 252 **top-level** functions - 165
+`check_*`, 44 `set_*`, 36 helpers - with no shared closures and no class
+state between them. A flat list of named functions is navigable by name,
+and touching a Defender reader already cannot break a BitLocker one,
+because they are independent module-level defs. The audit's stated
+justification for splitting does not apply.
+
+Against that: this is the file where CLAUDE.md's hardest-won rule lives -
+"a refusal is not an answer", `read()` returning `None` for "could not
+look" and never `False`. A reader assigned to the wrong category during a
+reshuffle does not fail loudly; it reports a security setting that is not
+the one it read.
+
+**What was actually wrong in the file**, found by the linter in Task 1 and
+fixed here: five module-level lambdas ~500 lines below `def`s of the same
+names. Three of them - `set_service_fax`, `set_service_xbox_live`,
+`set_service_wsearch` - silently REPLACED the def by being later in the
+file. And the two forms are not equivalent: `_set_service_startup` reports
+`before_value` as the start-type string from `snapshots.service_states()`,
+`_svc_toggle` reports it as a bool. Which one a caller got was decided by
+file order. Nothing in the tree references any of the seven names, so both
+sets were dead - but that is luck, not design.
+
+- [x] **Step 1: remove the shadowing lambdas** - done.
+- [ ] **Step 2: the split** - only alongside a run of
+      `tools/security_refusal_sweep.py` (unelevated) and
+      `security_catalog_check.py --compare`, which is what would actually
+      prove the readers still read what they claim.
+
+---
 
 ## Task 24: Break the two module import cycles (audit #23)
 
