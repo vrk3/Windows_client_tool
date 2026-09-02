@@ -120,6 +120,9 @@ HIDDEN_IMPORTS = [
     "modules.dashboard.procengine.users",
     "modules.dashboard.users_tab",
     "modules.dashboard.users_module",
+    "modules.dashboard.procengine.usage",
+    "modules.dashboard.app_history_tab",
+    "modules.dashboard.app_history_module",
     "modules.process_explorer.process_explorer_module",
     # The Security Dashboard's elevated helper. main.py imports it inside
     # main(), so that the ordinary GUI start does not pay for it, which means
