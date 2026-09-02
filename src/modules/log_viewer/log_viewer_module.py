@@ -775,12 +775,19 @@ class LogViewerWidget(QWidget):
             self.open(path)
 
     def dragEnterEvent(self, event) -> None:
+        # Chained only on the path we do NOT handle: QWidget's default
+        # implementation calls event.ignore(), which would undo the
+        # acceptProposedAction above it and break the drop entirely.
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
 
     def dropEvent(self, event) -> None:
         """Open whatever was dropped: a log, several logs, or a folder.
@@ -810,6 +817,7 @@ class LogViewerWidget(QWidget):
                 "Dropped no log files (*.log, *.lo_ are what this opens).")
             return
         self.open_paths(logs)
+        event.acceptProposedAction()
 
     def choose_folder_tree(self) -> None:
         """Walk a whole tree, then show what was found before opening any of

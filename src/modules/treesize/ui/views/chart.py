@@ -143,21 +143,29 @@ class TreemapWidget(QWidget):
             else:
                 self.setToolTip("")
             self.update()
+        super().mouseMoveEvent(event)
 
     def leaveEvent(self, event):
         self._hover = -1
         self.setToolTip("")
         self.update()
+        super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         hit = self._grid.hit(event.position().x(), event.position().y()) if self._grid else None
         if hit:
             self.node_clicked.emit(hit.node)
+            event.accept()
+        else:
+            super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         hit = self._grid.hit(event.position().x(), event.position().y()) if self._grid else None
         if hit and self._store is not None and self._store.attrs[hit.node] & DIR:
             self.node_drilled.emit(hit.node)
+            event.accept()
+        else:
+            super().mouseDoubleClickEvent(event)
 
 
 class SliceChart(QWidget):
@@ -318,6 +326,9 @@ class SliceChart(QWidget):
             node = self._rows[index][0]
             if node >= 0:
                 self.node_clicked.emit(node)
+                event.accept()
+                return
+        super().mousePressEvent(event)
 
 
 class ChartView(QWidget):

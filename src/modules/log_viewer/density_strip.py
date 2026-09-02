@@ -113,3 +113,6 @@ class DensityStrip(QWidget):
         when = self.moment_at(int(event.position().x()))
         if when is not None:
             self.moment_picked.emit(when)
+            event.accept()
+        else:
+            super().mousePressEvent(event)

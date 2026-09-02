@@ -171,7 +171,11 @@ class ScanOverview(QWidget):
         return menu
 
     def contextMenuEvent(self, event) -> None:
+        # Handled, so accepted rather than chained: QWidget's default
+        # ignores the event, which would let it through to a parent that
+        # would show a second menu.
         self.build_context_menu().exec(event.globalPos())
+        event.accept()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
