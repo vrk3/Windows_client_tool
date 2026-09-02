@@ -190,7 +190,14 @@ class _ScanTab(QWidget):
             merged = cs.ScanResult()
             for r in per.values():
                 merged.items.extend(r.items)
-                merged.total_size += r.total_size
+            # Two scanners can legitimately find the same directory —
+            # %TEMP% and %LOCALAPPDATA%\Temp are the same path, so
+            # scan_temp_files and scan_user_crash_dumps both measured
+            # 39.4 GB here and summing them offered 78.8 GB of "junk" for
+            # 39.4 GB of files. It also had Clean deleting the same tree
+            # twice.
+            merged.items = cs.dedupe_items(merged.items)
+            merged.total_size = sum(i.size for i in merged.items)
             return merged, per
 
         self._scan_worker = Worker(_run)

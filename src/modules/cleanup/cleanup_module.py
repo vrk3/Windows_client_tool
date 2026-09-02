@@ -28,6 +28,114 @@ from modules.cleanup.tabs import (
 from modules.cleanup.tabs._large_items_tab import LARGE_SCANNERS
 
 
+# ── The scanners no tab named ──────────────────────────────────────────
+#
+# 404 of 537 scanners were unreachable: defined, loaded, exported, and
+# offered by nothing. The catalog-backed ones are now surfaced by
+# `_with_catalog` below; these are the hand-written remainder — the ones
+# that walk a tree, read the registry or shell out, which the conversion
+# to data deliberately left as code.
+#
+# Each label and safety level is read from the scanner's own
+# `_make_item(safety=...)`, not invented here, so nothing becomes more
+# deletable than its author made it. Where a scanner uses more than one
+# level, the most cautious wins: this tuple is what gates "Clean All Safe".
+#
+# The split is by what the scanner RETURNS, not by where it looks.
+# scan_large_files finds 42 GB of the user's own documents on this
+# machine — it belongs on Large Items with the other user-data scanners,
+# never on a cache tab.
+
+SYSTEM_EXTRA = {
+    # camelCase, so every `scan_[a-z0-9_]+` sweep missed it.
+    cs.scan_winSxS_temp: ('WinSxS Temp', 'caution'),
+    cs.scan_bits_transfers: ('Bits Transfers', 'safe'),
+    cs.scan_brackets_cache: ('Brackets Cache', 'safe'),
+    cs.scan_crash_dumps_system: ('Crash Dumps System', 'caution'),
+    cs.scan_delivery_optimization_do: ('Delivery Optimization Do', 'safe'),
+    cs.scan_dns_cache: ('Dns Cache', 'caution'),
+    cs.scan_font_files_temp: ('Font Files Temp', 'caution'),
+    cs.scan_install_temp: ('Install Temp', 'caution'),
+    cs.scan_maps_offline_cache: ('Maps Offline Cache', 'safe'),
+    cs.scan_msp_patches: ('Msp Patches', 'caution'),
+    cs.scan_ndis_cache: ('Ndis Cache', 'safe'),
+    cs.scan_novatrons_cache: ('Novatrons Cache', 'safe'),
+    cs.scan_old_av_quarantine: ('Old Av Quarantine', 'caution'),
+    cs.scan_powershell_ise_cache: ('Powershell Ise Cache', 'safe'),
+    cs.scan_powershell_modules_cache: ('Powershell Modules Cache', 'safe'),
+    cs.scan_printer_driver_cache: ('Printer Driver Cache', 'caution'),
+    cs.scan_search_index: ('Search Index', 'caution'),
+    cs.scan_triumph_cache: ('Triumph Cache', 'safe'),
+    cs.scan_userprofile_temp: ('Userprofile Temp', 'safe'),
+    cs.scan_winSxS_temp: ('Winsxs Temp', 'caution'),
+    cs.scan_windows_app_extensions_cache: ('Windows App Extensions Cache', 'safe'),
+    cs.scan_windows_compatibility_cache: ('Windows Compatibility Cache', 'safe'),
+    cs.scan_windows_connected_accounts_cache: ('Windows Connected Accounts Cache', 'safe'),
+    cs.scan_windows_inbox_apps_cache: ('Windows Inbox Apps Cache', 'safe'),
+    cs.scan_windows_insider_preview_cache: ('Windows Insider Preview Cache', 'caution'),
+    cs.scan_windows_installer_cache: ('Windows Installer Cache', 'caution'),
+    cs.scan_windows_installer_rollback: ('Windows Installer Rollback', 'caution'),
+    cs.scan_windows_optional_features: ('Windows Optional Features', 'caution'),
+    cs.scan_windows_printer_migration_cache: ('Windows Printer Migration Cache', 'caution'),
+    cs.scan_windows_recovery_env_cache: ('Windows Recovery Env Cache', 'safe'),
+    cs.scan_windows_shell_cache: ('Windows Shell Cache', 'safe'),
+    cs.scan_windows_terminal_cache: ('Windows Terminal Cache', 'safe'),
+    cs.scan_windows_terminal_settings_cache: ('Windows Terminal Settings Cache', 'safe'),
+    cs.scan_winsxs_cleanup: ('Winsxs Cleanup', 'caution'),
+}
+
+LOGS_EXTRA = {
+    cs.scan_appx_logs: ('Appx Logs', 'caution'),
+    cs.scan_bitlocker_logs: ('Bitlocker Logs', 'safe'),
+    cs.scan_dbg_logs: ('Dbg Logs', 'safe'),
+    cs.scan_diagnostic_data: ('Diagnostic Data', 'caution'),
+    cs.scan_network_debug_logs: ('Network Debug Logs', 'safe'),
+    cs.scan_perflogs: ('Perflogs', 'safe'),
+    cs.scan_print_nightmare_logs: ('Print Nightmare Logs', 'caution'),
+    cs.scan_sysinternals_logs: ('Sysinternals Logs', 'safe'),
+    cs.scan_windows_defender_logs: ('Windows Defender Logs', 'safe'),
+    cs.scan_windows_insider_logs: ('Windows Insider Logs', 'caution'),
+    cs.scan_windows_reliability_logs: ('Windows Reliability Logs', 'safe'),
+}
+
+LARGE_EXTRA = {
+    cs.scan_backup_files: ('Backup Files', 'caution'),
+    cs.scan_downloads_folder_old: ('Downloads Folder Old', 'caution'),
+    cs.scan_duplicate_files: ('Duplicate Files', 'caution'),
+    cs.scan_iso_vhd_files: ('Iso Vhd Files', 'caution'),
+    cs.scan_large_files: ('Large Files', 'caution'),
+    cs.scan_old_files: ('Old Files', 'caution'),
+    cs.scan_old_restore_points: ('Old Restore Points', 'caution'),
+    cs.scan_recycle_bin_drive: ('Recycle Bin Drive', 'safe'),
+    cs.scan_usb_shadow_copies: ('Usb Shadow Copies', 'safe'),
+    cs.scan_virtual_drives: ('Virtual Drives', 'caution'),
+}
+
+
+def _with_catalog(curated: dict, *categories: str) -> dict:
+    """The hand-picked scanners, then everything else in `categories`.
+
+    Curated entries come FIRST and win on collision: they carry labels and
+    safety levels someone chose ("GPU Shader Cache" reads better than the
+    catalog's derived label), and dedupe_items keeps the first occurrence
+    of a path, so ordering is what preserves them.
+
+    Everything after them is the rest of the catalog. 404 of 537 scanners
+    were unreachable before this — defined, loaded, exported, and offered
+    by no tab — which is why a glob bug could stop 62 of them matching
+    anything without anyone noticing.
+    """
+    from modules.cleanup.cleanup_scanner.catalog import scanners_for
+
+    merged = dict(curated)
+    for category in categories:
+        for fn, meta in scanners_for(category).items():
+            names = {f.__name__ for f in merged}
+            if fn.__name__ not in names:
+                merged[fn] = meta
+    return merged
+
+
 class CleanupModule(BaseModule):
     name = "Cleanup"
     icon = "🗑️"
@@ -65,7 +173,8 @@ class CleanupModule(BaseModule):
             cs.scan_thumbnail_cache:  ("Thumbnail Cache",   "safe"),
             cs.scan_user_crash_dumps: ("User Crash Dumps",  "caution"),
         }
-        self._sys_tab = _ScanTab(sys_scanners)
+        self._sys_tab = _ScanTab(
+            _with_catalog({**sys_scanners, **SYSTEM_EXTRA}, "system"))
         self._tabs.addTab(self._sys_tab, "System Junk")
 
         # 3. Browser Caches
@@ -83,7 +192,14 @@ class CleanupModule(BaseModule):
             cs.scan_outlook_cache:        ("Outlook Cache",           "safe"),
             cs.scan_winget_packages:      ("WinGet Packages",         "safe"),
         }
-        self._app_tab = _ScanTab(app_scanners)
+        # "browsers" is here rather than on the Browser Caches tab: that
+        # tab runs EnhancedBrowserScanner, which enumerates live profiles
+        # and takes no scanner dict at all, so the catalog's per-browser
+        # path scanners had nowhere to appear. Overlap between the two is
+        # handled by dedupe_items, which counts a path once.
+        self._app_tab = _ScanTab(_with_catalog(
+            app_scanners, "apps", "games", "media", "comms", "cloud",
+            "browsers"))
         self._tabs.addTab(self._app_tab, "App & Game Caches")
 
         # 5. Windows Update
@@ -105,7 +221,7 @@ class CleanupModule(BaseModule):
             cs.scan_onedrive_logs:    ("OneDrive Logs",      "safe"),
             cs.scan_defender_history: ("Defender History",   "safe"),
         }
-        self._logs_tab = _ScanTab(log_scanners)
+        self._logs_tab = _ScanTab({**log_scanners, **LOGS_EXTRA})
         self._tabs.addTab(self._logs_tab, "Logs & Reports")
 
         # 7. Large Items + DISM
@@ -116,7 +232,7 @@ class CleanupModule(BaseModule):
         dev_scanners = {
             cs.scan_dev_tool_caches: ("Dev Tool Caches", "safe"),
         }
-        self._dev_tab = _ScanTab(dev_scanners)
+        self._dev_tab = _ScanTab(_with_catalog(dev_scanners, "dev"))
         self._tabs.addTab(self._dev_tab, "Dev Tools")
 
         # ── Wire signals ──

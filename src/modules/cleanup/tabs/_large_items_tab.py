@@ -33,7 +33,8 @@ class _LargeItemsTab(QWidget):
         layout.setSpacing(0)
 
         # Main scan tab
-        self._scan_tab = _ScanTab(LARGE_SCANNERS)
+        from modules.cleanup.cleanup_module import LARGE_EXTRA
+        self._scan_tab = _ScanTab({**LARGE_SCANNERS, **LARGE_EXTRA})
         self._scan_tab.freed_bytes.connect(self.freed_bytes)
         layout.addWidget(self._scan_tab, 1)
 

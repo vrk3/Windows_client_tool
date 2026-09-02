@@ -231,57 +231,91 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# 404 of the 537 scanners are never referenced outside the scanner
-# package. They load, they are exported, and no tab ever offers them: the
-# UI wires its categories explicitly, in quick_cleanup_tab (96 scanners),
-# _overview_tab (78), cleanup_module (23) and _large_items_tab (3).
+# All 537 scanners are now reachable. 404 of them were not: they loaded,
+# they were exported, and no tab offered them, because the UI wired its
+# categories by hand in four files and everything else simply existed.
+# That is why 62 scanners could carry a glob bug that meant they never
+# matched anything, and why ten pairs could point at identical paths,
+# without anyone noticing — nobody was looking, because nobody could.
 #
-# This predates the conversion to data — the 538 hand-written functions
-# were equally unreachable — and it explains a lot: it is why 62 scanners
-# could have a glob bug that meant they never matched anything, and why ten
-# pairs could point at identical paths, without anyone noticing. Nobody was
-# looking at them, because nobody could.
-#
-# Whether to surface them is a product decision, so this is pinned rather
-# than fixed. The numbers are here so the gap is visible.
+# The catalog-backed 456 come from `scanners_for(category)`, so a scanner
+# is offered as soon as it is defined. The 81 hand-written ones are named
+# explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
+# split by what they RETURN rather than where they look: scan_large_files
+# finds 42 GB of the user's own documents, so it sits on Large Items with
+# the other user-data scanners, never on a cache tab.
 
-REACHABLE_SCANNERS = 133
+REACHABLE_SCANNERS = 537
 
 
-def _referenced_scanner_names():
-    import pathlib
-    import re
-    root = pathlib.Path(__file__).resolve().parent.parent
-    names = set()
-    for area in ("src", "tests", "tools"):
-        for path in (root / area).rglob("*.py"):
-            if "cleanup_scanner" in str(path) or "__pycache__" in str(path):
-                continue
-            names |= set(re.findall(
-                r"\bscan_[a-z0-9_]+",
-                path.read_text(encoding="utf-8", errors="replace")))
-    return names
+def _scanners_the_tabs_offer():
+    """Every scanner reachable from the Cleanup pane, by building it.
+
+    Asked of the built tabs rather than by grepping for names: 456 of them
+    now arrive through `scanners_for(category)` and their names appear
+    nowhere in the source, which is the entire point of making them data.
+    A name-grep would report them as unreachable while the user is looking
+    at them.
+    """
+    import tempfile
+
+    from app import App
+    from modules.cleanup.cleanup_module import CleanupModule
+
+    from modules.cleanup.quick_cleanup_module import QuickCleanupModule
+    from modules.cleanup.tabs._overview_tab import _OV_GROUPS
+
+    App.instance = None
+    app = App(app_data_dir=tempfile.mkdtemp())
+    held = []
+    try:
+        offered = set()
+
+        # The Overview's own groups, declared at module level.
+        for _name, fns in _OV_GROUPS:
+            if fns:
+                offered |= {fn.__name__ for fn in fns}
+
+        # Both panes that show scanners: Cleanup's eight tabs, and Quick
+        # Cleanup's one-page dashboard. Counting only the first reported
+        # 509 of 537 and blamed the wiring, when the missing 17 were simply
+        # on the other pane.
+        for factory in (CleanupModule, QuickCleanupModule):
+            module = factory()
+            module.on_start(app)
+            # Held, not discarded: dropping the returned widget lets Qt
+            # destroy the whole tree, and every tab access then raises
+            # "wrapped C/C++ object of type _ScanTab has been deleted".
+            held.append(module.create_widget())
+            for attr in dir(module):
+                tab = getattr(module, attr, None)
+                for owner in (tab, getattr(tab, "_scan_tab", None)):
+                    scanners = getattr(owner, "_scanners", None)
+                    if isinstance(scanners, dict):
+                        offered |= {fn.__name__ for fn in scanners}
+                for mapping in ("_id_map", "_adv_scanner_map"):
+                    table = getattr(tab, mapping, None) or getattr(module, mapping, None)
+                    if isinstance(table, dict):
+                        for value in table.values():
+                            fn = value[0] if isinstance(value, tuple) else value
+                            if callable(fn):
+                                offered |= {fn.__name__}
+        return offered
+    finally:
+        try:
+            app.shutdown()
+        except Exception:  # noqa: BLE001 - teardown
+            pass
 
 
-def _all_scanner_names(catalog):
-    import ast
-    import pathlib
-    names = {f"scan_{i}" for i in catalog}
-    pkg = pathlib.Path(__file__).resolve().parent.parent / "src" / "modules" / "cleanup" / "cleanup_scanner"
-    for path in pkg.glob("scanners_*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        names |= {n.name for n in tree.body
-                  if isinstance(n, ast.FunctionDef) and n.name.startswith("scan_")}
-    return names
-
-
-def test_the_number_of_reachable_scanners_does_not_fall(catalog):
-    """A scanner that stops being referenced stops being offered, and
-    nothing else says so."""
-    reachable = _all_scanner_names(catalog) & _referenced_scanner_names()
-    assert len(reachable) >= REACHABLE_SCANNERS, (
-        f"only {len(reachable)} scanners are wired into the UI, was "
-        f"{REACHABLE_SCANNERS} — something stopped being offered")
+def test_every_scanner_is_offered_somewhere(qapp, catalog):
+    """404 of 537 used to be unreachable. None are now, and none may
+    become so again: a scanner nobody can reach is knowledge about where an
+    application caches things, kept and never used."""
+    offered = _scanners_the_tabs_offer()
+    assert len(offered) >= REACHABLE_SCANNERS, (
+        f"only {len(offered)} scanners are offered by the Cleanup tabs, "
+        f"expected at least {REACHABLE_SCANNERS}")
 
 
 def test_no_scanner_was_lost_in_the_conversion(catalog):

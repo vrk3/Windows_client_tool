@@ -1,5 +1,10 @@
 # UTF-8
 #
+# GENERATED from version_info.txt.in at build time by
+# pyinstaller_common.render_version_info(). Edit the .in file, and
+# the version itself in src/_version.py -- editing this one is
+# overwritten by the next build.
+#
 # For more details about fixed file info 'ffi' see:
 # http://msdn.microsoft.com/en-us/library/aa381058.aspx
 VSVersionInfo(

@@ -65,4 +65,56 @@ def _make_item_with_age(path: str, safety: str, min_age_days: int) -> Optional[S
     except OSError:
         return None
 
-__all__ = ['ScanItem', 'ScanResult', 'get_dir_size', 'format_size', '_make_item', '_make_item_with_age', 'logger']
+__all__ = ['ScanItem', 'ScanResult', 'get_dir_size', 'format_size',
+           '_make_item', '_make_item_with_age', 'dedupe_items',
+           'total_of', 'logger']
+
+
+def dedupe_items(items: List[ScanItem]) -> List[ScanItem]:
+    r"""Drop items already covered by another item in the list.
+
+    Two scanners can legitimately point at the same directory — `%TEMP%`
+    and `%LOCALAPPDATA%\Temp` are the SAME path on Windows, so
+    `scan_temp_files` and `scan_user_crash_dumps` both measured 39.4 GB and
+    a naive sum reported 78.8 GB of "junk" for 39.4 GB of files. It also
+    means Clean tries to delete the same tree twice.
+
+    Two shapes are removed:
+
+    * the same path twice, however each scanner spelled it, and
+    * a path NESTED inside a directory already in the list — `%TEMP%\*.dmp`
+      is counted by its parent `%TEMP%`, so counting it again inflates the
+      total by the size of the dumps.
+
+    The first occurrence wins, so the caller controls precedence by
+    ordering. Sizes are not recomputed: each surviving item keeps the size
+    its own scanner measured.
+    """
+    seen: dict = {}
+    kept: List[ScanItem] = []
+    for item in items:
+        key = os.path.normcase(os.path.normpath(item.path))
+        if key in seen:
+            continue
+        seen[key] = True
+        kept.append(item)
+
+    # Second pass for nesting, against the directories that survived.
+    directories = sorted(
+        (os.path.normcase(os.path.normpath(i.path)) for i in kept if i.is_dir),
+        key=len)
+    if not directories:
+        return kept
+
+    final: List[ScanItem] = []
+    for item in kept:
+        key = os.path.normcase(os.path.normpath(item.path))
+        if any(key.startswith(parent + os.sep) for parent in directories):
+            continue
+        final.append(item)
+    return final
+
+
+def total_of(items: List[ScanItem]) -> int:
+    """Bytes these items really represent, counting nothing twice."""
+    return sum(i.size for i in dedupe_items(items))

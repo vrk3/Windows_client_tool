@@ -202,14 +202,22 @@ class _OverviewTab(QWidget):
                         except Exception as e:
                             logger.warning(f"Browser scan failed: {e}")
                     else:
+                        # Collected first, then deduplicated: two scanners
+                        # in one group can find the same directory (%TEMP%
+                        # and %LOCALAPPDATA%\Temp are the same path), and
+                        # summing their totals reported twice the bytes
+                        # that are really there.
+                        found = []
                         for fn in fns:
                             try:
                                 r = fn(min_age_days=0)
-                                total += r.total_size
-                                safe  += sum(i.size for i in r.items if i.safety == "safe")
-                                count += len(r.items)
+                                found.extend(r.items)
                             except Exception as e:
                                 logger.warning(f"Scan {fn.__name__} failed: {e}")
+                        unique = cs.dedupe_items(found)
+                        total += sum(i.size for i in unique)
+                        safe  += sum(i.size for i in unique if i.safety == "safe")
+                        count += len(unique)
                     return gname, total, safe, count
 
                 def _res(data):

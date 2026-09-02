@@ -168,3 +168,40 @@ def scanner_for(spec_id: str) -> Callable[..., ScanResult]:
 def all_scanners() -> Dict[str, Callable[..., ScanResult]]:
     """`{"scan_<id>": callable}` for every spec in the catalog."""
     return {f"scan_{spec_id}": scanner_for(spec_id) for spec_id in load_catalog()}
+
+
+#: What each catalog category is called in the cleanup UI, and which tab it
+#: belongs on. Ordered as the tabs are.
+CATEGORY_TABS = {
+    "system":   "System Junk",
+    "browsers": "Browser Caches",
+    "apps":     "App Caches",
+    "games":    "Game Caches",
+    "media":    "Media & Creative",
+    "comms":    "Chat & Meetings",
+    "cloud":    "Cloud Storage",
+    "dev":      "Dev Tools",
+}
+
+
+def scanners_for(category: str) -> Dict[Callable[..., ScanResult], tuple]:
+    """`{callable: (label, safety)}` for one category — the shape the
+    cleanup tabs already pass around.
+
+    This is what makes the catalog reachable. 404 of 537 scanners were
+    never referenced by any tab: the UI wired its categories by hand, in
+    four files, and everything else simply existed. Building a tab from the
+    catalog instead means a scanner is offered as soon as it is defined.
+    """
+    return {
+        scanner_for(spec_id): (spec.label, spec.safety)
+        for spec_id, spec in sorted(load_catalog().items(),
+                                    key=lambda kv: kv[1].label.lower())
+        if spec.category == category and not spec.disabled_reason
+    }
+
+
+def scanners_by_tab() -> Dict[str, Dict[Callable[..., ScanResult], tuple]]:
+    """Every catalog scanner, grouped by the tab that should show it."""
+    return {tab: scanners_for(category)
+            for category, tab in CATEGORY_TABS.items()}
