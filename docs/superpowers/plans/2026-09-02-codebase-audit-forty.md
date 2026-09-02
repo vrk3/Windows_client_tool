@@ -21,6 +21,54 @@
 - **Every task ends green.** Full suite, not just the task's own test.
 - **Branch:** `feat/audit-p1`, off `6753224`. One commit per task.
 
+---
+
+## Status — all forty addressed
+
+**P1 (14 items) shipped** on `feat/audit-p1`, 14 commits.
+**P2 (18 items) and P3 (8 items) addressed** on `feat/audit-p2`.
+
+Thirty-four items were fixed. Six were measured and deliberately NOT done,
+each recorded in its own task section above with the numbers that changed
+the decision:
+
+| Item | Why not |
+|---|---|
+| #10 Tweaks build cost | 1.28s was a cold-start artefact; 0.30s alone, and the JSON the plan blamed is 0.005s of it |
+| #11 auto-refresh threading | Steady state is <=11ms per child; the 201ms is one cold tick per activation |
+| #12 machine-facts cache | OS facts are read in ONE place; 128 redundant registry opens cost <1.2s total |
+| #14 remaining 480 scanners | The verifier disagreed on 28 of 93 checkable conversions — 30% |
+| #21 long functions | The worst has 12 locals captured by 15 closures; split by hand, not mechanically |
+| #22 security_reader split | 252 independent top-level functions are navigable by name; the risk is a mis-read security setting |
+
+**The pattern worth keeping:** every structural finding held and shipped.
+Every performance finding that was inferred from a proxy rather than
+measured inverted when measured. Four of the six above are performance
+claims.
+
+**What the work found that the audit did not**, all by tooling added
+during it:
+
+- two `NameError`s (ruff, first run) — one live, in the Certificate
+  Viewer's error handler
+- `_fit_columns` discarding every column width by setting them before
+  switching the header off `Stretch`
+- `restart_as_admin` exiting when the user DECLINED the UAC prompt
+- config backups all landing on one filename, because
+  `QDate.toString("...hhmmss")` renders the time specifiers literally
+- three `set_service_*` functions silently shadowed by lambdas with
+  different return semantics
+- a Qt `dragEnterEvent` that would have had drag-and-drop broken by
+  "correctly" adding `super()`
+
+**Ratchets now in place** (each only ever falls): frozen colour literals
+343, hardcoded drive letters 64, inline stylesheets 195, function length
+278 / 11 over-120. Plus hard gates: no untimed subprocess, no silent
+exception handler, no module import cycle, no directory under `modules/`
+that is not a module, sheet parity between the two themes.
+
+---
+
 ## Priority mapping
 
 | Priority | Audit items | Tasks |
