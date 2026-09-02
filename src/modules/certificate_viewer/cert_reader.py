@@ -89,7 +89,12 @@ $result | ConvertTo-Json -Depth 3 -Compress
         if isinstance(data, dict):
             data = [data]
     except Exception as e:
-        logger.warning("Certificate enumeration failed for %s: %s", store, e)
+        # `store` never existed — the parameter is `store_name`. The handler
+        # meant to report a failed enumeration raised NameError instead, and
+        # since the pane runs this on a Worker, what reached the user was
+        # "name 'store' is not defined" with the real reason discarded.
+        logger.warning("Certificate enumeration failed for %s (%s): %s",
+                       store_name, store_location, e)
         return []
 
     today = datetime.datetime.utcnow()
