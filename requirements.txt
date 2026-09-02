@@ -35,6 +35,10 @@ azure-storage-blob>=12.19
 google-api-python-client>=2.120
 google-auth-oauthlib>=1.2
 
-# Dev / test only
+# Dev / test only. Also declared in pyproject.toml's
+# [project.optional-dependencies] dev extra; this file stays the one CI
+# installs from.
 pytest>=7.0
 pytest-timeout>=2.2
+pytest-xdist>=3.5
+ruff>=0.5

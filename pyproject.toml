@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winclienttool"
+description = "Windows 11 optimization and system diagnostics utility"
+requires-python = ">=3.12"
+dynamic = ["version"]
+dependencies = [
+    "PyQt6>=6.6",
+    "psutil>=5.9",
+    "pywin32>=306",
+    "WMI>=1.5.1",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-timeout>=2.2", "pytest-xdist>=3.5", "ruff>=0.5"]
+
+[tool.setuptools.dynamic]
+version = { attr = "_version.__version__" }
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "build", "dist", "scratchpad"]
+
+[tool.ruff.lint]
+# Deliberately narrow to start. The tree is 92k lines written without a
+# linter; turning on the full default set produces thousands of findings and
+# teaches everyone to ignore the tool. Each later task may widen this.
+#   E4 imports, E7 statements, E9 syntax/IO errors, F pyflakes, W6 deprecation
+select = ["E4", "E7", "E9", "F", "W6"]
+ignore = [
+    # cleanup_scanner/__init__.py re-exports eight modules with `import *`.
+    # That is audit #19, and it has its own task — until then the star
+    # imports are known, not accidental.
+    "F403",
+    "F405",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/modules/cleanup/cleanup_scanner/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+# Advisory for now: 907 of 4,744 functions have no return annotation.
+# Tightening this is a later task's job, not this one's.
+ignore_missing_imports = true
+check_untyped_defs = false
