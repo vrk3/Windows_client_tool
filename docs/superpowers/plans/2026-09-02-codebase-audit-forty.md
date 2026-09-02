@@ -1506,17 +1506,48 @@ Every apply leaves a `tempfile.mkdtemp()` behind holding `batch.json` — the st
 - [ ] Add `BaseModule.refresh_is_blocking: bool = False`. When a module sets it, `_tick` runs `refresh_data` on a `Worker` and marshals the result back through its `result` signal; otherwise it stays synchronous. Set it on the modules that reach the machine: Dashboard, Services, Startup, Disk Health, Network Diagnostics.
 - [ ] Commit: `perf(ui): run blocking module refreshes on a worker (audit #11)`
 
-## Task 19: A shared cache for machine facts (audit #12)
+## Task 19: A shared cache for machine facts (audit #12) - NOT DONE, measured
 
-**Files:** create `src/core/machine_facts.py`; test `tests/test_machine_facts.py`
+**Status: the premise does not survive measurement. No cache built.**
 
-Two `lru_cache`/`cached_property` uses in 92,078 lines, against 23 files importing `winreg` and 19 touching WMI. `tweaks/os_context.py` already proves the value — caching build, edition, service existence and the AppX list took a 696-tweak sweep from ~17s to ~6s.
+Audit #12 inferred repeated uncached reads from a proxy - two `lru_cache`
+uses in 92,078 lines, against 23 files importing `winreg` and 19 touching
+WMI. Two measurements say the inference is wrong.
 
-- [ ] Test: two calls to `machine_facts.windows_build()` invoke the underlying reader once; `reset()` clears it.
-- [ ] Test: a *refused* read is cached as `None` and is not retried — the `_wmi_namespace` lesson in `security_reader.py`, where the BitLocker and TPM namespaces take a fixed ~5s to deny an ordinary user.
-- [ ] Lift the caching shape out of `os_context.py` into `core/machine_facts.py` with `windows_build()`, `edition()`, `architecture()`, `service_exists(name) -> Optional[bool]`, `is_elevated()`. Keep `Optional[bool]` semantics: `False` is "not installed", `None` is "could not find out".
-- [ ] Have `os_context.py` delegate to it rather than duplicating.
-- [ ] Commit: `perf(core): shared cache for machine facts (audit #12)`
+**The OS facts are read in exactly one place.** `CurrentBuildNumber`,
+`EditionID` and the rest appear only in `modules/tweaks/os_context.py`.
+`platform.machine()` appears in three files and `sys.getwindowsversion()`
+in two, both of which are microseconds. The 23 `winreg` importers read
+their OWN keys - the registry explorer reads what the user navigated to,
+the startup reader reads Run keys - not the same keys as each other.
+
+**The redundancy that does exist is cheap.** Instrumenting `winreg.OpenKey`
+across a 280-tweak detection sweep:
+
+    detected 280 tweaks in 1.2s
+    distinct registry keys opened:  53
+    total OpenKey calls:           181
+    redundant opens:               128   (71%)
+    most re-opened: SOFTWARE\Policies\Microsoft\Edge, 49 times
+
+71% redundant looks alarming and is worth almost nothing: 181 opens inside
+1.2s. CLAUDE.md already records where that sweep's time actually goes -
+process launches (schtasks, powercfg, PowerShell), which is why
+`detect_many` parallelises them and took the 696-tweak sweep from ~17s to
+~6s. A registry cache would save a few milliseconds of the six seconds.
+
+The one caching that WAS worth doing is already done and already
+documented: `security_reader._wmi_namespace` caches WMI namespace denials,
+because being refused costs a fixed ~5s per namespace. That took Device &
+Boot from 16.79s to 1.26s. It is the counter-example that shows the
+codebase caches where caching pays.
+
+- [x] **Step 1: measure before building** - done, above.
+- [x] **Step 2: decide** - no cache. `os_context.py` stays where it is;
+      moving 398 lines to `core/` would be churn with no user-visible
+      effect, and nothing outside `tweaks/` currently wants it.
+
+---
 
 ## Task 20: No hardcoded drive letters (audit #16)
 
