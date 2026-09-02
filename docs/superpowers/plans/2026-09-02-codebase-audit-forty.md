@@ -1496,15 +1496,50 @@ Every apply leaves a `tempfile.mkdtemp()` behind holding `batch.json` — the st
 - [ ] Add the `super().<handler>(event)` call to each of the nine.
 - [ ] Commit: `fix(ui): chain Qt event handlers to super() (audit #07)`
 
-## Task 18: Auto-refresh off the GUI thread (audit #11)
+## Task 18: Auto-refresh off the GUI thread (audit #11) - NOT DONE, measured
 
-**Files:** `src/ui/main_window.py:245-262`; `src/core/base_module.py`; test `tests/test_auto_refresh_threading.py`
+**Status: no module currently blocks the GUI thread enough to matter. No
+threading change made.**
 
-`_tick` calls `refresh_data()` synchronously, so any module whose refresh reaches WMI, the registry or a subprocess freezes the UI for that duration, once per interval, forever.
+Audit #11 said `_tick` calls `refresh_data()` synchronously, so "any module
+whose refresh reaches WMI, the registry or a subprocess freezes the UI for
+that duration, once per interval, forever". The first half is true; the
+second was inferred rather than measured.
 
-- [ ] Test: a module whose `refresh_data` blocks for 200ms does not block the Qt event loop — measured by a `QTimer` that must still fire during it.
-- [ ] Add `BaseModule.refresh_is_blocking: bool = False`. When a module sets it, `_tick` runs `refresh_data` on a `Worker` and marshals the result back through its `result` signal; otherwise it stays synchronous. Set it on the modules that reach the machine: Dashboard, Services, Startup, Disk Health, Network Diagnostics.
-- [ ] Commit: `perf(ui): run blocking module refreshes on a worker (audit #11)`
+Every module with a refresh interval, timed on the GUI thread:
+
+        201ms   every   5s   Dashboard      <- cold first tick only
+         49ms   every  60s   Quick Cleanup
+          8ms   every 120s   Hardware Info
+        <=2ms                everything else (15 modules)
+
+The Dashboard's 201ms is a COLD first tick. `CompositeModule.refresh_data`
+throttles per child, so once each child has ticked once the steady state is:
+
+    tick 0-4:   0.0 ms      (throttled, nothing due)
+    tick 5:   185.1 ms      (a child's interval elapsed for the first time)
+
+and timing each child directly afterwards gives Overview at 10.9ms and
+every other child at 0.0ms. The 185ms is paid once per child per
+activation, not once per interval.
+
+49ms once a minute and 11ms every five seconds are not freezes anyone can
+see. Moving them to a worker would add a thread hop, a signal, and a
+widget-lifetime guard to each - the `sip.isdeleted` dance CLAUDE.md already
+documents - in exchange for nothing measurable.
+
+**What remains true** is the latent design point: there is no supported way
+for a module to say "my refresh is slow, run it off the GUI thread". Adding
+that mechanism with no module needing it would be scaffolding nobody uses,
+so it waits for the first module that does. `BaseModule.refresh_is_blocking`
+plus a Worker in `_tick` is the shape when one appears.
+
+- [x] **Step 1: measure every module's refresh on the GUI thread** - done.
+- [x] **Step 2: decide** - no change. Re-measure if a pane starts feeling
+      sticky; the probe is
+      `scratchpad/p2_measure_refresh.py` in this session's notes.
+
+---
 
 ## Task 19: A shared cache for machine facts (audit #12) - NOT DONE, measured
 
