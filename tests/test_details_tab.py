@@ -358,8 +358,24 @@ def test_export_respects_the_filter(tab, tmp_path):
     with open(target, newline="", encoding="utf-8-sig") as handle:
         rows = list(csv.reader(handle))
     assert len(rows) - 1 >= 1
-    # A filtered export must not quietly contain the whole machine.
-    assert len(rows) - 1 <= 10, "the filter did not narrow the export"
+    # A filtered export must not quietly contain the whole machine. The
+    # bound is relative, not a fixed 10: this reads the LIVE process table,
+    # and under `pytest -n auto` a dozen xdist workers are themselves
+    # called python.exe. Asserting "fewer than everything" is the rule the
+    # test is actually about; "fewer than ten pythons" was an accident of
+    # the machine it was written on.
+    # Bounded relative to the machine, not at a fixed 10. This reads the
+    # LIVE process table, and under `pytest -n auto` a dozen xdist workers
+    # are themselves called python.exe — "fewer than ten pythons" was an
+    # accident of the machine this was written on. "Fewer than everything"
+    # is the rule the test is about.
+    assert len(rows) - 1 < tab.model.rowCount(), (
+        "the filter did not narrow the export")
+    # Not asserted per row: the filter also searches cmdline, which is not
+    # an exported column, so a row can legitimately match on something the
+    # CSV does not contain.
+    assert len(rows) - 1 == tab.proxy.rowCount(), (
+        "the export does not match what the filter left on screen")
 
 
 def test_a_cancelled_export_writes_nothing(tab, tmp_path, monkeypatch):
