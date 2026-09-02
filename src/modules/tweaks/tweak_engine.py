@@ -403,6 +403,14 @@ class TweakEngine:
         proc = subprocess.run(
             cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            # A `command` step runs an arbitrary line from a bundled tweak
+            # definition, and some of them are genuinely slow (DISM, a
+            # whole-machine Get-AppxPackage sweep). Generous enough that a
+            # working tweak is never reported as a timeout, bounded so a
+            # wedged one cannot hold the apply thread for the session.
+            # TimeoutExpired surfaces through apply_tweak's per-step handler
+            # as "Step failed (command <cmd>): ...".
+            timeout=300,
         )
         record = StepRecord("command", cmd, None, None,
                             rc=proc.returncode,
@@ -416,6 +424,7 @@ class TweakEngine:
         proc = subprocess.run(
             cmd, shell=True, check=False, capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=300,   # same reasoning as the `command` step above
         )
         revert_cmd = step.get("revert_command")
         record = StepRecord("script", cmd, None, None, revert_command=revert_cmd,
@@ -445,6 +454,7 @@ class TweakEngine:
              f"Get-AppxPackage '{ps_quote(pkg)}' | Remove-AppxPackage"],
             check=False, capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=120,
         )
         self._os.invalidate_appx_cache()
         return StepRecord("appx", pkg, pkg, None)
@@ -458,6 +468,7 @@ class TweakEngine:
                 ["schtasks", "/query", "/tn", task_name, "/fo", "LIST"],
                 capture_output=True, text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             for line in result.stdout.splitlines():
                 if line.startswith("Status:"):
@@ -469,6 +480,7 @@ class TweakEngine:
             ["schtasks", "/change", "/tn", task_name, "/disable"],
             check=False, capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=30,
         )
         return StepRecord("scheduled_task", task_name, before, "Disabled")
 

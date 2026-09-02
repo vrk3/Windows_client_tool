@@ -935,6 +935,7 @@ class _UpdateSettingsTab(QWidget):
             result = subprocess.run(
                 task_cmd, capture_output=True, text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             if result.returncode == 0:
                 self._sched_status_lbl.setText(f"Task saved — every {days} day(s) at {time_str}.")
@@ -948,6 +949,7 @@ class _UpdateSettingsTab(QWidget):
             result = subprocess.run(
                 ["schtasks", "/delete", "/f", "/tn", UNATTENDED_TASK_NAME],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             self._sched_status_lbl.setText(
                 "Task removed." if result.returncode == 0 else f"Error: {result.stderr.strip()}"
@@ -960,6 +962,7 @@ class _UpdateSettingsTab(QWidget):
             result = subprocess.run(
                 ["schtasks", "/run", "/tn", UNATTENDED_TASK_NAME],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             self._sched_status_lbl.setText(
                 "Task started." if result.returncode == 0 else f"Error: {result.stderr.strip()}"
@@ -985,6 +988,7 @@ class _UpdateSettingsTab(QWidget):
             result = subprocess.run(
                 cmd, capture_output=True, text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             self._legacy_status_lbl.setText(
                 "Schedule saved." if result.returncode == 0 else f"Error: {result.stderr.strip()}"
@@ -998,6 +1002,7 @@ class _UpdateSettingsTab(QWidget):
             result = subprocess.run(
                 cmd, capture_output=True, text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30,
             )
             self._legacy_status_lbl.setText(
                 "Schedule removed." if result.returncode == 0 else f"Error: {result.stderr.strip()}"

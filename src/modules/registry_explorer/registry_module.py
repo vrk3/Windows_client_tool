@@ -166,6 +166,7 @@ class RegistryExplorerModule(BaseModule):
             ["reg", "export", path, file, "/y"],
             capture_output=True, text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=30,
         )
         if result.returncode == 0:
             QMessageBox.information(self._widget, "Export", f"Exported to:\n{file}")

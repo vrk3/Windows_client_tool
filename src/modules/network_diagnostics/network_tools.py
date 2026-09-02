@@ -164,6 +164,7 @@ def get_wifi_profiles() -> List[str]:
         encoding="utf-8",
         errors="replace",
         creationflags=CREATE_NO_WINDOW,
+        timeout=30,
     )
     profiles = []
     for line in result.stdout.splitlines():
@@ -185,6 +186,7 @@ def get_wifi_profile_detail(name: str) -> str:
         encoding="utf-8",
         errors="replace",
         creationflags=CREATE_NO_WINDOW,
+        timeout=30,
     )
     return result.stdout
 

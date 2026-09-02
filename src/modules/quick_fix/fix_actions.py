@@ -83,6 +83,7 @@ def rebuild_icon_cache(output_cb: Callable[[str], None]) -> None:
         ["taskkill", "/f", "/im", "explorer.exe"],
         capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=30,
     )
     time.sleep(1)
     local = os.environ.get("LOCALAPPDATA", "")
@@ -107,6 +108,7 @@ def clear_thumbnail_cache(output_cb: Callable[[str], None]) -> None:
         ["taskkill", "/f", "/im", "explorer.exe"],
         capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=30,
     )
     time.sleep(1)
     local = os.environ.get("LOCALAPPDATA", "")
@@ -128,6 +130,7 @@ def restart_explorer(output_cb: Callable[[str], None]) -> None:
         ["taskkill", "/f", "/im", "explorer.exe"],
         capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=30,
     )
     time.sleep(1)
     output_cb("Starting Explorer...")

@@ -120,11 +120,11 @@ class NetExtrasModule(BaseModule):
             try:
                 subprocess.run(["netsh", "interface", "ip", "set", "dns",
                                 adapter, "static", primary],
-                               capture_output=True, creationflags=CREATE_NO_WINDOW)
+                               capture_output=True, creationflags=CREATE_NO_WINDOW, timeout=30)
                 if secondary:
                     subprocess.run(["netsh", "interface", "ip", "add", "dns",
                                     adapter, secondary, "index=2"],
-                                   capture_output=True, creationflags=CREATE_NO_WINDOW)
+                                   capture_output=True, creationflags=CREATE_NO_WINDOW, timeout=30)
                 status.setText(f"DNS set for {adapter}.")
             except Exception as e:
                 status.setText(f"Error: {e}")
@@ -134,7 +134,7 @@ class NetExtrasModule(BaseModule):
             try:
                 subprocess.run(["netsh", "interface", "ip", "set", "dns",
                                 adapter, "dhcp"],
-                               capture_output=True, creationflags=CREATE_NO_WINDOW)
+                               capture_output=True, creationflags=CREATE_NO_WINDOW, timeout=30)
                 status.setText(f"DHCP restored for {adapter}.")
             except Exception as e:
                 status.setText(f"Error: {e}")

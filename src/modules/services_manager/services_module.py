@@ -12,6 +12,8 @@ from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.run import run
+from core.windows_utils import ps_quote
 from core.table_ui import centered_item, center_header, fit_table
 from core.worker import COMWorker, Worker
 
@@ -100,11 +102,9 @@ def get_services() -> List[Dict]:
 
 def query_service_config(name: str) -> Dict:
     """Run 'sc.exe qc <name>' and parse the output into a dict."""
-    result = subprocess.run(
-        ["sc.exe", "qc", name],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        creationflags=CREATE_NO_WINDOW,
-    )
+    # A config read: sc answers at once or the SCM is wedged, and a wedged
+    # SCM must not hold this worker thread for the life of the process.
+    result = run(["sc.exe", "qc", name], timeout=15)
     cfg = {
         "service_name": name,
         "display_name": "",
@@ -198,28 +198,20 @@ def service_action(name: str, action: str, check_dependents: bool = False) -> tu
     elif action == "restart":
         win32serviceutil.RestartService(name)
     elif action == "enable":
-        subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-             f'Set-Service -Name "{name}" -StartupType Automatic'],
-            creationflags=CREATE_NO_WINDOW, check=True,
-        )
+        run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             f"Set-Service -Name '{ps_quote(name)}' -StartupType Automatic"],
+            timeout=30, check=True)
     elif action == "disable":
-        subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-             f'Set-Service -Name "{name}" -StartupType Disabled'],
-            creationflags=CREATE_NO_WINDOW, check=True,
-        )
+        run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             f"Set-Service -Name '{ps_quote(name)}' -StartupType Disabled"],
+            timeout=30, check=True)
 
     return True, running_dependents
 
 
 def _is_service_running(name: str) -> bool:
     """Quick check whether a service is currently running."""
-    result = subprocess.run(
-        ["sc.exe", "query", name],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        creationflags=CREATE_NO_WINDOW,
-    )
+    result = run(["sc.exe", "query", name], timeout=15)
     return "RUNNING" in result.stdout.upper()
 
 

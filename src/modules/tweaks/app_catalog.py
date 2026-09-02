@@ -318,6 +318,7 @@ class AppCatalog:
              "Get-AppxPackage | Select-Object -ExpandProperty Name"],
             capture_output=True, text=True, check=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=120,
         )
         complaint = (result.stderr or "").strip()
         if result.returncode != 0 or complaint:
@@ -438,6 +439,7 @@ class AppCatalog:
             ["powershell", "-NoProfile", "-Command", cmd],
             capture_output=True, text=True, check=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=120,
         )
         if on_output:
             for line in (result.stdout + result.stderr).splitlines():

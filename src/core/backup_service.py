@@ -218,6 +218,7 @@ class BackupService:
             ["reg", "export", key_path, out, "/y"],
             capture_output=True, check=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=30,
         )
         if result.returncode != 0:
             # reg writes the reason to its own output; throwing it away is
@@ -500,6 +501,7 @@ class BackupService:
                          "--accept-package-agreements"],
                         check=False, capture_output=True,
                         creationflags=subprocess.CREATE_NO_WINDOW,
+                        timeout=120,
                     )
             elif step_type == "file":
                 src = before["src"]
@@ -512,6 +514,11 @@ class BackupService:
                 subprocess.run(
                     revert_cmd, shell=True, check=False, capture_output=True,
                     creationflags=subprocess.CREATE_NO_WINDOW,
+                    # A revert command is the mirror of a tweak's `script`
+                    # step, so it gets the same budget: long enough that a
+                    # slow undo completes, bounded so a wedged one cannot
+                    # strand the revert.
+                    timeout=300,
                 )
             now = datetime.now().isoformat()
             self._conn.execute(

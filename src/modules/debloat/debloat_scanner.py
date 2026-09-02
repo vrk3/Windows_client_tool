@@ -90,6 +90,7 @@ def check_app_installed(package_name: str) -> bool:
         ["powershell", "-NoProfile", "-Command",
          f"Get-AppxPackage '{ps_quote(package_name)}' -ErrorAction SilentlyContinue | Select-Object -First 1 Name"],
         capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=120,
     )
     return bool(result.stdout.strip())
 

@@ -28,6 +28,7 @@ def _run_netsh(*args) -> str:
         ["netsh", "wlan"] + list(args),
         capture_output=True, text=True, errors="replace",
         creationflags=CREATE_NO_WINDOW,
+        timeout=30,
     )
     return result.stdout
 

@@ -39,6 +39,7 @@ def _ping_host(host: str) -> bool:
         ["ping", "-n", "1", "-w", "500", host],
         capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=30,
     )
     return result.returncode == 0
 
