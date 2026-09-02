@@ -65,6 +65,15 @@ class MainWindow(QMainWindow):
         self._sidebar.set_admin(is_admin())
         self._stack = QStackedWidget()
 
+        # Named for assistive technology. Without these a screen reader
+        # announces "list" and "frame" and gives the user no way to tell
+        # the navigation from the pane it controls.
+        self._sidebar.setAccessibleName("Module navigation")
+        self._sidebar.setAccessibleDescription(
+            "Choose which tool to show. Grouped by Overview, Diagnose, "
+            "System, Manage, Optimize, Tools and Process.")
+        self._stack.setAccessibleName("Current module")
+
         # Restore sidebar collapsed state
         saved_collapsed = self._app.config.get("app.sidebar_collapsed", False)
         if saved_collapsed:
@@ -92,6 +101,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(splitter, 1)
 
         self._search_results = SearchResultsTable(self)
+        self._search_results.setAccessibleName("Search results")
         self._search_results.setVisible(False)
         self._search_results.result_activated.connect(self._on_result_activated)
         root_layout.addWidget(self._search_results)
@@ -101,6 +111,7 @@ class MainWindow(QMainWindow):
         self._toolbar = DynamicToolbar(self)
         self.addToolBar(self._toolbar)
         self._search_bar = SearchBar(self)
+        self._search_bar.setAccessibleName("Search all modules")
         self._search_bar.search_requested.connect(self._on_search)
         self._search_bar.filter_toggled.connect(self._on_filter_toggled)
         self._toolbar.addWidget(self._search_bar)
@@ -111,6 +122,7 @@ class MainWindow(QMainWindow):
         self._toolbar.addAction(self._pause_refresh_action)
 
         self._filter_panel = FilterPanel(self)
+        self._filter_panel.setAccessibleName("Search filters")
         self._filter_panel.setVisible(False)
         root_layout.insertWidget(root_layout.indexOf(splitter), self._filter_panel)
 

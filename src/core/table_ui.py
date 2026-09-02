@@ -33,6 +33,32 @@ def centered_item(text: str = "", sortable: bool = False) -> QTableWidgetItem:
     return item
 
 
+def describe_table(table: QTableWidget, name: str = "") -> None:
+    """Give `table` a name a screen reader can announce.
+
+    Without one, an assistive technology reads a grid of unlabelled cells
+    and the user has no way to know which table they are in — there were
+    zero setAccessibleName calls in 92,000 lines.
+
+    When no name is supplied it is built from the column headers, which
+    every table has and which describe it accurately: "table with columns
+    Name, PID, User name, CPU". Derived rather than required, so the 51
+    call sites of fit_table/fit_last get it without each having to invent
+    a name.
+    """
+    if not name:
+        headers = []
+        for column in range(table.columnCount()):
+            item = table.horizontalHeaderItem(column)
+            if item is not None and item.text().strip():
+                headers.append(item.text().strip())
+        name = ("table with columns " + ", ".join(headers)) if headers else "table"
+    table.setAccessibleName(name)
+    if not table.accessibleDescription():
+        table.setAccessibleDescription(
+            f"{table.rowCount()} rows, {table.columnCount()} columns")
+
+
 def center_header(table: QTableWidget) -> None:
     """Centre the header labels of an existing table.
 
@@ -51,6 +77,7 @@ def fit_table(table: QTableWidget, stretch: Iterable[int] = (),
     so the user can still drag sections.
     """
     center_header(table)
+    describe_table(table)
     table.horizontalHeader().setStretchLastSection(False)
     header = table.horizontalHeader()
     for col in stretch:
@@ -62,6 +89,7 @@ def fit_table(table: QTableWidget, stretch: Iterable[int] = (),
 def fit_last(table: QTableWidget) -> None:
     """Classic layout: content-sized columns with the last one stretching."""
     center_header(table)
+    describe_table(table)
     header = table.horizontalHeader()
     count = table.columnCount()
     for col in range(count - 1):
