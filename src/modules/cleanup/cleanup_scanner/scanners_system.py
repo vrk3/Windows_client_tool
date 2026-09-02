@@ -15,51 +15,6 @@ from modules.cleanup.cleanup_scanner._common import (
 
 logger = logging.getLogger(__name__)
 
-def scan_temp_files(min_age_days: int = 0) -> ScanResult:
-    """User temp files (TEMP env var and C:\\Windows\\Temp)."""
-    result = ScanResult()
-    targets = [
-        os.environ.get("TEMP", ""),
-        r"C:\Windows\Temp",
-    ]
-    for t in targets:
-        if not t:
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_browser_caches(min_age_days: int = 0) -> ScanResult:
-    """Browser cache directories for Chrome, Edge, Firefox."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    appdata = os.environ.get("APPDATA", "")
-    targets = [
-        os.path.join(local, r"Google\Chrome\User Data\Default\Cache"),
-        os.path.join(local, r"Microsoft\Edge\User Data\Default\Cache"),
-    ]
-    # Firefox: detect profiles
-    ff_profiles = glob.glob(os.path.join(appdata, r"Mozilla\Firefox\Profiles\*\cache2"))
-    targets.extend(ff_profiles)
-    for t in targets:
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_wu_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Update download cache (requires stopping wuauserv service)."""
-    result = ScanResult()
-    path = r"C:\Windows\SoftwareDistribution\Download"
-    item = _make_item(path, safety="caution", min_age_days=min_age_days)
-    if item:
-        result.items.append(item)
-        result.total_size = item.size
-    return result
-
 def scan_prefetch(min_age_days: int = 0) -> ScanResult:
     """Windows Prefetch .pf files — safe to delete, will be re-created as needed."""
     result = ScanResult()
@@ -81,91 +36,6 @@ def scan_recycle_bin(min_age_days: int = 0) -> ScanResult:
             if item:
                 result.items.append(item)
                 result.total_size += item.size
-    return result
-
-def scan_event_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows event log .evtx files — may be needed for troubleshooting."""
-    result = ScanResult()
-    logs_dir = r"C:\Windows\System32\winevt\Logs"
-    for evtx in glob.glob(os.path.join(logs_dir, "*.evtx")):
-        item = _make_item_with_age(evtx, safety="caution", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_wer_reports(min_age_days: int = 0) -> ScanResult:
-    """Windows Error Reporting crash archives and pending queues."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        r"C:\ProgramData\Microsoft\Windows\WER\ReportArchive",
-        r"C:\ProgramData\Microsoft\Windows\WER\ReportQueue",
-        os.path.join(local, r"Microsoft\Windows\WER\ReportArchive"),
-        os.path.join(local, r"Microsoft\Windows\WER\ReportQueue"),
-    ]
-    for t in targets:
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_thumbnail_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Explorer thumbnail and icon cache database files."""
-    result = ScanResult()
-    cache_dir = os.path.join(
-        os.environ.get("LOCALAPPDATA", ""), r"Microsoft\Windows\Explorer"
-    )
-    for f in glob.glob(os.path.join(cache_dir, "thumbcache_*.db")):
-        item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    icon_cache = os.path.join(cache_dir, "iconcache_*.db")
-    for f in glob.glob(icon_cache):
-        item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_memory_dumps(min_age_days: int = 0) -> ScanResult:
-    """Windows minidumps and full kernel memory dumps — needed for crash debugging."""
-    result = ScanResult()
-
-    # Minidump folder: scan individual .dmp files
-    minidump_dir = r"C:\Windows\Minidump"
-    if os.path.isdir(minidump_dir):
-        for f in glob.glob(os.path.join(minidump_dir, "*.dmp")):
-            item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-
-    # Single MEMORY.DMP file
-    mem_dmp = r"C:\Windows\MEMORY.DMP"
-    item = _make_item(mem_dmp, safety="caution", min_age_days=min_age_days)
-    if item:
-        result.items.append(item)
-        result.total_size += item.size
-
-    # LiveKernelReports folder (contains .dmp subfolders)
-    lkr_dir = r"C:\Windows\LiveKernelReports"
-    if os.path.isdir(lkr_dir):
-        dmp_files = glob.glob(os.path.join(lkr_dir, "**", "*.dmp"), recursive=True)
-        for f in dmp_files:
-            item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-        # Also include the folder itself if it exists but no .dmp files found
-        if not dmp_files:
-            item = _make_item(lkr_dir, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-
     return result
 
 def scan_delivery_optimization(min_age_days: int = 0) -> ScanResult:
@@ -206,81 +76,6 @@ def scan_windows_old(min_age_days: int = 0) -> ScanResult:
     if item:
         result.items.append(item)
         result.total_size = item.size
-    return result
-
-def scan_installer_patch_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Installer patch cache ($PatchCache$) — deleting can break MSI uninstalls."""
-    result = ScanResult()
-    item = _make_item(r"C:\Windows\Installer\$PatchCache$", safety="danger", min_age_days=min_age_days)
-    if item:
-        result.items.append(item)
-        result.total_size = item.size
-    return result
-
-def scan_user_crash_dumps(min_age_days: int = 0) -> ScanResult:
-    """User-mode crash dump files written by Windows Error Reporting."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, "CrashDumps"),
-        os.path.join(local, "Temp"),
-    ]
-    # Also grab any .dmp files in TEMP
-    temp_dir = os.environ.get("TEMP", "")
-    if temp_dir:
-        for dmp in glob.glob(os.path.join(temp_dir, "*.dmp")):
-            item = _make_item_with_age(dmp, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-    for t in targets:
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_dev_tool_caches(min_age_days: int = 0) -> ScanResult:
-    """Developer tool caches: npm, pip, NuGet, Cargo, Gradle, Maven."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    appdata = os.environ.get("APPDATA", "")
-    home = os.path.expanduser("~")
-    targets = [
-        os.path.join(appdata, "npm-cache"),
-        os.path.join(local, "npm-cache"),       # npm cache in LOCALAPPDATA (often 1GB+)
-        os.path.join(local, "pip", "cache"),
-        os.path.join(appdata, "pip", "cache"),  # pip cache in APPDATA
-        os.path.join(local, "nuget", "cache"),
-        os.path.join(home, ".nuget", "packages"),
-        os.path.join(home, ".cargo", "registry", "cache"),
-        os.path.join(home, ".gradle", "caches"),
-        os.path.join(home, ".m2", "repository"),
-        os.path.join(local, "Yarn", "Cache"),
-        os.path.join(appdata, "yarn", "cache"),
-    ]
-    for t in targets:
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_d3d_shader_cache(min_age_days: int = 0) -> ScanResult:
-    """Direct3D and GPU shader cache directories left by games/graphics apps."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, "D3DSCache"),
-        os.path.join(local, r"NVIDIA\DXCache"),
-        os.path.join(local, r"NVIDIA\GLCache"),
-        os.path.join(local, r"AMD\DXCache"),
-    ]
-    for t in targets:
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_app_caches(min_age_days: int = 0) -> ScanResult:
@@ -362,19 +157,6 @@ def scan_appdata_autodiscover(min_age_days: int = 0) -> ScanResult:
             _walk(base, 2)
 
     result.items.sort(key=lambda x: x.size, reverse=True)
-    return result
-
-def scan_panther_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows Setup/Imagex logs in Panther directory — safe after setup completes."""
-    result = ScanResult()
-    panther_dir = r"C:\Windows\Panther"
-    if not os.path.isdir(panther_dir):
-        return result
-    for f in glob.glob(os.path.join(panther_dir, "*.log")):
-        item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_dmf_logs(min_age_days: int = 0) -> ScanResult:
@@ -486,23 +268,6 @@ def scan_store_app_caches(min_age_days: int = 0) -> ScanResult:
     except (PermissionError, OSError):
         logger.debug("Ignored (PermissionError, OSError)", exc_info=True)
     result.items.sort(key=lambda x: x.size, reverse=True)
-    return result
-
-def scan_defender_history(min_age_days: int = 0) -> ScanResult:
-    """Windows Defender detection history and scan results — safe to delete."""
-    result = ScanResult()
-    targets = [
-        r"C:\ProgramData\Microsoft\Windows Defender\Scans\History\Service\DetectionHistory",
-        r"C:\ProgramData\Microsoft\Windows Defender\Scans\History\CacheManager",
-        r"C:\ProgramData\Microsoft\Windows Defender\Scans\History\Results\Resource",
-        r"C:\ProgramData\Microsoft\Windows Defender\Scans\History\Results\Quick",
-        r"C:\ProgramData\Microsoft\Windows Defender\Scans\History\Results\System",
-    ]
-    for t in targets:
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_recent_files(min_age_days: int = 0) -> ScanResult:
@@ -671,25 +436,6 @@ def scan_print_spooler(min_age_days: int = 0) -> ScanResult:
                 result.total_size += item.size
     return result
 
-def scan_winsat_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Performance WinSAT XML, Media.ets, and winsat.log files."""
-    result = ScanResult()
-    winsat_dir = r"C:\Windows\Performance\WinSAT"
-    if not os.path.isdir(winsat_dir):
-        return result
-    targets = [
-        os.path.join(winsat_dir, "*.xml"),
-        os.path.join(winsat_dir, "Media.ets"),
-        os.path.join(winsat_dir, "winsat.log"),
-    ]
-    for t in targets:
-        for f in glob.glob(t):
-            item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
 def scan_etl_logs(min_age_days: int = 0) -> ScanResult:
     """WindowsUpdate ETL, DeliveryOptimization ETL, and ScriptArtifacts logs."""
     result = ScanResult()
@@ -706,42 +452,6 @@ def scan_etl_logs(min_age_days: int = 0) -> ScanResult:
             if item:
                 result.items.append(item)
                 result.total_size += item.size
-    return result
-
-def scan_telemetry(min_age_days: int = 0) -> ScanResult:
-    """Windows telemetry, WER Temp, AutoLogger ETL, diagerr/diagwrn logs."""
-    result = ScanResult()
-    targets = [
-        r"C:\ProgramData\Microsoft\Windows\WER\Temp",
-        r"C:\Windows\System32\LogFiles\ETLLogs\AutoLogger",
-        r"C:\Windows\System32\WDI\*.etl",
-        r"C:\Windows\System32\diagerr.log",
-        r"C:\Windows\System32\diagwrn.log",
-    ]
-    for t in targets:
-        if "*" in t:
-            dir_path, pattern = os.path.split(t)
-            if "WDI" in t:
-                dir_path = r"C:\Windows\System32\WDI"
-                pattern = "*.etl"
-            if not os.path.isdir(dir_path):
-                continue
-            for f in glob.glob(os.path.join(dir_path, pattern)):
-                item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
-                if item:
-                    result.items.append(item)
-                    result.total_size += item.size
-        else:
-            if os.path.isdir(t):
-                item = _make_item(t, safety="caution", min_age_days=min_age_days)
-                if item:
-                    result.items.append(item)
-                    result.total_size += item.size
-            elif os.path.isfile(t):
-                item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
-                if item:
-                    result.items.append(item)
-                    result.total_size += item.size
     return result
 
 def scan_maps_cache(min_age_days: int = 0) -> ScanResult:
@@ -776,27 +486,6 @@ def scan_delivery_opt_user(min_age_days: int = 0) -> ScanResult:
         if not os.path.isdir(t):
             continue
         item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_font_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Font Cache service (FNTCACHE.DAT) and font link temporary files."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\FNTCACHE.DAT"),
-        os.path.join(windir, r"ServiceProfiles\LocalService\AppData\Local\FontDrivers"),
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Microsoft\Windows\Fonts"),
-    ]
-    for t in targets:
-        if not os.path.exists(t):
-            continue
-        if os.path.isfile(t):
-            item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
-        else:
-            item = _make_item(t, safety="caution", min_age_days=min_age_days)
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
@@ -841,48 +530,6 @@ def scan_bits_transfers(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_update_cleanup(min_age_days: int = 0) -> ScanResult:
-    """Windows Update cleanup: downloaded patches, softwaredistribution backup, orphaned patches."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"SoftwareDistribution\Download"),
-        os.path.join(windir, r"SoftwareDistribution\Backup"),
-        os.path.join(windir, r"WinSxS\Temp"),
-        os.path.join(windir, r"Temp\PostReboot"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_dxgi_cache(min_age_days: int = 0) -> ScanResult:
-    """DirectX Graphics Infrastructure cache — GPU-related temp data from games."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"D3DSCache"),
-        os.path.join(local, r"NVIDIA\DXCache"),
-        os.path.join(local, r"NVIDIA\GLCache"),
-        os.path.join(local, r"AMD\DXCache"),
-        os.path.join(local, r"AMD\VulkanCache"),
-        os.path.join(local, r"Intel\GraphicsCache"),
-        os.path.join(local, r"Intel\GLCache"),
-        os.path.join(local, r"Microsoft\DirectX"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_perflogs(min_age_days: int = 0) -> ScanResult:
     """Windows Performance Logs — BLG files and output from scheduled perf monitoring."""
     result = ScanResult()
@@ -899,45 +546,6 @@ def scan_perflogs(min_age_days: int = 0) -> ScanResult:
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
-    return result
-
-def scan_diag_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows Diagnostic logs: ETW trace logs, MSI install logs, DeviceMetaData."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(windir, r"Logs\CBS"),
-        os.path.join(windir, r"Logs\DISM"),
-        os.path.join(windir, r"Logs\MoSetup"),
-        os.path.join(windir, r"Logs\SIH"),
-        os.path.join(windir, r"Logs\WindowsUpdate"),
-        os.path.join(windir, r"System32\WDI\*.etl"),
-        os.path.join(windir, r"System32\diagerr.log"),
-        os.path.join(windir, r"System32\diagwrn.log"),
-        os.path.join(local, r"Microsoft\Windows\WDI\LogFiles"),
-        os.path.join(local, r"Microsoft\Windows\DeviceMetadataStore"),
-    ]
-    for t in targets:
-        if "*" in t:
-            dir_path, pattern = os.path.split(t)
-            if not os.path.isdir(dir_path):
-                continue
-            for f in glob.glob(os.path.join(dir_path, pattern)):
-                item = _make_item_with_age(f, safety="caution", min_age_days=min_age_days)
-                if item:
-                    result.items.append(item)
-                    result.total_size += item.size
-        elif os.path.isdir(t):
-            item = _make_item(t, safety="caution", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-        elif os.path.isfile(t):
-            item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
     return result
 
 def scan_backup_files(min_age_days: int = 0) -> ScanResult:
@@ -1068,32 +676,6 @@ def scan_group_policy_logs(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_sysprep_logs(min_age_days: int = 0) -> ScanResult:
-    """Sysprep (Windows generalization) logs and setup logs."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"Panther"),
-        os.path.join(windir, r"Logs\CBS\CBS.log"),
-        os.path.join(windir, r"INF\setupapi.log"),
-        os.path.join(windir, r"Panther\UnattendGC\setupact.log"),
-        os.path.join(windir, r"Panther\UnattendGC\setuperr.log"),
-    ]
-    for t in targets:
-        if not os.path.exists(t):
-            continue
-        if os.path.isfile(t):
-            item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
-            if item:
-                result.items.append(item)
-                result.total_size += item.size
-        else:
-            item = _make_item(t, safety="caution", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
 def scan_windows_installer_cache(min_age_days: int = 0) -> ScanResult:
     """Windows Installer download cache and patch removal queue."""
     result = ScanResult()
@@ -1181,24 +763,6 @@ def scan_msi_logs(min_age_days: int = 0) -> ScanResult:
                 result.total_size += item.size
     return result
 
-def scan_windows_backup_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows Server Backup logs and System Protection shadow copy logs."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"Logs\WindowsServerBackup"),
-        os.path.join(windir, r"Logs\SIH"),
-        os.path.join(windir, r"System32\Tasks\Microsoft\Windows\SystemRestore"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_appx_logs(min_age_days: int = 0) -> ScanResult:
     """AppX/MSIX package installation logs and staging data."""
     result = ScanResult()
@@ -1237,23 +801,6 @@ def scan_windows_defender_logs(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_sfc_logs(min_age_days: int = 0) -> ScanResult:
-    """System File Checker (sfc) and Deployment Image Servicing logs. NOT WinSxS internals."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"Logs\CBS\CBS.log"),
-        os.path.join(windir, r"Logs\DISM\dism.log"),
-    ]
-    for t in targets:
-        if not os.path.exists(t):
-            continue
-        item = _make_item_with_age(t, safety="caution", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_recycle_bin_drive(min_age_days: int = 0) -> ScanResult:
     """Recycle bin for each fixed drive — empties all user-deleted files."""
     result = ScanResult()
@@ -1264,23 +811,6 @@ def scan_recycle_bin_drive(min_age_days: int = 0) -> ScanResult:
             if item and item.size > 0:
                 result.items.append(item)
                 result.total_size += item.size
-    return result
-
-def scan_thumbnail_cache_central(min_age_days: int = 0) -> ScanResult:
-    """Windows Explorer centralized thumbnail cache (thumbcache_*.db files)."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    thumb_dir = os.path.join(local, r"Microsoft\Windows\Explorer")
-    for f in glob.glob(os.path.join(thumb_dir, "thumbcache_*.db")):
-        item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    for f in glob.glob(os.path.join(thumb_dir, "iconcache_*.db")):
-        item = _make_item_with_age(f, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_old_restore_points(min_age_days: int = 0) -> ScanResult:
@@ -1355,23 +885,6 @@ def scan_font_files_temp(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_language_packs(min_age_days: int = 0) -> ScanResult:
-    """Windows language pack cab files and MUI temp cache."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\MUI"),
-        os.path.join(windir, r"System32\en-US"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_windows_optional_features(min_age_days: int = 0) -> ScanResult:
     """Windows optional features manifests backup (danger) and install temp (safe)."""
     result = ScanResult()
@@ -1409,41 +922,6 @@ def scan_printer_driver_cache(min_age_days: int = 0) -> ScanResult:
 def scan_dns_cache(min_age_days: int = 0) -> ScanResult:
     """Flush DNS resolver cache — safe operation, no file deletion needed."""
     result = ScanResult()
-    return result
-
-def scan_network_adapter_cache(min_age_days: int = 0) -> ScanResult:
-    """Network-level DNS and NetBIOS cached entries."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\drivers\etc\hosts"),
-    ]
-    for t in targets:
-        if not os.path.isfile(t):
-            continue
-        item = _make_item_with_age(t, safety="safe", min_age_days=min_age_days)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_iis_logs(min_age_days: int = 0) -> ScanResult:
-    """IIS HTTP logs, Failed Request logs, and IIS Express logs."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\LogFiles\HTTPERR"),
-        os.path.join(windir, r"System32\inetsrv\LogFiles"),
-        os.path.join(os.environ.get("USERPROFILE", ""), r"Documents\IISExpress"),
-        os.path.join(os.environ.get("USERPROFILE", ""), r"Documents\My Web Sites"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_old_av_quarantine(min_age_days: int = 0) -> ScanResult:
@@ -1575,22 +1053,6 @@ def scan_windows_insider_logs(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_driver_store(min_age_days: int = 0) -> ScanResult:
-    """Windows Driver Store backup .inf files for uninstalled drivers (DANGER — can break hardware)."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\DriverStore\FileRepository"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="danger", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_winSxS_temp(min_age_days: int = 0) -> ScanResult:
     """WinSxS pending file rename operations and install temp."""
     result = ScanResult()
@@ -1682,28 +1144,6 @@ def scan_novatrons_cache(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_directx_shader_cache(min_age_days: int = 0) -> ScanResult:
-    """DirectX 11/12 shader cache, D3DSCache, and AMD/NVIDIA/Intel shader disks."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"D3DSCache"),
-        os.path.join(local, r"NVIDIA\DXCache"),
-        os.path.join(local, r"NVIDIA\GLCache"),
-        os.path.join(local, r"AMD\DXCache"),
-        os.path.join(local, r"AMD\VulkanCache"),
-        os.path.join(local, r"Intel\GraphicsCache"),
-        os.path.join(local, r"Intel\GLCache"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_windows_inbox_apps_cache(min_age_days: int = 0) -> ScanResult:
     """Inbox Windows app data (Calculator, Photos, Mail) temp and sync cache. NOT cookies/history."""
     result = ScanResult()
@@ -1754,21 +1194,6 @@ def scan_windows_recovery_env_cache(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_photoscan_cache(min_age_days: int = 0) -> ScanResult:
-    """Microsoft Photos scan/3D objects cache and video editing temp."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"Packages\Microsoft.Windows.Photos*\LocalState"),
-    ]
-    for t in targets:
-        for found in glob.glob(t):
-            item = _make_item(found, safety="safe", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
 def scan_maps_offline_cache(min_age_days: int = 0) -> ScanResult:
     """Windows Maps offline map tiles and navigation history cache."""
     result = ScanResult()
@@ -1782,23 +1207,6 @@ def scan_maps_offline_cache(min_age_days: int = 0) -> ScanResult:
             if item and item.size > 0:
                 result.items.append(item)
                 result.total_size += item.size
-    return result
-
-def scan_wu_history_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Update download history and temporary rollback files."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"SoftwareDistribution\Download"),
-        os.path.join(windir, r"SoftwareDistribution\Backup"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
     return result
 
 def scan_delivery_optimization_do(min_age_days: int = 0) -> ScanResult:
@@ -1820,23 +1228,6 @@ def scan_delivery_optimization_do(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_windows_backup_catalog(min_age_days: int = 0) -> ScanResult:
-    """Windows Backup catalog and shadow copy history logs."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\Tasks\Microsoft\Windows\SystemRestore"),
-        os.path.join(windir, r"Logs\WindowsServerBackup"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_windows_reliability_logs(min_age_days: int = 0) -> ScanResult:
     """Windows Reliability Monitor data and problem step recorder logs."""
     result = ScanResult()
@@ -1848,24 +1239,6 @@ def scan_windows_reliability_logs(min_age_days: int = 0) -> ScanResult:
         if not os.path.isdir(t):
             continue
         item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_windows_setup_diags(min_age_days: int = 0) -> ScanResult:
-    """Windows SetupDiag verbose logs and migration data."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(local, r"Microsoft\Windows\Setup\Diag"),
-        os.path.join(windir, r"Panther"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
@@ -1949,22 +1322,6 @@ def scan_windows_printer_migration_cache(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_application_manifest_cache(min_age_days: int = 0) -> ScanResult:
-    """Side-by-side (WinSxS) assembly manifest and policy XML cache — DANGER, system-critical."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"WinSxS\Manifests"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="danger", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_ndis_cache(min_age_days: int = 0) -> ScanResult:
     """Network adapter configuration and protocol binding cache (NDIS intermediate drivers)."""
     result = ScanResult()
@@ -1976,23 +1333,6 @@ def scan_ndis_cache(min_age_days: int = 0) -> ScanResult:
         if not os.path.isdir(t):
             continue
         item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_windowsupdate_orch_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows Update Orchestrator scan results and pending install state."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"SoftwareDistribution\Download"),
-        os.path.join(windir, r"SoftwareDistribution\Backup"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
@@ -2268,41 +1608,6 @@ def _scan_old_recursive(result: ScanResult, dirs: list, min_age_seconds: float, 
         except OSError:
             logger.debug("Ignored OSError", exc_info=True)
 
-def scan_project_ascension_logs(min_age_days: int = 0) -> ScanResult:
-    """Project Ascension launcher logs and cache — safe to clear."""
-    result = ScanResult()
-    appdata = os.environ.get("APPDATA", "")
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(appdata, r"projectascension\Cache"),
-        os.path.join(local, r"ProjectAscension\Logs"),
-        r"C:\Program Files\Ascension Launcher\logs",
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_windows_tweaker_logs(min_age_days: int = 0) -> ScanResult:
-    """WindowsTweaker application logs."""
-    result = ScanResult()
-    appdata = os.environ.get("APPDATA", "")
-    targets = [
-        os.path.join(appdata, r"WindowsTweaker\logs"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_windows_shell_cache(min_age_days: int = 0) -> ScanResult:
     """Windows Shell Experience Host cache."""
     result = ScanResult()
@@ -2337,22 +1642,6 @@ def scan_dbg_logs(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_microsoft_templates(min_age_days: int = 0) -> ScanResult:
-    """Microsoft Office/Windows cached document templates."""
-    result = ScanResult()
-    appdata = os.environ.get("APPDATA", "")
-    targets = [
-        os.path.join(appdata, r"Microsoft\Templates"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_uwp_all_apps_cache(min_age_days: int = 0) -> ScanResult:
     """All UWP apps LocalCache folders (aggregate scanner)."""
     result = ScanResult()
@@ -2363,37 +1652,6 @@ def scan_uwp_all_apps_cache(min_age_days: int = 0) -> ScanResult:
     import glob as _glob
     for cache_dir in _glob.glob(os.path.join(packages, "*", "LocalCache")):
         item = _make_item(cache_dir, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_windows_cbs_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows CBS (Component Based Servicing) logs."""
-    result = ScanResult()
-    targets = [
-        r"C:\Windows\Logs\CBS",
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_windows_panther_logs(min_age_days: int = 0) -> ScanResult:
-    """Windows Panther (setup) logs — unattend and diagnostic."""
-    result = ScanResult()
-    targets = [
-        r"C:\Windows\Panther",
-        r"C:\Windows\Panther\Tmp",
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
@@ -2412,25 +1670,6 @@ def scan_windows_installer_rollback(min_age_days: int = 0) -> ScanResult:
             if not os.path.isdir(t):
                 continue
             item = _make_item(t, safety="caution", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
-def scan_ms_store_cache(min_age_days: int = 0) -> ScanResult:
-    """Microsoft Store cache and downloaded packages."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"Microsoft\Windows Store\Cache"),
-        os.path.join(local, r"Packages\Microsoft.WindowsStore*\LocalCache"),
-    ]
-    import glob as _glob
-    for pattern in targets:
-        for t in _glob.glob(pattern):
-            if not os.path.isdir(t):
-                continue
-            item = _make_item(t, safety="safe", min_age_days=min_age_days)
             if item and item.size > 0:
                 result.items.append(item)
                 result.total_size += item.size
@@ -2458,22 +1697,6 @@ def scan_windows_connected_accounts_cache(min_age_days: int = 0) -> ScanResult:
     local = os.environ.get("LOCALAPPDATA", "")
     targets = [
         os.path.join(local, r"Microsoft\IdentityOLTCache"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_notifications_cache(min_age_days: int = 0) -> ScanResult:
-    """Windows notification history and toast cache."""
-    result = ScanResult()
-    local = os.environ.get("LOCALAPPDATA", "")
-    targets = [
-        os.path.join(local, r"Microsoft\Windows\Notifications"),
     ]
     for t in targets:
         if not os.path.isdir(t):
@@ -2587,4 +1810,88 @@ def delete_items(items: List[ScanItem],
     else:
         return _do_delete()
 
-__all__ = ['_find_empty_folders', '_group_by_size_recursive', '_hash_file_fast', '_scan_large_recursive', '_scan_old_recursive', 'cleanup_winsxs', 'delete_items', 'scan_app_caches', 'scan_appdata_autodiscover', 'scan_application_manifest_cache', 'scan_appx_logs', 'scan_backup_files', 'scan_bitlocker_logs', 'scan_bits_transfers', 'scan_brackets_cache', 'scan_browser_caches', 'scan_crash_dumps_system', 'scan_d3d_shader_cache', 'scan_dbg_logs', 'scan_defender_history', 'scan_delivery_opt_user', 'scan_delivery_optimization', 'scan_delivery_optimization_do', 'scan_dev_tool_caches', 'scan_diag_logs', 'scan_diagnostic_data', 'scan_directx_shader_cache', 'scan_dmf_logs', 'scan_dns_cache', 'scan_downloads_folder_old', 'scan_driver_store', 'scan_duplicate_files', 'scan_dxgi_cache', 'scan_empty_folders', 'scan_etl_logs', 'scan_event_logs', 'scan_font_cache', 'scan_font_files_temp', 'scan_game_caches', 'scan_group_policy_logs', 'scan_ide_caches', 'scan_iis_logs', 'scan_install_temp', 'scan_installer_patch_cache', 'scan_iso_vhd_files', 'scan_language_packs', 'scan_large_files', 'scan_maps_cache', 'scan_maps_offline_cache', 'scan_memory_dumps', 'scan_microsoft_templates', 'scan_ms_store_cache', 'scan_msi_logs', 'scan_msp_patches', 'scan_ndis_cache', 'scan_network_adapter_cache', 'scan_network_debug_logs', 'scan_notifications_cache', 'scan_novatrons_cache', 'scan_old_av_quarantine', 'scan_old_files', 'scan_old_restore_points', 'scan_panther_logs', 'scan_perflogs', 'scan_photoscan_cache', 'scan_powershell_ise_cache', 'scan_powershell_logs', 'scan_powershell_modules_cache', 'scan_prefetch', 'scan_print_nightmare_logs', 'scan_print_spooler', 'scan_printer_driver_cache', 'scan_project_ascension_logs', 'scan_recent_files', 'scan_recycle_bin', 'scan_recycle_bin_drive', 'scan_search_index', 'scan_sfc_logs', 'scan_store_app_caches', 'scan_sysinternals_logs', 'scan_sysprep_logs', 'scan_telemetry', 'scan_temp_files', 'scan_thumbnail_cache', 'scan_thumbnail_cache_central', 'scan_triumph_cache', 'scan_update_cleanup', 'scan_usb_shadow_copies', 'scan_user_crash_dumps', 'scan_userprofile_temp', 'scan_uwp_all_apps_cache', 'scan_virtual_drives', 'scan_wer_reports', 'scan_winSxS_temp', 'scan_windows_app_extensions_cache', 'scan_windows_backup_catalog', 'scan_windows_backup_logs', 'scan_windows_cbs_logs', 'scan_windows_compatibility_cache', 'scan_windows_connected_accounts_cache', 'scan_windows_defender_logs', 'scan_windows_inbox_apps_cache', 'scan_windows_insider_logs', 'scan_windows_insider_preview_cache', 'scan_windows_installer_cache', 'scan_windows_installer_rollback', 'scan_windows_logs', 'scan_windows_old', 'scan_windows_optional_features', 'scan_windows_panther_logs', 'scan_windows_printer_migration_cache', 'scan_windows_recovery_env_cache', 'scan_windows_reliability_logs', 'scan_windows_setup_diags', 'scan_windows_shell_cache', 'scan_windows_terminal_cache', 'scan_windows_terminal_settings_cache', 'scan_windows_tweaker_logs', 'scan_windowsupdate_orch_cache', 'scan_winsat_cache', 'scan_winsxs_cleanup', 'scan_wmi_logs', 'scan_wu_cache', 'scan_wu_history_cache']
+__all__ = [
+    '_find_empty_folders',
+    '_group_by_size_recursive',
+    '_hash_file_fast',
+    '_scan_large_recursive',
+    '_scan_old_recursive',
+    'cleanup_winsxs',
+    'delete_items',
+    'scan_app_caches',
+    'scan_appdata_autodiscover',
+    'scan_appx_logs',
+    'scan_backup_files',
+    'scan_bitlocker_logs',
+    'scan_bits_transfers',
+    'scan_brackets_cache',
+    'scan_crash_dumps_system',
+    'scan_dbg_logs',
+    'scan_delivery_opt_user',
+    'scan_delivery_optimization',
+    'scan_delivery_optimization_do',
+    'scan_diagnostic_data',
+    'scan_dmf_logs',
+    'scan_dns_cache',
+    'scan_downloads_folder_old',
+    'scan_duplicate_files',
+    'scan_empty_folders',
+    'scan_etl_logs',
+    'scan_font_files_temp',
+    'scan_game_caches',
+    'scan_group_policy_logs',
+    'scan_ide_caches',
+    'scan_install_temp',
+    'scan_iso_vhd_files',
+    'scan_large_files',
+    'scan_maps_cache',
+    'scan_maps_offline_cache',
+    'scan_msi_logs',
+    'scan_msp_patches',
+    'scan_ndis_cache',
+    'scan_network_debug_logs',
+    'scan_novatrons_cache',
+    'scan_old_av_quarantine',
+    'scan_old_files',
+    'scan_old_restore_points',
+    'scan_perflogs',
+    'scan_powershell_ise_cache',
+    'scan_powershell_logs',
+    'scan_powershell_modules_cache',
+    'scan_prefetch',
+    'scan_print_nightmare_logs',
+    'scan_print_spooler',
+    'scan_printer_driver_cache',
+    'scan_recent_files',
+    'scan_recycle_bin',
+    'scan_recycle_bin_drive',
+    'scan_search_index',
+    'scan_store_app_caches',
+    'scan_sysinternals_logs',
+    'scan_triumph_cache',
+    'scan_usb_shadow_copies',
+    'scan_userprofile_temp',
+    'scan_uwp_all_apps_cache',
+    'scan_virtual_drives',
+    'scan_winSxS_temp',
+    'scan_windows_app_extensions_cache',
+    'scan_windows_compatibility_cache',
+    'scan_windows_connected_accounts_cache',
+    'scan_windows_defender_logs',
+    'scan_windows_inbox_apps_cache',
+    'scan_windows_insider_logs',
+    'scan_windows_insider_preview_cache',
+    'scan_windows_installer_cache',
+    'scan_windows_installer_rollback',
+    'scan_windows_logs',
+    'scan_windows_old',
+    'scan_windows_optional_features',
+    'scan_windows_printer_migration_cache',
+    'scan_windows_recovery_env_cache',
+    'scan_windows_reliability_logs',
+    'scan_windows_shell_cache',
+    'scan_windows_terminal_cache',
+    'scan_windows_terminal_settings_cache',
+    'scan_winsxs_cleanup',
+    'scan_wmi_logs',
+]

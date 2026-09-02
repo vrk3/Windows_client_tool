@@ -1394,244 +1394,63 @@ git commit -m "refactor(log_viewer): split the 480-line __init__ and extract Log
 
 ---
 
-## Task 13: Make the cleanup scanners a data table (audit #14)
+## Task 13: Make the cleanup scanners a data table (audit #14) - PILOT SHIPPED
 
-538 near-identical `scan_*` functions across eight files — 440 KB, roughly a tenth of the codebase. Almost every one is the same shape: build two or three paths from environment variables, hand them to `_make_item`, sum the sizes. The Tweaks module already solved this for a comparable body of knowledge: ~700 tweaks in JSON, one engine, one structural test.
+**Status: engine, tooling and a 41-scanner verified pilot shipped. The
+remaining 480 are staged behind the verifier and deliberately not
+converted.**
 
-This is the largest task in P1. Do it last, and do it incrementally — one `scanners_*.py` file per commit.
+The census held up: of 538 `scan_*` functions, 430 were a plain path list
+and 79 more differed only by a glob. `tools/convert_cleanup_scanners.py`
+could mechanically convert **521 of 538**.
 
-**Files:**
-- Create: `src/modules/cleanup/cleanup_scanner/catalog.py`
-- Create: `src/modules/cleanup/cleanup_scanner/definitions/system.json` (then `apps`, `dev`, `games`, `media`, `cloud`, `comms`, `browsers`)
-- Modify: `src/modules/cleanup/cleanup_scanner/__init__.py`
-- Test: `tests/test_cleanup_catalog.py`
+Then `tools/verify_scanner_conversion.py` ran each original and its
+generated spec side by side against this machine and compared what each
+found:
 
-**Interfaces:**
-- Produces:
-  - `ScannerSpec` — `id: str`, `label: str`, `category: str`, `paths: list[str]`, `safety: Literal["safe","caution","danger"]`, `glob: str | None`, `min_age_default: int`
-  - `load_catalog() -> dict[str, ScannerSpec]`
-  - `run_spec(spec: ScannerSpec, min_age_days: int = 0) -> ScanResult`
-  - `scanner_for(spec_id: str) -> Callable[[int], ScanResult]` — so existing `{fn: label}` dicts in the tabs keep working unchanged.
+    agree (both found the same paths):    65
+    agree (neither found anything here): 428
+    DISAGREE:                             28
 
-- [ ] **Step 1: Write the failing test**
+**28 of the 93 that could actually be checked disagreed - a 30% error
+rate.** Some were harmless (a spec picking up a parent directory the
+original filtered). One was not: `duplicate_files` originally offered four
+specific duplicate installers, and the generated spec offered
+`C:\Users\iorda\Documents`, `\Downloads` and `\Videos` - three entire user
+folders, on a list with a delete button attached. `dmf_logs` produced paths
+relative to the working directory.
 
-```python
-# tests/test_cleanup_catalog.py
-"""The cleanup scanners are data, not 538 near-identical functions.
+The consequence is the important part: **"neither found anything on this
+machine" is not evidence of equivalence.** With a 30% failure rate on
+everything checkable, the 428 unchecked conversions cannot be trusted, and
+shipping them would have meant shipping 428 unreviewed changes to a delete
+button.
 
-Each was: build two or three paths from environment variables, call
-_make_item, sum the sizes. Tweaks already proved the shape — ~700 entries
-in JSON with one engine and one structural test over them.
-"""
-import pytest
-from modules.cleanup.cleanup_scanner.catalog import load_catalog, run_spec
+So what ships is the 41 scanners verified against real data present on this
+machine - `temp_files` at 16.9 GB, `driver_store` at 6.6 GB, `event_logs`
+across 248 paths - each also read by eye. That removed 778 lines from
+`scanners_system.py`, and every hardcoded `C:\Windows` among them became
+`%windir%` (audit #16, as a side effect).
 
+Two things the data form made visible immediately, which 538 functions did
+not: `user_crash_dumps` includes the whole of `%LOCALAPPDATA%\Temp`, and
+`network_adapter_cache` points at the `hosts` file and calls itself "safe".
+Both are faithful conversions of the originals - they are pre-existing, and
+they are now legible.
 
-def test_every_spec_declares_a_safety_level():
-    """The thing a review cannot reliably check by eye, and the thing that
-    decides whether 'Clean All Safe' touches it."""
-    for spec_id, spec in load_catalog().items():
-        assert spec.safety in ("safe", "caution", "danger"), spec_id
-
-
-def test_every_spec_has_a_unique_id_and_a_label():
-    catalog = load_catalog()
-    labels = [s.label for s in catalog.values()]
-    assert len(set(labels)) == len(labels), "two scanners share a label"
-    assert all(s.label.strip() for s in catalog.values())
-
-
-def test_no_spec_hardcodes_a_drive_letter():
-    """audit #16 — %windir% on a machine with Windows on D: is not C:."""
-    for spec_id, spec in load_catalog().items():
-        for path in spec.paths:
-            assert not path[1:3] == ":\\", f"{spec_id} hardcodes {path}"
-
-
-def test_a_spec_pointing_nowhere_returns_an_empty_result_not_an_error():
-    from modules.cleanup.cleanup_scanner.catalog import ScannerSpec
-    spec = ScannerSpec(id="nope", label="Nope", category="system",
-                       paths=["%LOCALAPPDATA%\\definitely-not-here"], safety="safe")
-    result = run_spec(spec)
-    assert result.items == []
-    assert result.total_size == 0
-
-
-def test_the_legacy_function_names_still_resolve():
-    """The tabs pass {fn: label} dicts. Those call sites must not break."""
-    from modules.cleanup import cleanup_scanner
-    assert callable(cleanup_scanner.scan_temp_files)
-    assert callable(cleanup_scanner.scan_browser_caches)
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `QT_QPA_PLATFORM=offscreen python -m pytest tests/test_cleanup_catalog.py -q`
-Expected: FAIL — no `catalog` module.
-
-- [ ] **Step 3: Write the engine**
-
-```python
-# src/modules/cleanup/cleanup_scanner/catalog.py
-"""Scanner definitions as data, with one engine over them.
-
-538 functions across eight files were the same three lines: expand some
-environment variables into paths, hand them to _make_item, sum the sizes.
-The differences that mattered — which paths, what safety level, whether a
-glob is involved — are data, and Tweaks already proved the shape with
-~700 JSON-defined entries behind one engine and one structural test.
-
-Paths are written with environment variables (%LOCALAPPDATA%,
-%APPDATA%, %windir%) and expanded here. No drive letters: a machine with
-Windows on D: is not a hypothetical, and hardcoding C: is how the old
-scanners quietly found nothing there (audit #16).
-"""
-from __future__ import annotations
-
-import glob as globlib
-import json
-import logging
-import os
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Callable, Dict, List, Optional
-
-from modules.cleanup.cleanup_scanner._common import ScanItem, ScanResult, _make_item
-
-logger = logging.getLogger(__name__)
-
-_DEFINITIONS = Path(__file__).parent / "definitions"
-
-
-@dataclass(frozen=True)
-class ScannerSpec:
-    id: str
-    label: str
-    category: str
-    paths: List[str]
-    safety: str = "safe"
-    glob: Optional[str] = None
-    min_age_default: int = 0
-    description: str = ""
-
-
-_catalog: Optional[Dict[str, ScannerSpec]] = None
-
-
-def load_catalog() -> Dict[str, ScannerSpec]:
-    """Every scanner, keyed by id. Parsed once per process."""
-    global _catalog
-    if _catalog is None:
-        specs: Dict[str, ScannerSpec] = {}
-        for path in sorted(_DEFINITIONS.glob("*.json")):
-            with open(path, encoding="utf-8") as handle:
-                for row in json.load(handle)["scanners"]:
-                    spec = ScannerSpec(category=path.stem, **row)
-                    if spec.id in specs:
-                        raise ValueError(f"duplicate scanner id {spec.id!r} in {path.name}")
-                    specs[spec.id] = spec
-        _catalog = specs
-    return _catalog
-
-
-def expand(path: str) -> str:
-    return os.path.expandvars(path)
-
-
-def run_spec(spec: ScannerSpec, min_age_days: int = 0) -> ScanResult:
-    """Measure everything `spec` points at. A path that is not there is not
-    an error — most of these are optional software."""
-    result = ScanResult()
-    targets: List[str] = []
-    for raw in spec.paths:
-        expanded = expand(raw)
-        if "%" in expanded:
-            logger.debug("%s: unresolved variable in %r, skipping", spec.id, raw)
-            continue
-        targets.extend(globlib.glob(expanded) if ("*" in expanded or "?" in expanded)
-                       else [expanded])
-
-    for target in targets:
-        item = _make_item(target, safety=spec.safety,
-                          min_age_days=min_age_days or spec.min_age_default)
-        if item:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-
-def scanner_for(spec_id: str) -> Callable[..., ScanResult]:
-    """A callable with the old signature, so `{fn: label}` dicts still work."""
-    spec = load_catalog()[spec_id]
-
-    def _scan(min_age_days: int = 0) -> ScanResult:
-        return run_spec(spec, min_age_days)
-
-    _scan.__name__ = f"scan_{spec_id}"
-    _scan.__doc__ = spec.description or spec.label
-    return _scan
-```
-
-- [ ] **Step 4: Convert one file at a time, starting with `scanners_system.py`**
-
-```json
-{
-  "scanners": [
-    {
-      "id": "temp_files",
-      "label": "Temporary files",
-      "paths": ["%TEMP%", "%windir%\\Temp"],
-      "safety": "safe",
-      "description": "User temp files and the Windows temp directory."
-    },
-    {
-      "id": "windows_update_download",
-      "label": "Windows Update downloads",
-      "paths": ["%windir%\\SoftwareDistribution\\Download"],
-      "safety": "safe"
-    },
-    {
-      "id": "prefetch",
-      "label": "Prefetch",
-      "paths": ["%windir%\\Prefetch"],
-      "safety": "caution"
-    },
-    {
-      "id": "minidumps",
-      "label": "Crash minidumps",
-      "paths": ["%windir%\\Minidump", "%windir%\\MEMORY.DMP"],
-      "safety": "caution"
-    }
-  ]
-}
-```
-
-In `cleanup_scanner/__init__.py`, replace the star-import of the converted file with generated bindings:
-
-```python
-# The legacy `scan_<name>` callables the tabs pass around, generated from
-# the catalog. Every one used to be a hand-written near-duplicate.
-from modules.cleanup.cleanup_scanner.catalog import load_catalog, scanner_for
-
-for _spec_id in load_catalog():
-    globals()[f"scan_{_spec_id}"] = scanner_for(_spec_id)
-```
-
-Delete the converted functions from `scanners_system.py`. Keep in Python any scanner that is genuinely not a path list — the Firefox profile globbing survives as a glob, but anything that runs a subprocess or reads a registry key stays a function.
-
-- [ ] **Step 5: Run the tests after each file**
-
-Run: `QT_QPA_PLATFORM=offscreen python -m pytest tests/ -k cleanup -q`
-Expected: PASS
-
-Full suite after each conversion: `0 failed`.
-
-- [ ] **Step 6: Commit, one file per commit**
-
-```bash
-git add src/modules/cleanup/cleanup_scanner tests/test_cleanup_catalog.py
-git commit -m "refactor(cleanup): scanner catalog engine + system scanners as data (audit #14)"
-```
+- [x] **Step 1: engine** - `catalog.py`, with `ScannerSpec`,
+      `load_catalog`, `run_spec` and `scanner_for` keeping the old
+      `scan_x(min_age_days=0)` signature the tabs pass around.
+- [x] **Step 2: extractor** - `tools/convert_cleanup_scanners.py`. Skips
+      anything it cannot prove it understands rather than guessing.
+- [x] **Step 3: verifier** - `tools/verify_scanner_conversion.py`. This is
+      the real deliverable: it makes each batch checkable.
+- [x] **Step 4: verified pilot** - 41 scanners, `definitions/system.json`.
+- [ ] **Step 5: the remaining batches.** Run the verifier, take only what
+      agrees *with real data present*, read each spec by eye, delete the
+      originals. The apps/games/dev categories will need a machine with the
+      relevant software installed - where Steam is absent, a Steam scanner
+      cannot be verified at all.
 
 ---
 
