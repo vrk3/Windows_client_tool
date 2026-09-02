@@ -1,7 +1,7 @@
 # src/ui/main_window.py
 import datetime
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
@@ -35,6 +35,13 @@ class MainWindow(QMainWindow):
 
         self._module_map: Dict[str, BaseModule] = {}
         self._module_widgets: Dict[str, QWidget] = {}
+        #: One permanent page per module, added to the stack at registration.
+        #: The module's real widget goes inside it on first selection.
+        self._module_pages: Dict[str, QWidget] = {}
+        #: Modules whose widget has been built (or deliberately never will
+        #: be, for a disabled one). Membership is set BEFORE create_widget
+        #: runs, so a pane that raises is not retried on every visit.
+        self._built: set[str] = set()
         self._active_module: Optional[BaseModule] = None
         self._module_refresh_timers: Dict[str, QTimer] = {}
         self._auto_refresh_paused: bool = self._app.config.get(
@@ -178,21 +185,38 @@ class MainWindow(QMainWindow):
             restart_as_admin()
 
     def register_module(self, module: BaseModule) -> None:
-        """Register a module: create its widget, add to sidebar and stack."""
+        """Register a module: reserve its page, add it to sidebar and stack.
+
+        The widget is NOT built here. Building all 33 up front cost 1.78s of
+        a 2.10s startup — against 0.17s to import every module package and
+        0.05s to stand up App — and 32 of them were panes the user was not
+        looking at. `_ensure_built` does it on first selection instead.
+
+        The page is permanent and the real widget is added into its layout.
+        Never removeWidget/insertWidget to swap one in: on the current page
+        that re-enters the handler which asked for the build, the same trap
+        CompositeModule documents for its tabs.
+        """
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+
         enabled = module not in self._app.module_registry.disabled_modules
-        if enabled:
-            widget = module.create_widget()
-        else:
+        if not enabled:
             placeholder = QLabel(
                 f"⚠️ {module.name} requires administrator privileges.\n\n"
                 "Restart the application as Administrator to enable this module."
             )
             placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
             placeholder.setWordWrap(True)
-            widget = placeholder
-        self._stack.addWidget(widget)
+            page_layout.addWidget(placeholder)
+            self._module_widgets[module.name] = placeholder
+            # Nothing left to build, so first selection must not try.
+            self._built.add(module.name)
+
+        self._stack.addWidget(page)
         self._module_map[module.name] = module
-        self._module_widgets[module.name] = widget
+        self._module_pages[module.name] = page
 
         self._sidebar.add_module(
             group=module.group,
@@ -202,11 +226,41 @@ class MainWindow(QMainWindow):
             requires_admin=module.requires_admin,
         )
 
-        # Auto-select first enabled module (activation deferred to after window.show())
+        # Auto-select first enabled module. Both the build and the
+        # activation are deferred to showEvent, so nothing here blocks the
+        # window appearing.
         if self._active_module is None and enabled:
             self._sidebar.select(module.name)
             self._active_module = module
-            self._stack.setCurrentWidget(widget)
+            self._stack.setCurrentWidget(page)
+
+    def _ensure_built(self, module: BaseModule) -> None:
+        """Build `module`'s widget into its page, once.
+
+        create_widget() runs pane code that reaches WMI, the registry and
+        subprocesses. It used to run inside register_module, where nothing
+        caught it — one failing pane took the whole window with it before
+        anything was on screen. Here a failure costs that one pane.
+        """
+        if module.name in self._built:
+            return
+        self._built.add(module.name)
+
+        try:
+            widget = module.create_widget()
+        except Exception:
+            logger.exception("Module '%s' failed to build its widget", module.name)
+            widget = QLabel(
+                f"{module.name} failed to load.\n\n"
+                "See the application log for details."
+            )
+            widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            widget.setWordWrap(True)
+
+        page = self._module_pages.get(module.name)
+        if page is not None:
+            page.layout().addWidget(widget)
+        self._module_widgets[module.name] = widget
 
     def _on_module_selected(self, name: str) -> None:
         # Stop previous module's refresh timer
@@ -224,9 +278,10 @@ class MainWindow(QMainWindow):
         if module is None:
             return
         self._active_module = module
-        widget = self._module_widgets.get(name)
-        if widget is not None:
-            self._stack.setCurrentWidget(widget)
+        self._ensure_built(module)
+        page = self._module_pages.get(name)
+        if page is not None:
+            self._stack.setCurrentWidget(page)
         try:
             module.on_activate()
         except Exception:
@@ -273,6 +328,10 @@ class MainWindow(QMainWindow):
         if self._first_show:
             self._first_show = False
             if self._active_module is not None:
+                # The auto-selected module is built here rather than at
+                # registration, so the window is on screen before any pane
+                # code runs.
+                self._ensure_built(self._active_module)
                 try:
                     self._active_module.on_activate()
                 except Exception:
