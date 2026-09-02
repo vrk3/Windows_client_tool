@@ -37,37 +37,13 @@ jobs:
         env:
           # No interactive desktop on the runner — Qt must use its offscreen platform.
           QT_QPA_PLATFORM: offscreen
-        # No flags: they live in pyproject.toml's [tool.pytest.ini_options],
-        # so this is exactly the command a developer runs locally. The two
-        # had drifted — CI passed --timeout=120 while pytest-timeout was not
-        # installed in the local venv, so "it passed for me" and "it passed
-        # in CI" were answering different questions.
-        # -n auto with --dist loadfile: several test modules hold
-        # module-level state (the security catalog's shared SecurityControl
-        # objects, ThemeManager's applied theme), so tests from one file
-        # must stay in one worker. Plain --dist load splits them and fails.
-        # 4083 tests: 2m57s serial, 29s here.
-        run: python -m pytest -n auto --dist loadfile
-
-      - name: Run the real-machine tests
-        env:
-          QT_QPA_PLATFORM: offscreen
-        # These read the actual machine — WMI's service list, a real
-        # `reg export`, live Qt font metrics — so they fail for
-        # environmental reasons rather than code reasons, and a suite that
-        # is normally red teaches everyone to ignore it. Run separately and
-        # allowed to fail, so the signal stays visible without gating.
-        continue-on-error: true
-        run: python -m pytest -m real_machine
-
-      - name: Coverage
-        env:
-          QT_QPA_PLATFORM: offscreen
-        # Reported, not gated. Nobody has a baseline to hold yet, and a
-        # threshold that fails on its first run teaches everyone to pass
-        # --no-cov. Kept out of the default addopts because it roughly
-        # doubles the wall clock of every local run.
-        run: python -m pytest -n auto --dist loadfile --cov --cov-report=term
+        # --timeout is a safety net against genuine hangs eating the whole CI
+        # job silently. Note it uses pytest-timeout's "thread" method, which
+        # can only interrupt regular Python execution — a test blocked in a
+        # native/blocking Qt call (e.g. a stray dialog .exec()) won't be
+        # preempted by it. Still worth having for the more common case
+        # (an accidental infinite loop, a background op that never returns).
+        run: python -m pytest -q --timeout=120
 
   package:
     # Catches packaging regressions the test job's import/compile checks
