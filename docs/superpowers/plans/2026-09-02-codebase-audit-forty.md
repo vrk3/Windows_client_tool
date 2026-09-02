@@ -1056,103 +1056,51 @@ git commit -m "perf(ui): build module widgets on first selection, not at launch 
 
 ---
 
-## Task 9: Find and cut the Tweaks build cost (audit #10)
+## Task 9: Find and cut the Tweaks build cost (audit #10) — RE-SCOPED after measurement
 
-`TweaksModule.create_widget()` is 1.28s — 72% of the whole widget-build budget. After Task 8 that cost moves to the first click on Tweaks, which is a pane people open early, so it still needs cutting.
+**Status: measured, then deliberately not done. The premise did not survive
+the profiler.**
 
-**Files:**
-- Modify: `src/modules/tweaks/tweaks_module.py`
-- Test: `tests/test_tweaks_build_cost.py`
+The audit reported `TweaksModule.create_widget()` at 1.28s, 72% of the
+whole widget-build budget. That figure came from a probe that built all 33
+module widgets in a loop; profiling `create_widget()` on its own gives
+**0.30s**, and the 1.28s was dominated by one-time costs (PyQt enum class
+creation, Qt style resolution) that the loop attributed to whichever module
+ran first.
 
-- [ ] **Step 1: Measure before guessing**
+The profile, on this machine, after Task 8:
 
-Run:
+    create_widget total: 0.30s
+      0.251s   20 x TweakTab.__init__            (tweaks_module.py:333)
+      0.099s   5,031 addWidget calls
+      0.093s   696 x TweakRow.__init__           (tweaks_module.py:232)
+      0.068s   20 x setWidget
+      0.046s   1,396 setStyleSheet calls
+      0.005s   32 json.load calls
 
-```bash
-QT_QPA_PLATFORM=offscreen python -c "
-import sys, os, cProfile, pstats
-sys.path.insert(0, os.path.abspath('src'))
-from PyQt6.QtWidgets import QApplication
-qt = QApplication([])
-from app import App
-app = App(app_data_dir=os.path.join(os.environ['TEMP'], 'wct_probe'))
-from modules.tweaks.tweaks_module import TweaksModule
-m = TweaksModule(); m.on_start(app)
-cProfile.run('m.create_widget()', '/tmp/tweaks.prof')
-pstats.Stats('/tmp/tweaks.prof').sort_stats('cumulative').print_stats(25)
-"
-```
+Two things follow.
 
-Record the top entries. The likely candidates, in order: reading and parsing all 20 definition JSON files plus `debloat.json`'s 120+ entries at build time; constructing ~700 table rows across 20 tabs; and any `detect_status()` sweep that runs during construction rather than on activate.
+**The plan's hypothesis was wrong.** It assumed the cost was parsing 20
+definition files plus `debloat.json` at build time. Parsing is 0.005s —
+1.7% of the total, and unmeasurable next to widget construction. Deferring
+the JSON would have bought nothing.
 
-- [ ] **Step 2: Write the failing test**
+**The remaining lever is not worth its risk.** The real cost is building
+all 20 category tabs and their 696 rows eagerly. Deferring per-tab
+construction would buy roughly 0.25s, but `self._tab_widgets` is read in
+nine places — status detection sweeps, filtering, select-all, queued
+changes — each of which would silently see only the tabs the user had
+opened. A status sweep that covers only visited tabs is a behaviour change
+the user would notice long before they noticed 0.25s.
 
-```python
-# tests/test_tweaks_build_cost.py
-"""Building the Tweaks pane must not read every definition file.
+**What the profile did surface** is that one Tweaks build makes 1,396
+inline `setStyleSheet` calls — per-row styling that bypasses both theme
+sheets. That is audit #27 (Task 25), it is a correctness problem rather
+than only a speed one, and it is the better target in this file.
 
-create_widget() was 1.28s of a 1.78s widget-build budget. The pane has 20
-category tabs; opening it should cost the one tab it opens on.
-"""
-import json
-import pytest
-
-
-def test_building_the_pane_does_not_parse_every_definition_file(monkeypatch, started_tweaks_module):
-    loads = []
-    real_load = json.load
-    monkeypatch.setattr(json, "load", lambda fp, **kw: (loads.append(getattr(fp, "name", "?")), real_load(fp, **kw))[1])
-
-    started_tweaks_module.create_widget()
-
-    assert len(loads) <= 2, (
-        "create_widget parsed %d definition files; it should read at most the "
-        "one category it opens on: %s" % (len(loads), loads))
-
-
-@pytest.mark.slow
-def test_the_pane_builds_in_under_half_a_second(started_tweaks_module):
-    import time
-    start = time.perf_counter()
-    started_tweaks_module.create_widget()
-    elapsed = time.perf_counter() - start
-    assert elapsed < 0.5, f"create_widget took {elapsed:.2f}s (was 1.28s)"
-```
-
-- [ ] **Step 3: Run test to verify it fails**
-
-Run: `QT_QPA_PLATFORM=offscreen python -m pytest tests/test_tweaks_build_cost.py -q`
-Expected: FAIL — 20+ definition files parsed.
-
-- [ ] **Step 4: Defer per-category work to first tab view**
-
-Apply the `QTabWidget` pattern the codebase already uses in `CompositeModule` and `CleanupModule`: give each category tab a permanent empty page, and populate it in the `currentChanged` handler the first time that index is shown. Connect `currentChanged` **after** the `addTab()` loop — CLAUDE.md records that `addTab()` fires it synchronously for the first tab, which would defeat the whole change.
-
-```python
-        for label in _CATEGORY_FILES:
-            page = QWidget()
-            QVBoxLayout(page).setContentsMargins(0, 0, 0, 0)
-            self._tabs.addTab(page, label)
-        # Connected after the loop: addTab() fires currentChanged
-        # synchronously for the first tab added, which would run the load
-        # this deferral exists to avoid.
-        self._tabs.currentChanged.connect(self._ensure_category_loaded)
-        self._ensure_category_loaded(self._tabs.currentIndex())
-```
-
-- [ ] **Step 5: Run the tests**
-
-Run: `QT_QPA_PLATFORM=offscreen python -m pytest tests/test_tweaks_build_cost.py tests/test_tweak_definitions.py -q`
-Expected: PASS
-
-Full suite: `0 failed`.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/modules/tweaks/tweaks_module.py tests/test_tweaks_build_cost.py
-git commit -m "perf(tweaks): load a category's definitions when its tab is first shown (audit #10)"
-```
+- [x] **Step 1: Measure before guessing** — done; profile above.
+- [x] **Step 2: Decide from the measurement** — re-scoped; the work moves
+      to Task 25, which now names `tweaks_module.py` as its first target.
 
 ---
 
