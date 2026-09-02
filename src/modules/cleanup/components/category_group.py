@@ -166,7 +166,7 @@ class CategoryGroup(QWidget):
 
         # Error label
         self._err_lbl = QLabel()
-        self._err_lbl.setStyleSheet("color: #f44336;")
+        self._err_lbl.setObjectName("statusError")
         self._err_lbl.setWordWrap(True)
         self._err_lbl.hide()
         layout.addWidget(self._err_lbl)

@@ -24,7 +24,6 @@ class CommandPalette(QDialog):
             }
             QLineEdit {
                 background: #3c3c3c;
-                color: #d4d4d4;
                 border: none;
                 border-bottom: 1px solid #555;
                 padding: 10px 14px;
@@ -32,7 +31,6 @@ class CommandPalette(QDialog):
             }
             QListWidget {
                 background: #252526;
-                color: #d4d4d4;
                 border: none;
                 font-size: 13px;
                 outline: none;

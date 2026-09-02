@@ -33,6 +33,31 @@ def centered_item(text: str = "", sortable: bool = False) -> QTableWidgetItem:
     return item
 
 
+def set_role(widget, role: str) -> None:
+    """Give `widget` a semantic role the stylesheets paint (see the
+    "Semantic label roles" block in dark.qss / light.qss).
+
+    Qt resolves objectName selectors when a widget is polished. Setting the
+    name on a widget that is ALREADY on screen changes nothing until the
+    style is asked again — so a status label toggling between
+    "statusError" and "statusSuccess" would keep whichever colour it was
+    first given, silently. unpolish/polish is what makes the change take.
+
+    Preferred over `setStyleSheet("color: ...")`: an inline sheet beats the
+    application sheet and is never revisited, so it survives a theme switch
+    unchanged. That is how a pane ends up showing dark-theme text on a
+    light ground.
+    """
+    if widget.objectName() == role:
+        return
+    widget.setObjectName(role)
+    style = widget.style()
+    if style is not None:
+        style.unpolish(widget)
+        style.polish(widget)
+    widget.update()
+
+
 def describe_table(table: QTableWidget, name: str = "") -> None:
     """Give `table` a name a screen reader can announce.
 

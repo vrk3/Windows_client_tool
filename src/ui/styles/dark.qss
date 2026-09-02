@@ -414,3 +414,17 @@ QFrame#card {
 QLabel#muted {
     color: #858585;
 }
+
+/* ---- Semantic label roles ----------------------------------------------
+   Set with `label.setObjectName("statusError")` rather than an inline
+   stylesheet. An inline sheet beats this one and never changes again, so a
+   pane that writes `color: #f44336` keeps it through a theme switch; a role
+   follows the theme. Colours match core/semantic_colors.py, which holds
+   each to 4.5:1 against its own pane background. ---- */
+QLabel#statusError   { color: #f44747; font-weight: bold; }
+QLabel#statusWarning { color: #e5c07b; font-weight: bold; }
+QLabel#statusSuccess { color: #4ec9b0; font-weight: bold; }
+QLabel#statusInfo    { color: #4fc3f7; }
+QLabel#heading       { font-size: 16px; font-weight: bold; }
+QLabel#metric        { font-size: 18px; font-weight: bold; }
+QLabel#link          { color: #4fc3f7; }

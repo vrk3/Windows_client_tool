@@ -87,7 +87,7 @@ class HostsEditorModule(BaseModule):
         fit_table(self._table, stretch=[2, 3], content=[0, 1])
         self._table.setAlternatingRowColors(True)
         self._table.setStyleSheet("""
-            QTableWidget { background: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; }
+            QTableWidget { background: #2d2d2d; border: 1px solid #3c3c3c; border-radius: 4px; }
             QTableWidget::item { padding: 3px; }
             QTableWidget::item:selected { background: #094771; }
             QHeaderView::section { background: #3c3c3c; color: #b0b0b0; padding: 4px; border: none; }

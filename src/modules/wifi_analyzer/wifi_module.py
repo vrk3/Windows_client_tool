@@ -212,7 +212,7 @@ class WifiAnalyzerModule(BaseModule):
 
         for band in ("2.4 GHz", "5 GHz"):
             band_lbl = QLabel(band)
-            band_lbl.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+            band_lbl.setStyleSheet("font-weight: bold;")
             ch_layout.addWidget(band_lbl)
             setattr(self, f"_ch_area_{band.replace(' ','_')}", QScrollArea())
             ch_area = getattr(self, f"_ch_area_{band.replace(' ','_')}")

@@ -74,7 +74,6 @@ class NotificationTray(QWidget):
         title.setStyleSheet("color: white;")
         layout.addWidget(title)
         msg = QLabel(item.message)
-        msg.setStyleSheet("color: #d4d4d4;")
         msg.setWordWrap(True)
         layout.addWidget(msg)
         self._scroll_layout.insertWidget(0, frame)

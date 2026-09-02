@@ -115,7 +115,6 @@ class DiagnoseModule(CompositeModule):
         self._results_tree.setStyleSheet("""
             QTreeWidget {
                 background: #2d2d2d;
-                color: #e0e0e0;
                 border: 1px solid #3c3c3c;
                 border-radius: 4px;
             }

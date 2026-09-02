@@ -29,8 +29,9 @@ EXEMPT = {"core/semantic_colors.py"}
 #: Only ever lower this, in the same commit that removes literals.
 #: 400 when the ratchet was introduced; 373 after the status colours in
 #: Services, Firewall, Wi-Fi, Dashboard, Updates and Certificates moved to
-#: semantic().
-BUDGET = 373
+#: semantic(); 343 once the inline stylesheets that froze the
+#: dark theme text colour were converted to sheet-driven roles.
+BUDGET = 343
 
 
 def frozen_colour_literals():

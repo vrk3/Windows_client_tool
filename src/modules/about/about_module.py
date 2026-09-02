@@ -106,7 +106,7 @@ class AboutModule(BaseModule):
 
         github = QLabel(f'Source: <a href="{_GITHUB_URL}">{_GITHUB_URL}</a>')
         github.setOpenExternalLinks(True)
-        github.setStyleSheet("color: #3a8ee6;")
+        github.setObjectName("link")
         layout.addWidget(github)
 
         layout.addStretch()

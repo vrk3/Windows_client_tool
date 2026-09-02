@@ -483,3 +483,15 @@ QSlider::sub-page:horizontal {
     background: #007acc;
     border-radius: 2px;
 }
+
+/* ---- Semantic label roles ----------------------------------------------
+   The light half of the roles dark.qss defines. Darkened rather than
+   reused: #4ec9b0 reads 7.7:1 on a dark pane and 1.98:1 on a light one,
+   which is the arithmetic core/semantic_colors.py exists to state. ---- */
+QLabel#statusError   { color: #b3261e; font-weight: bold; }
+QLabel#statusWarning { color: #8a5300; font-weight: bold; }
+QLabel#statusSuccess { color: #00695c; font-weight: bold; }
+QLabel#statusInfo    { color: #00639c; }
+QLabel#heading       { font-size: 16px; font-weight: bold; }
+QLabel#metric        { font-size: 18px; font-weight: bold; }
+QLabel#link          { color: #00639c; }

@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import center_header, centered_item, fit_table, set_role
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
 from modules.perfmon.perfmon_charts import _QtLineChart
@@ -696,10 +696,10 @@ def _build_network_errors_card() -> _ToolCard:
         if _widget_valid(status_label):
             if nonzero_errors:
                 status_label.setText(f"⚠ {nonzero_errors} active error counter(s)")
-                status_label.setStyleSheet("color: #ff6666;")
+                set_role(status_label, "statusError")
             else:
                 status_label.setText("No active error counters")
-                status_label.setStyleSheet("color: #88cc88;")
+                set_role(status_label, "statusSuccess")
 
     def _refresh() -> None:
         nonlocal card
@@ -818,7 +818,7 @@ def _build_packet_capture_card() -> _ToolCard:
     if unavailable_reason:
         info = QLabel(unavailable_reason)
         info.setWordWrap(True)
-        info.setStyleSheet("color: #cccc88;")
+        info.setObjectName("statusWarning")
         layout.addWidget(info)
         card = _ToolCard("Packet Capture (requires Npcap + scapy)", content, expanded=False)
         return card

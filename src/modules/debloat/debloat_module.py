@@ -74,7 +74,7 @@ class DebloatToolsModule(BaseModule):
         self._tab_widget.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #3c3c3c; border-radius: 4px; background: #252525; }
             QTabBar::tab { background: #2d2d2d; color: #b0b0b0; padding: 6px 12px; margin-right: 2px; border: 1px solid #3c3c3c; border-bottom: none; border-radius: 4px 4px 0 0; }
-            QTabBar::tab:selected { background: #252525; color: #e0e0e0; font-weight: bold; }
+            QTabBar::tab:selected { background: #252525; font-weight: bold; }
             QTabBar::tab:hover { background: #3c3c3c; }
         """)
 

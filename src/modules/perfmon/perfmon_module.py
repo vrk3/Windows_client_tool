@@ -80,28 +80,28 @@ class PerfMonModule(BaseModule):
 
         # CPU bar
         cpu_label = QLabel("CPU Usage")
-        cpu_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        cpu_label.setStyleSheet("font-weight: bold;")
         self._cpu_bar = QProgressBar()
         self._cpu_bar.setRange(0, 100)
         self._cpu_bar.setFormat("%p%")
 
         # Memory bar
         mem_label = QLabel("Memory Usage")
-        mem_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        mem_label.setStyleSheet("font-weight: bold;")
         self._mem_bar = QProgressBar()
         self._mem_bar.setRange(0, 100)
         self._mem_bar.setFormat("%p%")
 
         # Disk I/O bar
         disk_label = QLabel("Disk I/O")
-        disk_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        disk_label.setStyleSheet("font-weight: bold;")
         self._disk_bar = QProgressBar()
         self._disk_bar.setRange(0, 100)
         self._disk_bar.setFormat("0 MB/s")
 
         # Network I/O bar
         net_label = QLabel("Network I/O")
-        net_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        net_label.setStyleSheet("font-weight: bold;")
         self._net_bar = QProgressBar()
         self._net_bar.setRange(0, 100)
         self._net_bar.setFormat("0 KB/s")
@@ -118,7 +118,7 @@ class PerfMonModule(BaseModule):
 
         # Top processes table
         proc_label = QLabel("Top Processes by CPU")
-        proc_label.setStyleSheet("font-weight: bold; color: #e0e0e0;")
+        proc_label.setStyleSheet("font-weight: bold;")
         live_layout.addWidget(proc_label, 4, 0, 1, 2)
 
         self._proc_table = QTableWidget()

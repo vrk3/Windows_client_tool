@@ -51,11 +51,11 @@ class EventDetailDialog(QDialog):
         row1 = QHBoxLayout()
         ts_str = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         lbl_time = QLabel(f"<span style='color:#b0b0b0;font-size:11px;'>TIME</span><br>"
-                          f"<span style='color:#e0e0e0;font-size:13px;'>{ts_str}</span>")
+                          f"<span style='font-size:13px;'>{ts_str}</span>")
         row1.addWidget(lbl_time)
 
         lbl_source = QLabel(f"<span style='color:#b0b0b0;font-size:11px;'>SOURCE</span><br>"
-                            f"<span style='color:#e0e0e0;font-size:13px;'>{entry.source}</span>")
+                            f"<span style='font-size:13px;'>{entry.source}</span>")
         row1.addWidget(lbl_source)
 
         bg, fg = _LEVEL_COLORS.get(entry.level, ("#555555", "#ffffff"))
@@ -77,7 +77,7 @@ class EventDetailDialog(QDialog):
         layout.addWidget(sep)
 
         # ── Message area ────────────────────────────────────────────────
-        msg_label = QLabel("<b style='color:#e0e0e0;font-size:12px;'>MESSAGE</b>")
+        msg_label = QLabel("<b style='font-size:12px;'>MESSAGE</b>")
         layout.addWidget(msg_label)
 
         self._text = QTextEdit()
@@ -90,7 +90,6 @@ class EventDetailDialog(QDialog):
                 border: 1px solid #3c3c3c;
                 border-radius: 4px;
                 padding: 8px;
-                color: #e0e0e0;
             }
         """)
         self._text.setHtml(self._format_html())
@@ -103,7 +102,7 @@ class EventDetailDialog(QDialog):
             raw_sep.setStyleSheet("color: #3c3c3c;")
             layout.addWidget(raw_sep)
 
-            raw_label = QLabel("<b style='color:#e0e0e0;font-size:12px;'>RAW DATA</b>")
+            raw_label = QLabel("<b style='font-size:12px;'>RAW DATA</b>")
             layout.addWidget(raw_label)
 
             self._raw_text = QTextEdit()
@@ -155,13 +154,13 @@ class EventDetailDialog(QDialog):
         message_html = entry.message.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         message_html = message_html.replace("\n", "<br>")
         html = f"""
-        <div style='font-family:Consolas,monospace; font-size:10pt; color:#e0e0e0;'>
+        <div style='font-family:Consolas,monospace; font-size:10pt;'>
             <span style='color:#888;'>Timestamp :</span> <b>{ts_str}</b><br>
             <span style='color:#888;'>Source    :</span> <b>{entry.source}</b><br>
             <span style='color:#888;'>Level     :</span> <b>{entry.level}</b><br>
             <br>
             <span style='color:#888;'>─ Message ─</span><br>
-            <div style='background:#1e1e1e; padding:8px; border-radius:4px; margin-top:4px; color:#d4d4d4;'>
+            <div style='background:#1e1e1e; padding:8px; border-radius:4px; margin-top:4px;'>
                 {message_html}
             </div>
         </div>

@@ -46,7 +46,7 @@ class BootAnalyzerModule(BaseModule):
 
         # Title
         title = QLabel("Boot Performance Analysis")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e0e0e0;")
+        title.setObjectName("heading")
         content_layout.addWidget(title)
 
         # Info cards container
@@ -273,7 +273,7 @@ class BootAnalyzerModule(BaseModule):
             card_layout.addWidget(t, 0, 0)
 
             v = QLabel(str(value))
-            v.setStyleSheet("font-size: 18px; font-weight: bold; color: #e0e0e0;")
+            v.setObjectName("metric")
             card_layout.addWidget(v, 1, 0)
 
             d = QLabel(detail)

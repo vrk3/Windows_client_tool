@@ -1152,7 +1152,7 @@ class SecurityDashboardModule(BaseModule):
         self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._events_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._events_table.setStyleSheet("""
-            QTableWidget { background: #2d2d2d; color: #e0e0e0;
+            QTableWidget { background: #2d2d2d;
                            border: 1px solid #3c3c3c; border-radius: 4px; }
             QTableWidget::item { padding: 4px; }
             QTableWidget::item:selected { background: #094771; }

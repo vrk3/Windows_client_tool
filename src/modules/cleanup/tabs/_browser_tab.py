@@ -45,7 +45,7 @@ class _BrowserCleanupTab(QWidget):
         layout.addLayout(tb)
 
         self._warn = QLabel()
-        self._warn.setStyleSheet("color: #ff9800; font-weight: bold;")
+        self._warn.setObjectName("statusWarning")
         self._warn.hide()
         layout.addWidget(self._warn)
 
