@@ -4,9 +4,11 @@ Three things this file exists to get right, each of which has already cost
 this project a round trip somewhere else:
 
 * **The command line is quoted.** `subprocess.list2cmdline` does it;
-  `" ".join(sys.argv)` -- which `core.admin_utils.restart_as_admin` still uses
-  -- breaks on the first path with a space in it, and the batch file lives
-  under `C:\Users\<name>\AppData\Local\...`.
+  `" ".join(sys.argv)` breaks on the first path with a space in it, and the
+  batch file lives under `C:\Users\<name>\AppData\Local\...`.
+  `core.admin_utils.restart_as_admin` used to join on a space and has been
+  fixed to match; if a third place ever needs to build one of these, take
+  it from here rather than writing a third version.
 
 * **The child reports through a file.** A `ShellExecuteW`-launched process
   cannot have its stdout captured by the parent (the same reason
