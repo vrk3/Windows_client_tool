@@ -1,4 +1,10 @@
-"""Configuration manager for cleanup module.
+"""Cleanup module settings: rules, presets and thresholds.
+
+Named CleanupConfig, not ConfigManager: core/config_manager.py
+owns THE application config — versioned, migratable, autosaving,
+event-bus aware — and two classes of the same name in one tree
+is a coin flip every time someone reads an import.
+
 
 Handles:
 - User-customized cleanup rules
@@ -7,6 +13,7 @@ Handles:
 - Default rule merging
 """
 
+import datetime
 import json
 import logging
 import os
@@ -15,11 +22,9 @@ logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from PyQt6.QtWidgets import QCheckBox, QPushButton, QVBoxLayout
-from PyQt6.QtCore import QSettings, QDate
 
 
-class ConfigManager:
+class CleanupConfig:
     """Manages cleanup configuration and rules.
 
     Features:
@@ -263,8 +268,12 @@ class ConfigManager:
 
         try:
             # Backup current config
+            # datetime, not QDate: QDate carries no time, so 'hhmmss'
+            # rendered literally and every backup ever written landed on
+            # cleanup_config_backup_<date>_hhmmss.json, overwriting the last.
+            stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = self._CONFIG_PATH.with_name(
-                f"cleanup_config_backup_{QDate.currentDate().toString('yyyyMMdd_hhmmss')}.json"
+                f"cleanup_config_backup_{stamp}.json"
             )
 
             with open(self._CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -381,3 +390,9 @@ class ConfigManager:
             Settings dictionary.
         """
         return self._DEFAULT_CONFIG.get("settings", {})
+
+
+#: The name this class had until it was disambiguated from
+#: core.config_manager.ConfigManager. Kept so an import that predates the
+#: rename still resolves rather than failing at startup.
+ConfigManager = CleanupConfig

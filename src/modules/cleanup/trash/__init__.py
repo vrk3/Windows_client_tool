@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from dataclasses import dataclass, field
 
-from modules.config.config_manager import ConfigManager
+from modules.config.config_manager import CleanupConfig
 import logging
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class TrashManager:
 
     TRASH_DIR: Path = None
 
-    def __init__(self, config_manager: ConfigManager):
+    def __init__(self, config_manager: CleanupConfig):
         self._config = config_manager
         self._trash_dir: Path = None
         self._setup_trash_dir()
