@@ -184,3 +184,49 @@ def test_both_themes_style_a_disabled_button():
     for theme in ("dark", "light"):
         assert "QPushButton:disabled" in _stylesheet(theme), (
             f"{theme}.qss does not say what a disabled button looks like")
+
+
+# ----------------------------------------------------------------------
+# Sheet parity
+#
+# The luminance sweep above catches a pane that paints itself dark. This
+# catches the other half of the same problem: a widget the DARK sheet styles
+# and the light one does not. Such a widget keeps the Qt palette default in
+# the light theme — which on a machine in Windows dark mode is dark — while
+# everything around it is light.
+#
+# light.qss was 184 lines against dark.qss's 416, and 61 of the dark sheet's
+# 89 selectors had no light answer at all: every scrollbar, QComboBox,
+# QDialog, QGroupBox, QListWidget, QPlainTextEdit, QRadioButton, QToolButton,
+# QToolTip and QSlider among them.
+# ----------------------------------------------------------------------
+import re
+from pathlib import Path
+
+STYLES = Path(__file__).resolve().parent.parent / "src" / "ui" / "styles"
+
+
+def _selectors(sheet: str) -> set:
+    text = (STYLES / sheet).read_text(encoding="utf-8")
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return {
+        part.strip()
+        for block in re.findall(r"([^{}]+)\{", text)
+        for part in block.split(",")
+        if part.strip() and not part.strip().startswith("@")
+    }
+
+
+def test_the_light_sheet_answers_every_dark_selector():
+    missing = sorted(_selectors("dark.qss") - _selectors("light.qss"))
+    assert missing == [], (
+        "these widgets keep the Qt palette default under the light theme, "
+        "which is dark when Windows is:\n  " + "\n  ".join(missing))
+
+
+def test_neither_sheet_styles_something_the_other_does_not():
+    """Symmetry both ways — a rule only the light sheet has is just as much
+    a theme that is only half-designed."""
+    extra = sorted(_selectors("light.qss") - _selectors("dark.qss"))
+    assert extra == [], (
+        "styled in light.qss but not dark.qss:\n  " + "\n  ".join(extra))

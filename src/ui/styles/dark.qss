@@ -235,7 +235,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none; }
 
 /* ---- Tables / Trees ---- */
-QTableWidget, QTreeWidget, QListView {
+QTableView, QTreeView, QListView {
     background-color: #1e1e1e;
     alternate-background-color: #252526;
     color: #d4d4d4;
@@ -246,7 +246,7 @@ QTableWidget, QTreeWidget, QListView {
     outline: none;
 }
 
-QTableWidget::item, QTreeWidget::item {
+QTableView::item, QTreeView::item {
     padding: 4px 8px;
 }
 

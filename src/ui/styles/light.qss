@@ -86,7 +86,7 @@ QPushButton:disabled {
     color: #8c8c8c;
 }
 
-QTreeView, QTableView, QListView {
+QTableView, QTreeView, QListView {
     background-color: #ffffff;
     color: #1e1e1e;
     border: 1px solid #d4d4d4;
@@ -181,4 +181,305 @@ QTabBar::tab:hover:!selected {
    on a light pane. Panes ask for the role and let the sheet pick. */
 QLabel#muted {
     color: #5a5a5a;
+}
+
+/* ============================================================
+   Parity block — the 61 selectors dark.qss styled and this sheet
+   did not.
+
+   A widget the dark sheet styles and this one does not keeps the Qt
+   PALETTE default, and Qt6 takes that from the OS colour scheme: on a
+   machine in Windows dark mode, those widgets rendered dark inside an
+   otherwise light app. Every scrollbar, combo box, list, group box,
+   tooltip, slider and tool button was in that state.
+
+   The values are derived from this sheet's own palette, NOT inverted from
+   the dark one. core/semantic_colors.py documents why inverting fails:
+   the same hue that reads 7.7:1 on #1e1e1e reads 1.98:1 on #f5f5f5.
+
+   Palette:  bg #f5f5f5  surface #ffffff  elevated #ececec
+             border #d4d4d4  text #1e1e1e  muted #6a6a6a
+             accent #007acc  selection #cce4f7
+   ============================================================ */
+
+QFrame {
+    background-color: #f5f5f5;
+}
+
+QFrame[frameShape="1"], QFrame[frameShape="4"] {
+    border: 1px solid #d4d4d4;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QStackedWidget {
+    background-color: #f5f5f5;
+}
+
+QScrollArea {
+    border: none;
+    background-color: #f5f5f5;
+}
+
+/* ---- Sidebar / lists ---- */
+QListWidget {
+    background-color: #ffffff;
+    border: none;
+    border-right: 1px solid #d4d4d4;
+    outline: none;
+}
+
+QListWidget::item {
+    padding: 10px 16px;
+    border-left: 3px solid transparent;
+}
+
+QListWidget::item:selected {
+    background-color: #cce4f7;
+    border-left: 3px solid #007acc;
+    color: #1e1e1e;   /* not #ffffff: white on #cce4f7 is 1.5:1 */
+}
+
+QListWidget::item:hover:!selected {
+    background-color: #ececec;
+}
+
+/* ---- Inputs ---- */
+QComboBox {
+    background-color: #ffffff;
+    color: #1e1e1e;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    padding: 4px 8px;
+    min-height: 22px;
+}
+
+QComboBox:hover {
+    border-color: #007acc;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #1e1e1e;
+    border: 1px solid #c8c8c8;
+    selection-background-color: #cce4f7;
+    selection-color: #1e1e1e;
+}
+
+QSpinBox, QDoubleSpinBox {
+    background-color: #ffffff;
+    color: #1e1e1e;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    padding: 3px 6px;
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #8c8c8c;
+    background-color: #ffffff;
+    border-radius: 2px;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #007acc;
+    border-color: #007acc;
+}
+
+QRadioButton::indicator {
+    border-radius: 7px;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #007acc;
+    border-color: #007acc;
+}
+
+QRadioButton {
+    color: #1e1e1e;
+    spacing: 6px;
+}
+
+/* ---- Grouping ---- */
+QGroupBox {
+    border: 1px solid #d4d4d4;
+    border-radius: 4px;
+    margin-top: 14px;
+    padding: 8px;
+    color: #5a5a5a;   /* the dark sheet's #858585 is 2.5:1 here */
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+QDialog {
+    background-color: #f5f5f5;
+    color: #1e1e1e;
+}
+
+/* ---- Text areas ---- */
+QTextEdit, QPlainTextEdit {
+    background-color: #ffffff;
+    color: #1e1e1e;
+    border: 1px solid #d4d4d4;
+    border-radius: 3px;
+    selection-background-color: #cce4f7;
+    selection-color: #1e1e1e;
+}
+
+QTextEdit:focus, QPlainTextEdit:focus {
+    border-color: #007acc;
+}
+
+/* ---- Scrollbars ---- */
+QScrollBar:vertical {
+    background: #f5f5f5;
+    width: 10px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #8c8c8c;
+    min-height: 20px;
+    border-radius: 4px;
+    margin: 1px 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #5a5a5a;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    background: #f5f5f5;
+    height: 10px;
+    margin: 0;
+}
+
+QScrollBar::handle:horizontal {
+    background: #8c8c8c;
+    min-width: 20px;
+    border-radius: 4px;
+    margin: 2px 1px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #5a5a5a;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+/* ---- Tables and trees ---- */
+QTableView::item, QTreeView::item {
+    padding: 4px 8px;
+}
+
+QHeaderView::section:hover {
+    background-color: #dcdcdc;
+    color: #1e1e1e;
+}
+
+/* ---- Splitters ---- */
+QSplitter::handle {
+    background-color: #d4d4d4;
+}
+
+QSplitter::handle:horizontal {
+    width: 3px;
+}
+
+QSplitter::handle:vertical {
+    height: 3px;
+}
+
+QSplitter::handle:hover {
+    background-color: #007acc;
+}
+
+/* ---- Menus ---- */
+QMenuBar::item:selected {
+    background-color: #cce4f7;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #d4d4d4;
+    margin: 4px 0;
+}
+
+/* ---- Toolbar buttons ---- */
+QToolButton {
+    background-color: transparent;
+    color: #1e1e1e;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+}
+
+QToolButton:hover {
+    background-color: #dcdcdc;
+}
+
+QToolButton:pressed {
+    background-color: #c8c8c8;
+}
+
+QToolButton:checked {
+    background-color: #cce4f7;
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+/* ---- Tooltips ---- */
+QToolTip {
+    background-color: #ffffff;
+    color: #1e1e1e;
+    border: 1px solid #c8c8c8;
+    padding: 4px 8px;
+    border-radius: 3px;
+}
+
+/* ---- Sliders ---- */
+QSlider::groove:horizontal {
+    background: #d4d4d4;
+    height: 4px;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    background: #007acc;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #007acc;
+    border-radius: 2px;
 }
