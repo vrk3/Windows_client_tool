@@ -227,3 +227,79 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
             dupes = {p for p in lowered if lowered.count(p) > 1}
             offenders.append(f"{spec_id}: {sorted(dupes)}")
     assert offenders == [], "\n  ".join([""] + offenders)
+
+
+# ── reach ──────────────────────────────────────────────────────────────
+#
+# 404 of the 537 scanners are never referenced outside the scanner
+# package. They load, they are exported, and no tab ever offers them: the
+# UI wires its categories explicitly, in quick_cleanup_tab (96 scanners),
+# _overview_tab (78), cleanup_module (23) and _large_items_tab (3).
+#
+# This predates the conversion to data — the 538 hand-written functions
+# were equally unreachable — and it explains a lot: it is why 62 scanners
+# could have a glob bug that meant they never matched anything, and why ten
+# pairs could point at identical paths, without anyone noticing. Nobody was
+# looking at them, because nobody could.
+#
+# Whether to surface them is a product decision, so this is pinned rather
+# than fixed. The numbers are here so the gap is visible.
+
+REACHABLE_SCANNERS = 133
+
+
+def _referenced_scanner_names():
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parent.parent
+    names = set()
+    for area in ("src", "tests", "tools"):
+        for path in (root / area).rglob("*.py"):
+            if "cleanup_scanner" in str(path) or "__pycache__" in str(path):
+                continue
+            names |= set(re.findall(
+                r"\bscan_[a-z0-9_]+",
+                path.read_text(encoding="utf-8", errors="replace")))
+    return names
+
+
+def _all_scanner_names(catalog):
+    import ast
+    import pathlib
+    names = {f"scan_{i}" for i in catalog}
+    pkg = pathlib.Path(__file__).resolve().parent.parent / "src" / "modules" / "cleanup" / "cleanup_scanner"
+    for path in pkg.glob("scanners_*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        names |= {n.name for n in tree.body
+                  if isinstance(n, ast.FunctionDef) and n.name.startswith("scan_")}
+    return names
+
+
+def test_the_number_of_reachable_scanners_does_not_fall(catalog):
+    """A scanner that stops being referenced stops being offered, and
+    nothing else says so."""
+    reachable = _all_scanner_names(catalog) & _referenced_scanner_names()
+    assert len(reachable) >= REACHABLE_SCANNERS, (
+        f"only {len(reachable)} scanners are wired into the UI, was "
+        f"{REACHABLE_SCANNERS} — something stopped being offered")
+
+
+def test_no_scanner_was_lost_in_the_conversion(catalog):
+    """538 scanners existed before audit #14. Every one must still be
+    either a spec or a function — never neither, never both."""
+    import ast
+    import pathlib
+    pkg = (pathlib.Path(__file__).resolve().parent.parent / "src" / "modules"
+           / "cleanup" / "cleanup_scanner")
+    in_code = set()
+    for path in pkg.glob("scanners_*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        in_code |= {n.name[len("scan_"):] for n in tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name.startswith("scan_")}
+    in_catalog = set(catalog)
+
+    both = sorted(in_catalog & in_code)
+    assert both == [], f"defined twice — the catalog shadows the function: {both}"
+    assert len(in_catalog) + len(in_code) == 537, (
+        f"{len(in_catalog)} specs + {len(in_code)} functions = "
+        f"{len(in_catalog) + len(in_code)}, expected 537")
