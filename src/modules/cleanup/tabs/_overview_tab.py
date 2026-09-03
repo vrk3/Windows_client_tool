@@ -13,10 +13,30 @@ from PyQt6.QtWidgets import (
 from core.table_ui import centered_item, center_header
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
+from modules.cleanup.cleanup_scanner import scan_cache
 from modules.cleanup import browser_scanner as bs
 
 
 logger = logging.getLogger(__name__)
+
+# A worker's result can land after its tab is gone. Qt auto-disconnects a
+# BOUND METHOD when the receiving QObject is destroyed, but these tabs
+# connect closures, and nothing tells Qt what a closure's receiver is — so
+# the connection outlives the widget and the callback reaches into a
+# deleted C++ object. Found by a hard crash, not an exception.
+#
+# `from PyQt6 import sip`, not `import sip`: the bare form does not exist
+# under PyQt6, so a guard written that way silently falls back to
+# "always valid" and protects nothing.
+try:
+    from PyQt6 import sip as _sip
+
+    def _alive(widget) -> bool:
+        return widget is not None and not _sip.isdeleted(widget)
+except ImportError:                                   # pragma: no cover
+    def _alive(widget) -> bool:
+        return widget is not None
+
 
 
 _OV_GROUPS = [
@@ -225,7 +245,7 @@ class _OverviewTab(QWidget):
                         found = []
                         for fn in fns:
                             try:
-                                r = fn(min_age_days=0)
+                                r = scan_cache.cached_scan(fn, 0)
                                 found.extend(r.items)
                             except Exception as e:
                                 logger.warning(f"Scan {fn.__name__} failed: {e}")
@@ -236,6 +256,8 @@ class _OverviewTab(QWidget):
                     return gname, total, safe, count
 
                 def _res(data):
+                    if not _alive(self):
+                        return
                     gn, tot, sf, cnt = data
                     self._results[gn] = (tot, sf, cnt)
                     self._pending -= 1
@@ -245,6 +267,8 @@ class _OverviewTab(QWidget):
                         self._scan_done()
 
                 def _err(_e):
+                    if not _alive(self):
+                        return
                     self._pending -= 1
                     self._note_progress()
                     self._update_row(gname, 0, 0, 0)
@@ -311,7 +335,7 @@ class _OverviewTab(QWidget):
                 continue  # skip browser (handled by its own tab)
             for fn in scanners:
                 try:
-                    r = fn(min_age_days=0)
+                    r = scan_cache.cached_scan(fn, 0)
                     for item in r.items:
                         if item.safety == "safe":
                             item.selected = True
@@ -337,6 +361,8 @@ class _OverviewTab(QWidget):
             return cs.delete_items(all_items, stop_wuauserv=needs_wu)
 
         def _done(result):
+            if not _alive(self):
+                return
             deleted, errors = result
             self._prog.hide()
             self._scan_btn.setEnabled(True)
@@ -351,6 +377,8 @@ class _OverviewTab(QWidget):
             self._do_scan_all()
 
         def _err(e: str):
+            if not _alive(self):
+                return
             self._prog.hide()
             self._scan_btn.setEnabled(True)
             self._clean_btn.setEnabled(True)
