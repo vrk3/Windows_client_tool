@@ -330,23 +330,46 @@ def _scanners_the_tabs_offer():
             pass
 
 
-def test_every_scanner_is_offered_somewhere(qapp, catalog):
+def test_every_scanner_that_applies_here_is_offered(qapp, catalog):
     """404 of 537 used to be unreachable. None are now, and none may
     become so again: a scanner nobody can reach is knowledge about where an
-    application caches things, kept and never used."""
+    application caches things, kept and never used.
+
+    The tabs are built `present_only`, so this asks the machine-specific
+    half of the question: every scanner whose target EXISTS here must be
+    offered. The other half — that every scanner is reachable in principle
+    — is `test_every_scanner_is_reachable_from_its_category` below, which
+    needs no machine at all.
+    """
+    from modules.cleanup.cleanup_scanner.catalog import is_present
+
     offered = _scanners_the_tabs_offer()
-    # A spec carrying a `disabled_reason` is deliberately not offered —
-    # that field exists to keep the knowledge while withdrawing the
-    # scanner, and `scanners_for` filters on it. Counting them here would
-    # force anyone disabling one to re-pin the census and lose the meaning.
-    disabled = {spec_id for spec_id, spec in catalog.items()
-                if spec.disabled_reason}
-    expected = REACHABLE_SCANNERS - len(disabled)
-    assert len(offered) >= expected, (
-        f"only {len(offered)} scanners are offered by the Cleanup tabs, "
-        f"expected at least {expected} "
-        f"({REACHABLE_SCANNERS} defined, {len(disabled)} disabled: "
-        f"{sorted(disabled)})")
+    should_be_offered = {
+        f"scan_{spec_id}" for spec_id, spec in catalog.items()
+        if not spec.disabled_reason and is_present(spec)
+    }
+    missing = sorted(should_be_offered - offered)
+    assert not missing, (
+        f"{len(missing)} scanners point at something on this machine and "
+        f"are offered by no tab: {missing[:10]}")
+
+
+def test_every_scanner_is_reachable_from_its_category(catalog):
+    """Machine-independent: nothing may be defined and unreachable.
+
+    `present_only` narrows what a TAB shows to what applies here — a
+    display and scan decision, never a deletion. Unfiltered, every
+    non-disabled spec must still come back from its own category.
+    """
+    from modules.cleanup.cleanup_scanner.catalog import CATEGORY_TABS, scanners_for
+
+    reachable = set()
+    for category in CATEGORY_TABS:
+        reachable |= {fn.__name__ for fn in scanners_for(category)}
+    unreachable = sorted(
+        f"scan_{spec_id}" for spec_id, spec in catalog.items()
+        if not spec.disabled_reason and f"scan_{spec_id}" not in reachable)
+    assert not unreachable, unreachable[:10]
 
 
 def test_no_scanner_was_lost_in_the_conversion(catalog):

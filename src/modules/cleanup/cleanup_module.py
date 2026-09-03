@@ -8,6 +8,8 @@ Cross-cutting: auto-scan on first tab switch, safety colour-coding,
 age filter per tab, running-process guard, >500 MB confirmation,
 error panel, freed-session counter, DISM button on Large Items.
 """
+import logging
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
 )
@@ -21,6 +23,8 @@ from modules.cleanup.tabs import (
     _LargeItemsTab,
     _OverviewTab,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Alias LARGE_SCANNERS so the main module still has access for reference
@@ -141,11 +145,21 @@ def _with_catalog(curated: dict, *categories: str) -> dict:
     from modules.cleanup.cleanup_scanner.catalog import scanners_for
 
     merged = dict(curated)
+    skipped = 0
     for category in categories:
-        for fn, meta in scanners_for(category).items():
+        offered = scanners_for(category, present_only=True)
+        skipped += len(scanners_for(category)) - len(offered)
+        for fn, meta in offered.items():
             names = {f.__name__ for f in merged}
             if fn.__name__ not in names:
                 merged[fn] = meta
+    if skipped:
+        # Not a warning: "Steam is not installed" is the normal, correct
+        # answer for most of this catalog. Logged so the number is visible
+        # when someone wonders where the other 289 rows went.
+        logger.info("Cleanup tab (%s): offering %d scanners, %d skipped as "
+                    "not present on this machine",
+                    ", ".join(categories), len(merged), skipped)
     return merged
 
 
