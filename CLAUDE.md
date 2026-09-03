@@ -348,6 +348,84 @@ machine — so that check is still owed.
 - `_OverviewTab(QWidget)` — table of all groups; "Scan All" parallelises workers; "Clean All Safe" deletes safe items. `_cancel_all()` iterates `self._scan_workers` list calling `w.cancel()` on each.
 - `CleanupModule.on_activate()` triggers `_overview.auto_scan()`; `QTabWidget.currentChanged` wires each tab's `auto_scan()` for lazy first-load
 
+**Rules here, every one of which cost a measured defect:**
+
+- **A cancelled Worker emits `cancelled` — never `result` or `error`.** Nothing
+  was connected to it, so `on_deactivate()` (any module switch) left `_scanning`
+  True and the completion counter unreachable: progress bar up, status stuck on
+  "Scanning...", Scan button disabled, `_do_scan*` returning early, for the life
+  of the process. `_cancel_all()` on both tabs now resets that state and clears
+  `_scanned`, and a `SCAN_WATCHDOG_MS` timer (5 min, against a 35.6s worst
+  measured sweep) is the backstop for any other lost completion. **Cancel also
+  has to be READ**: `Worker.cancel()` only sets a flag, so the scan loop checks
+  `worker.is_cancelled` between scanners or a cancelled sweep runs to completion
+  anyway.
+- **These tabs connect CLOSURES to worker signals, not bound methods.** Qt
+  auto-disconnects a bound method when its receiver is destroyed and cannot do
+  that for a closure, so a scan landing after teardown crashed the app (exit
+  -1073740791, not an exception). Guard every such callback with `_alive(self)`.
+  It is **`from PyQt6 import sip`, not `import sip`** — the bare form does not
+  exist under PyQt6, so eight other modules in this repo have widget-lifetime
+  guards that silently fall back to "always valid" and protect nothing.
+- **A scan never shells out to an image-servicing tool.** `scan_winsxs_cleanup`
+  ran `Dism /Online /Cleanup-Image /AnalyzeComponentStore`: 0.03s unelevated
+  (DISM refuses — which is exactly how it hid), **25.03s elevated**, holding the
+  Windows servicing lock, returning 0 items. That was 70% of the System Junk
+  tab. `tests/test_cleanup_no_servicing_lock.py` runs every scanner with
+  subprocess patched and fails if one does it again.
+- **`min_age_default` tests the DIRECTORY's own mtime**, so an age floor on a
+  folder hides everything inside it after any write. `package_cache` reported
+  0.03 GB as 0 items until its floor came off.
+- **Never build a user-data path from `expanduser("~")`.** Documents, Desktop and
+  Pictures are redirected once OneDrive Backup is on: `~\Desktop` and
+  `~\Pictures` DO NOT EXIST here. Use `known_folders.known_folder()`
+  (`SHGetKnownFolderPath`). Fixing that took `scan_old_files` from 8 items to
+  11,626 and `scan_large_files` from 56.7 GB to 178.4 GB. The trap that comes
+  with it: anything that OPENS a file in those folders hydrates a Files
+  On-Demand placeholder — `known_folders.is_cloud_placeholder()` answers from
+  the file attributes without opening.
+- **`%FIXED_DRIVES%` in a catalog path** expands to one path per fixed volume
+  (`drives.py`). Only two of 537 scanners had ever looked past C:, and they were
+  duplicates of each other; `E:\temp` held 20.36 GB nothing could find. Fixed
+  volumes only — never removable or network.
+- **`scanners_for(category, present_only=True)`** is what the tabs use: 74 of
+  460 specs match anything on a given machine (comms 0/35, dev 8/121). The
+  catalog still defines all of them; filtering is a display and scan decision,
+  never a deletion.
+- **`scan_cache.cached_scan(fn, min_age)`**, not `fn(min_age_days=...)`, from any
+  tab. Overview, System Junk and Quick Cleanup all re-walk the same trees;
+  %TEMP% here is 47.36 GB / 100k entries / ~3s per walk. 60s TTL, keyed on
+  `__name__` (the catalog builds a fresh callable per tab, so identity never
+  hits), copies its ScanItems (the tabs mutate `selected`), and `delete_items()`
+  invalidates it.
+- **Drivers and virtual disks never enter the checkbox tree.** `delete_items`
+  deletes PATHS. Removing a `DriverStore\FileRepository` folder directly is how
+  a machine loses a driver it still believes it has, so superseded packages get
+  their own panel (`tabs/_driver_panel.py`) and `pnputil /delete-driver` behind
+  a confirmation. Virtual disks stay `selected=False`, split by whether a
+  hypervisor that could open them is installed at all — `E:\VMs\Ubuntu` is
+  11.05 GB of orphan here, because VirtualBox was uninstalled and left it.
+  Check for the PRODUCT, never for a file Windows ships anyway: `wsl.exe`
+  exists on every Windows 11 install, so WSL counts only when `wsl --list`
+  names a distribution.
+- **`pnputil /enum-drivers` prints its HELP TEXT and exits 0 when unelevated**,
+  and its output is UTF-16. `driver_store.parse_enum_drivers` returns `None`
+  for the refusal, never `[]`, detecting it by the absence of `Published Name:`
+  records. Sizing is separate and needs no elevation: the `Active` value under
+  `HKLM\SYSTEM\DriverDatabase\DriverInfFiles\<published>`. Five of eleven
+  superseded packages here have no such key, so `package_size` returns `None`
+  and the report lists them apart — an unmeasurable size counted as 0 quietly
+  understates the total. Worth knowing before chasing it again: the 7.13 GB
+  store yields **2.2 MB** of superseded packages; the gigabytes are DISM's.
+- **`tools/cleanup_reader_sweep.py`** is the cleanup sibling of
+  `security_refusal_sweep.py`. "Found nothing" is the CORRECT answer for most of
+  this catalog, so it only reports a scanner whose target exists AND has content
+  AND which returned nothing. That found three scanners that had looked
+  plausible for as long as they existed — one measuring the Win+X folder while
+  claiming to measure restore points, one looking where the search index has not
+  lived since Windows 8, one offering the whole 7.13 GB DriverStore as a single
+  delete. Run it unelevated; it exits non-zero on any finding.
+
 ### QuickCleanupModule (`src/modules/cleanup/quick_cleanup_module.py`)
 
 Single-page dashboard with pie chart and auto-refresh. Uses `QuickCleanupTab` from `modules/ui/components/quick_cleanup_tab.py`.

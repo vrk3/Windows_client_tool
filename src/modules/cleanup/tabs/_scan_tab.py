@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget,
@@ -11,8 +11,10 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
+from modules.cleanup.cleanup_scanner import breakdown, scan_cache
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,27 @@ SAFETY_STYLES = {
 
 CONFIRM_BYTES = 500 * 1024 * 1024   # 500 MB
 
+#: Rows that are scaffolding rather than a reading — "Measuring…",
+#: "Expand to see what is inside…" — and the fallback for an unknown
+#: safety level. Not a semantic colour: it carries no meaning to convey,
+#: which is the point of it.
+MUTED = "#888888"
+
+# Column-1 UserRole markers for the lazy breakdown of an oversized item.
+_NEEDS_BREAKDOWN = "needs-breakdown"
+_BREAKDOWN_RUNNING = "breakdown-running"
+_BREAKDOWN_DONE = "breakdown-done"
+
+
+# A breakdown worker can finish after this tab is gone. See the same guard,
+# and the reason for `from PyQt6 import sip` rather than `import sip`, in
+# _overview_tab.py.
+_alive = widget_is_valid
+
+
 
 def _sc(level: str) -> str:
-    return SAFETY_STYLES.get(level, ("#888888", ""))[0]
+    return SAFETY_STYLES.get(level, (MUTED, ""))[0]
 
 
 def _confirm_large(parent: QWidget, nbytes: int) -> bool:
@@ -61,6 +81,13 @@ class _ScanTab(QWidget):
     """
     freed_bytes = pyqtSignal(int)
 
+    #: Give up on a scan that has not finished in this long, hand the tab
+    #: back, and say what never reported. The worst measured sweep on a real
+    #: machine is 35.6s (System Junk, elevated), so this cannot fire on a
+    #: healthy scan — if it fires, something is wrong and a dead tab is the
+    #: worst possible way to find out.
+    SCAN_WATCHDOG_MS = 300_000
+
     def __init__(self, scanners: dict, wu_cache: bool = False, parent=None):
         super().__init__(parent)
         self._scanners = scanners
@@ -71,9 +98,13 @@ class _ScanTab(QWidget):
         self._scanned  = False
         self._pending_freed = 0
         self._workers: list = []   # track ALL workers (scan + clean) for cancellation
+        self._scan_fns: list = []  # the scanners of the run in flight, in order
         self._scan_worker = None
         self._clean_worker = None
         self._thread_pool = QThreadPool.globalInstance()
+        self._watchdog = QTimer(self)
+        self._watchdog.setSingleShot(True)
+        self._watchdog.timeout.connect(self._on_scan_watchdog)
         self._setup_ui()
 
     # ── Setup ──
@@ -85,6 +116,9 @@ class _ScanTab(QWidget):
         # Toolbar
         tb = QHBoxLayout()
         self._scan_btn   = QPushButton("Scan")
+        self._stop_btn   = QPushButton("Stop")
+        self._stop_btn.setToolTip("Stop the scan after the scanner now running")
+        self._stop_btn.setEnabled(False)
         self._clean_btn  = QPushButton("Clean Selected")
         self._quick_btn  = QPushButton("Quick Clean (Safe Only)")
         self._sel_btn    = QPushButton("Select All")
@@ -101,8 +135,8 @@ class _ScanTab(QWidget):
         self._clean_btn.setEnabled(False)
         self._quick_btn.setEnabled(False)
 
-        for w in (self._scan_btn, self._clean_btn, self._quick_btn,
-                  self._sel_btn, self._desel_btn):
+        for w in (self._scan_btn, self._stop_btn, self._clean_btn,
+                  self._quick_btn, self._sel_btn, self._desel_btn):
             tb.addWidget(w)
         tb.addStretch()
         tb.addWidget(self._age_lbl)
@@ -125,6 +159,7 @@ class _ScanTab(QWidget):
         self._tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._ctx_menu)
+        self._tree.itemExpanded.connect(self._on_item_expanded)
         layout.addWidget(self._tree, 1)
 
         # Safety legend
@@ -147,6 +182,7 @@ class _ScanTab(QWidget):
         layout.addWidget(self._err_lbl)
 
         self._scan_btn.clicked.connect(self._do_scan)
+        self._stop_btn.clicked.connect(self._stop_scan)
         self._clean_btn.clicked.connect(self._do_clean)
         self._quick_btn.clicked.connect(self._do_quick_clean)
         self._sel_btn.clicked.connect(self._select_all)
@@ -167,22 +203,37 @@ class _ScanTab(QWidget):
         self._scanning = True
         self._scanned  = True
         self._scan_btn.setEnabled(False)
+        self._stop_btn.setEnabled(True)
         self._clean_btn.setEnabled(False)
         self._quick_btn.setEnabled(False)
         self._tree.clear()
         self._err_lbl.hide()
-        self._status.setText("Scanning…")
-        self._progress.setRange(0, 0)
-        self._progress.show()
 
         min_age = self._age_spin.value()
         scanner_fns = list(self._scanners.keys())
+        self._scan_fns = scanner_fns
 
-        def _run(_w):
+        # A determinate bar over the scanner count, not a barber's pole.
+        # System Junk is 75 scanners and App & Game Caches is 301; the tab
+        # used to say "Scanning…" for all of them and nothing else.
+        self._progress.setRange(0, len(scanner_fns))
+        self._progress.setValue(0)
+        self._progress.show()
+        self._status.setText(f"Scanning 0/{len(scanner_fns)}…")
+
+        def _run(worker):
             per: dict = {}
-            for fn in scanner_fns:
+            for index, fn in enumerate(scanner_fns, start=1):
+                # Worker.cancel() only sets a flag — this is what makes Stop
+                # (and switching modules) actually stop the sweep instead of
+                # letting it run to completion on the shared pool.
+                if worker.is_cancelled:
+                    logger.info("Scan stopped after %d/%d scanners",
+                                index - 1, len(scanner_fns))
+                    break
+                worker.signals.progress.emit(index)
                 try:
-                    r = fn(min_age_days=min_age)
+                    r = scan_cache.cached_scan(fn, min_age)
                     if r:
                         per[fn] = r
                 except Exception as e:
@@ -200,17 +251,111 @@ class _ScanTab(QWidget):
             merged.total_size = sum(i.size for i in merged.items)
             return merged, per
 
+        self._watchdog.start(self.SCAN_WATCHDOG_MS)
         self._scan_worker = Worker(_run)
+        self._scan_worker.signals.progress.connect(self._on_scan_progress)
         self._scan_worker.signals.result.connect(self._on_scan_result)
         self._scan_worker.signals.error.connect(self._on_scan_error)
         self._workers.append(self._scan_worker)
         self._thread_pool.start(self._scan_worker)
 
+    def _on_scan_progress(self, index: int) -> None:
+        """Name the scanner now running, and how far through the list it is."""
+        if not self._scanning:
+            return
+        total = len(self._scan_fns)
+        self._progress.setValue(index)
+        label = ""
+        if 0 < index <= total:
+            meta = self._scanners.get(self._scan_fns[index - 1])
+            label = meta[0] if meta else self._scan_fns[index - 1].__name__
+        self._status.setText(f"Scanning {index}/{total} — {label}")
+
+    def _stop_scan(self) -> None:
+        """Stop after the scanner now running, keeping whatever was found."""
+        if self._scan_worker is not None:
+            self._scan_worker.cancel()
+        self._cancel_all()
+
+    # ── Breakdown of an oversized item ──
+
+    def _on_item_expanded(self, node: QTreeWidgetItem) -> None:
+        if node.data(1, Qt.ItemDataRole.UserRole) == _NEEDS_BREAKDOWN:
+            self._fill_breakdown(node)
+
+    def _fill_breakdown(self, node: QTreeWidgetItem) -> None:
+        """Replace the placeholder with what is actually inside.
+
+        Measured on a worker: a breakdown of %TEMP% walks 46,825
+        directories, and doing that on the UI thread freezes the app for
+        the three seconds it takes.
+        """
+        scan_item = node.data(0, Qt.ItemDataRole.UserRole)
+        if scan_item is None:
+            return
+        node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_RUNNING)
+        node.takeChildren()
+        measuring = QTreeWidgetItem(["Measuring…", ""])
+        measuring.setFlags(Qt.ItemFlag.NoItemFlags)
+        measuring.setForeground(0, QBrush(QColor(MUTED)))
+        node.addChild(measuring)
+
+        path = scan_item.path
+        safety = scan_item.safety
+
+        def _run(_worker):
+            return breakdown.children_by_size(path)
+
+        def _done(rows):
+            if not _alive(self):
+                return
+            node.takeChildren()
+            node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_DONE)
+            if not rows:
+                empty = QTreeWidgetItem(["(nothing readable inside)", ""])
+                empty.setFlags(Qt.ItemFlag.NoItemFlags)
+                empty.setForeground(0, QBrush(QColor(MUTED)))
+                node.addChild(empty)
+                return
+            color = _sc(safety)
+            for child_path, size in rows:
+                inner = cs.ScanItem(path=child_path, size=size,
+                                    is_dir=os.path.isdir(child_path),
+                                    selected=False, safety=safety)
+                row = QTreeWidgetItem(
+                    [os.path.basename(child_path) or child_path,
+                     cs.format_size(size)])
+                row.setCheckState(0, Qt.CheckState.Unchecked)
+                row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                row.setData(0, Qt.ItemDataRole.UserRole, inner)
+                row.setForeground(0, QBrush(QColor(color)))
+                row.setToolTip(0, child_path)
+                row.setTextAlignment(
+                    1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                node.addChild(row)
+
+        def _err(message: str):
+            if not _alive(self):
+                return
+            node.takeChildren()
+            node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_DONE)
+            failed = QTreeWidgetItem([f"(could not read: {message})", ""])
+            failed.setFlags(Qt.ItemFlag.NoItemFlags)
+            node.addChild(failed)
+
+        worker = Worker(_run)
+        worker.signals.result.connect(_done)
+        worker.signals.error.connect(_err)
+        self._workers.append(worker)
+        self._thread_pool.start(worker)
+
     def _on_scan_result(self, data):
         merged, per_scanner = data
+        self._watchdog.stop()
         self._result  = merged
         self._scanning = False
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         self._progress.hide()
         self._tree.clear()
 
@@ -265,6 +410,18 @@ class _ScanTab(QWidget):
                 child.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 parent.addChild(child)
 
+                # A directory too big to be a single checkbox gets a
+                # placeholder, filled in when someone opens it. %TEMP% here
+                # is 47.36 GB in one row; measuring every such item up front
+                # would repeat the most expensive part of the sweep for rows
+                # nobody expands.
+                if breakdown.is_worth_expanding(item):
+                    child.setData(1, Qt.ItemDataRole.UserRole, _NEEDS_BREAKDOWN)
+                    placeholder = QTreeWidgetItem(["Expand to see what is inside…", ""])
+                    placeholder.setFlags(Qt.ItemFlag.NoItemFlags)
+                    placeholder.setForeground(0, QBrush(QColor(MUTED)))
+                    child.addChild(placeholder)
+
         total_safe = sum(1 for i in merged.items if i.safety == "safe")
         logger.info(
             "Cleanup scan complete: %d item(s) (%d safe), %s",
@@ -278,7 +435,9 @@ class _ScanTab(QWidget):
         self._quick_btn.setEnabled(total_safe > 0)
 
     def _on_scan_error(self, err: str):
+        self._watchdog.stop()
         self._scanning = False
+        self._stop_btn.setEnabled(False)
         self._scan_btn.setEnabled(True)
         self._progress.hide()
         self._status.setText(f"Scan error: {err}")
@@ -286,15 +445,33 @@ class _ScanTab(QWidget):
     # ── Clean ──
 
     def _get_selected_items(self) -> list:
+        """Every ScanItem in the tree, `selected` set from its checkbox.
+
+        Breakdown rows are ScanItems too, so a path can appear twice: once
+        as `%TEMP%` and once as `%TEMP%\\wct_p3l` inside it. Anything
+        already covered by a selected ancestor is dropped, or the same
+        bytes get counted twice in the "about to delete N" confirmation and
+        queued for deletion twice.
+        """
         items = []
         for i in range(self._tree.topLevelItemCount()):
-            tw = self._tree.topLevelItem(i)
-            for j in range(tw.childCount()):
-                child = tw.child(j)
-                si = child.data(0, Qt.ItemDataRole.UserRole)
-                if si is not None:
-                    si.selected = child.checkState(0) == Qt.CheckState.Checked
-                    items.append(si)
+            group = self._tree.topLevelItem(i)
+            for j in range(group.childCount()):
+                child = group.child(j)
+                scan_item = child.data(0, Qt.ItemDataRole.UserRole)
+                if scan_item is None:
+                    continue
+                scan_item.selected = child.checkState(0) == Qt.CheckState.Checked
+                items.append(scan_item)
+                for k in range(child.childCount()):
+                    grandchild = child.child(k)
+                    inner = grandchild.data(0, Qt.ItemDataRole.UserRole)
+                    if inner is None:
+                        continue
+                    inner.selected = (
+                        grandchild.checkState(0) == Qt.CheckState.Checked
+                        and not scan_item.selected)
+                    items.append(inner)
         return items
 
     def _do_clean(self):
@@ -385,10 +562,66 @@ class _ScanTab(QWidget):
         for i in range(self._tree.topLevelItemCount()):
             self._tree.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
 
-    def _cancel_all(self) -> None:
+    def _cancel_all(self, message: str = None) -> None:
+        in_flight = self._scanning or self._cleaning
+        self._watchdog.stop()
         for w in self._workers:
             w.cancel()
         self._workers.clear()
+        self._scan_worker = None
+        self._clean_worker = None
+        if in_flight:
+            self._reset_after_cancel(message)
+
+    def _current_scanner_label(self) -> str:
+        """The scanner the running sweep last reported starting, if any."""
+        index = self._progress.value()
+        if not (0 < index <= len(self._scan_fns)):
+            return ""
+        fn = self._scan_fns[index - 1]
+        meta = self._scanners.get(fn)
+        return meta[0] if meta else fn.__name__
+
+    def _on_scan_watchdog(self) -> None:
+        if not self._scanning:
+            return
+        label = self._current_scanner_label() or "an unknown scanner"
+        logger.warning(
+            "Cleanup scan timed out after %.0fs, stuck on %s (%d/%d)",
+            self.SCAN_WATCHDOG_MS / 1000, label,
+            self._progress.value(), len(self._scan_fns))
+        if self._scan_worker is not None:
+            self._scan_worker.cancel()
+        self._cancel_all(
+            message=f"Scan timed out on “{label}” — click Scan to try again")
+
+    def _reset_after_cancel(self, message: str = None) -> None:
+        """Put the tab back in a state the user can act on.
+
+        A cancelled Worker emits `cancelled` and never `result` or `error`
+        (core/worker.py), so nothing else will ever resolve this scan. Without
+        this, switching modules mid-scan left `_scanning` True forever: the
+        progress bar stayed up, the status stayed on "Scanning...", and both
+        `_do_scan` and `_do_clean` returned early on their in-flight guard —
+        a tab that was dead for the life of the process.
+        """
+        self._scanning = False
+        self._cleaning = False
+        # Nothing was measured, so the tab has NOT been scanned: let
+        # auto_scan() run again the next time it is activated.
+        self._scanned = False
+        self._pending_freed = 0
+        self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
+        has_items = self._result is not None and len(self._result.items) > 0
+        self._clean_btn.setEnabled(has_items)
+        self._quick_btn.setEnabled(
+            self._result is not None
+            and any(i.safety == "safe" for i in self._result.items)
+        )
+        self._progress.hide()
+        self._status.setText(
+            message or "Scan cancelled — click Scan to run it again")
 
     def _ctx_menu(self, pos):
         item = self._tree.itemAt(pos)

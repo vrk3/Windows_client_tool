@@ -13,6 +13,7 @@ from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 import logging
 logger = logging.getLogger(__name__)
@@ -296,15 +297,7 @@ class WifiAnalyzerModule(BaseModule):
         self._progress.hide()
 
     def _on_result(self, data: Dict):
-        try:
-            import sip
-            def _valid(w):
-                return w is not None and not sip.isdeleted(w)
-        except ImportError:
-            def _valid(w):
-                return w is not None
-
-        if not _valid(self._net_table):
+        if not widget_is_valid(self._net_table):
             return
         networks = data["networks"]
         interfaces = data["interfaces"]

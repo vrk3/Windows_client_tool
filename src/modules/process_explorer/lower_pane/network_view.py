@@ -6,12 +6,12 @@ import threading
 from typing import Optional
 
 import psutil
-from PyQt6 import sip
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QHeaderView
 
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,7 @@ _HEADERS = ["Protocol", "Local Address", "Local Port", "Remote Address", "Remote
 _WARN_STATES = {"CLOSE_WAIT", "TIME_WAIT", "LAST_ACK", "CLOSING", "SYN_SENT"}
 _WARN_BRUSH = QBrush(QColor("#ffcc66"))
 
-def _widget_valid(w):
-    return not sip.isdeleted(w)
+_widget_valid = widget_is_valid
 
 
 class NetworkView(QWidget):

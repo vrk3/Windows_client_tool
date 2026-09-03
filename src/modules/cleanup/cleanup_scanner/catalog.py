@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from modules.cleanup.cleanup_scanner import drives
 from modules.cleanup.cleanup_scanner._common import ScanResult, _make_item
 
 logger = logging.getLogger(__name__)
@@ -112,17 +113,26 @@ def expand(raw: str) -> Optional[str]:
 
 
 def targets_of(spec: ScannerSpec) -> List[str]:
-    """The concrete paths `spec` points at on this machine, globs resolved."""
+    """The concrete paths `spec` points at on this machine, globs resolved.
+
+    `%FIXED_DRIVES%` is expanded first and to MANY paths — one per fixed
+    volume — so a single catalog entry covers `C:\\temp` and `E:\\temp`
+    alike. It is handled before `expand()` because that function's job is
+    to reject a path with an unresolved `%VAR%` left in it, and this token
+    is deliberately not an environment variable.
+    """
     found: List[str] = []
     for raw in spec.paths:
-        expanded = expand(raw)
-        if expanded is None:
-            logger.debug("%s: unresolved variable in %r, skipping", spec.id, raw)
-            continue
-        if any(ch in expanded for ch in "*?["):
-            found.extend(sorted(globlib.glob(expanded)))
-        else:
-            found.append(expanded)
+        for per_drive in drives.expand_fixed_drives(raw):
+            expanded = expand(per_drive)
+            if expanded is None:
+                logger.debug("%s: unresolved variable in %r, skipping",
+                             spec.id, per_drive)
+                continue
+            if any(ch in expanded for ch in "*?["):
+                found.extend(sorted(globlib.glob(expanded)))
+            else:
+                found.append(expanded)
     return found
 
 
@@ -184,7 +194,21 @@ CATEGORY_TABS = {
 }
 
 
-def scanners_for(category: str) -> Dict[Callable[..., ScanResult], tuple]:
+def is_present(spec: ScannerSpec) -> bool:
+    """True if anything this spec points at is actually on this machine.
+
+    Measured: 71 of 456 specs match anything here — dev 8/121, games 3/83,
+    media 1/50, comms 0/35. The catalog keeps all of them, because knowing
+    where an application caches things is worth having whether or not that
+    application is installed today; what is not worth having is a tab
+    listing 301 scanners for a dozen that apply, and a sweep iterating 385
+    dead paths to find out what it already knew.
+    """
+    return any(os.path.exists(target) for target in targets_of(spec))
+
+
+def scanners_for(category: str, present_only: bool = False
+                 ) -> Dict[Callable[..., ScanResult], tuple]:
     """`{callable: (label, safety)}` for one category — the shape the
     cleanup tabs already pass around.
 
@@ -192,12 +216,18 @@ def scanners_for(category: str) -> Dict[Callable[..., ScanResult], tuple]:
     never referenced by any tab: the UI wired its categories by hand, in
     four files, and everything else simply existed. Building a tab from the
     catalog instead means a scanner is offered as soon as it is defined.
+
+    `present_only` narrows that to the scanners whose targets exist here.
+    The tabs pass it; the census tests do not, because "defined" and
+    "applies to this machine" are different questions and conflating them
+    is how a scanner goes missing without anyone noticing.
     """
     return {
         scanner_for(spec_id): (spec.label, spec.safety)
         for spec_id, spec in sorted(load_catalog().items(),
                                     key=lambda kv: kv[1].label.lower())
         if spec.category == category and not spec.disabled_reason
+        and (not present_only or is_present(spec))
     }
 
 

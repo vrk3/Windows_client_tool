@@ -28,12 +28,7 @@ from core.windows_utils import ps_quote
 from ui.empty_state import EmptyState
 
 logger = logging.getLogger(__name__)
-
-try:
-    import sip
-except ImportError:  # pragma: no cover
-    sip = None
-
+from core.widget_life import widget_is_valid
 
 # Known system packages that should NOT be removable
 SYSTEM_PACKAGES = {
@@ -887,4 +882,4 @@ class StoreAppsModule(BaseModule):
 
     @staticmethod
     def _widget_valid(widget) -> bool:
-        return sip is None or not sip.isdeleted(widget)
+        return widget_is_valid(widget)

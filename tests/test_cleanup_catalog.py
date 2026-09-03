@@ -82,6 +82,10 @@ def test_every_path_uses_a_variable_that_exists_on_windows(catalog):
         "LOCALAPPDATA", "APPDATA", "USERPROFILE", "ProgramData", "windir",
         "TEMP", "TMP", "PUBLIC", "ProgramFiles", "ProgramFiles(x86)",
         "SystemDrive", "SystemRoot", "ALLUSERSPROFILE", "HOMEDRIVE",
+        # Not an environment variable: the catalog's own token for "once
+        # per fixed volume", expanded by drives.expand_fixed_drives before
+        # expandvars ever sees the path. See test_cleanup_drive_aware.py.
+        "FIXED_DRIVES",
     }
     import re
     bad = []
@@ -230,21 +234,45 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 537 scanners are now reachable. 404 of them were not: they loaded,
+# All 542 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
 # matched anything, and why ten pairs could point at identical paths,
 # without anyone noticing — nobody was looking, because nobody could.
 #
-# The catalog-backed 456 come from `scanners_for(category)`, so a scanner
+# The catalog-backed 461 come from `scanners_for(category)`, so a scanner
 # is offered as soon as it is defined. The 81 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
-REACHABLE_SCANNERS = 537
+#: 542 once scan_virtual_disk_images split in two: an image whose
+#: hypervisor is installed wants COMPACTING, one whose hypervisor is
+#: gone is an orphan. The 11.05 GB .vdi here is the second kind —
+#: VirtualBox was uninstalled and left it behind.
+#:
+#: 541 with the categories that had no scanner at all: package_cache and
+#: minidump in the catalog, scan_orphaned_installer_packages (C:\Windows#: Installer was 1.02 GB and only its $PatchCache$ was covered) and
+#: scan_virtual_disk_images (11.05 GB in one .vdi here) in code.
+#:
+#: 537 after two dead scanners were deleted: scan_old_restore_points
+#: (measured the Win+X shortcuts folder while claiming to measure System
+#: Restore shadow storage) and scan_recycle_bin_drive (byte-identical to
+#: scan_recycle_bin). See tests/test_cleanup_readers_read_something.py.
+#:
+#: 536 hand-written + catalog until the three per-drive scanners landed
+#: (per_drive_temp, per_drive_recycle_bin, per_drive_found_clusters). Of
+#: 537 scanners exactly two had ever looked past C:, and they were
+#: duplicates of each other; E:	emp held 20.36 GB nothing could find.
+#:
+#: 537 until scan_winsxs_cleanup was deleted. It ran DISM
+#: /AnalyzeComponentStore from inside a SCAN — 25-30s elevated, holding the
+#: Windows servicing lock, to produce something the Large Items "Analyze
+#: WinSxS" button already produces on purpose. See
+#: tests/test_cleanup_no_servicing_lock.py.
+REACHABLE_SCANNERS = 542
 
 
 def _scanners_the_tabs_offer():
@@ -307,14 +335,46 @@ def _scanners_the_tabs_offer():
             pass
 
 
-def test_every_scanner_is_offered_somewhere(qapp, catalog):
+def test_every_scanner_that_applies_here_is_offered(qapp, catalog):
     """404 of 537 used to be unreachable. None are now, and none may
     become so again: a scanner nobody can reach is knowledge about where an
-    application caches things, kept and never used."""
+    application caches things, kept and never used.
+
+    The tabs are built `present_only`, so this asks the machine-specific
+    half of the question: every scanner whose target EXISTS here must be
+    offered. The other half — that every scanner is reachable in principle
+    — is `test_every_scanner_is_reachable_from_its_category` below, which
+    needs no machine at all.
+    """
+    from modules.cleanup.cleanup_scanner.catalog import is_present
+
     offered = _scanners_the_tabs_offer()
-    assert len(offered) >= REACHABLE_SCANNERS, (
-        f"only {len(offered)} scanners are offered by the Cleanup tabs, "
-        f"expected at least {REACHABLE_SCANNERS}")
+    should_be_offered = {
+        f"scan_{spec_id}" for spec_id, spec in catalog.items()
+        if not spec.disabled_reason and is_present(spec)
+    }
+    missing = sorted(should_be_offered - offered)
+    assert not missing, (
+        f"{len(missing)} scanners point at something on this machine and "
+        f"are offered by no tab: {missing[:10]}")
+
+
+def test_every_scanner_is_reachable_from_its_category(catalog):
+    """Machine-independent: nothing may be defined and unreachable.
+
+    `present_only` narrows what a TAB shows to what applies here — a
+    display and scan decision, never a deletion. Unfiltered, every
+    non-disabled spec must still come back from its own category.
+    """
+    from modules.cleanup.cleanup_scanner.catalog import CATEGORY_TABS, scanners_for
+
+    reachable = set()
+    for category in CATEGORY_TABS:
+        reachable |= {fn.__name__ for fn in scanners_for(category)}
+    unreachable = sorted(
+        f"scan_{spec_id}" for spec_id, spec in catalog.items()
+        if not spec.disabled_reason and f"scan_{spec_id}" not in reachable)
+    assert not unreachable, unreachable[:10]
 
 
 def test_no_scanner_was_lost_in_the_conversion(catalog):
@@ -333,6 +393,6 @@ def test_no_scanner_was_lost_in_the_conversion(catalog):
 
     both = sorted(in_catalog & in_code)
     assert both == [], f"defined twice — the catalog shadows the function: {both}"
-    assert len(in_catalog) + len(in_code) == 537, (
+    assert len(in_catalog) + len(in_code) == REACHABLE_SCANNERS, (
         f"{len(in_catalog)} specs + {len(in_code)} functions = "
-        f"{len(in_catalog) + len(in_code)}, expected 537")
+        f"{len(in_catalog) + len(in_code)}, expected {REACHABLE_SCANNERS}")

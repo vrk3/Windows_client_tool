@@ -21,11 +21,25 @@ from PyQt6.QtWidgets import (
 )
 
 from core.long_op_pool import get_long_op_pool
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup.components.category_group import CategoryGroup
 from core.semantic_colors import semantic
 
 CREATE_NO_WINDOW = 0x08000000
+
+
+# A worker's result can land after this tab is gone. Qt auto-disconnects a
+# BOUND METHOD when the receiving QObject is destroyed, but the scan
+# callbacks below are closures, and nothing tells Qt what a closure's
+# receiver is — so the connection outlives the widget and the callback
+# reaches into a deleted C++ object. Found by a hard crash (exit -1073740791),
+# not an exception.
+#
+# `from PyQt6 import sip`, not `import sip`: the bare form does not exist
+# under PyQt6, so a guard written that way silently falls back to
+# "always valid" and protects nothing.
+_alive = widget_is_valid
 
 
 # ── Advanced Categories ────────────────────────────────────────────────────────
@@ -630,15 +644,20 @@ class QuickCleanupTab(QWidget):
         def _start_worker(cid: str, scanner_fn, category_list: list):
             """Launch a worker for a scanner function."""
             def _run(_worker):
-                return scanner_fn(min_age_days=0)
+                from modules.cleanup.cleanup_scanner import scan_cache
+                return scan_cache.cached_scan(scanner_fn, 0)
 
             def _done(result):
+                if not _alive(self):
+                    return
                 self._results[cid] = result
                 self._total_scanned += 1
                 if self._total_scanned == len(scan_targets):
                     self._on_all_scanned()
 
             def _err(_e):
+                if not _alive(self):
+                    return
                 self._results[cid] = cs.ScanResult()
                 self._total_scanned += 1
                 if self._total_scanned == len(scan_targets):
@@ -676,12 +695,16 @@ class QuickCleanupTab(QWidget):
                 return self._browser_scanner()
 
             def _done_browser(results):
+                if not _alive(self):
+                    return
                 self._results["browser"] = results
                 self._total_scanned += 1
                 if self._total_scanned == len(scan_targets):
                     self._on_all_scanned()
 
             def _err_browser(_e):
+                if not _alive(self):
+                    return
                 self._results["browser"] = []
                 self._total_scanned += 1
                 if self._total_scanned == len(scan_targets):

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 
 from core.long_op_pool import get_long_op_pool
 from core.worker import Worker
+from modules.cleanup.tabs._driver_panel import _DriverStorePanel
 from modules.cleanup.tabs._scan_tab import _ScanTab
 from modules.cleanup import cleanup_scanner as cs
 
@@ -85,6 +86,19 @@ class _LargeItemsTab(QWidget):
         dism_lay.addWidget(self._dism_out)
 
         layout.addWidget(dism)
+
+        # Superseded driver packages get their own panel rather than a row
+        # in the tree above: that tree is walked by delete_items, which
+        # deletes PATHS, and removing a DriverStore\FileRepository folder
+        # directly is how a machine loses a driver it still believes it
+        # has. pnputil /delete-driver is the only correct removal.
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setStyleSheet("color: #444;")
+        layout.addWidget(sep2)
+        self._drivers = _DriverStorePanel()
+        layout.addWidget(self._drivers)
+
         self._analyze_btn.clicked.connect(self._run_analyze)
         self._dism_btn.clicked.connect(self._run_dism)
         self._analyze_worker: Optional[Worker] = None
@@ -153,6 +167,7 @@ class _LargeItemsTab(QWidget):
 
     def _cancel_all(self) -> None:
         self._scan_tab._cancel_all()
+        self._drivers._cancel_all()
         if self._analyze_worker is not None:
             self._analyze_worker.cancel()
             self._analyze_worker = None

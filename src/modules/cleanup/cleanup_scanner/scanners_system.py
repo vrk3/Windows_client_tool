@@ -13,6 +13,9 @@ from modules.cleanup.cleanup_scanner._common import (
     ScanItem, ScanResult, get_dir_size, _make_item, _make_item_with_age,
 )
 
+from modules.cleanup.cleanup_scanner import (
+    drives, known_folders, virtual_disks)
+
 logger = logging.getLogger(__name__)
 
 def scan_prefetch(min_age_days: int = 0) -> ScanResult:
@@ -171,46 +174,6 @@ def scan_dmf_logs(min_age_days: int = 0) -> ScanResult:
             if item:
                 result.items.append(item)
                 result.total_size += item.size
-    return result
-
-def scan_winsxs_cleanup(min_age_days: int = 0) -> ScanResult:
-    """Analyze WinSxS component store for superseded updates.
-
-    Dism.exe /AnalyzeComponentStore reports superseded component space.
-    Items with > 1 MB superseded space are flagged as 'caution'.
-    """
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    winsxs_path = os.path.join(windir, "WinSxS")
-    if not os.path.isdir(winsxs_path):
-        return result
-    try:
-        proc = subprocess.run(
-            ["Dism.exe", "/Online", "/Cleanup-Image", "/AnalyzeComponentStore"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=120,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        output = proc.stdout
-        for line in output.splitlines():
-            m = re.search(r"\[(\w+)\]\s*:\s*([\d.]+)\s*(\w+)", line)
-            if not m:
-                continue
-            label, size_val, unit = m.group(1), float(m.group(2)), m.group(3)
-            bytes_size = size_val * (
-                1024 ** 3 if unit == "GB" else 1024 ** 2 if unit == "MB" else 1
-            )
-            if label == "Superseded" and bytes_size > 1024 * 1024:  # > 1 MB
-                result.items.append(ScanItem(
-                    path=winsxs_path,
-                    size=int(bytes_size),
-                    is_dir=True,
-                    safety="caution",
-                ))
-                result.total_size = int(bytes_size)
-                break
-    except Exception as e:
-        logger.warning("WinSxS component store analysis failed: %s", e)
     return result
 
 def cleanup_winsxs(progress_cb: Optional[Callable[[int, int], None]] = None) -> bool:
@@ -598,10 +561,24 @@ def scan_install_temp(min_age_days: int = 0) -> ScanResult:
     return result
 
 def scan_search_index(min_age_days: int = 0) -> ScanResult:
-    """Windows Search index database files and temp rebuilding data."""
+    r"""Windows Search index database files and temp rebuilding data.
+
+    The index is MACHINE-WIDE and lives under %ProgramData%, in
+    `Microsoft\Search\Data\Applications\Windows` (Windows.edb and its
+    logs). This scanner used to look only under %LOCALAPPDATA%, where
+    nothing has lived since Windows 8, so it returned 0 items on every
+    Windows 11 machine for the life of the feature — which is
+    indistinguishable from "your search index is empty".
+
+    The per-user paths are kept: a roaming profile still puts UsageEvents
+    there.
+    """
     result = ScanResult()
     local = os.environ.get("LOCALAPPDATA", "")
+    programdata = os.environ.get("ProgramData", r"C:\ProgramData")
     targets = [
+        os.path.join(programdata, r"Microsoft\Search\Data\Applications\Windows"),
+        os.path.join(programdata, r"Microsoft\Search\Data\Temp"),
         os.path.join(local, r"Microsoft\Search\Data\Applications"),
         os.path.join(local, r"Microsoft\Search\Data\Temp"),
         os.path.join(local, r"Microsoft\Search\Data\UsageEvents"),
@@ -798,43 +775,14 @@ def scan_windows_defender_logs(min_age_days: int = 0) -> ScanResult:
             result.total_size += item.size
     return result
 
-def scan_recycle_bin_drive(min_age_days: int = 0) -> ScanResult:
-    """Recycle bin for each fixed drive — empties all user-deleted files."""
-    result = ScanResult()
-    for drive in string.ascii_uppercase:
-        rb = f"{drive}:\\$Recycle.Bin"
-        if os.path.exists(rb):
-            item = _make_item(rb, safety="safe", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
-def scan_old_restore_points(min_age_days: int = 0) -> ScanResult:
-    """Old System Restore snapshots and shadow storage."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\config\systemprofile\AppData\Local\Microsoft\Windows\WinX"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
 def scan_iso_vhd_files(min_age_days: int = 0) -> ScanResult:
     """Orphaned .iso and .vhd files in common download folders."""
     result = ScanResult()
-    home = os.path.expanduser("~")
-    targets = [
-        os.path.join(home, r"Downloads\*.iso"),
-        os.path.join(home, r"Downloads\*.vhd"),
-        os.path.join(home, r"Downloads\*.vhdx"),
-    ]
+    downloads = known_folders.known_folder("Downloads")
+    if not downloads:
+        return result
+    targets = [os.path.join(downloads, pattern)
+               for pattern in ("*.iso", "*.vhd", "*.vhdx")]
     for t in targets:
         dir_path, pattern = os.path.split(t)
         if not os.path.isdir(dir_path):
@@ -1090,9 +1038,8 @@ def scan_userprofile_temp(min_age_days: int = 0) -> ScanResult:
 def scan_downloads_folder_old(min_age_days: int = 0) -> ScanResult:
     """Old files in the Downloads folder (recursive) older than min_age_days."""
     result = ScanResult()
-    home = os.path.expanduser("~")
-    dl = os.path.join(home, "Downloads")
-    if not os.path.isdir(dl):
+    dl = known_folders.known_folder("Downloads")
+    if not dl or not os.path.isdir(dl):
         return result
     for entry in os.scandir(dl):
         try:
@@ -1356,14 +1303,9 @@ def scan_large_files(min_age_days: int = 0, min_size_mb: int = 100) -> ScanResul
     Uses os.scandir() for performance — does NOT follow symlinks.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
     min_bytes = min_size_mb * 1024 * 1024
     # Use scandir for performance, walk for depth
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Videos"),
-        os.path.join(home, "Desktop"),
+    scan_dirs = known_folders.user_data_dirs() + [
         os.environ.get("LOCALAPPDATA", ""),
         os.environ.get("PROGRAMFILES", r"C:\Program Files"),
         os.path.join(os.environ.get("PROGRAMFILES(x86)", r"C:\Program Files (x86)"), "Steam", "steamapps", "common"),
@@ -1417,14 +1359,7 @@ def scan_duplicate_files(min_age_days: int = 0, min_size_kb: int = 100, max_dept
     Only scans user directories to avoid system files.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
-        os.path.join(home, "Videos"),
-    ]
+    scan_dirs = known_folders.user_data_dirs()
     min_bytes = min_size_kb * 1024
 
     # Phase 1: Group by size
@@ -1483,8 +1418,17 @@ def _group_by_size_recursive(directory: str, size_groups: dict, min_bytes: int, 
         logger.debug("Ignored OSError", exc_info=True)
 
 def _hash_file_fast(path: str, chunk_size: int = 8192) -> Optional[str]:
-    """Fast hash: only hash first 64KB + last 64KB + file size for speed."""
+    """Fast hash: only hash first 64KB + last 64KB + file size for speed.
+
+    A OneDrive Files On-Demand placeholder is skipped rather than opened:
+    opening one downloads the whole file. Duplicate detection hashes every
+    member of a size-collision group, so without this the scan quietly
+    pulls gigabytes over the network — and now that the scanners reach the
+    real (redirected) Documents and Pictures, that is where they look.
+    """
     import hashlib
+    if known_folders.is_cloud_placeholder(path):
+        return None
     try:
         size = os.path.getsize(path)
         h = hashlib.md5()
@@ -1504,12 +1448,7 @@ def scan_empty_folders(min_age_days: int = 0, min_depth: int = 2, max_depth: int
     Scans user directories recursively between min_depth and max_depth levels.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
+    scan_dirs = known_folders.user_data_dirs() + [
         os.environ.get("LOCALAPPDATA", ""),
     ]
     _find_empty_folders(result, scan_dirs, min_depth, max_depth)
@@ -1558,16 +1497,8 @@ def scan_old_files(min_age_days: int = 0, min_age_months: int = 6) -> ScanResult
     Uses mtime (last modified) — Windows atime is unreliable so mtime is more practical.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
     min_age_seconds = min_age_months * 30 * 86400
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
-        os.path.join(home, "Videos"),
-        os.path.join(home, "Music"),
-    ]
+    scan_dirs = known_folders.user_data_dirs()
     _scan_old_recursive(result, scan_dirs, min_age_seconds, depth=4)
     return result
 
@@ -1734,6 +1665,11 @@ def delete_items(items: List[ScanItem],
                  stop_wuauserv: bool = False) -> Tuple[int, int]:
     """Delete selected items. Returns (deleted_count, error_count).
     If stop_wuauserv=True, wraps deletions in _ServiceStopped("wuauserv")."""
+    # Every cached measurement is now about a disk that no longer looks
+    # like that. Serving one afterwards reports space as still reclaimable
+    # when it has already been freed.
+    from modules.cleanup.cleanup_scanner import scan_cache
+    scan_cache.invalidate()
 
     class _ServiceStopped:
         def __init__(self, name):
@@ -1807,7 +1743,220 @@ def delete_items(items: List[ScanItem],
     else:
         return _do_delete()
 
+
+def _enum_subkeys(handle):
+    """Yield a registry key's subkey names.
+
+    winreg has no "how many subkeys" call that is worth using here: the
+    idiom is to index upward until it raises. That makes an exception the
+    loop's normal terminator, which is fine — but it belongs in one place
+    with one explanation, not repeated as a bare `break` that reads like a
+    swallowed error.
+    """
+    import winreg
+
+    index = 0
+    while True:
+        try:
+            yield winreg.EnumKey(handle, index)
+        except OSError:
+            logger.debug("End of subkey enumeration at index %d", index)
+            return
+        index += 1
+
+
+def _installer_cache_dir() -> str:
+    r"""Where Windows keeps the packages it needs to repair and uninstall."""
+    return os.path.join(os.environ.get("windir", r"C:\Windows"),
+                        "Installer")
+
+
+def _referenced_installer_packages():
+    r"""Every cached .msi/.msp an installed product still points at.
+
+    Returns None when the reference list could not be read, and that
+    distinction is the whole safety property of this scanner: an empty set
+    means "nothing references anything" (so everything is an orphan), while
+    None means "we could not look". Reporting the second as the first
+    offers the entire installer cache for deletion, which is every
+    installed product's repair and uninstall data.
+
+    The list lives under Installer\UserData\<SID>\Products\<code>, in
+    InstallProperties:LocalPackage for products and Patches:LocalPackage
+    for patches. Reading it needs no elevation on a normal machine, but a
+    locked-down one can refuse, hence the guard.
+    """
+    import winreg
+
+    root = (r"SOFTWARE\Microsoft\Windows\CurrentVersion"
+            r"\Installer\UserData")
+    referenced = set()
+    read_anything = False
+
+    def _local_package(key, subpath):
+        try:
+            with winreg.OpenKey(key, subpath) as handle:
+                value, _ = winreg.QueryValueEx(handle, "LocalPackage")
+        except OSError:
+            return None
+        return value
+
+    try:
+        userdata = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, root)
+    except OSError:
+        logger.warning("Installer UserData not readable; reporting no orphans",
+                       exc_info=True)
+        return None
+
+    with userdata:
+        for sid in _enum_subkeys(userdata):
+            for bucket in ("Products", "Patches"):
+                try:
+                    container = winreg.OpenKey(userdata, sid + "\\" + bucket)
+                except OSError:
+                    logger.debug("No %s under %s", bucket, sid, exc_info=True)
+                    continue
+                with container:
+                    read_anything = True
+                    for code in _enum_subkeys(container):
+                        candidates = ([code + r"\InstallProperties"]
+                                      if bucket == "Products" else [code])
+                        for candidate in candidates:
+                            package = _local_package(container, candidate)
+                            if package:
+                                referenced.add(os.path.normcase(
+                                    os.path.normpath(package)))
+
+    if not read_anything:
+        logger.warning("Installer UserData held no readable product list; "
+                       "reporting no orphans")
+        return None
+    return referenced
+
+
+def scan_orphaned_installer_packages(min_age_days: int = 0) -> ScanResult:
+    r"""Cached .msi/.msp files no installed product references any more.
+
+    C:\Windows\Installer was 1.02 GB here and nothing covered it -- only
+    its $PatchCache$ subfolder had a scanner. It cannot be swept as a
+    directory: these files are what Windows uses to repair and uninstall
+    everything on the machine, and deleting a referenced one leaves a
+    product that can neither be repaired nor removed.
+
+    So this is a set difference against the registry, and it fails CLOSED:
+    if the reference list cannot be read, nothing is offered.
+    """
+    result = ScanResult()
+    referenced = _referenced_installer_packages()
+    if referenced is None:
+        return result
+
+    cache = _installer_cache_dir()
+    if not os.path.isdir(cache):
+        return result
+
+    try:
+        entries = list(os.scandir(cache))
+    except OSError:
+        logger.debug("Installer cache not readable", exc_info=True)
+        return result
+
+    for entry in entries:
+        try:
+            if not entry.is_file(follow_symlinks=False):
+                continue
+            if os.path.splitext(entry.name)[1].lower() not in (".msi", ".msp"):
+                continue
+            if os.path.normcase(os.path.normpath(entry.path)) in referenced:
+                continue
+            item = _make_item_with_age(entry.path, safety="caution",
+                                       min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+        except OSError:
+            logger.debug("Ignored OSError", exc_info=True)
+    result.items.sort(key=lambda i: i.size, reverse=True)
+    return result
+
+
+#: Below this, a virtual disk is not worth putting in front of anyone.
+VIRTUAL_DISK_MIN_BYTES = 1024 * 1024 * 1024
+
+
+def _collect_virtual_disks(min_age_days: int = 0):
+    """Every large disk image on a fixed drive, as (path, size) pairs."""
+    suffixes = (".vhd", ".vhdx", ".vdi", ".vmdk", ".qcow2")
+    found = []
+    for root in drives.fixed_drive_roots():
+        for directory, dirnames, filenames in os.walk(root):
+            depth = directory.rstrip(os.sep).count(os.sep)
+            if depth - root.rstrip(os.sep).count(os.sep) >= 5:
+                dirnames[:] = []
+            dirnames[:] = [d for d in dirnames if d.lower() not in (
+                "windows", "$recycle.bin", "system volume information",
+                "program files", "program files (x86)", "programdata")]
+            for name in filenames:
+                if not name.lower().endswith(suffixes):
+                    continue
+                path = os.path.join(directory, name)
+                try:
+                    size = os.path.getsize(path)
+                except OSError:
+                    logger.debug("Could not size %s", path, exc_info=True)
+                    continue
+                if size >= VIRTUAL_DISK_MIN_BYTES:
+                    found.append((path, size))
+    found.sort(key=lambda row: row[1], reverse=True)
+    return found
+
+
+def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
+    r"""Large disk images whose hypervisor IS installed here.
+
+    Reported and never pre-selected. A virtual disk grows and does not
+    shrink back on its own -- a WSL ext4.vhdx that briefly held 40 GB stays
+    40 GB -- so this is real reclaimable space, but the way to reclaim it
+    is to COMPACT the image. Deleting one destroys a working VM, hence
+    danger.
+    """
+    result = ScanResult()
+    for path, size in _collect_virtual_disks(min_age_days):
+        if virtual_disks.is_orphaned(path):
+            continue
+        result.items.append(ScanItem(path=path, size=size, is_dir=False,
+                                     selected=False, safety="danger"))
+        result.total_size += size
+    return result
+
+
+def scan_orphaned_virtual_disks(min_age_days: int = 0) -> ScanResult:
+    r"""Large disk images nothing on this machine can open.
+
+    E:\VMs\Ubuntu\Ubuntu.vdi was 11.05 GB here, dated Feb 2026, with no
+    HKLM\SOFTWARE\Oracle, no ~\.VirtualBox, no "~\VirtualBox VMs" and no
+    VBoxManage.exe anywhere: VirtualBox had been uninstalled and left the
+    disk behind. There is no VM to destroy and no tool present to compact
+    it, so "compact, do not delete" -- what scan_virtual_disk_images says
+    -- is exactly the wrong advice for it.
+
+    Caution rather than danger, and still never pre-selected: nothing is
+    using it, but it is somebody's disk image and only they know whether
+    the contents still matter.
+    """
+    result = ScanResult()
+    for path, size in _collect_virtual_disks(min_age_days):
+        if not virtual_disks.is_orphaned(path):
+            continue
+        result.items.append(ScanItem(path=path, size=size, is_dir=False,
+                                     selected=False, safety="caution"))
+        result.total_size += size
+    return result
+
 __all__ = [
+    'scan_orphaned_virtual_disks',
+    'scan_orphaned_installer_packages',
+    'scan_virtual_disk_images',
     '_find_empty_folders',
     '_group_by_size_recursive',
     '_hash_file_fast',
@@ -1850,7 +1999,6 @@ __all__ = [
     'scan_novatrons_cache',
     'scan_old_av_quarantine',
     'scan_old_files',
-    'scan_old_restore_points',
     'scan_perflogs',
     'scan_powershell_ise_cache',
     'scan_powershell_logs',
@@ -1861,7 +2009,6 @@ __all__ = [
     'scan_printer_driver_cache',
     'scan_recent_files',
     'scan_recycle_bin',
-    'scan_recycle_bin_drive',
     'scan_search_index',
     'scan_store_app_caches',
     'scan_sysinternals_logs',
@@ -1889,6 +2036,5 @@ __all__ = [
     'scan_windows_shell_cache',
     'scan_windows_terminal_cache',
     'scan_windows_terminal_settings_cache',
-    'scan_winsxs_cleanup',
     'scan_wmi_logs',
 ]

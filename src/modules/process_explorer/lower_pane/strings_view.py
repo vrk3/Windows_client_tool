@@ -1,6 +1,7 @@
 # src/modules/process_explorer/lower_pane/strings_view.py
 from __future__ import annotations
 import logging
+from core.widget_life import widget_is_valid
 import re
 from typing import List
 
@@ -95,13 +96,8 @@ class StringsView(QWidget):
     def _on_strings_ready(self, worker, result):
         if worker.is_cancelled:
             return
-        try:
-            import sip
-            if sip.isdeleted(self._ascii_list):
-                return
-        except ImportError:
-            logger.debug("_on_strings_ready: giving up on this read", exc_info=True)
-            pass
+        if not widget_is_valid(self._ascii_list):
+            return
         self._all_ascii, self._all_unicode = result
         self._apply_filter(self._filter.text())
 

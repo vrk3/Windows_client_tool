@@ -8,6 +8,8 @@ Cross-cutting: auto-scan on first tab switch, safety colour-coding,
 age filter per tab, running-process guard, >500 MB confirmation,
 error panel, freed-session counter, DISM button on Large Items.
 """
+import logging
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
 )
@@ -21,6 +23,8 @@ from modules.cleanup.tabs import (
     _LargeItemsTab,
     _OverviewTab,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Alias LARGE_SCANNERS so the main module still has access for reference
@@ -63,6 +67,8 @@ SYSTEM_EXTRA = {
     cs.scan_powershell_modules_cache: ('Powershell Modules Cache', 'safe'),
     cs.scan_printer_driver_cache: ('Printer Driver Cache', 'caution'),
     cs.scan_search_index: ('Search Index', 'caution'),
+    cs.scan_orphaned_installer_packages: (
+        'Orphaned Installer Packages', 'caution'),
     cs.scan_triumph_cache: ('Triumph Cache', 'safe'),
     cs.scan_userprofile_temp: ('Userprofile Temp', 'safe'),
     cs.scan_winSxS_temp: ('Winsxs Temp', 'caution'),
@@ -79,7 +85,11 @@ SYSTEM_EXTRA = {
     cs.scan_windows_shell_cache: ('Windows Shell Cache', 'safe'),
     cs.scan_windows_terminal_cache: ('Windows Terminal Cache', 'safe'),
     cs.scan_windows_terminal_settings_cache: ('Windows Terminal Settings Cache', 'safe'),
-    cs.scan_winsxs_cleanup: ('Winsxs Cleanup', 'caution'),
+    # No scan_winsxs_cleanup here, deliberately: it ran
+    # `Dism /Online /Cleanup-Image /AnalyzeComponentStore`, which is 25-30s
+    # elevated (0.03s unelevated, because DISM refuses — which is how it hid)
+    # and takes the Windows servicing lock. Large Items has an explicit
+    # "Analyze WinSxS" button for that, on its own long-operation pool.
 }
 
 LOGS_EXTRA = {
@@ -97,14 +107,27 @@ LOGS_EXTRA = {
 }
 
 LARGE_EXTRA = {
+    # No scan_old_restore_points: it claimed to measure System Restore
+    # snapshots and shadow storage, and actually scanned the Win+X
+    # shortcuts folder. Restore points are the Restore Manager module's.
+    #
+    # No scan_recycle_bin_drive either: it was byte-identical to
+    # scan_recycle_bin, so the same bytes were reported under two names.
+    # The catalog's per_drive_recycle_bin covers both, on every fixed
+    # drive rather than just the ones os.path.exists happened to find.
     cs.scan_backup_files: ('Backup Files', 'caution'),
     cs.scan_downloads_folder_old: ('Downloads Folder Old', 'caution'),
     cs.scan_duplicate_files: ('Duplicate Files', 'caution'),
     cs.scan_iso_vhd_files: ('Iso Vhd Files', 'caution'),
     cs.scan_large_files: ('Large Files', 'caution'),
+    # Reported, never pre-selected: deleting one destroys a VM. The way
+    # to reclaim this space is to COMPACT the image.
+    cs.scan_virtual_disk_images: ('Virtual Disk Images', 'danger'),
+    # Nothing installed here can open these, so there is no VM to
+    # destroy and nothing to compact them with. Still not pre-selected.
+    cs.scan_orphaned_virtual_disks: (
+        'Orphaned Virtual Disks (no hypervisor installed)', 'caution'),
     cs.scan_old_files: ('Old Files', 'caution'),
-    cs.scan_old_restore_points: ('Old Restore Points', 'caution'),
-    cs.scan_recycle_bin_drive: ('Recycle Bin Drive', 'safe'),
     cs.scan_usb_shadow_copies: ('Usb Shadow Copies', 'safe'),
     cs.scan_virtual_drives: ('Virtual Drives', 'caution'),
 }
@@ -126,11 +149,21 @@ def _with_catalog(curated: dict, *categories: str) -> dict:
     from modules.cleanup.cleanup_scanner.catalog import scanners_for
 
     merged = dict(curated)
+    skipped = 0
     for category in categories:
-        for fn, meta in scanners_for(category).items():
+        offered = scanners_for(category, present_only=True)
+        skipped += len(scanners_for(category)) - len(offered)
+        for fn, meta in offered.items():
             names = {f.__name__ for f in merged}
             if fn.__name__ not in names:
                 merged[fn] = meta
+    if skipped:
+        # Not a warning: "Steam is not installed" is the normal, correct
+        # answer for most of this catalog. Logged so the number is visible
+        # when someone wonders where the other 289 rows went.
+        logger.info("Cleanup tab (%s): offering %d scanners, %d skipped as "
+                    "not present on this machine",
+                    ", ".join(categories), len(merged), skipped)
     return merged
 
 

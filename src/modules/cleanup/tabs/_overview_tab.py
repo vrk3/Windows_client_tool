@@ -2,7 +2,7 @@
 import logging
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -11,12 +11,26 @@ from PyQt6.QtWidgets import (
 )
 
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
+from modules.cleanup.cleanup_scanner import scan_cache
 from modules.cleanup import browser_scanner as bs
 
 
 logger = logging.getLogger(__name__)
+
+# A worker's result can land after its tab is gone. Qt auto-disconnects a
+# BOUND METHOD when the receiving QObject is destroyed, but these tabs
+# connect closures, and nothing tells Qt what a closure's receiver is — so
+# the connection outlives the widget and the callback reaches into a
+# deleted C++ object. Found by a hard crash, not an exception.
+#
+# `from PyQt6 import sip`, not `import sip`: the bare form does not exist
+# under PyQt6, so a guard written that way silently falls back to
+# "always valid" and protects nothing.
+_alive = widget_is_valid
+
 
 
 _OV_GROUPS = [
@@ -66,12 +80,20 @@ _OV_GROUPS = [
     ]),
 ]
 
+#: Rows that are scaffolding rather than a reading — see
+#: _scan_tab.MUTED, which this deliberately mirrors.
+MUTED = _scan_tab_muted = "#888888"
+
 _OV_COLS = ["Group", "Total Size", "Safe Size", "Items", "Status"]
 
 
 class _OverviewTab(QWidget):
     """Summary of all cleanup categories — scans all in parallel on first activation."""
     freed_bytes = pyqtSignal(int)
+
+    #: See _ScanTab.SCAN_WATCHDOG_MS. This sweep measures 6.1s on a real
+    #: machine, so the margin here is larger still.
+    SCAN_WATCHDOG_MS = 300_000
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -82,6 +104,9 @@ class _OverviewTab(QWidget):
         self._scan_workers: list = []
         self._worker: Optional[Worker] = None
         self._thread_pool = QThreadPool.globalInstance()
+        self._watchdog = QTimer(self)
+        self._watchdog.setSingleShot(True)
+        self._watchdog.timeout.connect(self._on_scan_watchdog)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -91,10 +116,14 @@ class _OverviewTab(QWidget):
         # Toolbar
         tb = QHBoxLayout()
         self._scan_btn  = QPushButton("Scan All")
+        self._stop_btn  = QPushButton("Stop")
+        self._stop_btn.setToolTip("Stop the scan and keep whatever was measured")
+        self._stop_btn.setEnabled(False)
         self._clean_btn = QPushButton("Clean All Safe")
         self._status    = QLabel("")
         self._clean_btn.setEnabled(False)
         tb.addWidget(self._scan_btn)
+        tb.addWidget(self._stop_btn)
         tb.addWidget(self._clean_btn)
         tb.addStretch()
         tb.addWidget(self._status)
@@ -121,6 +150,7 @@ class _OverviewTab(QWidget):
         lay.addWidget(self._table, 1)
 
         self._scan_btn.clicked.connect(self._do_scan_all)
+        self._stop_btn.clicked.connect(self._stop_scan)
         self._clean_btn.clicked.connect(self._do_clean_safe)
 
     def _build_table(self):
@@ -133,7 +163,7 @@ class _OverviewTab(QWidget):
             self._table.setItem(row, 2, centered_item("—"))
             self._table.setItem(row, 3, centered_item("—"))
             status = centered_item("Pending…")
-            status.setForeground(QColor("#888888"))
+            status.setForeground(QColor(MUTED))
             self._table.setItem(row, 4, status)
 
     def _update_row(self, group_name: str, total: int, safe: int, count: int):
@@ -173,10 +203,12 @@ class _OverviewTab(QWidget):
         self._scanned  = True
         self._results.clear()
         self._scan_btn.setEnabled(False)
+        self._stop_btn.setEnabled(True)
         self._clean_btn.setEnabled(False)
-        self._prog.setRange(0, 0)
+        self._prog.setRange(0, len(_OV_GROUPS))
+        self._prog.setValue(0)
         self._prog.show()
-        self._status.setText("Scanning all categories…")
+        self._status.setText(f"Scanning 0/{len(_OV_GROUPS)} categories…")
 
         # Reset status column
         for row in range(self._table.rowCount()):
@@ -186,6 +218,7 @@ class _OverviewTab(QWidget):
                 item.setForeground(QColor("#f0ad4e"))
 
         self._pending = len(_OV_GROUPS)
+        self._watchdog.start(self.SCAN_WATCHDOG_MS)
 
         for group_name, scanners in _OV_GROUPS:
             def _make_cb(gname=group_name, fns=scanners):
@@ -210,7 +243,7 @@ class _OverviewTab(QWidget):
                         found = []
                         for fn in fns:
                             try:
-                                r = fn(min_age_days=0)
+                                r = scan_cache.cached_scan(fn, 0)
                                 found.extend(r.items)
                             except Exception as e:
                                 logger.warning(f"Scan {fn.__name__} failed: {e}")
@@ -221,15 +254,21 @@ class _OverviewTab(QWidget):
                     return gname, total, safe, count
 
                 def _res(data):
+                    if not _alive(self):
+                        return
                     gn, tot, sf, cnt = data
                     self._results[gn] = (tot, sf, cnt)
                     self._pending -= 1
+                    self._note_progress()
                     self._update_row(gn, tot, sf, cnt)
                     if self._pending == 0:
                         self._scan_done()
 
                 def _err(_e):
+                    if not _alive(self):
+                        return
                     self._pending -= 1
+                    self._note_progress()
                     self._update_row(gname, 0, 0, 0)
                     if self._pending == 0:
                         self._scan_done()
@@ -243,9 +282,37 @@ class _OverviewTab(QWidget):
             self._scan_workers.append(w)
             self._thread_pool.start(w)
 
+    def _note_progress(self) -> None:
+        """How many category groups have reported in."""
+        total = len(_OV_GROUPS)
+        done = total - max(self._pending, 0)
+        self._prog.setValue(done)
+        if self._scanning:
+            self._status.setText(f"Scanning {done}/{total} categories…")
+
+    def _stop_scan(self) -> None:
+        """Stop the sweep, keeping whatever the finished groups measured."""
+        self._cancel_all()
+
+    def _on_scan_watchdog(self) -> None:
+        if not self._scanning:
+            return
+        outstanding = [name for name, _ in _OV_GROUPS
+                       if name not in self._results]
+        logger.warning(
+            "Cleanup overview scan timed out after %.0fs; no result from: %s",
+            self.SCAN_WATCHDOG_MS / 1000, ", ".join(outstanding) or "(none)")
+        named = ", ".join(outstanding[:3])
+        if len(outstanding) > 3:
+            named += f" and {len(outstanding) - 3} more"
+        self._cancel_all(
+            message=f"Scan timed out — no result from {named}")
+
     def _scan_done(self):
+        self._watchdog.stop()
         self._scanning = False
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         self._prog.hide()
         total = sum(t for t, _, _ in self._results.values())
         safe  = sum(s for _, s, _ in self._results.values())
@@ -266,7 +333,7 @@ class _OverviewTab(QWidget):
                 continue  # skip browser (handled by its own tab)
             for fn in scanners:
                 try:
-                    r = fn(min_age_days=0)
+                    r = scan_cache.cached_scan(fn, 0)
                     for item in r.items:
                         if item.safety == "safe":
                             item.selected = True
@@ -292,6 +359,8 @@ class _OverviewTab(QWidget):
             return cs.delete_items(all_items, stop_wuauserv=needs_wu)
 
         def _done(result):
+            if not _alive(self):
+                return
             deleted, errors = result
             self._prog.hide()
             self._scan_btn.setEnabled(True)
@@ -306,6 +375,8 @@ class _OverviewTab(QWidget):
             self._do_scan_all()
 
         def _err(e: str):
+            if not _alive(self):
+                return
             self._prog.hide()
             self._scan_btn.setEnabled(True)
             self._clean_btn.setEnabled(True)
@@ -320,10 +391,40 @@ class _OverviewTab(QWidget):
         from modules.cleanup.tabs._scan_tab import _confirm_large as _cf
         return _cf(self, nbytes)
 
-    def _cancel_all(self) -> None:
+    def _cancel_all(self, message: str = None) -> None:
+        in_flight = self._scanning or self._worker is not None
+        self._watchdog.stop()
         for w in self._scan_workers:
             w.cancel()
         self._scan_workers.clear()
         if self._worker is not None:
             self._worker.cancel()
             self._worker = None
+        if in_flight:
+            self._reset_after_cancel(message)
+
+    def _reset_after_cancel(self, message: str = None) -> None:
+        """Put the tab back in a state the user can act on.
+
+        A cancelled Worker emits `cancelled` and never `result` or `error`
+        (core/worker.py), so `_pending` would never reach zero and
+        `_scan_done` would never run. Switching modules mid-scan therefore
+        left this tab spinning on "Scanning all categories..." for the life
+        of the process, with `_do_scan_all` returning early on `_scanning`.
+        """
+        self._scanning = False
+        self._pending = 0
+        # Nothing was measured, so the tab has NOT been scanned: let
+        # auto_scan() run again the next time the module is activated.
+        self._scanned = False
+        self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
+        self._clean_btn.setEnabled(False)
+        self._prog.hide()
+        self._status.setText(
+            message or "Scan cancelled — click Scan All to run it again")
+        for row in range(self._table.rowCount()):
+            item = self._table.item(row, 4)
+            if item is not None and item.text() == "Scanning…":
+                item.setText("Cancelled")
+                item.setForeground(QColor(MUTED))
