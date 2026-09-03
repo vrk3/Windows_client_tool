@@ -1,5 +1,4 @@
 """_BrowserCleanupTab — 3-level tree: Browser → Profile → Cache Category."""
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (

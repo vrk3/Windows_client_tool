@@ -4,7 +4,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QLabel,
+    QTableWidget, QTabWidget, QLabel,
     QFileDialog, QProgressBar,
 )
 from PyQt6.QtCore import QThreadPool
@@ -12,7 +12,7 @@ from PyQt6.QtCore import QThreadPool
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import COMWorker
-from core.table_ui import centered_item, center_header, fit_table, fit_last
+from core.table_ui import centered_item, fit_table, fit_last
 from modules.hardware_inventory import hardware_reader as hr
 
 

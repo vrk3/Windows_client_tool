@@ -22,10 +22,9 @@ import logging
 import os
 import subprocess
 import sys
-import time
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 import psutil
 

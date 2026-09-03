@@ -22,7 +22,7 @@ from core.base_module import BaseModule
 from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
 from core.semantic_colors import semantic
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)

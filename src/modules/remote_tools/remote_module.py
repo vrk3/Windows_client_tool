@@ -1,22 +1,20 @@
 # src/modules/remote_tools/remote_module.py
 import logging
 import socket
-import struct
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import (
-    QCompleter, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QCompleter, QFormLayout, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton,
-    QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
-    QTabWidget, QVBoxLayout, QWidget,
+    QSpinBox, QTableWidget, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)

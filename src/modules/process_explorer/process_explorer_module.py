@@ -491,7 +491,6 @@ class ProcessExplorerModule(BaseModule):
             self.app.thread_pool.start(w)
 
     def _on_vt_result(self, result):
-        from core.virustotal_client import VTResult
         if not result.found:
             reply = QMessageBox.question(
                 self._widget, "VirusTotal — Unknown File",

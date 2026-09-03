@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,

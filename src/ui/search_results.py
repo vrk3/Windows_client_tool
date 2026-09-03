@@ -3,7 +3,7 @@ from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QHeaderView, QTableView, QVBoxLayout, QWidget
 
 from core.search_provider import SearchResult
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import center_header
 
 
 class SearchResultsTable(QWidget):

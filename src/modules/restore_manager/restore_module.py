@@ -5,14 +5,14 @@ from typing import List, Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QInputDialog,
+    QTableWidget, QVBoxLayout, QWidget, QInputDialog,
 )
 
 from core.base_module import BaseModule
 from core.confirm import confirm_destructive
 from core.module_groups import ModuleGroup
 from core.system_restore import parse_restore_point_time, sequence_numbers_to_prune
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 from core.worker import Worker
 import logging
 

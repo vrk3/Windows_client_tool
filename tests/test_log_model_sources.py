@@ -6,7 +6,6 @@ whole point of merging is that you can then narrow back down.
 """
 from datetime import datetime
 
-import pytest
 
 from core.types import LogEntry
 from modules.log_viewer.log_model import (

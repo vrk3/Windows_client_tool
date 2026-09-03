@@ -7,7 +7,6 @@ answer with a process that died a second ago, and an empty query is not a
 search.
 """
 import os
-import re
 
 import pytest
 

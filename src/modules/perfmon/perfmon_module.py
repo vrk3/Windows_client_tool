@@ -6,14 +6,13 @@ from typing import Optional
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QLabel, QVBoxLayout, QWidget, QHBoxLayout,
-    QTabWidget, QGridLayout, QProgressBar, QTableWidget, QTableWidgetItem,
+    QLabel, QVBoxLayout, QWidget, QTabWidget, QGridLayout, QProgressBar, QTableWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.search_provider import SearchProvider
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 from core.types import LogEntry
 from modules.perfmon.perfmon_collector import PerfMonStore, collect_snapshot
 from modules.perfmon.perfmon_charts import PerfMonDashboard, _QtLineChart

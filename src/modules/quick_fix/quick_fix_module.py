@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QFrame, QScrollArea, QGridLayout,
 )
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import QThreadPool, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from core.base_module import BaseModule

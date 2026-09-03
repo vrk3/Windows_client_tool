@@ -1,7 +1,6 @@
 """The log viewer's table model: colouring, filtering, the cap, and find."""
 from datetime import datetime
 
-import pytest
 from PyQt6.QtCore import Qt
 
 from core.types import LogEntry

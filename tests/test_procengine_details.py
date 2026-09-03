@@ -13,12 +13,11 @@ and a reason saying why -- never `""`, which renders as a blank cell and
 reads as "this process has no path".
 """
 import os
-import sys
 
 import pytest
 
 from core.procengine.details import (
-    DetailCache, ProcessDetails, resolve,
+    DetailCache, resolve,
 )
 from core.procengine.ntquery import system_processes
 

@@ -1,7 +1,7 @@
 # tests/test_tweak_engine.py
 import pytest
-from unittest.mock import patch, MagicMock, call
-from core.backup_service import BackupService, StepRecord
+from unittest.mock import patch, MagicMock
+from core.backup_service import BackupService
 
 
 @pytest.fixture
@@ -256,7 +256,6 @@ def test_creating_a_key_is_recorded_so_the_revert_can_undo_it(engine, tmp_path):
     """The elevated LLMNR round-trip left an empty policy key behind because
     nothing recorded that the apply had created it."""
     import winreg
-    from modules.tweaks.tweak_engine import TweakEngine
 
     root = r"Software\WinClientToolTest_EngineKey"
     try:

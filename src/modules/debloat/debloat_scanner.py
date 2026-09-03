@@ -1,7 +1,7 @@
 """debloat_scanner — detects installed bloatware apps and tweak states."""
 import logging
 import subprocess
-from typing import Dict, List
+from typing import Dict
 
 from core.appx_service import installed_names
 from core.windows_utils import ps_quote

@@ -7,7 +7,7 @@ widget per row, because a widget per row does not survive a large scan.
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeView,
+    QAbstractItemView, QStyledItemDelegate, QStyleOptionViewItem, QTreeView,
 )
 
 from ..store.node_store import DIR

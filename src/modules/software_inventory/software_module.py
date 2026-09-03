@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QLabel,
+    QTableWidget, QHeaderView, QLineEdit, QLabel,
     QProgressBar, QFileDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt
@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 import logging
 logger = logging.getLogger(__name__)
 

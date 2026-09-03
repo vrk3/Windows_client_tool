@@ -23,7 +23,7 @@ from core.semantic_colors import semantic
 from core.worker import Worker
 
 from core.procengine.columns import fmt_bytes, fmt_percent, fmt_rate
-from core.procengine.grouping import GROUP_ORDER, group_processes, totals
+from core.procengine.grouping import group_processes, totals
 from core.procengine.snapshot import SnapshotSource
 from .process_menu import ProcessMenu
 

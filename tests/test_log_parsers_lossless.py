@@ -6,8 +6,6 @@ lines never reached the Diagnose tab, and the very first line was one of them.
 """
 import pytest
 
-from core.log_parser_base import LogParserBase
-from core.types import LogEntry
 from modules.cbs_log.cbs_parser import CBSParser
 from modules.dism_log.dism_parser import DISMParser
 

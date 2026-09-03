@@ -10,7 +10,7 @@ import sys
 import pytest
 
 from core.procengine.classify import (
-    PACKED_ENTROPY, ClassifyCache, Classification, classify, is_dotnet,
+    PACKED_ENTROPY, ClassifyCache, classify, is_dotnet,
     loaded_modules, package_family_name, packed_guess, shannon_entropy,
 )
 from core.procengine.ntquery import system_processes

@@ -10,7 +10,7 @@ module's own Find dialog uses rather than a second, subtly different set.
 """
 import datetime
 import logging
-from typing import List, Optional
+from typing import List
 
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
 

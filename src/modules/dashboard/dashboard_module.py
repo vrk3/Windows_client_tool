@@ -27,7 +27,6 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,

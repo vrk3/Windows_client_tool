@@ -3,13 +3,13 @@ from __future__ import annotations
 import logging
 import socket
 import threading
-from typing import List, Optional
+from typing import Optional
 
 import psutil
 from PyQt6 import sip
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QBrush
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QHeaderView
 
 from core.table_ui import centered_item, center_header
 

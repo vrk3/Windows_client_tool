@@ -35,8 +35,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 # show/layout/paint cycle without ever mapping a window onto the desktop.
 os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 
-from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt6.QtCore import Qt
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "ui_sweep_out"
 # ONE theme per process. Calling create_widget() twice on the same module

@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import traceback
-from pathlib import Path
 
 # Add src/ to Python path so imports like `core.event_bus` work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

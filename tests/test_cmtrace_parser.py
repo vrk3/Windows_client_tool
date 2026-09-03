@@ -7,7 +7,6 @@ written, and messages that themselves contain the delimiters.
 """
 from datetime import datetime
 
-import pytest
 
 from modules.log_viewer import cmtrace_parser as parser
 

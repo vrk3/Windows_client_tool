@@ -9,7 +9,6 @@ import struct
 import threading
 import time
 
-import pytest
 
 from modules.treesize.scan.watcher import (
     FILE_ACTION_ADDED, FILE_ACTION_MODIFIED, FILE_ACTION_REMOVED,

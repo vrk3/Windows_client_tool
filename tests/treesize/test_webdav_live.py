@@ -22,7 +22,7 @@ import pytest
 
 from modules.treesize.store.node_store import DIR, NodeStore
 from modules.treesize.store.rollup import rollup
-from modules.treesize.targets.base import Credentials, TargetError
+from modules.treesize.targets.base import Credentials
 from modules.treesize.targets.remote import WebDavTarget
 
 pytest.importorskip("httpx")

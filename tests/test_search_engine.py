@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime
 from core.search_provider import SearchProvider, SearchQuery, SearchResult, FilterField
 from core.search_engine import SearchEngine

@@ -4,9 +4,7 @@ The grouping question: who is costing the machine what. It is answered by
 the process token's account -- not guessed from names or paths -- and a
 process whose token we cannot read is never filed under somebody else.
 """
-import os
 
-import pytest
 
 from core.procengine.rates import Rates
 from core.procengine.snapshot import ProcessInfo

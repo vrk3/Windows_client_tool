@@ -20,7 +20,7 @@ import json
 import logging
 import os
 from dataclasses import asdict, dataclass, field
-from typing import List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

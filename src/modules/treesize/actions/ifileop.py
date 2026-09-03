@@ -26,7 +26,6 @@ Two things that are easy to get wrong and are not obvious:
    handing it an already-prefixed path fails to parse.
 """
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 

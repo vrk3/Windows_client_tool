@@ -1,16 +1,14 @@
 import logging
 logger = logging.getLogger(__name__)
 
-import os
 import subprocess
 import winreg
 import psutil
-from typing import List, Optional
+from typing import List
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
-    QLineEdit, QComboBox, QCheckBox, QPlainTextEdit, QSizePolicy, QGridLayout)
-from PyQt6.QtCore import Qt
+    QTabWidget, QLabel,
+    QLineEdit, QComboBox, QCheckBox, QPlainTextEdit, QGridLayout)
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup

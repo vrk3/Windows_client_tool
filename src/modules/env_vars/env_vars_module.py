@@ -2,18 +2,18 @@
 import ctypes
 import logging
 import winreg
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout, QInputDialog, QLabel, QLineEdit,
     QMessageBox, QPushButton, QSplitter, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 
 logger = logging.getLogger(__name__)
 

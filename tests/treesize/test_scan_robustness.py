@@ -4,7 +4,6 @@ Both are cases where the engine trusts something it should check: that a
 volume it probed a moment ago is still probeable, and that a parent chain
 terminates.
 """
-import pytest
 
 from modules.treesize.scan import scanner as scanner_mod
 from modules.treesize.scan.scanner import Scanner

@@ -5,7 +5,7 @@ real machine, like everything else in this engine.
 """
 import pytest
 
-from modules.dashboard.processes_tab import (CPU, MEMORY, PID_ROLE,
+from modules.dashboard.processes_tab import (MEMORY, PID_ROLE,
                                              ProcessesTab, VALUE_ROLE, _heat)
 from core.procengine.grouping import GROUP_ORDER
 

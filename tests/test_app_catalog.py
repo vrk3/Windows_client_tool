@@ -1,8 +1,6 @@
 # tests/test_app_catalog.py
-import json
 import os
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture

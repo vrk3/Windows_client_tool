@@ -8,7 +8,6 @@ FilterSet matched names and sizes only. Two rules were missing outright:
 
 Extension is covered by name globs (`*.tmp`) and needs no separate rule.
 """
-import pytest
 
 from modules.treesize.scan.filters import FilterSet, days_to_filetime, filetime_now
 from modules.treesize.store.node_store import DIR

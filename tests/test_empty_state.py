@@ -6,7 +6,6 @@ the space it is explaining, not tucked into a corner of it.
 """
 import sys
 
-import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 

@@ -14,8 +14,6 @@ same `WIN32_FIND_DATAW` record the walk reads anyway, so there is no trade to
 make -- and the Details view has an Attributes column that renders C for
 compressed and S for sparse, which on this engine could never appear.
 """
-import ctypes
-import os
 import subprocess
 
 import pytest

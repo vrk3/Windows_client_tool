@@ -6,7 +6,6 @@ that silently restarts the byte count.
 """
 import os
 
-import pytest
 
 from modules.log_viewer.log_reader import LogReader
 

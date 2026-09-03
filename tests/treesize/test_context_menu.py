@@ -5,8 +5,6 @@ import os
 import pytest
 from PyQt6.QtWidgets import QMessageBox
 
-from modules.treesize.store.node_store import NodeStore, DIR
-from modules.treesize.store.rollup import rollup
 from modules.treesize.ui.shell import TreeSizeShell
 
 

@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
-from typing import List, Optional
+from typing import Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QPushButton, QLineEdit, QComboBox, QScrollArea,

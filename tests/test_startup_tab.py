@@ -9,7 +9,6 @@ status -- rather than requiring a minimum count.
 """
 import time
 
-import pytest
 from PyQt6.QtCore import QThreadPool
 from PyQt6.QtWidgets import QLabel, QTableWidget
 

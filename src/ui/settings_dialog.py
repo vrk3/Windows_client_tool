@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QLabel,
     QListWidget,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )

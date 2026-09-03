@@ -1,6 +1,5 @@
 import logging
 import re
-from datetime import datetime
 from typing import List
 
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult

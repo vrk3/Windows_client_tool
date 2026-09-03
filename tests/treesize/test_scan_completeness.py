@@ -1,7 +1,6 @@
 """Regression tests for review findings 3 and 4: a scan that could not read
 everything must say so, instead of returning a plausible smaller number.
 """
-import pytest
 
 from modules.treesize.scan.scanner import Scanner
 from modules.treesize.scan.volume_info import read_at

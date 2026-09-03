@@ -1,11 +1,9 @@
 from PyQt6.QtCore import QTimer, pyqtSignal
-from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
     QLineEdit,
     QPushButton,
-    QVBoxLayout,
     QWidget,
 )
 

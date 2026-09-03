@@ -1,5 +1,4 @@
 """Spec 7.3: export formats."""
-import os
 import sqlite3
 import xml.etree.ElementTree as ET
 

@@ -13,7 +13,7 @@ def _widget_valid(w):
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTabWidget,
-    QTableWidget, QTableWidgetItem, QHeaderView, QPlainTextEdit,
+    QTableWidget, QHeaderView, QPlainTextEdit,
     QCheckBox, QTimeEdit, QComboBox, QProgressBar, QLineEdit, QMessageBox,
     QGroupBox, QScrollArea, QSpinBox,
 )
@@ -26,7 +26,7 @@ from core.worker import Worker, COMWorker
 from core.windows_utils import is_reboot_pending
 from core.blocklist import add_pattern, normalize_patterns
 from core.events import NOTIFY_BALLOON, BalloonNotifyData
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from modules.updates.winget_updater import (
     fetch_updates, install_update, show_package_details, AppUpdate,
 )

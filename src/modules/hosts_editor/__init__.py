@@ -1,1 +1,3 @@
 from modules.hosts_editor.hosts_editor_module import HostsEditorModule
+
+__all__ = ["HostsEditorModule"]

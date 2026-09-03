@@ -9,7 +9,7 @@ than as a flat mosaic. It is a per-tile linear gradient rather than a real
 per-pixel cushion: at tens of thousands of tiles the difference is invisible
 and the cost is not.
 """
-from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QColor, QFontMetrics, QLinearGradient, QPainter, QPen,
 )

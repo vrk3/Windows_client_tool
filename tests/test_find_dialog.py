@@ -6,7 +6,6 @@ whole answer: a search that was truncated, or that met twenty processes it
 could not inspect, has not established that nothing holds the file.
 """
 import os
-import time
 
 import pytest
 

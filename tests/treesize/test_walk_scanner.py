@@ -1,7 +1,6 @@
-import os
 
 from modules.treesize.scan.walk_scanner import WalkScanner, list_directory
-from modules.treesize.store.node_store import NodeStore, DIR
+from modules.treesize.store.node_store import NodeStore
 from modules.treesize.store.rollup import rollup
 
 

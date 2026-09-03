@@ -2,19 +2,18 @@ import datetime
 import os
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox, QFileDialog, QHeaderView, QLabel,
     QLineEdit, QProgressBar, QPushButton, QTableWidget,
-    QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout, QWidget,
+    QTabWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.worker import Worker
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from modules.certificate_viewer.cert_reader import CertInfo, fetch_certs
 
 COLUMNS = [

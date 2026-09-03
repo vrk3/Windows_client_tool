@@ -10,7 +10,6 @@ W3-06's job.
 What IS adjustable, and so worth keeping: the splitter between the table and
 the detail pane, and the two checkboxes that change what you see.
 """
-import pytest
 
 from modules.log_viewer.layout import (
     CONFIG_KEY, load_layout, save_layout,

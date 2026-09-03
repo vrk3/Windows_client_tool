@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from PyQt6.QtWidgets import QLabel
 from core.base_module import BaseModule
@@ -119,7 +118,7 @@ def test_get_modules_returns_all_registered():
 
 
 def test_search_providers_auto_registered():
-    from core.search_provider import SearchProvider, SearchQuery, SearchResult, FilterField
+    from core.search_provider import SearchProvider
 
     class SearchModule(FakeModule):
         name = "Searchable"

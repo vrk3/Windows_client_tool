@@ -27,7 +27,7 @@ Qt-free, like the rest of the engine.
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Deque, List, Optional
 
 from .ntquery import system_processes
 from .rates import RateTracker

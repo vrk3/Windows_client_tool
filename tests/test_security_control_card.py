@@ -1,5 +1,4 @@
 """A card is a rendering of a catalog entry, not a hand-wired widget."""
-import pytest
 
 from core import semantic_colors
 from modules.security_dashboard.applier import ControlResult

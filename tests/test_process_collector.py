@@ -7,7 +7,6 @@ conversion rules with synthetic rows.
 """
 import time
 
-import pytest
 
 from core.procengine.details import ProcessDetails
 from core.procengine.ntquery import ProcessRaw

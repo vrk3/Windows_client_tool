@@ -16,7 +16,6 @@ A RATCHET: BUDGET only ever falls.
 import ast
 import pathlib
 
-import pytest
 from PyQt6.QtWidgets import QLabel
 
 from core.table_ui import set_role

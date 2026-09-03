@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
 from modules.tweaks.tweak_engine import (  # noqa: E402
-    APPLIED, NOT_APPLIED, PARTIAL, TweakEngine, UNKNOWN,
+    APPLIED, NOT_APPLIED, PARTIAL, TweakEngine,
 )
 from modules.tweaks.tweaks_module import _CATEGORY_FILES, _DEFS_DIR  # noqa: E402
 

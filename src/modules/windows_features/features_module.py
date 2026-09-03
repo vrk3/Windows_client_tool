@@ -1,10 +1,9 @@
 import subprocess
-import re
 from typing import List, Tuple, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTreeWidget, QTreeWidgetItem, QSplitter, QPlainTextEdit, QLabel,
-    QLineEdit, QProgressBar, QHeaderView, QSizePolicy, QFrame, QMessageBox)
+    QLineEdit, QProgressBar, QHeaderView, QMessageBox)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 

@@ -14,7 +14,6 @@ Progress and cancel are callbacks, so this runs on a worker without knowing
 anything about Qt.
 """
 import hashlib
-import os
 from collections import defaultdict
 from dataclasses import dataclass
 

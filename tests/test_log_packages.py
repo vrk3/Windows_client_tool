@@ -10,7 +10,6 @@ So the column answers the question someone actually has -- "which thing is
 this line about" -- returning the KB when the package name embeds one, and the
 package identity otherwise.
 """
-import pytest
 
 from modules.log_viewer.packages import package_of
 

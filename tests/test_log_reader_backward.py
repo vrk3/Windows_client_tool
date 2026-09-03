@@ -14,7 +14,6 @@ opened the log to find.
 
 Everything here uses REAL files, like the rest of the reader's tests.
 """
-import pytest
 
 from modules.log_viewer.log_reader import LogReader
 

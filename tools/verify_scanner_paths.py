@@ -45,7 +45,6 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
-from modules.cleanup.cleanup_scanner import _common  # noqa: E402
 from modules.cleanup.cleanup_scanner.catalog import (  # noqa: E402
     expand, load_catalog, targets_of,
 )

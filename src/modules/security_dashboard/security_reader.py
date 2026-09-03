@@ -222,7 +222,6 @@ def _cmd_run(cmd: List[str], timeout: int = 120) -> Tuple[int, str, str]:
 
 def check_defender() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         av_enabled = bool(status_obj.AntivirusEnabled)
@@ -269,7 +268,6 @@ def check_firewall() -> Dict[str, Any]:
 
 def check_bitlocker() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\cimv2\Security\MicrosoftVolumeEncryption")
         volumes = c.Win32_EncryptableVolume()
         details = []
@@ -330,7 +328,6 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
     # TPM
     tpm_ok: Optional[bool] = None
     try:
-        import wmi
         c = _wmi_namespace(r"root\cimv2\Security\MicrosoftTpm")
         tpms = c.Win32_Tpm()
         if tpms:
@@ -520,7 +517,6 @@ def check_lsass_protection() -> Dict[str, Any]:
 
 def check_tamper_protection() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         try:

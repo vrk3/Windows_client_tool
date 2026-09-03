@@ -10,7 +10,6 @@ other.
 """
 from datetime import datetime, timedelta
 
-import pytest
 
 from core.types import LogEntry
 from modules.log_viewer.compare import compare

@@ -4,10 +4,8 @@ The column that matters is CPU time -- the cumulative counter the bulk
 syscall gives up for free. The rows must roll Chrome's many processes into
 one "Google Chrome", sorted so the most expensive program is on top.
 """
-import pytest
 
 from modules.dashboard.app_history_tab import AppHistoryTab
-from core.procengine.usage import app_usage
 
 
 def _settle(qapp, widget, predicate, seconds=8.0):

@@ -7,7 +7,6 @@ getting a finding out of the tool.
 """
 from datetime import datetime
 
-import pytest
 
 from core.types import LogEntry
 from modules.log_viewer.log_export import as_html, as_markdown

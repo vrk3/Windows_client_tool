@@ -11,7 +11,7 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QPushButton, QCheckBox, QTableWidget,
-                              QTableWidgetItem, QHeaderView)
+                              QHeaderView)
 
 from core.table_ui import centered_item, center_header
 

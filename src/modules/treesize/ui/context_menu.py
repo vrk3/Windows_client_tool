@@ -11,7 +11,6 @@ Destructive entries route through `actions.file_ops`, which preflights against
 import os
 import subprocess
 
-from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFileDialog, QMenu, QMessageBox,
 )

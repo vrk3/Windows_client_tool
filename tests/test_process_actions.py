@@ -58,7 +58,6 @@ def test_set_affinity_empty_cores():
 
 
 def test_kill_tree_success():
-    import psutil
     mock_child = MagicMock()
     mock_child.pid = 5678
     mock_proc = MagicMock()

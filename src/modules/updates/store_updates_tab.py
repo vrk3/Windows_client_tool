@@ -14,10 +14,10 @@ from PyQt6.QtCore import QThreadPool
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPlainTextEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QPushButton, QTableWidget, QVBoxLayout, QWidget,
 )
 
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import COMWorker, Worker
 from modules.updates.winget_updater import AppUpdate
 

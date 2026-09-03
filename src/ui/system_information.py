@@ -19,7 +19,7 @@ applies to everything drawn here.
 import logging
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (QDialog, QFormLayout, QGridLayout, QHBoxLayout,
                              QLabel, QTabWidget, QVBoxLayout, QWidget)
 

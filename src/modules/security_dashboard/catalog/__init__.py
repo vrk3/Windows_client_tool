@@ -1,7 +1,7 @@
 """Assemble the catalog from its category modules."""
 from typing import Dict
 
-from .model import Category, ControlState, Risk, SecurityControl
+from .model import SecurityControl
 
 #: check_* functions in security_reader.py that are deliberately NOT controls,
 #: each with the reason. The binding test (test_security_catalog_binding.py)

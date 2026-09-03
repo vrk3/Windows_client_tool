@@ -1,5 +1,3 @@
-import os
-import tempfile
 from core.theme_manager import ThemeManager
 
 

@@ -1,4 +1,3 @@
-import pytest
 from core.event_bus import EventBus
 
 

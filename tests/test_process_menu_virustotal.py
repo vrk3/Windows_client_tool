@@ -5,7 +5,6 @@ VirusTotal. Both need the file's path, and both are tested here by their
 handlers rather than by opening a real menu (`exec` blocks).
 """
 import os
-import sys
 
 import pytest
 

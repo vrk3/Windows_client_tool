@@ -15,11 +15,8 @@ QDate carries no time, so the time specifiers rendered LITERALLY: every
 backup this has ever written went to
 `cleanup_config_backup_<date>_hhmmss.json` and overwrote the one before it.
 """
-import datetime
-import json
 import re
 
-import pytest
 
 from modules.cleanup import cleanup_config as cc
 

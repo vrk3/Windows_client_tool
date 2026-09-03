@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, QThreadPool
+from PyQt6.QtCore import QTimer, QThreadPool
 from PyQt6 import sip
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (
@@ -22,10 +22,8 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QProgressBar,
     QTableWidget,
-    QTableWidgetItem,
     QHeaderView,
     QListWidget,
-    QSizePolicy,
     QAbstractItemView,
     QStackedWidget,
 )
@@ -33,7 +31,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
-from core.table_ui import center_header, centered_item, fit_table, set_role
+from core.table_ui import center_header, centered_item, set_role
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
 from modules.perfmon.perfmon_charts import _QtLineChart

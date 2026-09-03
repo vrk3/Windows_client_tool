@@ -3,7 +3,6 @@ import logging
 from typing import Dict, List
 
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
-from PyQt6.QtGui import QColor
 
 from modules.process_explorer.process_node import ProcessNode
 from modules.process_explorer.color_scheme import (describe, get_row_color,

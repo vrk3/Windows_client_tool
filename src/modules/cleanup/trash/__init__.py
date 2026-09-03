@@ -12,11 +12,10 @@ Handles:
 
 import os
 import shutil
-import json
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from modules.cleanup.cleanup_config import CleanupConfig
 import logging

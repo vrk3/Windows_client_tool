@@ -14,7 +14,7 @@ from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QHeaderView, QLabel, QTableWidget,
-                             QTableWidgetItem, QVBoxLayout, QWidget)
+                             QVBoxLayout, QWidget)
 
 from core.table_ui import centered_item, center_header
 

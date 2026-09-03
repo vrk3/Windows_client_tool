@@ -8,7 +8,6 @@ Cross-cutting: auto-scan on first tab switch, safety colour-coding,
 age filter per tab, running-process guard, >500 MB confirmation,
 error panel, freed-session counter, DISM button on Large Items.
 """
-from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
 )
@@ -25,7 +24,6 @@ from modules.cleanup.tabs import (
 
 
 # Alias LARGE_SCANNERS so the main module still has access for reference
-from modules.cleanup.tabs._large_items_tab import LARGE_SCANNERS
 
 
 # ── The scanners no tab named ──────────────────────────────────────────

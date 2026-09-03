@@ -6,7 +6,6 @@ has focus, so a bare `/` or `n` would be swallowed before it ever reached the
 Filter box you were typing it into.
 """
 import pytest
-from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
 
 from modules.log_viewer.log_viewer_module import LogViewerWidget
