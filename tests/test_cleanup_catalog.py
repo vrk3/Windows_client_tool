@@ -82,6 +82,10 @@ def test_every_path_uses_a_variable_that_exists_on_windows(catalog):
         "LOCALAPPDATA", "APPDATA", "USERPROFILE", "ProgramData", "windir",
         "TEMP", "TMP", "PUBLIC", "ProgramFiles", "ProgramFiles(x86)",
         "SystemDrive", "SystemRoot", "ALLUSERSPROFILE", "HOMEDRIVE",
+        # Not an environment variable: the catalog's own token for "once
+        # per fixed volume", expanded by drives.expand_fixed_drives before
+        # expandvars ever sees the path. See test_cleanup_drive_aware.py.
+        "FIXED_DRIVES",
     }
     import re
     bad = []
@@ -230,26 +234,31 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 536 scanners are now reachable. 404 of them were not: they loaded,
+# All 539 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
 # matched anything, and why ten pairs could point at identical paths,
 # without anyone noticing — nobody was looking, because nobody could.
 #
-# The catalog-backed 456 come from `scanners_for(category)`, so a scanner
+# The catalog-backed 459 come from `scanners_for(category)`, so a scanner
 # is offered as soon as it is defined. The 80 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
+#: 536 hand-written + catalog until the three per-drive scanners landed
+#: (per_drive_temp, per_drive_recycle_bin, per_drive_found_clusters). Of
+#: 537 scanners exactly two had ever looked past C:, and they were
+#: duplicates of each other; E:	emp held 20.36 GB nothing could find.
+#:
 #: 537 until scan_winsxs_cleanup was deleted. It ran DISM
 #: /AnalyzeComponentStore from inside a SCAN — 25-30s elevated, holding the
 #: Windows servicing lock, to produce something the Large Items "Analyze
 #: WinSxS" button already produces on purpose. See
 #: tests/test_cleanup_no_servicing_lock.py.
-REACHABLE_SCANNERS = 536
+REACHABLE_SCANNERS = 539
 
 
 def _scanners_the_tabs_offer():

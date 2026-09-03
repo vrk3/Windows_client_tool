@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from modules.cleanup.cleanup_scanner import drives
 from modules.cleanup.cleanup_scanner._common import ScanResult, _make_item
 
 logger = logging.getLogger(__name__)
@@ -112,17 +113,26 @@ def expand(raw: str) -> Optional[str]:
 
 
 def targets_of(spec: ScannerSpec) -> List[str]:
-    """The concrete paths `spec` points at on this machine, globs resolved."""
+    """The concrete paths `spec` points at on this machine, globs resolved.
+
+    `%FIXED_DRIVES%` is expanded first and to MANY paths — one per fixed
+    volume — so a single catalog entry covers `C:\\temp` and `E:\\temp`
+    alike. It is handled before `expand()` because that function's job is
+    to reject a path with an unresolved `%VAR%` left in it, and this token
+    is deliberately not an environment variable.
+    """
     found: List[str] = []
     for raw in spec.paths:
-        expanded = expand(raw)
-        if expanded is None:
-            logger.debug("%s: unresolved variable in %r, skipping", spec.id, raw)
-            continue
-        if any(ch in expanded for ch in "*?["):
-            found.extend(sorted(globlib.glob(expanded)))
-        else:
-            found.append(expanded)
+        for per_drive in drives.expand_fixed_drives(raw):
+            expanded = expand(per_drive)
+            if expanded is None:
+                logger.debug("%s: unresolved variable in %r, skipping",
+                             spec.id, per_drive)
+                continue
+            if any(ch in expanded for ch in "*?["):
+                found.extend(sorted(globlib.glob(expanded)))
+            else:
+                found.append(expanded)
     return found
 
 
