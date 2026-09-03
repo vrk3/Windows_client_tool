@@ -1678,6 +1678,11 @@ def delete_items(items: List[ScanItem],
                  stop_wuauserv: bool = False) -> Tuple[int, int]:
     """Delete selected items. Returns (deleted_count, error_count).
     If stop_wuauserv=True, wraps deletions in _ServiceStopped("wuauserv")."""
+    # Every cached measurement is now about a disk that no longer looks
+    # like that. Serving one afterwards reports space as still reclaimable
+    # when it has already been freed.
+    from modules.cleanup.cleanup_scanner import scan_cache
+    scan_cache.invalidate()
 
     class _ServiceStopped:
         def __init__(self, name):

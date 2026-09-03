@@ -14,6 +14,26 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def _cleanup_scan_cache_cleared():
+    """Don't let one test's measurement answer another test's scan.
+
+    The cleanup scan cache is keyed on the scanner's `__name__`, which is
+    right in the app (a scanner name is unique and stable, and the catalog
+    builds a fresh callable per tab so the function OBJECT is not) and
+    wrong across tests, where two files can each define a local
+    `scan_slow`. Guarded on the module already being imported, so the tests
+    that never touch cleanup pay nothing.
+    """
+    module = sys.modules.get("modules.cleanup.cleanup_scanner.scan_cache")
+    if module is not None:
+        module.invalidate()
+    yield
+    module = sys.modules.get("modules.cleanup.cleanup_scanner.scan_cache")
+    if module is not None:
+        module.invalidate()
+
+
+@pytest.fixture(autouse=True)
 def _catalog_readers_restored():
     """Put back any security-catalog reader a test swapped out.
 

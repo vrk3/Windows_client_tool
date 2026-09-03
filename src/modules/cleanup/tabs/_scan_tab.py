@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
+from modules.cleanup.cleanup_scanner import scan_cache
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +213,7 @@ class _ScanTab(QWidget):
                     break
                 worker.signals.progress.emit(index)
                 try:
-                    r = fn(min_age_days=min_age)
+                    r = scan_cache.cached_scan(fn, min_age)
                     if r:
                         per[fn] = r
                 except Exception as e:

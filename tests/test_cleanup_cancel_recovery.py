@@ -80,12 +80,18 @@ def test_a_cancelled_overview_scan_can_be_started_again(
     blocking_scanner.release.set()
     _settle(qapp)
 
-    blocking_scanner.started.clear()
     blocking_scanner.release.set()
     tab._do_scan_all()
 
-    assert blocking_scanner.started.wait(10), "Scan did nothing after a cancel"
+    # Not "the scanner function ran again": a measurement taken seconds ago
+    # is legitimately served from the shared scan cache. What must be true
+    # is that the tab ACCEPTED the request instead of returning early on a
+    # stuck `_scanning`, and that it reached a finished state.
+    assert tab._scanning is True, "Scan did nothing after a cancel"
     _settle(qapp)
+    assert tab._pending == 0
+    assert tab._scanning is False
+    assert tab._scan_btn.isEnabled()
 
 
 def test_scan_tab_is_usable_again_after_a_scan_is_cancelled(
@@ -116,9 +122,13 @@ def test_a_cancelled_scan_tab_rescans_on_next_activation(
     blocking_scanner.release.set()
     _settle(qapp)
 
-    blocking_scanner.started.clear()
     blocking_scanner.release.set()
     tab.auto_scan()
 
-    assert blocking_scanner.started.wait(10), "tab never rescanned"
+    # `_scanned` must have been cleared by the cancel, or auto_scan is a
+    # no-op and the tab shows nothing for the rest of the session. The
+    # measurement itself may come from the shared scan cache.
+    assert tab._scanning is True, "tab never rescanned"
     _settle(qapp)
+    assert tab._scanning is False
+    assert tab._result is not None
