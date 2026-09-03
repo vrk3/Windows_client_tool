@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from modules.cleanup.trash import TrashManager  # noqa: E402
+from modules.cleanup.trash import TrashManager
 
 
 class _Config:

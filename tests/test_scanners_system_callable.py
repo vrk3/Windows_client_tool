@@ -19,8 +19,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from modules.cleanup.cleanup_scanner import scanners_system  # noqa: E402
-from modules.cleanup.cleanup_scanner._common import ScanResult  # noqa: E402
+from modules.cleanup.cleanup_scanner import scanners_system
+from modules.cleanup.cleanup_scanner._common import ScanResult
 
 
 def _scanners():
