@@ -101,14 +101,20 @@ LOGS_EXTRA = {
 }
 
 LARGE_EXTRA = {
+    # No scan_old_restore_points: it claimed to measure System Restore
+    # snapshots and shadow storage, and actually scanned the Win+X
+    # shortcuts folder. Restore points are the Restore Manager module's.
+    #
+    # No scan_recycle_bin_drive either: it was byte-identical to
+    # scan_recycle_bin, so the same bytes were reported under two names.
+    # The catalog's per_drive_recycle_bin covers both, on every fixed
+    # drive rather than just the ones os.path.exists happened to find.
     cs.scan_backup_files: ('Backup Files', 'caution'),
     cs.scan_downloads_folder_old: ('Downloads Folder Old', 'caution'),
     cs.scan_duplicate_files: ('Duplicate Files', 'caution'),
     cs.scan_iso_vhd_files: ('Iso Vhd Files', 'caution'),
     cs.scan_large_files: ('Large Files', 'caution'),
     cs.scan_old_files: ('Old Files', 'caution'),
-    cs.scan_old_restore_points: ('Old Restore Points', 'caution'),
-    cs.scan_recycle_bin_drive: ('Recycle Bin Drive', 'safe'),
     cs.scan_usb_shadow_copies: ('Usb Shadow Copies', 'safe'),
     cs.scan_virtual_drives: ('Virtual Drives', 'caution'),
 }

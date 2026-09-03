@@ -560,10 +560,24 @@ def scan_install_temp(min_age_days: int = 0) -> ScanResult:
     return result
 
 def scan_search_index(min_age_days: int = 0) -> ScanResult:
-    """Windows Search index database files and temp rebuilding data."""
+    r"""Windows Search index database files and temp rebuilding data.
+
+    The index is MACHINE-WIDE and lives under %ProgramData%, in
+    `Microsoft\Search\Data\Applications\Windows` (Windows.edb and its
+    logs). This scanner used to look only under %LOCALAPPDATA%, where
+    nothing has lived since Windows 8, so it returned 0 items on every
+    Windows 11 machine for the life of the feature — which is
+    indistinguishable from "your search index is empty".
+
+    The per-user paths are kept: a roaming profile still puts UsageEvents
+    there.
+    """
     result = ScanResult()
     local = os.environ.get("LOCALAPPDATA", "")
+    programdata = os.environ.get("ProgramData", r"C:\ProgramData")
     targets = [
+        os.path.join(programdata, r"Microsoft\Search\Data\Applications\Windows"),
+        os.path.join(programdata, r"Microsoft\Search\Data\Temp"),
         os.path.join(local, r"Microsoft\Search\Data\Applications"),
         os.path.join(local, r"Microsoft\Search\Data\Temp"),
         os.path.join(local, r"Microsoft\Search\Data\UsageEvents"),
@@ -755,34 +769,6 @@ def scan_windows_defender_logs(min_age_days: int = 0) -> ScanResult:
         if not os.path.isdir(t):
             continue
         item = _make_item(t, safety="safe", min_age_days=min_age_days)
-        if item and item.size > 0:
-            result.items.append(item)
-            result.total_size += item.size
-    return result
-
-def scan_recycle_bin_drive(min_age_days: int = 0) -> ScanResult:
-    """Recycle bin for each fixed drive — empties all user-deleted files."""
-    result = ScanResult()
-    for drive in string.ascii_uppercase:
-        rb = f"{drive}:\\$Recycle.Bin"
-        if os.path.exists(rb):
-            item = _make_item(rb, safety="safe", min_age_days=min_age_days)
-            if item and item.size > 0:
-                result.items.append(item)
-                result.total_size += item.size
-    return result
-
-def scan_old_restore_points(min_age_days: int = 0) -> ScanResult:
-    """Old System Restore snapshots and shadow storage."""
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    targets = [
-        os.path.join(windir, r"System32\config\systemprofile\AppData\Local\Microsoft\Windows\WinX"),
-    ]
-    for t in targets:
-        if not os.path.isdir(t):
-            continue
-        item = _make_item(t, safety="caution", min_age_days=min_age_days)
         if item and item.size > 0:
             result.items.append(item)
             result.total_size += item.size
@@ -1799,7 +1785,6 @@ __all__ = [
     'scan_novatrons_cache',
     'scan_old_av_quarantine',
     'scan_old_files',
-    'scan_old_restore_points',
     'scan_perflogs',
     'scan_powershell_ise_cache',
     'scan_powershell_logs',
@@ -1810,7 +1795,6 @@ __all__ = [
     'scan_printer_driver_cache',
     'scan_recent_files',
     'scan_recycle_bin',
-    'scan_recycle_bin_drive',
     'scan_search_index',
     'scan_store_app_caches',
     'scan_sysinternals_logs',

@@ -104,7 +104,8 @@
         "%windir%\\System32\\DriverStore\\FileRepository"
       ],
       "safety": "danger",
-      "description": "Windows Driver Store backup .inf files for uninstalled drivers (DANGER — can break hardware)."
+      "description": "Windows Driver Store backup .inf files for uninstalled drivers (DANGER — can break hardware).",
+      "disabled_reason": "Offered the entire DriverStore FileRepository (7.13 GB here) as one deletable item. Tagged danger so it was never auto-selected, but ticking it costs the machine its drivers. Reclaiming space here means removing SUPERSEDED driver packages one at a time - pnputil /enum-drivers then /delete-driver oemN.inf - which is a different feature, not a directory delete. Kept as data so the knowledge does not have to be rediscovered."
     },
     {
       "id": "dxgi_cache",

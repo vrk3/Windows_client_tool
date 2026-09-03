@@ -234,7 +234,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 539 scanners are now reachable. 404 of them were not: they loaded,
+# All 537 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
@@ -242,12 +242,17 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 # without anyone noticing — nobody was looking, because nobody could.
 #
 # The catalog-backed 459 come from `scanners_for(category)`, so a scanner
-# is offered as soon as it is defined. The 80 hand-written ones are named
+# is offered as soon as it is defined. The 78 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
+#: 537 after two dead scanners were deleted: scan_old_restore_points
+#: (measured the Win+X shortcuts folder while claiming to measure System
+#: Restore shadow storage) and scan_recycle_bin_drive (byte-identical to
+#: scan_recycle_bin). See tests/test_cleanup_readers_read_something.py.
+#:
 #: 536 hand-written + catalog until the three per-drive scanners landed
 #: (per_drive_temp, per_drive_recycle_bin, per_drive_found_clusters). Of
 #: 537 scanners exactly two had ever looked past C:, and they were
@@ -258,7 +263,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 #: Windows servicing lock, to produce something the Large Items "Analyze
 #: WinSxS" button already produces on purpose. See
 #: tests/test_cleanup_no_servicing_lock.py.
-REACHABLE_SCANNERS = 539
+REACHABLE_SCANNERS = 537
 
 
 def _scanners_the_tabs_offer():
@@ -326,9 +331,18 @@ def test_every_scanner_is_offered_somewhere(qapp, catalog):
     become so again: a scanner nobody can reach is knowledge about where an
     application caches things, kept and never used."""
     offered = _scanners_the_tabs_offer()
-    assert len(offered) >= REACHABLE_SCANNERS, (
+    # A spec carrying a `disabled_reason` is deliberately not offered —
+    # that field exists to keep the knowledge while withdrawing the
+    # scanner, and `scanners_for` filters on it. Counting them here would
+    # force anyone disabling one to re-pin the census and lose the meaning.
+    disabled = {spec_id for spec_id, spec in catalog.items()
+                if spec.disabled_reason}
+    expected = REACHABLE_SCANNERS - len(disabled)
+    assert len(offered) >= expected, (
         f"only {len(offered)} scanners are offered by the Cleanup tabs, "
-        f"expected at least {REACHABLE_SCANNERS}")
+        f"expected at least {expected} "
+        f"({REACHABLE_SCANNERS} defined, {len(disabled)} disabled: "
+        f"{sorted(disabled)})")
 
 
 def test_no_scanner_was_lost_in_the_conversion(catalog):
