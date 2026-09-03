@@ -25,10 +25,10 @@ def _s(entry: str) -> None:
 
 _s("=== main.py entered ===")
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
-from app import App
-from ui.main_window import MainWindow
+from app import App  # noqa: E402
+from ui.main_window import MainWindow  # noqa: E402
 logger = logging.getLogger(__name__)
 
 _s("imports done")

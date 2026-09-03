@@ -132,7 +132,7 @@ check("grandchildren are sorted too",
       f"{grand_sizes[:6]}")
 
 print("\nsearch and duplicates at real scale:")
-from modules.treesize.store import duplicates, search as store_search
+from modules.treesize.store import duplicates, search as store_search  # noqa: E402
 
 hits = timed("search *.dll",
              lambda: store_search.search(store, root,

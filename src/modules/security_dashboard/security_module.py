@@ -24,14 +24,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QThreadPool, pyqtSignal
 from PyQt6.QtGui import QColor
 
-try:
-    import sip as _sip
-    _widget_valid = lambda w: w is not None and not _sip.isdeleted(w)
-except ImportError:
-    _widget_valid = lambda w: w is not None
-
 import logging
-logger = logging.getLogger(__name__)
 
 from core.admin_utils import is_admin
 from core.base_module import BaseModule
@@ -60,6 +53,14 @@ from modules.security_dashboard.security_reader import (
     run_quick_scan,
     run_update_definitions,
 )
+
+logger = logging.getLogger(__name__)
+
+try:
+    import sip as _sip
+    _widget_valid = lambda w: w is not None and not _sip.isdeleted(w)
+except ImportError:
+    _widget_valid = lambda w: w is not None
 
 COLOR_MAP = {
     "green": "#27AE60",

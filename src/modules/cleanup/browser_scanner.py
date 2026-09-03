@@ -9,16 +9,6 @@ Features:
 - Smart warnings
 """
 
-# Module-level convenience function — delegates to EnhancedBrowserScanner
-def detect_browsers(all_browsers: bool = True, browser_name: str = "All"):
-    """Detect browsers and their cache sizes. Convenience wrapper for EnhancedBrowserScanner."""
-    return EnhancedBrowserScanner().detect_browsers(all_browsers=all_browsers, browser_name=browser_name)
-
-
-def delete_selected(categories, progress_cb=None):
-    """Delete selected cache categories. Wrapper for EnhancedBrowserScanner.delete_selected."""
-    return EnhancedBrowserScanner().delete_selected(categories, progress_cb=progress_cb)
-
 import json
 import logging
 import os
@@ -28,6 +18,17 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+# Module-level convenience function — delegates to EnhancedBrowserScanner
+def detect_browsers(all_browsers: bool = True, browser_name: str = "All"):
+    """Detect browsers and their cache sizes. Convenience wrapper for EnhancedBrowserScanner."""
+    return EnhancedBrowserScanner().detect_browsers(all_browsers=all_browsers, browser_name=browser_name)
+
+
+def delete_selected(categories, progress_cb=None):
+    """Delete selected cache categories. Wrapper for EnhancedBrowserScanner.delete_selected."""
+    return EnhancedBrowserScanner().delete_selected(categories, progress_cb=progress_cb)
 
 
 # Browser definitions with paths

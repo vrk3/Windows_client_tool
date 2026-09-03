@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from ui.empty_state import EmptyState
+from ui.empty_state import EmptyState  # noqa: E402
 
 
 def test_it_shows_the_title_and_the_hint():

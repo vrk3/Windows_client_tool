@@ -1,5 +1,4 @@
 import logging
-logger = logging.getLogger(__name__)
 
 import subprocess
 import winreg
@@ -13,6 +12,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 DNS_PRESETS = {

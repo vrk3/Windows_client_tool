@@ -2,7 +2,6 @@
 import struct
 import time
 
-FILE_ATTRIBUTE_HIDDEN = 0x2
 from dataclasses import dataclass, field
 
 from ..store.node_store import (DIR, REPARSE, HARDLINK_DUP, COMPRESSED, SPARSE,
@@ -16,6 +15,8 @@ from .ntfs_structs import (
     decode_data_runs,
     FLAG_COMPRESSED, FLAG_SPARSE,
 )
+
+FILE_ATTRIBUTE_HIDDEN = 0x2
 
 
 @dataclass(frozen=True)

@@ -10,8 +10,6 @@ import logging
 import os
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
@@ -32,6 +30,8 @@ from modules.startup_manager.startup_reader import (
     get_service_entries,
     get_browser_extensions,
 )
+
+logger = logging.getLogger(__name__)
 
 COLUMNS = ["Name", "Command/Path", "Status", "Notes"]
 
