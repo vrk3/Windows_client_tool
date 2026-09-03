@@ -349,6 +349,7 @@ def scan_ide_caches(min_age_days: int = 0) -> ScanResult:
     result = ScanResult()
     local = os.environ.get("LOCALAPPDATA", "")
     appdata = os.environ.get("APPDATA", "")
+    temp = os.environ.get("TEMP", "")
 
     # JetBrains IDEs (find all IDE folders under JetBrains)
     jb_root = os.path.join(local, r"JetBrains")
