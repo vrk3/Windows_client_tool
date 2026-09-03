@@ -72,7 +72,7 @@ class TrashManager:
                     else:
                         shutil.move(item_path, str(target_path))
                     trash_paths.append(str(target_path))
-            except Exception as e:
+            except Exception:
                 logger.warning("could not move %s to the trash", item_path, exc_info=True)
                 # Move to permanent delete if trash failed
                 try:
@@ -107,7 +107,7 @@ class TrashManager:
                             size_bytes=stat.st_size,
                         )
                     )
-                except Exception as e:
+                except Exception:
                     logger.warning("could not read the trash item %s", trash_item_path, exc_info=True)
 
         return sorted(items, key=lambda x: x.deleted_date)
@@ -121,7 +121,7 @@ class TrashManager:
             dest_dir = (
                 Path(original_path).parent if original_path else Path(item_path).parent
             )
-            dest_path = Path(original_path).parent / Path(item_path).name
+            dest_path = dest_dir / Path(item_path).name
 
             if dest_path.exists():
                 if self._config.get_config().get("overwrite_existing"):
@@ -130,7 +130,7 @@ class TrashManager:
 
             shutil.move(str(item_path), str(dest_path))
             return True
-        except Exception as e:
+        except Exception:
             logger.warning("could not restore %s from the trash", item_path, exc_info=True)
             return False
 
@@ -148,7 +148,6 @@ class TrashManager:
         Returns:
             Tuple of (restored_count: int, error_count: int)
         """
-        retention_days = self._config.get_trash_retention_days()
         items = self.get_trash_items()
         restored = 0
 
@@ -156,7 +155,7 @@ class TrashManager:
             try:
                 os.remove(item.target_path)
                 restored += 1
-            except Exception as e:
+            except Exception:
                 logger.warning("could not delete the trash item", exc_info=True)
 
         return (restored, 0)

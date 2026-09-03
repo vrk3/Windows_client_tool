@@ -232,7 +232,11 @@ def reset_perf_counters(output_cb: Callable[[str], None]) -> None:
             ["lodctr", "/r"],
             output_cb
         )
-        output_cb("Performance counters rebuilt.")
+        if rc == 0:
+            output_cb("Performance counters rebuilt.")
+        else:
+            output_cb(f"Rebuilding performance counters exited with code {rc}. "
+                      f"This needs an elevated process.")
     except Exception as e:
         output_cb(f"Error rebuilding counters: {e}")
 
@@ -290,7 +294,7 @@ def check_wu_updates(output_cb: Callable[[str], None]) -> None:
         "$UpdateSearcher = $UpdateSession.CreateUpdateSearcher(); "
         "try { "
         "  $Result = $UpdateSearcher.Search('IsInstalled=0'); "
-        f"  $count = $Result.Updates.Count; "
+        "  $count = $Result.Updates.Count; "
         "  if ($count -eq 0) { 'All updates are installed.' } "
         "  else { \"$count update(s) available:\"; "
         "    foreach ($u in $Result.Updates) { \"  - $($u.Title)\" } } "
