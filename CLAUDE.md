@@ -398,6 +398,25 @@ machine — so that check is still owed.
   `__name__` (the catalog builds a fresh callable per tab, so identity never
   hits), copies its ScanItems (the tabs mutate `selected`), and `delete_items()`
   invalidates it.
+- **Drivers and virtual disks never enter the checkbox tree.** `delete_items`
+  deletes PATHS. Removing a `DriverStore\FileRepository` folder directly is how
+  a machine loses a driver it still believes it has, so superseded packages get
+  their own panel (`tabs/_driver_panel.py`) and `pnputil /delete-driver` behind
+  a confirmation. Virtual disks stay `selected=False`, split by whether a
+  hypervisor that could open them is installed at all — `E:\VMs\Ubuntu` is
+  11.05 GB of orphan here, because VirtualBox was uninstalled and left it.
+  Check for the PRODUCT, never for a file Windows ships anyway: `wsl.exe`
+  exists on every Windows 11 install, so WSL counts only when `wsl --list`
+  names a distribution.
+- **`pnputil /enum-drivers` prints its HELP TEXT and exits 0 when unelevated**,
+  and its output is UTF-16. `driver_store.parse_enum_drivers` returns `None`
+  for the refusal, never `[]`, detecting it by the absence of `Published Name:`
+  records. Sizing is separate and needs no elevation: the `Active` value under
+  `HKLM\SYSTEM\DriverDatabase\DriverInfFiles\<published>`. Five of eleven
+  superseded packages here have no such key, so `package_size` returns `None`
+  and the report lists them apart — an unmeasurable size counted as 0 quietly
+  understates the total. Worth knowing before chasing it again: the 7.13 GB
+  store yields **2.2 MB** of superseded packages; the gigabytes are DISM's.
 - **`tools/cleanup_reader_sweep.py`** is the cleanup sibling of
   `security_refusal_sweep.py`. "Found nothing" is the CORRECT answer for most of
   this catalog, so it only reports a scanner whose target exists AND has content
