@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget,
@@ -61,6 +61,13 @@ class _ScanTab(QWidget):
     """
     freed_bytes = pyqtSignal(int)
 
+    #: Give up on a scan that has not finished in this long, hand the tab
+    #: back, and say what never reported. The worst measured sweep on a real
+    #: machine is 35.6s (System Junk, elevated), so this cannot fire on a
+    #: healthy scan — if it fires, something is wrong and a dead tab is the
+    #: worst possible way to find out.
+    SCAN_WATCHDOG_MS = 300_000
+
     def __init__(self, scanners: dict, wu_cache: bool = False, parent=None):
         super().__init__(parent)
         self._scanners = scanners
@@ -75,6 +82,9 @@ class _ScanTab(QWidget):
         self._scan_worker = None
         self._clean_worker = None
         self._thread_pool = QThreadPool.globalInstance()
+        self._watchdog = QTimer(self)
+        self._watchdog.setSingleShot(True)
+        self._watchdog.timeout.connect(self._on_scan_watchdog)
         self._setup_ui()
 
     # ── Setup ──
@@ -220,6 +230,7 @@ class _ScanTab(QWidget):
             merged.total_size = sum(i.size for i in merged.items)
             return merged, per
 
+        self._watchdog.start(self.SCAN_WATCHDOG_MS)
         self._scan_worker = Worker(_run)
         self._scan_worker.signals.progress.connect(self._on_scan_progress)
         self._scan_worker.signals.result.connect(self._on_scan_result)
@@ -247,6 +258,7 @@ class _ScanTab(QWidget):
 
     def _on_scan_result(self, data):
         merged, per_scanner = data
+        self._watchdog.stop()
         self._result  = merged
         self._scanning = False
         self._scan_btn.setEnabled(True)
@@ -318,6 +330,7 @@ class _ScanTab(QWidget):
         self._quick_btn.setEnabled(total_safe > 0)
 
     def _on_scan_error(self, err: str):
+        self._watchdog.stop()
         self._scanning = False
         self._stop_btn.setEnabled(False)
         self._scan_btn.setEnabled(True)
@@ -426,17 +439,40 @@ class _ScanTab(QWidget):
         for i in range(self._tree.topLevelItemCount()):
             self._tree.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
 
-    def _cancel_all(self) -> None:
+    def _cancel_all(self, message: str = None) -> None:
         in_flight = self._scanning or self._cleaning
+        self._watchdog.stop()
         for w in self._workers:
             w.cancel()
         self._workers.clear()
         self._scan_worker = None
         self._clean_worker = None
         if in_flight:
-            self._reset_after_cancel()
+            self._reset_after_cancel(message)
 
-    def _reset_after_cancel(self) -> None:
+    def _current_scanner_label(self) -> str:
+        """The scanner the running sweep last reported starting, if any."""
+        index = self._progress.value()
+        if not (0 < index <= len(self._scan_fns)):
+            return ""
+        fn = self._scan_fns[index - 1]
+        meta = self._scanners.get(fn)
+        return meta[0] if meta else fn.__name__
+
+    def _on_scan_watchdog(self) -> None:
+        if not self._scanning:
+            return
+        label = self._current_scanner_label() or "an unknown scanner"
+        logger.warning(
+            "Cleanup scan timed out after %.0fs, stuck on %s (%d/%d)",
+            self.SCAN_WATCHDOG_MS / 1000, label,
+            self._progress.value(), len(self._scan_fns))
+        if self._scan_worker is not None:
+            self._scan_worker.cancel()
+        self._cancel_all(
+            message=f"Scan timed out on “{label}” — click Scan to try again")
+
+    def _reset_after_cancel(self, message: str = None) -> None:
         """Put the tab back in a state the user can act on.
 
         A cancelled Worker emits `cancelled` and never `result` or `error`
@@ -461,7 +497,8 @@ class _ScanTab(QWidget):
             and any(i.safety == "safe" for i in self._result.items)
         )
         self._progress.hide()
-        self._status.setText("Scan cancelled — click Scan to run it again")
+        self._status.setText(
+            message or "Scan cancelled — click Scan to run it again")
 
     def _ctx_menu(self, pos):
         item = self._tree.itemAt(pos)

@@ -2,7 +2,7 @@
 import logging
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
+from PyQt6.QtCore import Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -73,6 +73,10 @@ class _OverviewTab(QWidget):
     """Summary of all cleanup categories — scans all in parallel on first activation."""
     freed_bytes = pyqtSignal(int)
 
+    #: See _ScanTab.SCAN_WATCHDOG_MS. This sweep measures 6.1s on a real
+    #: machine, so the margin here is larger still.
+    SCAN_WATCHDOG_MS = 300_000
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._results: dict = {}    # group_name -> (total_size, safe_size, item_count)
@@ -82,6 +86,9 @@ class _OverviewTab(QWidget):
         self._scan_workers: list = []
         self._worker: Optional[Worker] = None
         self._thread_pool = QThreadPool.globalInstance()
+        self._watchdog = QTimer(self)
+        self._watchdog.setSingleShot(True)
+        self._watchdog.timeout.connect(self._on_scan_watchdog)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -193,6 +200,7 @@ class _OverviewTab(QWidget):
                 item.setForeground(QColor("#f0ad4e"))
 
         self._pending = len(_OV_GROUPS)
+        self._watchdog.start(self.SCAN_WATCHDOG_MS)
 
         for group_name, scanners in _OV_GROUPS:
             def _make_cb(gname=group_name, fns=scanners):
@@ -264,7 +272,22 @@ class _OverviewTab(QWidget):
         """Stop the sweep, keeping whatever the finished groups measured."""
         self._cancel_all()
 
+    def _on_scan_watchdog(self) -> None:
+        if not self._scanning:
+            return
+        outstanding = [name for name, _ in _OV_GROUPS
+                       if name not in self._results]
+        logger.warning(
+            "Cleanup overview scan timed out after %.0fs; no result from: %s",
+            self.SCAN_WATCHDOG_MS / 1000, ", ".join(outstanding) or "(none)")
+        named = ", ".join(outstanding[:3])
+        if len(outstanding) > 3:
+            named += f" and {len(outstanding) - 3} more"
+        self._cancel_all(
+            message=f"Scan timed out — no result from {named}")
+
     def _scan_done(self):
+        self._watchdog.stop()
         self._scanning = False
         self._scan_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
@@ -342,8 +365,9 @@ class _OverviewTab(QWidget):
         from modules.cleanup.tabs._scan_tab import _confirm_large as _cf
         return _cf(self, nbytes)
 
-    def _cancel_all(self) -> None:
+    def _cancel_all(self, message: str = None) -> None:
         in_flight = self._scanning or self._worker is not None
+        self._watchdog.stop()
         for w in self._scan_workers:
             w.cancel()
         self._scan_workers.clear()
@@ -351,9 +375,9 @@ class _OverviewTab(QWidget):
             self._worker.cancel()
             self._worker = None
         if in_flight:
-            self._reset_after_cancel()
+            self._reset_after_cancel(message)
 
-    def _reset_after_cancel(self) -> None:
+    def _reset_after_cancel(self, message: str = None) -> None:
         """Put the tab back in a state the user can act on.
 
         A cancelled Worker emits `cancelled` and never `result` or `error`
@@ -371,7 +395,8 @@ class _OverviewTab(QWidget):
         self._stop_btn.setEnabled(False)
         self._clean_btn.setEnabled(False)
         self._prog.hide()
-        self._status.setText("Scan cancelled — click Scan All to run it again")
+        self._status.setText(
+            message or "Scan cancelled — click Scan All to run it again")
         for row in range(self._table.rowCount()):
             item = self._table.item(row, 4)
             if item is not None and item.text() == "Scanning…":
