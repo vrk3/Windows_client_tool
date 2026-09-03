@@ -85,13 +85,25 @@ testpaths = ["tests"]
 # there for some time. Pointing basetemp somewhere else means that
 # directory is never walked.
 #
+# It must be a directory whose PARENT already exists: pytest creates the
+# basetemp itself but not the path above it. `build/pytest-tmp` looked fine
+# for months because PyInstaller creates `build/` and every dev machine has
+# one -- and `build/` is gitignored, so a fresh CI checkout does not. Every
+# tmp_path test on the runner died with
+#
+#     FileNotFoundError: [WinError 3] The system cannot find the path
+#     specified: 'D:\a\Windows_client_tool\Windows_client_tool\build\pytest-tmp'
+#
+# and CI was red from the day this setting landed while the identical
+# command stayed green locally. The repo root always exists.
+#
 # NOTE: pytest empties basetemp at the start of every run, and two pytest
 # processes sharing one basetemp will clobber each other. Pass an explicit
 # --basetemp if you need to run two at once.
 # -m 'not real_machine' keeps the default run about the code. The
 # excluded tests are not disabled — CI runs them as a separate,
 # non-gating step, and `pytest -m real_machine` runs them here.
-addopts = "-q --timeout=120 --basetemp=build/pytest-tmp -m 'not real_machine'"
+addopts = "-q --timeout=120 --basetemp=.pytest-tmp -m 'not real_machine'"
 # Belt and braces: don't accumulate numbered run directories either.
 tmp_path_retention_policy = "none"
 markers = [
