@@ -29,6 +29,18 @@ def get_datas(project_root: str) -> list:
         (os.path.join(project_root, "src", "modules", "security_dashboard",
                       "catalog", "baselines"),
          "modules/security_dashboard/catalog/baselines"),
+        # The cleanup scanner catalog: 461 of the ~540 scanners are DATA, not
+        # code, and catalog.load_catalog() globs them from
+        # `Path(__file__).parent / "definitions"`. Missing from this list
+        # until 2026-09-03, so every frozen build since the catalog
+        # conversion shipped with NONE of them -- the exe ran, the Cleanup
+        # tabs opened, and they quietly offered only the ~80 hand-written
+        # scanners. Third instance of the exact trap the two comments above
+        # describe; tests/test_frozen_datas.py now walks the source for
+        # __file__-relative data directories so there is not a fourth.
+        (os.path.join(project_root, "src", "modules", "cleanup",
+                      "cleanup_scanner", "definitions"),
+         "modules/cleanup/cleanup_scanner/definitions"),
     ]
 
 
