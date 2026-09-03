@@ -107,6 +107,8 @@ def _decode(raw) -> str:
         try:
             text = raw.decode(encoding)
         except (UnicodeDecodeError, UnicodeError):
+            logger.debug("pnputil output is not %s, trying the next encoding",
+                         encoding)
             continue
         if "Published Name" in text or "PNPUTIL" in text.upper():
             return text

@@ -16,7 +16,7 @@ be found is reported as unknown rather than as zero bytes.
 import logging
 
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QMessageBox, QPushButton, QTextEdit,
+    QHBoxLayout, QLabel, QMessageBox, QPushButton, QTextEdit,
     QVBoxLayout, QWidget,
 )
 
@@ -68,7 +68,12 @@ class _DriverStorePanel(QWidget):
             "listed — where the version and the date disagree about which is "
             "newer, neither is offered.")
         description.setWordWrap(True)
-        description.setStyleSheet("color: #888; font-size: 11px;")
+        # The role, not a colour: an inline sheet beats the theme's and never
+        # changes again, so `color: #888` survives a switch to the light
+        # theme as a 1.9:1 smear. QLabel#muted is what dark.qss defines for
+        # exactly this. (The DISM section above still writes it inline; not
+        # changed here as a drive-by.)
+        description.setObjectName("muted")
         layout.addWidget(description)
 
         self._output = QTextEdit()
@@ -219,10 +224,3 @@ class _DriverStorePanel(QWidget):
         if self._worker is not None:
             self._worker.cancel()
             self._worker = None
-
-
-def separator() -> QFrame:
-    line = QFrame()
-    line.setFrameShape(QFrame.Shape.HLine)
-    line.setStyleSheet("color: #444;")
-    return line
