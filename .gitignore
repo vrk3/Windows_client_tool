@@ -96,3 +96,7 @@ scratchpad/
 
 # pytest basetemp (see pyproject.toml: parent must exist, so not under build/)
 .pytest-tmp/
+
+# Test-run transcripts written into the repo root by a background pytest.
+suite*.txt
+full_suite.txt
