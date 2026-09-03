@@ -91,10 +91,14 @@ class _OverviewTab(QWidget):
         # Toolbar
         tb = QHBoxLayout()
         self._scan_btn  = QPushButton("Scan All")
+        self._stop_btn  = QPushButton("Stop")
+        self._stop_btn.setToolTip("Stop the scan and keep whatever was measured")
+        self._stop_btn.setEnabled(False)
         self._clean_btn = QPushButton("Clean All Safe")
         self._status    = QLabel("")
         self._clean_btn.setEnabled(False)
         tb.addWidget(self._scan_btn)
+        tb.addWidget(self._stop_btn)
         tb.addWidget(self._clean_btn)
         tb.addStretch()
         tb.addWidget(self._status)
@@ -121,6 +125,7 @@ class _OverviewTab(QWidget):
         lay.addWidget(self._table, 1)
 
         self._scan_btn.clicked.connect(self._do_scan_all)
+        self._stop_btn.clicked.connect(self._stop_scan)
         self._clean_btn.clicked.connect(self._do_clean_safe)
 
     def _build_table(self):
@@ -173,10 +178,12 @@ class _OverviewTab(QWidget):
         self._scanned  = True
         self._results.clear()
         self._scan_btn.setEnabled(False)
+        self._stop_btn.setEnabled(True)
         self._clean_btn.setEnabled(False)
-        self._prog.setRange(0, 0)
+        self._prog.setRange(0, len(_OV_GROUPS))
+        self._prog.setValue(0)
         self._prog.show()
-        self._status.setText("Scanning all categories…")
+        self._status.setText(f"Scanning 0/{len(_OV_GROUPS)} categories…")
 
         # Reset status column
         for row in range(self._table.rowCount()):
@@ -224,12 +231,14 @@ class _OverviewTab(QWidget):
                     gn, tot, sf, cnt = data
                     self._results[gn] = (tot, sf, cnt)
                     self._pending -= 1
+                    self._note_progress()
                     self._update_row(gn, tot, sf, cnt)
                     if self._pending == 0:
                         self._scan_done()
 
                 def _err(_e):
                     self._pending -= 1
+                    self._note_progress()
                     self._update_row(gname, 0, 0, 0)
                     if self._pending == 0:
                         self._scan_done()
@@ -243,9 +252,22 @@ class _OverviewTab(QWidget):
             self._scan_workers.append(w)
             self._thread_pool.start(w)
 
+    def _note_progress(self) -> None:
+        """How many category groups have reported in."""
+        total = len(_OV_GROUPS)
+        done = total - max(self._pending, 0)
+        self._prog.setValue(done)
+        if self._scanning:
+            self._status.setText(f"Scanning {done}/{total} categories…")
+
+    def _stop_scan(self) -> None:
+        """Stop the sweep, keeping whatever the finished groups measured."""
+        self._cancel_all()
+
     def _scan_done(self):
         self._scanning = False
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         self._prog.hide()
         total = sum(t for t, _, _ in self._results.values())
         safe  = sum(s for _, s, _ in self._results.values())
@@ -346,6 +368,7 @@ class _OverviewTab(QWidget):
         # auto_scan() run again the next time the module is activated.
         self._scanned = False
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         self._clean_btn.setEnabled(False)
         self._prog.hide()
         self._status.setText("Scan cancelled — click Scan All to run it again")

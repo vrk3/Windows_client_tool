@@ -71,6 +71,7 @@ class _ScanTab(QWidget):
         self._scanned  = False
         self._pending_freed = 0
         self._workers: list = []   # track ALL workers (scan + clean) for cancellation
+        self._scan_fns: list = []  # the scanners of the run in flight, in order
         self._scan_worker = None
         self._clean_worker = None
         self._thread_pool = QThreadPool.globalInstance()
@@ -85,6 +86,9 @@ class _ScanTab(QWidget):
         # Toolbar
         tb = QHBoxLayout()
         self._scan_btn   = QPushButton("Scan")
+        self._stop_btn   = QPushButton("Stop")
+        self._stop_btn.setToolTip("Stop the scan after the scanner now running")
+        self._stop_btn.setEnabled(False)
         self._clean_btn  = QPushButton("Clean Selected")
         self._quick_btn  = QPushButton("Quick Clean (Safe Only)")
         self._sel_btn    = QPushButton("Select All")
@@ -101,8 +105,8 @@ class _ScanTab(QWidget):
         self._clean_btn.setEnabled(False)
         self._quick_btn.setEnabled(False)
 
-        for w in (self._scan_btn, self._clean_btn, self._quick_btn,
-                  self._sel_btn, self._desel_btn):
+        for w in (self._scan_btn, self._stop_btn, self._clean_btn,
+                  self._quick_btn, self._sel_btn, self._desel_btn):
             tb.addWidget(w)
         tb.addStretch()
         tb.addWidget(self._age_lbl)
@@ -147,6 +151,7 @@ class _ScanTab(QWidget):
         layout.addWidget(self._err_lbl)
 
         self._scan_btn.clicked.connect(self._do_scan)
+        self._stop_btn.clicked.connect(self._stop_scan)
         self._clean_btn.clicked.connect(self._do_clean)
         self._quick_btn.clicked.connect(self._do_quick_clean)
         self._sel_btn.clicked.connect(self._select_all)
@@ -167,20 +172,35 @@ class _ScanTab(QWidget):
         self._scanning = True
         self._scanned  = True
         self._scan_btn.setEnabled(False)
+        self._stop_btn.setEnabled(True)
         self._clean_btn.setEnabled(False)
         self._quick_btn.setEnabled(False)
         self._tree.clear()
         self._err_lbl.hide()
-        self._status.setText("Scanning…")
-        self._progress.setRange(0, 0)
-        self._progress.show()
 
         min_age = self._age_spin.value()
         scanner_fns = list(self._scanners.keys())
+        self._scan_fns = scanner_fns
 
-        def _run(_w):
+        # A determinate bar over the scanner count, not a barber's pole.
+        # System Junk is 75 scanners and App & Game Caches is 301; the tab
+        # used to say "Scanning…" for all of them and nothing else.
+        self._progress.setRange(0, len(scanner_fns))
+        self._progress.setValue(0)
+        self._progress.show()
+        self._status.setText(f"Scanning 0/{len(scanner_fns)}…")
+
+        def _run(worker):
             per: dict = {}
-            for fn in scanner_fns:
+            for index, fn in enumerate(scanner_fns, start=1):
+                # Worker.cancel() only sets a flag — this is what makes Stop
+                # (and switching modules) actually stop the sweep instead of
+                # letting it run to completion on the shared pool.
+                if worker.is_cancelled:
+                    logger.info("Scan stopped after %d/%d scanners",
+                                index - 1, len(scanner_fns))
+                    break
+                worker.signals.progress.emit(index)
                 try:
                     r = fn(min_age_days=min_age)
                     if r:
@@ -201,16 +221,36 @@ class _ScanTab(QWidget):
             return merged, per
 
         self._scan_worker = Worker(_run)
+        self._scan_worker.signals.progress.connect(self._on_scan_progress)
         self._scan_worker.signals.result.connect(self._on_scan_result)
         self._scan_worker.signals.error.connect(self._on_scan_error)
         self._workers.append(self._scan_worker)
         self._thread_pool.start(self._scan_worker)
+
+    def _on_scan_progress(self, index: int) -> None:
+        """Name the scanner now running, and how far through the list it is."""
+        if not self._scanning:
+            return
+        total = len(self._scan_fns)
+        self._progress.setValue(index)
+        label = ""
+        if 0 < index <= total:
+            meta = self._scanners.get(self._scan_fns[index - 1])
+            label = meta[0] if meta else self._scan_fns[index - 1].__name__
+        self._status.setText(f"Scanning {index}/{total} — {label}")
+
+    def _stop_scan(self) -> None:
+        """Stop after the scanner now running, keeping whatever was found."""
+        if self._scan_worker is not None:
+            self._scan_worker.cancel()
+        self._cancel_all()
 
     def _on_scan_result(self, data):
         merged, per_scanner = data
         self._result  = merged
         self._scanning = False
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         self._progress.hide()
         self._tree.clear()
 
@@ -279,6 +319,7 @@ class _ScanTab(QWidget):
 
     def _on_scan_error(self, err: str):
         self._scanning = False
+        self._stop_btn.setEnabled(False)
         self._scan_btn.setEnabled(True)
         self._progress.hide()
         self._status.setText(f"Scan error: {err}")
@@ -412,6 +453,7 @@ class _ScanTab(QWidget):
         self._scanned = False
         self._pending_freed = 0
         self._scan_btn.setEnabled(True)
+        self._stop_btn.setEnabled(False)
         has_items = self._result is not None and len(self._result.items) > 0
         self._clean_btn.setEnabled(has_items)
         self._quick_btn.setEnabled(
