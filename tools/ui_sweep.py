@@ -173,10 +173,10 @@ def main():
         for t in ("dark", "light"):
             if r.get(t + "_ink") is not None and r[t + "_ink"] < 0.02:
                 notes.append(f"{t} BLANK")
-        d, l = r.get("dark_ink"), r.get("light_ink")
+        dark, light = r.get("dark_ink"), r.get("light_ink")
         ms = max(r.get("dark_ms", 0), r.get("light_ms", 0))
-        print(f"{n[:25]:<26}{(f'{d:.3f}' if d is not None else '  -'):>9}"
-              f"{(f'{l:.3f}' if l is not None else '  -'):>10}"
+        print(f"{n[:25]:<26}{(f'{dark:.3f}' if dark is not None else '  -'):>9}"
+              f"{(f'{light:.3f}' if light is not None else '  -'):>10}"
               f"{(f'{same:.3f}' if same is not None else '  -'):>7}  {ms:>6}  "
               f"{'; '.join(notes)}")
         if notes:

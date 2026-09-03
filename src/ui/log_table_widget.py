@@ -4,9 +4,11 @@ from typing import List
 
 try:
     import sip
-    _widget_is_valid = lambda w: not sip.isdeleted(w)
+    def _widget_is_valid(w):
+        return not sip.isdeleted(w)
 except ImportError:
-    _widget_is_valid = lambda w: True  # fallback: assume valid
+    def _widget_is_valid(w):  # fallback: assume valid
+        return True
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel

@@ -52,7 +52,7 @@ def test_license_is_not_in_the_ribbon(qapp):
               for _i, label, _lg, _d in buttons}
     captions = {caption.lower() for _tab, groups in RIBBON for caption, _b in groups}
     assert not any("license" in i for i in ids)
-    assert not any("license" in l for l in labels)
+    assert not any("license" in label for label in labels)
     assert "license" not in captions
 
 
@@ -162,8 +162,8 @@ def test_the_unimplemented_list_has_no_stale_entries(qapp):
 def test_scan_target_menu_lists_real_drives(shell):
     menu = shell.ribbon.menu("scan.select")
     labels = [a.text() for a in menu.actions() if a.text()]
-    assert any(l.endswith(":\\") for l in labels), "no drive entries"
-    assert any("folder" in l.lower() for l in labels), "no browse entry"
+    assert any(label.endswith(":\\") for label in labels), "no drive entries"
+    assert any("folder" in label.lower() for label in labels), "no browse entry"
 
 
 # ---- the wiring actually changes state ---------------------------------

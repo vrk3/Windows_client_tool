@@ -58,9 +58,11 @@ logger = logging.getLogger(__name__)
 
 try:
     import sip as _sip
-    _widget_valid = lambda w: w is not None and not _sip.isdeleted(w)
+    def _widget_valid(w):
+        return w is not None and not _sip.isdeleted(w)
 except ImportError:
-    _widget_valid = lambda w: w is not None
+    def _widget_valid(w):
+        return w is not None
 
 COLOR_MAP = {
     "green": "#27AE60",

@@ -22,7 +22,8 @@ try:
 except ImportError:
     ScanResult = object
     ScanItem = object
-    format_size = lambda s: str(s)
+    def format_size(s):
+        return str(s)
 
 
 class CategoryGroup(QWidget):

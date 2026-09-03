@@ -298,9 +298,11 @@ class WifiAnalyzerModule(BaseModule):
     def _on_result(self, data: Dict):
         try:
             import sip
-            _valid = lambda w: w is not None and not sip.isdeleted(w)
+            def _valid(w):
+                return w is not None and not sip.isdeleted(w)
         except ImportError:
-            _valid = lambda w: w is not None
+            def _valid(w):
+                return w is not None
 
         if not _valid(self._net_table):
             return

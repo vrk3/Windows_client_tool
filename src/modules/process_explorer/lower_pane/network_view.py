@@ -22,7 +22,8 @@ _HEADERS = ["Protocol", "Local Address", "Local Port", "Remote Address", "Remote
 _WARN_STATES = {"CLOSE_WAIT", "TIME_WAIT", "LAST_ACK", "CLOSING", "SYN_SENT"}
 _WARN_BRUSH = QBrush(QColor("#ffcc66"))
 
-_widget_valid = lambda w: not sip.isdeleted(w)
+def _widget_valid(w):
+    return not sip.isdeleted(w)
 
 
 class NetworkView(QWidget):

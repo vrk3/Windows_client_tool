@@ -373,7 +373,7 @@ def test_find_box_searches_ribbon_commands(shell):
     assert shell.find_results.count() > 0
     labels = [shell.find_results.item(i).text()
               for i in range(shell.find_results.count())]
-    assert any("Expand" in l for l in labels)
+    assert any("Expand" in label for label in labels)
 
 
 def test_find_box_stays_quiet_for_one_character(shell):

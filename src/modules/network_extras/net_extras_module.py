@@ -179,7 +179,8 @@ class NetExtrasModule(BaseModule):
             try:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PROXY_KEY) as k:
                     def rv(name, default=""):
-                        try: return winreg.QueryValueEx(k, name)[0]
+                        try:
+                            return winreg.QueryValueEx(k, name)[0]
                         except Exception:
                             logger.warning("Ignored Exception", exc_info=True)
                             return default
@@ -229,7 +230,7 @@ class NetExtrasModule(BaseModule):
             log.appendPlainText(f"\n> {' '.join(cmd)}")
 
             def _do_stream(worker):
-                return run_cmd_stream(cmd, lambda l: worker.signals.log_line.emit(l))
+                return run_cmd_stream(cmd, lambda line: worker.signals.log_line.emit(line))
 
             worker = Worker(_do_stream)
             worker.signals.log_line.connect(log.appendPlainText)

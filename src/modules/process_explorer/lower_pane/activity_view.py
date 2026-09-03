@@ -23,7 +23,8 @@ _MAX_ROWS = 500
 _OPEN_BRUSH = QBrush(QColor("#88cc88"))
 _CLOSE_BRUSH = QBrush(QColor("#cc8888"))
 
-_widget_valid = lambda w: not sip.isdeleted(w)
+def _widget_valid(w):
+    return not sip.isdeleted(w)
 
 ConnKey = Tuple[str, str, str, str]  # laddr, raddr, type, status
 
