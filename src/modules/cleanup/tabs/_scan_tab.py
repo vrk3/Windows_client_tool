@@ -386,9 +386,40 @@ class _ScanTab(QWidget):
             self._tree.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
 
     def _cancel_all(self) -> None:
+        in_flight = self._scanning or self._cleaning
         for w in self._workers:
             w.cancel()
         self._workers.clear()
+        self._scan_worker = None
+        self._clean_worker = None
+        if in_flight:
+            self._reset_after_cancel()
+
+    def _reset_after_cancel(self) -> None:
+        """Put the tab back in a state the user can act on.
+
+        A cancelled Worker emits `cancelled` and never `result` or `error`
+        (core/worker.py), so nothing else will ever resolve this scan. Without
+        this, switching modules mid-scan left `_scanning` True forever: the
+        progress bar stayed up, the status stayed on "Scanning...", and both
+        `_do_scan` and `_do_clean` returned early on their in-flight guard —
+        a tab that was dead for the life of the process.
+        """
+        self._scanning = False
+        self._cleaning = False
+        # Nothing was measured, so the tab has NOT been scanned: let
+        # auto_scan() run again the next time it is activated.
+        self._scanned = False
+        self._pending_freed = 0
+        self._scan_btn.setEnabled(True)
+        has_items = self._result is not None and len(self._result.items) > 0
+        self._clean_btn.setEnabled(has_items)
+        self._quick_btn.setEnabled(
+            self._result is not None
+            and any(i.safety == "safe" for i in self._result.items)
+        )
+        self._progress.hide()
+        self._status.setText("Scan cancelled — click Scan to run it again")
 
     def _ctx_menu(self, pos):
         item = self._tree.itemAt(pos)

@@ -321,9 +321,36 @@ class _OverviewTab(QWidget):
         return _cf(self, nbytes)
 
     def _cancel_all(self) -> None:
+        in_flight = self._scanning or self._worker is not None
         for w in self._scan_workers:
             w.cancel()
         self._scan_workers.clear()
         if self._worker is not None:
             self._worker.cancel()
             self._worker = None
+        if in_flight:
+            self._reset_after_cancel()
+
+    def _reset_after_cancel(self) -> None:
+        """Put the tab back in a state the user can act on.
+
+        A cancelled Worker emits `cancelled` and never `result` or `error`
+        (core/worker.py), so `_pending` would never reach zero and
+        `_scan_done` would never run. Switching modules mid-scan therefore
+        left this tab spinning on "Scanning all categories..." for the life
+        of the process, with `_do_scan_all` returning early on `_scanning`.
+        """
+        self._scanning = False
+        self._pending = 0
+        # Nothing was measured, so the tab has NOT been scanned: let
+        # auto_scan() run again the next time the module is activated.
+        self._scanned = False
+        self._scan_btn.setEnabled(True)
+        self._clean_btn.setEnabled(False)
+        self._prog.hide()
+        self._status.setText("Scan cancelled — click Scan All to run it again")
+        for row in range(self._table.rowCount()):
+            item = self._table.item(row, 4)
+            if item is not None and item.text() == "Scanning…":
+                item.setText("Cancelled")
+                item.setForeground(QColor("#888888"))
