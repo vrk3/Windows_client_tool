@@ -13,6 +13,7 @@ Measured on this machine, 278 processes, best of 5:
 Qt-free on purpose, like `scan/` and `store/` in TreeSize -- these run with
 no display and no elevation.
 """
+import dataclasses
 import os
 
 import pytest
@@ -107,7 +108,7 @@ def test_a_row_is_immutable():
     """A snapshot is a reading of a moment. Something that edited it in
     place would be rewriting history the rate maths still needs."""
     row = system_processes()[0]
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         row.pid = 12345
 
 

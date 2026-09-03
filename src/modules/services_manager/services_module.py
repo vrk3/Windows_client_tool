@@ -33,11 +33,11 @@ _HIGH_IMPACT_NAMES = {
     "Power", "ProfSvc", "UserMgr", "BFE", "MpsSvc", "PolicyAgent",
     "Netlogon", "KtmRm", "TrkWks", "SysMain", "Themes", "Winmgmt",
     "Audiosrv", "ShellServiceHost", "Schedule", "Spooler",
-    "W32Time", "WSearch", "WERSvc", "Wecsvc", "WinRM", "WSearch",
+    "W32Time", "WSearch", "WERSvc", "Wecsvc", "WinRM",
 }
 _HIGH_IMPACT_KEYWORDS = [
     "system", "kernel", "security", "lsass", "smss", "csrss",
-    "winlogon", "smss", "services", "services.exe",
+    "winlogon", "services", "services.exe",
 ]
 _LOW_IMPACT_KEYWORDS = [
     "update", "updater", "google", "adobe", "onedrive", "dropbox",

@@ -1936,7 +1936,7 @@ def check_ps_constrained_lang() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "details": [("Language Mode", "Could not query")]}
         mode = out.strip()
         constrained = mode == "ConstrainedLanguage"
-        return {"status": mode, "color": "green" if constrained else ("amber" if mode == "FullLanguage" else "amber"),
+        return {"status": mode, "color": "green" if constrained else "amber",
                 "details": [("PS Language Mode", mode)]}
     except Exception:
         return {"status": "Error", "color": "amber", "details": []}
@@ -3624,7 +3624,7 @@ def check_ssbd() -> Dict[str, Any]:
         sys_enabled = d.get("SSBDWindowsSupportEnabledSystemWide", False)
         enabled = hw_present and os_present and sys_enabled
         status = "System-wide enabled" if enabled else ("HW/OS present, not enabled" if hw_present else "N/A")
-        color = "green" if enabled else ("amber" if hw_present else "amber")
+        color = "green" if enabled else "amber"
         return {"status": status, "color": color, "available": True,
                 "details": [("HW Support", str(hw_present)), ("OS Support", str(os_present)),
                             ("System-Wide", "Yes" if sys_enabled else "No")], "enabled": enabled}
