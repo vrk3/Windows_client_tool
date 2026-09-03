@@ -6,13 +6,12 @@ the space it is explaining, not tucked into a corner of it.
 """
 import sys
 
-import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from ui.empty_state import EmptyState
+from ui.empty_state import EmptyState  # noqa: E402
 
 
 def test_it_shows_the_title_and_the_hint():

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, QThreadPool
+from PyQt6.QtCore import QTimer, QThreadPool
 from PyQt6 import sip
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (
@@ -22,10 +22,8 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QProgressBar,
     QTableWidget,
-    QTableWidgetItem,
     QHeaderView,
     QListWidget,
-    QSizePolicy,
     QAbstractItemView,
     QStackedWidget,
 )
@@ -33,7 +31,7 @@ from PyQt6.QtWidgets import (
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
-from core.table_ui import center_header, centered_item, fit_table, set_role
+from core.table_ui import center_header, centered_item, set_role
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
 from modules.perfmon.perfmon_charts import _QtLineChart
@@ -44,7 +42,8 @@ _WARN_BRUSH = QBrush(QColor("#ffcc66"))
 
 logger = logging.getLogger(__name__)
 
-_widget_valid = lambda w: not sip.isdeleted(w)
+def _widget_valid(w):
+    return not sip.isdeleted(w)
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +213,8 @@ def _build_traceroute_card() -> _ToolCard:
         card._worker = Worker(lambda _w: network_tools.traceroute(host))
 
         def _on_result(hops):
-            if not _widget_valid(table): return
+            if not _widget_valid(table):
+                return
             table.setRowCount(0)
             for hop_num, ip, time_str in hops:
                 row_idx = table.rowCount()
@@ -413,7 +413,8 @@ def _build_port_scanner_card() -> _ToolCard:
         worker = Worker(_worker_fn)
 
         def _on_result(open_ports) -> None:
-            if not _widget_valid(table): return
+            if not _widget_valid(table):
+                return
             progress_timer.stop()
             if _widget_valid(progress_bar):
                 progress_bar.setValue(100)
@@ -491,7 +492,8 @@ def _build_connections_card() -> _ToolCard:
     layout.addWidget(table)
 
     def _populate_table(conns) -> None:
-        if not _widget_valid(table): return
+        if not _widget_valid(table):
+            return
         table.setRowCount(0)
         for c in conns:
             r = table.rowCount()
@@ -615,7 +617,8 @@ def _build_adapter_card() -> _ToolCard:
         worker = Worker(lambda _w: network_tools.get_adapter_info())
 
         def _populate(adapters) -> None:
-            if not _widget_valid(table): return
+            if not _widget_valid(table):
+                return
             table.setRowCount(0)
             for a in adapters:
                 r = table.rowCount()

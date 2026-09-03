@@ -9,7 +9,6 @@ tracebacks into the log every 3 seconds for the whole session.
 import logging
 from collections import namedtuple
 
-import pytest
 
 from modules.dashboard import dashboard_module as dm
 

@@ -3,7 +3,7 @@ from typing import List, Dict, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QLabel, QProgressBar, QLineEdit,
+    QHeaderView, QLabel, QProgressBar, QLineEdit,
     QComboBox, QMessageBox, QTabWidget, QGroupBox, QFormLayout,
     QScrollArea, QTextEdit, QStackedWidget,
 )
@@ -15,7 +15,7 @@ from core.module_groups import ModuleGroup
 from core.run import run
 from core.semantic_colors import semantic
 from core.windows_utils import ps_quote
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import COMWorker, Worker
 
 CREATE_NO_WINDOW = 0x08000000

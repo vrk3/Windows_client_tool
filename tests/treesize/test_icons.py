@@ -1,5 +1,4 @@
 """Per-extension shell icons (spec 5.4)."""
-import pytest
 from PyQt6.QtGui import QIcon
 
 from modules.treesize.ui.icons import IconProvider

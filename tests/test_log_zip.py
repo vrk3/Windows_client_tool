@@ -11,7 +11,6 @@ machine has to refuse those.
 import os
 import zipfile
 
-import pytest
 
 from modules.log_viewer.archives import extract_zip, is_zip
 

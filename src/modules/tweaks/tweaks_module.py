@@ -3,12 +3,12 @@ import logging
 import os
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QFrame, QGroupBox, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QSizePolicy, QSplitter, QTabWidget,
-    QTextEdit, QToolBar, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSplitter, QTabWidget,
+    QTextEdit, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule

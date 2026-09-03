@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
 from modules.cleanup import browser_scanner as bs

@@ -1,8 +1,8 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QColor
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel,
-    QPushButton, QSizePolicy, QTextEdit, QVBoxLayout, QFrame,
+    QPushButton, QTextEdit, QVBoxLayout, QFrame,
 )
 
 from core.types import LogEntry

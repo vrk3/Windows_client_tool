@@ -2,18 +2,17 @@ import re
 import subprocess
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import QThreadPool, QTimer, Qt
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QCheckBox, QFrame, QHBoxLayout, QHeaderView, QLabel, QProgressBar,
-    QPushButton, QScrollArea, QTabWidget, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QCheckBox, QHBoxLayout, QHeaderView, QLabel, QProgressBar,
+    QPushButton, QScrollArea, QTabWidget, QTableWidget, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 import logging
 logger = logging.getLogger(__name__)
@@ -299,9 +298,11 @@ class WifiAnalyzerModule(BaseModule):
     def _on_result(self, data: Dict):
         try:
             import sip
-            _valid = lambda w: w is not None and not sip.isdeleted(w)
+            def _valid(w):
+                return w is not None and not sip.isdeleted(w)
         except ImportError:
-            _valid = lambda w: w is not None
+            def _valid(w):
+                return w is not None
 
         if not _valid(self._net_table):
             return

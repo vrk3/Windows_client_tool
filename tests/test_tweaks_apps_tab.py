@@ -18,7 +18,6 @@ fully implemented, and nothing in the UI ever called them.
 """
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QListWidgetItem
 
 from modules.tweaks.app_catalog import AppCatalog
 from modules.tweaks.tweaks_module import AppManagerTab

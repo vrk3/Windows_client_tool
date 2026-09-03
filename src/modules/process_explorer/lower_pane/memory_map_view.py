@@ -7,7 +7,7 @@ from typing import Optional
 import psutil
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget,
-                              QTableWidgetItem, QHeaderView)
+                              QHeaderView)
 from PyQt6.QtGui import QColor
 
 from core.table_ui import centered_item, center_header

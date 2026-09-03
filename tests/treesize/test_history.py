@@ -2,7 +2,6 @@
 import os
 import time
 
-import pytest
 
 from modules.treesize.store import snapshots
 from modules.treesize.store.node_store import NodeStore, DIR

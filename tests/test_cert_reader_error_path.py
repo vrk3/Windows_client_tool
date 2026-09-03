@@ -9,7 +9,6 @@ The pane runs this on a Worker, so what reached the user was
 
 Found by ruff (F821) the first time it was run over this tree.
 """
-import json
 import subprocess
 
 from modules.certificate_viewer import cert_reader

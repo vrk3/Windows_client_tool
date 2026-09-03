@@ -3,7 +3,7 @@ import pytest
 
 from modules.treesize.store.node_store import NodeStore, DIR, EXCLUDED
 from modules.treesize.store.rollup import rollup
-from modules.treesize.ui.treemap import HitGrid, Rect, build_treemap, squarify
+from modules.treesize.ui.treemap import HitGrid, build_treemap, squarify
 
 
 def _tree():

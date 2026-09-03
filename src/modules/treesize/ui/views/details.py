@@ -14,6 +14,10 @@ from PyQt6.QtWidgets import (
 from ...store.node_store import (
     ADS, COMPRESSED, DIR, EXCLUDED, HARDLINK_DUP, HIDDEN, REPARSE, SPARSE,
 )
+from ..directory_tree import ProportionBarDelegate
+from ..formatting import Unit, format_bytes, format_count, percent_of_parent
+from ..panels import format_filetime
+from ..tree_model import BarFractionRole
 
 
 def _signed(value: int, unit, decimals: int) -> str:
@@ -33,10 +37,6 @@ def _attribute_letters(attrs: int) -> str:
         (DIR, "D"), (HIDDEN, "H"), (REPARSE, "R"), (COMPRESSED, "C"),
         (SPARSE, "S"), (ADS, "A"), (HARDLINK_DUP, "L"),
     ) if attrs & bit)
-from ..directory_tree import ProportionBarDelegate
-from ..formatting import Mode, Unit, format_bytes, format_count, percent_of_parent
-from ..panels import format_filetime
-from ..tree_model import BarFractionRole
 
 COLUMNS = ("Name", "Size", "Allocated", "Files", "Folders", "% of Parent",
            "Last Modified", "Last Accessed", "Created", "Owner", "Type",

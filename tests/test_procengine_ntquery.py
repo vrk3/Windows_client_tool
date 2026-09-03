@@ -18,7 +18,7 @@ import os
 import pytest
 
 from core.procengine.ntquery import (
-    ProcessRaw, system_processes,
+    system_processes,
 )
 
 

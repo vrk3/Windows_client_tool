@@ -6,10 +6,8 @@ open" and "nothing I was allowed to look at has it open" are different
 answers, and only one of them is safe to act on.
 """
 import os
-import sys
 import time
 
-import pytest
 
 from core.procengine.findref import FindReport, Match, find
 

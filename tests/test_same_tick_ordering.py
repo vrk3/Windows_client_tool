@@ -8,7 +8,6 @@ green for reasons nobody checks. Both are reproduced deterministically here by
 freezing the clock, which is what the real failure amounts to.
 """
 import os
-import sqlite3
 import tempfile
 from datetime import datetime
 

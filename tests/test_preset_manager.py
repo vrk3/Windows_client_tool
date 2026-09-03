@@ -1,5 +1,8 @@
 # tests/test_preset_manager.py
-import json, os, pytest, zipfile
+import json
+import os
+import pytest
+import zipfile
 
 
 @pytest.fixture

@@ -7,13 +7,13 @@ from typing import List, Optional
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QHeaderView, QLabel, QProgressBar,
-    QPushButton, QScrollArea, QSplitter, QTableWidget,
-    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QTableWidget,
+    QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 from ui.empty_state import EmptyState
 

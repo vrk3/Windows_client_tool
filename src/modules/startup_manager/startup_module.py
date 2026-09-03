@@ -1,24 +1,21 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget,
+    QTableWidget, QTabWidget,
     QHeaderView, QProgressBar, QLabel, QMessageBox,
     QLineEdit, QDialog, QDialogButtonBox, QFormLayout,
 )
-from PyQt6.QtCore import QThreadPool, Qt, QUrl
-from PyQt6.QtGui import QFont, QDesktopServices
+from PyQt6.QtCore import QThreadPool, QUrl
+from PyQt6.QtGui import QDesktopServices
 import logging
 import os
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
 from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker, COMWorker
 from modules.startup_manager.startup_reader import (
-    StartupEntry,
     get_registry_entries,
     set_registry_entry_enabled,
     remove_registry_entry,
@@ -33,6 +30,8 @@ from modules.startup_manager.startup_reader import (
     get_service_entries,
     get_browser_extensions,
 )
+
+logger = logging.getLogger(__name__)
 
 COLUMNS = ["Name", "Command/Path", "Status", "Notes"]
 

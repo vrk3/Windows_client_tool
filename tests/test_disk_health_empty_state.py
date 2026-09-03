@@ -10,8 +10,8 @@ from PyQt6.QtWidgets import QApplication, QLabel
 
 QApplication.instance() or QApplication(sys.argv)
 
-from modules.disk_health.disk_health_module import _DiskHealthWidget
-from ui.empty_state import EmptyState
+from modules.disk_health.disk_health_module import _DiskHealthWidget  # noqa: E402
+from ui.empty_state import EmptyState  # noqa: E402
 
 
 def test_a_fresh_pane_explains_itself_in_the_middle():

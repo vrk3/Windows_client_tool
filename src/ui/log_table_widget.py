@@ -1,20 +1,20 @@
 import csv
 import logging
-from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 try:
     import sip
-    _widget_is_valid = lambda w: not sip.isdeleted(w)
+    def _widget_is_valid(w):
+        return not sip.isdeleted(w)
 except ImportError:
-    _widget_is_valid = lambda w: True  # fallback: assume valid
+    def _widget_is_valid(w):  # fallback: assume valid
+        return True
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel, QAction
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QTableView,

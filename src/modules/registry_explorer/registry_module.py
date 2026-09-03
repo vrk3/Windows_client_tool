@@ -7,12 +7,12 @@ from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMenu, QMessageBox, QPushButton, QSplitter,
-    QTableWidget, QTableWidgetItem, QTreeView, QVBoxLayout, QWidget,
+    QTableWidget, QTreeView, QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 from modules.registry_explorer.registry_model import RegistryTreeModel
 

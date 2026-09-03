@@ -1,5 +1,4 @@
 """Spec 3.4: the scan runs off the UI thread."""
-import pytest
 
 from modules.treesize.ui.scan_worker import ScanWorker
 from modules.treesize.ui.shell import TreeSizeShell

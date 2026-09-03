@@ -21,7 +21,7 @@ Qt-free: it reads through the engine, so it is testable headless.
 """
 import datetime
 import logging
-from typing import List, Optional
+from typing import List
 
 from core.search_provider import (FilterField, SearchProvider, SearchQuery,
                                   SearchResult)

@@ -15,7 +15,7 @@ from typing import List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QLabel, QListWidget,
+    QDialog, QDialogButtonBox, QHeaderView, QLabel, QListWidget,
     QListWidgetItem, QMessageBox, QPushButton, QSplitter, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )

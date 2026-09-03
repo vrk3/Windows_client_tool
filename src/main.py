@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import traceback
-from pathlib import Path
 
 # Add src/ to Python path so imports like `core.event_bus` work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,10 +25,10 @@ def _s(entry: str) -> None:
 
 _s("=== main.py entered ===")
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
-from app import App
-from ui.main_window import MainWindow
+from app import App  # noqa: E402
+from ui.main_window import MainWindow  # noqa: E402
 logger = logging.getLogger(__name__)
 
 _s("imports done")

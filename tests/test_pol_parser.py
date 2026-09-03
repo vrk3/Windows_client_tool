@@ -19,7 +19,7 @@ import struct
 import pytest
 
 from modules.gpresult.pol_parser import (
-    MACHINE_POL, PolParseError, PolicyValue, local_policy_files,
+    PolParseError, local_policy_files,
     parse_pol_bytes, read_pol_file,
 )
 

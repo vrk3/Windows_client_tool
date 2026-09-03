@@ -12,7 +12,6 @@ import pytest
 from PyQt6.QtCore import QRect
 from PyQt6.QtWidgets import QStyleOptionViewItem
 
-from modules.log_viewer.log_delegate import LogMessageDelegate
 from modules.log_viewer.log_model import MESSAGE
 from modules.log_viewer.log_viewer_module import LogViewerWidget
 

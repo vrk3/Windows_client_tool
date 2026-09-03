@@ -27,7 +27,7 @@ import subprocess
 from typing import List, Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
     QProgressBar, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,

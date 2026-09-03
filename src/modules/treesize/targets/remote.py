@@ -13,8 +13,7 @@ import time
 from xml.etree import ElementTree
 
 from .base import (
-    Credentials, FILETIME_EPOCH_OFFSET, FILETIME_TICKS_PER_SECOND,
-    RemoteEnumerator, ScanTarget, TargetError, register, retry_on_throttle,
+    Credentials, RemoteEnumerator, ScanTarget, TargetError, register, retry_on_throttle,
     unix_to_filetime,
 )
 

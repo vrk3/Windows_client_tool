@@ -1,5 +1,5 @@
 from modules.process_explorer.process_node import ProcessNode
-from modules.process_explorer.process_tree_model import ProcessTreeModel, COL_NAME, COL_PID, COL_CPU
+from modules.process_explorer.process_tree_model import ProcessTreeModel, COL_PID, COL_CPU
 
 
 def _node(pid, name, parent_pid=0, cpu=0.0, children=None):

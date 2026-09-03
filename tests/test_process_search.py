@@ -7,7 +7,6 @@ answer with a process that died a second ago, and an empty query is not a
 search.
 """
 import os
-import re
 
 import pytest
 
@@ -61,7 +60,7 @@ def test_a_refused_process_still_matches_on_name(provider):
     """pid 4 (System) refuses its cold details unelevated, but it still has
     a name -- it must be findable on that name, not invisible because its
     path refused."""
-    pid4 = provider.search(SearchQuery(text="System"))
+    provider.search(SearchQuery(text="System"))
     # The name is "System" but so is the description field of others; just
     # assert pid 4 itself is reachable by its pid, which never refuses.
     assert any(hit.detail.pid == 4

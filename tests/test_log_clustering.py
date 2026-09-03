@@ -8,7 +8,6 @@ right: 125,012 CBS records should fall to a few HUNDRED normalised forms. A
 few thousand means the rules are too timid; a few dozen means they have eaten
 the distinctions that matter.
 """
-import pytest
 
 from modules.log_viewer.clustering import normalise
 

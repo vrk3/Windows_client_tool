@@ -10,14 +10,14 @@ Provides:
 - Auto-refresh (external control via start/stop)
 """
 import subprocess
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from PyQt6.QtCore import Qt, QTimer, QThreadPool, pyqtSignal
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QScrollArea, QFrame,
-    QSizePolicy, QMessageBox, QProgressDialog,
+    QSizePolicy, QMessageBox,
 )
 
 from core.long_op_pool import get_long_op_pool
@@ -620,7 +620,6 @@ class QuickCleanupTab(QWidget):
         self._total_scanned = 0
 
         from modules.cleanup import cleanup_scanner as cs
-        from modules.cleanup import browser_scanner as bs
 
         # Build complete scan target list: main + advanced (excl. browser handled specially)
         scan_targets = [cid for cid, _, _ in self._categories]
@@ -993,7 +992,7 @@ class QuickCleanupTab(QWidget):
         def _done(result):
             status, msg = result
             if status == "ok":
-                self._action_status_lbl.setText(f"✅ WinSxS cleanup complete")
+                self._action_status_lbl.setText("✅ WinSxS cleanup complete")
                 self._action_status_lbl.setStyleSheet(f"color: {semantic('success')}; font-size: 11px;")
             elif status == "timeout":
                 self._action_status_lbl.setText(f"⏱ WinSxS cleanup: {msg}")

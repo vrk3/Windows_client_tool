@@ -11,8 +11,6 @@ def _reload():
 
 def test_reboot_pending_pfro_key():
     """PendingFileRenameOperations key present → True."""
-    open_calls = [0]
-
     def fake_open(hive, path):
         if "Session Manager" in path:
             return MagicMock(__enter__=lambda s: MagicMock(), __exit__=MagicMock(return_value=False))

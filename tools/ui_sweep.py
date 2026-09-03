@@ -35,8 +35,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 # show/layout/paint cycle without ever mapping a window onto the desktop.
 os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 
-from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt6.QtCore import Qt
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "ui_sweep_out"
 # ONE theme per process. Calling create_widget() twice on the same module
@@ -113,7 +113,7 @@ def main():
     from app import App
     from main import register_all_modules
 
-    qapp = QApplication(sys.argv)
+    qapp = QApplication(sys.argv)  # noqa: F841 -- bound: an unnamed one is collected
     app = App()
     register_all_modules(app)
     mods = list(app.module_registry.modules)
@@ -173,10 +173,10 @@ def main():
         for t in ("dark", "light"):
             if r.get(t + "_ink") is not None and r[t + "_ink"] < 0.02:
                 notes.append(f"{t} BLANK")
-        d, l = r.get("dark_ink"), r.get("light_ink")
+        dark, light = r.get("dark_ink"), r.get("light_ink")
         ms = max(r.get("dark_ms", 0), r.get("light_ms", 0))
-        print(f"{n[:25]:<26}{(f'{d:.3f}' if d is not None else '  -'):>9}"
-              f"{(f'{l:.3f}' if l is not None else '  -'):>10}"
+        print(f"{n[:25]:<26}{(f'{dark:.3f}' if dark is not None else '  -'):>9}"
+              f"{(f'{light:.3f}' if light is not None else '  -'):>10}"
               f"{(f'{same:.3f}' if same is not None else '  -'):>7}  {ms:>6}  "
               f"{'; '.join(notes)}")
         if notes:

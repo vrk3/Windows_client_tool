@@ -1,4 +1,3 @@
-import pytest
 from core.event_bus import EventBus
 
 
@@ -24,7 +23,8 @@ def test_multiple_subscribers():
 def test_unsubscribe():
     bus = EventBus()
     received = []
-    callback = lambda d: received.append(d)
+    def callback(d):
+        received.append(d)
     bus.subscribe("test.event", callback)
     bus.unsubscribe("test.event", callback)
     bus.publish("test.event", "ignored")

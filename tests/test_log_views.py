@@ -11,7 +11,6 @@ a file from a newer version must be refused outright rather than half
 applied.
 """
 import json
-import os
 
 import pytest
 

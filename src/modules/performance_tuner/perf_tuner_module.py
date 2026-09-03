@@ -1,17 +1,17 @@
 # src/modules/performance_tuner/perf_tuner_module.py
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import QThreadPool
 from PyQt6.QtWidgets import (
     QHBoxLayout, QHeaderView, QLabel, QProgressBar,
-    QPushButton, QScrollArea, QSizePolicy, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QPushButton, QTableWidget,
+    QVBoxLayout, QWidget,
 )
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 from modules.performance_tuner.perf_checks import PERF_CHECKS
 

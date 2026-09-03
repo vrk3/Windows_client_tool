@@ -6,7 +6,7 @@ for progress updates, error handling, and cancellation support.
 
 import logging
 from threading import Lock
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 

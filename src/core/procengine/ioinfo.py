@@ -24,7 +24,7 @@ import logging
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,6 @@ Persistence goes through the host's ConfigManager when one is available, so
 TreeSize's settings live where every other module's settings live rather than
 in a private file.
 """
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
     QLabel, QLineEdit, QSpinBox, QVBoxLayout,

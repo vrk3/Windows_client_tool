@@ -9,7 +9,6 @@ checkable; every other code keeps the name-only behaviour it has today. A
 plausible-sounding fix for the wrong error costs more time than no fix at
 all, because it is acted on.
 """
-import pytest
 
 from modules.log_viewer.error_codes import advice, describe
 

@@ -8,7 +8,6 @@ suite.
 """
 import inspect
 
-import pytest
 
 from modules.security_dashboard import security_reader
 from modules.security_dashboard.catalog import NOT_A_CONTROL, load_catalog

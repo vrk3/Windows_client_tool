@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from modules.perfmon.perfmon_charts import CHART_PALETTES, _QtLineChart
+from modules.perfmon.perfmon_charts import CHART_PALETTES, _QtLineChart  # noqa: E402
 
 
 def _luminance(colour: QColor) -> float:

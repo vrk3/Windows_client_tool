@@ -1,5 +1,4 @@
 """A baseline stages a diff and says what it skips; a profile does the same."""
-import json
 
 import pytest
 

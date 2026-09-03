@@ -16,7 +16,6 @@ A RATCHET: BUDGET only ever falls.
 import ast
 import pathlib
 
-import pytest
 from PyQt6.QtWidgets import QLabel
 
 from core.table_ui import set_role
@@ -132,15 +131,35 @@ def test_set_role_repolishes_so_a_runtime_change_takes_effect(qapp):
     assert label.objectName() == "statusSuccess"
 
 
+class _RecordingStyle:
+    """Stands in for the widget's QStyle so the repolish can be counted.
+
+    `widget.style()` hands back a fresh wrapper each call, so patching
+    `polish` on the returned object does not stick -- shadow `style` itself.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def unpolish(self, widget):
+        self.calls.append("unpolish")
+
+    def polish(self, widget):
+        self.calls.append("polish")
+
+
 def test_set_role_is_a_no_op_when_the_role_is_unchanged(qapp):
     """Called from a refresh that runs every second, an unconditional
     unpolish/polish is wasted work on every tick."""
     label = QLabel("x")
     set_role(label, "statusInfo")
-    polished = []
-    original = label.style().polish
-    try:
-        set_role(label, "statusInfo")
-    finally:
-        pass
-    assert label.objectName() == "statusInfo"
+
+    style = _RecordingStyle()
+    label.style = lambda: style
+
+    set_role(label, "statusInfo")
+    assert style.calls == [], "the role did not change, so nothing needed repolishing"
+
+    set_role(label, "statusError")
+    assert style.calls == ["unpolish", "polish"], "a changed role must be repolished"
+    assert label.objectName() == "statusError"

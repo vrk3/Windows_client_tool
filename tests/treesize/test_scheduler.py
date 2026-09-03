@@ -5,7 +5,6 @@ scheduled tasks leaves them behind on the machine that ran it.
 """
 import sys
 
-import pytest
 
 from modules.treesize.actions import scheduler
 

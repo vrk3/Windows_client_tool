@@ -6,8 +6,6 @@ lines never reached the Diagnose tab, and the very first line was one of them.
 """
 import pytest
 
-from core.log_parser_base import LogParserBase
-from core.types import LogEntry
 from modules.cbs_log.cbs_parser import CBSParser
 from modules.dism_log.dism_parser import DISMParser
 
@@ -132,7 +130,7 @@ def test_the_real_cbs_log_loses_nothing(tmp_path):
     if not os.path.exists(path):
         pytest.skip("no CBS.log on this machine")
     raw = open(path, encoding="utf-8-sig", errors="replace").read()
-    expected = len([l for l in raw.splitlines() if l.strip()])
+    expected = len([line for line in raw.splitlines() if line.strip()])
     entries = CBSParser(path).parse()
     assert len(entries) == expected, (
         f"{expected - len(entries)} lines were dropped")

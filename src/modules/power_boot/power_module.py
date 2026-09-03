@@ -7,13 +7,13 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QTabWidget, QListWidget, QCheckBox, QSpinBox,
-    QTableWidget, QTableWidgetItem, QListWidgetItem,
+    QTableWidget, QListWidgetItem,
 )
 from PyQt6.QtCore import Qt
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 from core.worker import Worker
 from core.windows_utils import is_reboot_pending
 import logging

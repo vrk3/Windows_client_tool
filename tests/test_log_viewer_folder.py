@@ -5,7 +5,6 @@ the pane has to be able to show them as one timeline -- and then let you
 narrow back down to one file, which is what the Source column and combo are
 for.
 """
-import os
 
 import pytest
 

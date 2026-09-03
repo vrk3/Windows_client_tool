@@ -7,12 +7,11 @@ from typing import Optional
 import psutil
 from PyQt6.QtWidgets import (QDialog, QTabWidget, QWidget, QVBoxLayout,
                               QHBoxLayout, QGridLayout, QLabel, QTextEdit,
-                              QTableWidget, QTableWidgetItem,
-                              QPushButton, QDialogButtonBox, QLineEdit)
+                              QTableWidget, QPushButton, QDialogButtonBox, QLineEdit)
 from PyQt6.QtCore import Qt, QTimer
 
 from core.semantic_colors import semantic
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 
 from ui.perf_graph import PerfGraph
 from modules.process_explorer.process_node import ProcessNode
@@ -344,7 +343,9 @@ class ProcessPropertiesDialog(QDialog):
         te = QTextEdit()
         te.setReadOnly(True)
         try:
-            import win32security, win32api, win32con
+            import win32security
+            import win32api
+            import win32con
             handle = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION, False, self._node.pid)
             token = win32security.OpenProcessToken(handle, win32con.TOKEN_QUERY)
             user_sid, attr = win32security.GetTokenInformation(token, win32security.TokenUser)

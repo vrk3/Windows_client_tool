@@ -29,8 +29,8 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from core.module_registry import ModuleRegistry
-from main import register_all_modules
+from core.module_registry import ModuleRegistry  # noqa: E402
+from main import register_all_modules  # noqa: E402
 
 
 class _RegistryOnlyStub:
@@ -200,8 +200,8 @@ def test_both_themes_style_a_disabled_button():
 # QDialog, QGroupBox, QListWidget, QPlainTextEdit, QRadioButton, QToolButton,
 # QToolTip and QSlider among them.
 # ----------------------------------------------------------------------
-import re
-from pathlib import Path
+import re  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 STYLES = Path(__file__).resolve().parent.parent / "src" / "ui" / "styles"
 

@@ -10,7 +10,6 @@ when they cannot say anything else.
 import os
 import time
 
-import pytest
 
 from modules.process_explorer.lower_pane.dll_view import DllView
 from modules.process_explorer.lower_pane.handle_view import HandleView

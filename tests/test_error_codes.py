@@ -4,7 +4,6 @@ A wrong explanation is worse than none: it sends someone after a problem they
 do not have. So the rule throughout is that anything not reliably known
 returns "" rather than a guess.
 """
-import pytest
 
 from modules.log_viewer import error_codes
 

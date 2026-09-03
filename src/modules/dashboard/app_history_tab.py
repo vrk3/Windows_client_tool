@@ -12,8 +12,6 @@ Windows' private usage store -- a column of zeros would claim "used no
 network", which is a lie. A status line says so instead.
 """
 import logging
-import time
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QPushButton,

@@ -1,18 +1,19 @@
 import logging
-logger = logging.getLogger(__name__)
 
-import os, subprocess, winreg
+import subprocess
+import winreg
 import psutil
-from typing import List, Optional
+from typing import List
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView, QLabel,
-    QLineEdit, QComboBox, QCheckBox, QPlainTextEdit, QSizePolicy, QGridLayout)
-from PyQt6.QtCore import Qt
+    QTabWidget, QLabel,
+    QLineEdit, QComboBox, QCheckBox, QPlainTextEdit, QGridLayout)
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
+
+logger = logging.getLogger(__name__)
 
 CREATE_NO_WINDOW = 0x08000000
 DNS_PRESETS = {
@@ -178,7 +179,8 @@ class NetExtrasModule(BaseModule):
             try:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PROXY_KEY) as k:
                     def rv(name, default=""):
-                        try: return winreg.QueryValueEx(k, name)[0]
+                        try:
+                            return winreg.QueryValueEx(k, name)[0]
                         except Exception:
                             logger.warning("Ignored Exception", exc_info=True)
                             return default
@@ -228,7 +230,7 @@ class NetExtrasModule(BaseModule):
             log.appendPlainText(f"\n> {' '.join(cmd)}")
 
             def _do_stream(worker):
-                return run_cmd_stream(cmd, lambda l: worker.signals.log_line.emit(l))
+                return run_cmd_stream(cmd, lambda line: worker.signals.log_line.emit(line))
 
             worker = Worker(_do_stream)
             worker.signals.log_line.connect(log.appendPlainText)

@@ -129,7 +129,6 @@ def test_every_row_names_its_service(tab):
 def test_the_status_column_uses_the_semantic_colours(tab):
     """Running rows are painted the theme's success colour, Stopped its
     error colour -- never a raw colour of the tab's own invention."""
-    from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QColor
 
     from core.semantic_colors import semantic

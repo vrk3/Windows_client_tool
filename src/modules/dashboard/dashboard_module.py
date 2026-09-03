@@ -14,7 +14,6 @@ import logging
 import os
 import platform
 
-logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import Optional
 
@@ -27,7 +26,6 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -38,6 +36,8 @@ from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.composite_module import CompositeModule
 from core.events import NAV_REQUEST_MODULE, NavRequestData
+
+logger = logging.getLogger(__name__)
 
 try:
     import psutil

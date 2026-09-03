@@ -14,33 +14,24 @@ import shutil
 import tempfile
 from ctypes import wintypes
 from datetime import datetime
-from functools import partial
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QMessageBox, QHeaderView, QMenu, QFileDialog,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QHeaderView, QMenu, QFileDialog,
     QPushButton, QLabel, QFrame, QProgressBar, QCheckBox, QLineEdit,
-    QPlainTextEdit, QTabWidget, QTableWidget, QTableWidgetItem,
-    QGroupBox, QScrollArea, QSizePolicy, QStackedWidget,
+    QPlainTextEdit, QTabWidget, QTableWidget, QGroupBox, QScrollArea, QSizePolicy,
 )
-from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
-
-try:
-    import sip as _sip
-    _widget_valid = lambda w: w is not None and not _sip.isdeleted(w)
-except ImportError:
-    _widget_valid = lambda w: w is not None
+from PyQt6.QtCore import QThreadPool, pyqtSignal
+from PyQt6.QtGui import QColor
 
 import logging
-logger = logging.getLogger(__name__)
 
 from core.admin_utils import is_admin
 from core.base_module import BaseModule
 from core.semantic_colors import semantic
 from core.module_groups import ModuleGroup
 from core.search_provider import FilterField, SearchProvider, SearchQuery, SearchResult
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, fit_table
 from core.worker import Worker, COMWorker
 from ui.error_banner import ErrorBanner
 from ui.empty_state import EmptyState
@@ -57,41 +48,21 @@ from modules.security_dashboard.profile import (
 from modules.security_dashboard.reverting import revert_batch
 from modules.security_dashboard.staging import ChangeSet
 from modules.security_dashboard.security_reader import (
-    get_all_security_status,
     get_overview_status,
     get_security_events,
     run_quick_scan,
     run_update_definitions,
-    check_defender_signatures,
-    set_defender_realtime,
-    set_defender_cloud,
-    set_defender_sample_submission,
-    set_pua_protection,
-    set_controlled_folder_access,
-    set_tamper_protection,
-    set_network_protection_defender,
-    set_firewall_profile,
-    set_smartscreen,
-    set_lsass_protection,
-    set_uac_level,
-    set_defender_behavior_monitoring,
-    set_defender_script_scanning,
-    set_defender_archive_scanning,
-    set_defender_ioav,
-    set_defender_removable_drive_scanning,
-    set_defender_catchup_scans,
-    set_llmnr,
-    set_wpad,
-    set_wdigest_credential_caching,
-    set_ntlm_level,
-    set_pagefile_clear,
-    set_ps_script_block_logging,
-    # CVE checks (for CVEs tab)
-    check_spectre_v2, check_meltdown, check_ssbd, check_l1tf, check_mds,
-    check_printnightmare, check_zerologon, check_petitpotam, check_follina,
-    check_blacklotus, check_kerberos_armoring, check_credential_guard_vbs,
-    check_ntlm_relay_protection, check_smb_ghost,
 )
+
+logger = logging.getLogger(__name__)
+
+try:
+    import sip as _sip
+    def _widget_valid(w):
+        return w is not None and not _sip.isdeleted(w)
+except ImportError:
+    def _widget_valid(w):
+        return w is not None
 
 COLOR_MAP = {
     "green": "#27AE60",

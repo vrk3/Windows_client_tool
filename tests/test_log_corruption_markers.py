@@ -9,7 +9,6 @@ The narrowness matters: a marker that fires on prose would colour thousands of
 rows and stop meaning anything, so each pattern is anchored to the wording
 Windows actually emits.
 """
-import pytest
 
 from modules.log_viewer.error_codes import corruption_spans
 

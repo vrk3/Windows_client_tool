@@ -23,7 +23,8 @@ FAKE = {
 
 
 #: No redirection, so the profile-relative fallback is what gets used.
-NO_REDIRECT = lambda _name: ""
+def NO_REDIRECT(_name):
+    return ""
 
 
 def _all(environ=FAKE, exists=lambda _p: True, resolve=NO_REDIRECT):

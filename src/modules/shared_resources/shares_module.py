@@ -2,14 +2,13 @@ import winreg
 from typing import List, Dict, Optional
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTabWidget, QLabel,
-    QProgressBar, QSizePolicy)
-from PyQt6.QtCore import Qt
+    QTableWidget, QTabWidget, QLabel,
+    QProgressBar)
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.worker import Worker
-from core.table_ui import centered_item, center_header, fit_table, fit_last
+from core.table_ui import centered_item, fit_last
 import logging
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,8 @@ def get_mapped_drives() -> List[Dict]:
         logger.debug("Ignored OSError", exc_info=True)
     # Also try win32wnet if available
     try:
-        import win32wnet, win32netcon
+        import win32wnet
+        import win32netcon
         resource = win32wnet.WNetOpenEnum(win32netcon.RESOURCE_CONNECTED,
                                           win32netcon.RESOURCETYPE_DISK, 0, None)
         while True:

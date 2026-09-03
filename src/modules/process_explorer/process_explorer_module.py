@@ -33,7 +33,8 @@ from modules.process_explorer.lower_pane.activity_view import ActivityView
 
 logger = logging.getLogger(__name__)
 
-_widget_valid = lambda w: w is not None and not sip.isdeleted(w)
+def _widget_valid(w):
+    return w is not None and not sip.isdeleted(w)
 
 
 class ProcessExplorerModule(BaseModule):
@@ -186,7 +187,7 @@ class ProcessExplorerModule(BaseModule):
         pm = QMenu(priority_btn)
         for level in PRIORITY_LEVELS:
             pm.addAction(level.replace("_", " ").title(),
-                         lambda checked=False, l=level: self._action_set_priority(l))
+                         lambda checked=False, lvl=level: self._action_set_priority(lvl))
         priority_btn.setMenu(pm)
         tb.addWidget(priority_btn)
 
@@ -491,7 +492,6 @@ class ProcessExplorerModule(BaseModule):
             self.app.thread_pool.start(w)
 
     def _on_vt_result(self, result):
-        from core.virustotal_client import VTResult
         if not result.found:
             reply = QMessageBox.question(
                 self._widget, "VirusTotal — Unknown File",

@@ -373,7 +373,7 @@ def test_find_box_searches_ribbon_commands(shell):
     assert shell.find_results.count() > 0
     labels = [shell.find_results.item(i).text()
               for i in range(shell.find_results.count())]
-    assert any("Expand" in l for l in labels)
+    assert any("Expand" in label for label in labels)
 
 
 def test_find_box_stays_quiet_for_one_character(shell):
@@ -495,7 +495,7 @@ def test_hide_empty_keeps_zero_byte_files(qapp):
     from modules.treesize.store.node_store import NodeStore, DIR
     from modules.treesize.store.rollup import rollup
     from modules.treesize.ui.tree_model import DirectoryTreeModel
-    from PyQt6.QtCore import QModelIndex, Qt
+    from PyQt6.QtCore import QModelIndex
 
     store = NodeStore()
     root = store.add(-1, "C:", attrs=DIR)
@@ -619,7 +619,6 @@ def test_the_overview_context_menu_offers_both_choices(qapp):
 def test_the_bar_colors_follow_the_active_theme(qapp):
     """Both sheets define bar_track; nothing was reading it, so a light pane
     painted its bars on a near-black track."""
-    from modules.treesize.ui.directory_tree import ProportionBarDelegate
     from modules.treesize.ui.theme import apply_theme
 
     shell = TreeSizeShell()

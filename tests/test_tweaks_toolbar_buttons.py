@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from modules.tweaks.tweaks_module import TweakTab
+from modules.tweaks.tweaks_module import TweakTab  # noqa: E402
 
 
 @pytest.fixture

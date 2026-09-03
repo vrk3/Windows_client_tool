@@ -11,7 +11,6 @@ paid for that lesson once with elevated PowerShell.
 """
 import json
 
-import pytest
 
 from modules.security_dashboard.applier import BatchResult
 from modules.security_dashboard.catalog.model import (

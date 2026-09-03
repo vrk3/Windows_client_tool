@@ -1,5 +1,4 @@
 """Spec 8.1 and 8.2: file search and the duplicate finder."""
-import pytest
 
 from modules.treesize.store import duplicates, search
 from modules.treesize.store.node_store import (

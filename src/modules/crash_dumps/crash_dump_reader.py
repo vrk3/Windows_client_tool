@@ -1,6 +1,5 @@
 import logging
 import os
-import struct
 from datetime import datetime
 from typing import List, Optional, Callable
 

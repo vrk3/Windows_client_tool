@@ -1,6 +1,5 @@
 from PyQt6.QtWidgets import QLabel, QPushButton, QHBoxLayout, QWidget
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QPalette, QColor
 
 
 class ErrorBanner(QWidget):

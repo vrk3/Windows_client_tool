@@ -20,7 +20,6 @@ No Qt here, like the reader and the parser it sits beside.
 """
 import os
 
-import pytest
 
 from modules.log_viewer.cmtrace_parser import UNKNOWN_TIME
 from modules.log_viewer.log_reader import DEFAULT_MAX_BYTES

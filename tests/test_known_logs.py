@@ -5,7 +5,6 @@ on C:, and a hardcoded path does not fail loudly, it opens nothing.
 """
 import os
 
-import pytest
 
 from modules.log_viewer import known_logs
 

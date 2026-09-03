@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 import platform
 import socket
 

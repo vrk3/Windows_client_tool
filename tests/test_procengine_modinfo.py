@@ -6,13 +6,11 @@ definition, so an empty list is not a possible state -- which makes it
 exactly the kind of wrong answer that looks like an answer.
 """
 import os
-import sys
 import time
 
-import pytest
 
 from core.procengine.modinfo import (
-    LoadedModule, loaded_modules, version_info,
+    loaded_modules, version_info,
 )
 
 MY_PID = os.getpid()

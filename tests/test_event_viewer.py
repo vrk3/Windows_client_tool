@@ -1,5 +1,4 @@
 from datetime import datetime
-from unittest.mock import patch, MagicMock
 from modules.event_viewer.event_search_provider import EventViewerSearchProvider
 from core.search_provider import SearchQuery
 from core.types import LogEntry

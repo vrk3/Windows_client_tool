@@ -222,7 +222,6 @@ def _cmd_run(cmd: List[str], timeout: int = 120) -> Tuple[int, str, str]:
 
 def check_defender() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         av_enabled = bool(status_obj.AntivirusEnabled)
@@ -269,7 +268,6 @@ def check_firewall() -> Dict[str, Any]:
 
 def check_bitlocker() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\cimv2\Security\MicrosoftVolumeEncryption")
         volumes = c.Win32_EncryptableVolume()
         details = []
@@ -330,7 +328,6 @@ def check_secure_boot_tpm() -> Dict[str, Any]:
     # TPM
     tpm_ok: Optional[bool] = None
     try:
-        import wmi
         c = _wmi_namespace(r"root\cimv2\Security\MicrosoftTpm")
         tpms = c.Win32_Tpm()
         if tpms:
@@ -405,7 +402,6 @@ def check_smartscreen() -> Dict[str, Any]:
     key = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\System"
     try:
         val = _reg_read(key, "EnableSmartScreen")
-        details = []
         if val == 1:
             return {"status": "Enabled", "color": "green", "details": [("SmartScreen", "On")], "enabled": True}
         elif val == 0:
@@ -521,7 +517,6 @@ def check_lsass_protection() -> Dict[str, Any]:
 
 def check_tamper_protection() -> Dict[str, Any]:
     try:
-        import wmi
         c = _wmi_namespace(r"root\Microsoft\Windows\Defender")
         status_obj = c.MSFT_MpComputerStatus()[0]
         try:
@@ -1536,7 +1531,6 @@ def check_defender_scanning_history() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Scan History", f"Could not read: {reason}")]}
         quick = str(status.get("QuickScanEndTime", "Never"))
-        full = str(status.get("FullScanEndTime", "Never"))
         sig = str(status.get("QuickScanSignatureVersion", "?"))
         return {"status": "History Available" if quick != "Never" else "No History",
                 "color": "green" if quick != "Never" else "amber",
@@ -1838,7 +1832,7 @@ def check_listening_ports() -> Dict[str, Any]:
         rc, out, _ = _cmd_run(["netstat", "-an"], timeout=15)
         if rc != 0 or not out:
             return {"status": "Unknown", "color": "amber", "details": [("Ports", "Could not query")]}
-        lines = [l for l in out.splitlines() if "LISTENING" in l.upper()]
+        lines = [line for line in out.splitlines() if "LISTENING" in line.upper()]
         count = len(lines)
         color = "green" if count <= 20 else ("amber" if count <= 40 else "red")
         return {"status": f"{count} listening", "color": color,
@@ -2142,7 +2136,7 @@ def check_wsl() -> Dict[str, Any]:
             if ":" in line:
                 k, v = line.strip().split(":", 1)
                 details.append((k.strip(), v.strip()))
-        v2 = any("version: 2" in l.lower() or "wsl2" in l.lower() for l in out.splitlines())
+        v2 = any("version: 2" in line.lower() or "wsl2" in line.lower() for line in out.splitlines())
         return {"status": "Installed (WSL2)" if v2 else "Installed",
                 "color": "green", "details": details, "enabled": True}
     except FileNotFoundError:
@@ -3367,10 +3361,20 @@ def _toggle_threat(pref: str, level: int, label: str) -> Dict[str, Any]:
     result["action"] = f"set_{label.lower().replace(' ','_')}"
     return result
 
-set_defender_threat_low = lambda l: _toggle_threat("LowThreatDefaultAction", l, "Low threat action")
-set_defender_threat_moderate = lambda l: _toggle_threat("ModerateThreatDefaultAction", l, "Moderate threat action")
-set_defender_threat_high = lambda l: _toggle_threat("HighThreatDefaultAction", l, "High threat action")
-set_defender_threat_severe = lambda l: _toggle_threat("SevereThreatDefaultAction", l, "Severe threat action")
+def set_defender_threat_low(level: int):
+    return _toggle_threat("LowThreatDefaultAction", level, "Low threat action")
+
+
+def set_defender_threat_moderate(level: int):
+    return _toggle_threat("ModerateThreatDefaultAction", level, "Moderate threat action")
+
+
+def set_defender_threat_high(level: int):
+    return _toggle_threat("HighThreatDefaultAction", level, "High threat action")
+
+
+def set_defender_threat_severe(level: int):
+    return _toggle_threat("SevereThreatDefaultAction", level, "Severe threat action")
 
 # More Defender toggles
 def set_defender_scan_only_idle(enabled: bool) -> Dict[str, Any]:
@@ -3559,10 +3563,8 @@ def check_meltdown() -> Dict[str, Any]:
         if unavailable is not None:
             return unavailable
         hw_vuln = d.get("RdclHardwareProtectedReported") and not d.get("RdclHardwareProtected", True)
-        kva_present = d.get("KVAShadowWindowsSupportPresent", False)
         kva_enabled = d.get("KVAShadowWindowsSupportEnabled", False)
         kva_required = d.get("KVAShadowRequired", False)
-        enabled = kva_present and kva_enabled
         if not hw_vuln and not kva_required:
             return {"status": "Not vulnerable (HW)", "color": "green", "available": True,
                     "details": [("Hardware", "Not vulnerable to Meltdown")], "enabled": True}

@@ -29,8 +29,8 @@ from PyQt6.QtWidgets import QApplication, QWidget
 # itself a singleton, and .instance() returns the existing one if any.
 QApplication.instance() or QApplication(sys.argv)
 
-from core.module_registry import ModuleRegistry
-from main import register_all_modules
+from core.module_registry import ModuleRegistry  # noqa: E402
+from main import register_all_modules  # noqa: E402
 
 
 class _RegistryOnlyStub:

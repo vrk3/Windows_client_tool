@@ -11,7 +11,6 @@ phase boundary.
 """
 import os
 
-import pytest
 
 from modules.log_viewer.timeindex import build_index, offset_at_or_before
 from datetime import datetime

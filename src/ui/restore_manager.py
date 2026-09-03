@@ -2,17 +2,17 @@
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import (
     QDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QMessageBox, QProgressBar, QPushButton, QSplitter,
-    QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QTableWidget, QVBoxLayout,
 )
 
 from core.backup_service import BackupService, RestorePointInfo
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import Worker
 
 logger = logging.getLogger(__name__)

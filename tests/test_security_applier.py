@@ -7,7 +7,6 @@ writer that "succeeded" against a reader that disagrees is its own state --
 APPLIED_UNVERIFIED -- which is the state that today does not exist and is
 reported as success.
 """
-import pytest
 
 from modules.security_dashboard.applier import apply_batch
 from modules.security_dashboard.catalog.model import (

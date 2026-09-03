@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QApplication
 
 QApplication.instance() or QApplication(sys.argv)
 
-from modules.treesize.ui.panels import DriveList
+from modules.treesize.ui.panels import DriveList  # noqa: E402
 
 DRIVES = [("C", 1_800_000_000_000, 1_700_000_000_000),
           ("E", 5_500_000_000_000, 5_000_000_000_000)]

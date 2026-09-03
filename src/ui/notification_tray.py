@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QFrame,
@@ -123,7 +123,6 @@ class SystemTrayManager:
 
     def _force_quit(self):
         """Quit regardless of minimize-to-tray setting."""
-        from PyQt6.QtWidgets import QApplication
         self._tray.hide()
         # Trigger window's normal close path (saves config, stops modules)
         if self._window:

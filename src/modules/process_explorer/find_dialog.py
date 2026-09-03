@@ -13,12 +13,11 @@ acting on the other one wastes an afternoon.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QHeaderView,
                              QLabel, QLineEdit, QProgressBar, QPushButton,
-                             QTableWidget, QTableWidgetItem, QVBoxLayout)
+                             QTableWidget, QVBoxLayout)
 
 from core.table_ui import centered_item, center_header
 

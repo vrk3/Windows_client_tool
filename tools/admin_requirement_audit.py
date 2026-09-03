@@ -173,7 +173,7 @@ def harvest_text(widget):
     how much the pane painted but WHAT IT SAYS -- "Requires administrator" and
     "TPM 2.0" are the whole question.
     """
-    from PyQt6.QtWidgets import (QAbstractItemView, QLabel, QTableWidget,
+    from PyQt6.QtWidgets import (QLabel, QTableWidget,
                                  QTreeWidget)
     seen = set()
     for label in widget.findChildren(QLabel):
@@ -279,7 +279,7 @@ def main():
     from main import register_all_modules
     import tempfile
 
-    qapp = QApplication(sys.argv)
+    qapp = QApplication(sys.argv)  # noqa: F841 -- bound: an unnamed one is collected
     App.instance = None
     app = App(app_data_dir=tempfile.mkdtemp())
     register_all_modules(app)

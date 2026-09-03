@@ -74,9 +74,9 @@ def test_registry_registers_every_provider_a_module_returns():
     assert app.search.registered == [a, b]
 
 
-from PyQt6.QtWidgets import QLabel, QTabWidget
+from PyQt6.QtWidgets import QLabel, QTabWidget  # noqa: E402
 
-from core.composite_module import CompositeModule
+from core.composite_module import CompositeModule  # noqa: E402
 
 
 class _Recorder(_Leaf):

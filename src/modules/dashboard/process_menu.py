@@ -252,7 +252,7 @@ class ProcessMenu(QObject):
     def _show_signature(self, facts) -> None:
         if self._widget is None or not _widget_valid(self._widget):
             return
-        from core.procengine.signatures import (COULD_NOT_VERIFY, INVALID,
+        from core.procengine.signatures import (INVALID,
                                             NOT_SIGNED, VALID)
 
         if facts.status == VALID:
@@ -311,7 +311,6 @@ class ProcessMenu(QObject):
     def _on_vt_result(self, result) -> None:
         if self._widget is None or not _widget_valid(self._widget):
             return
-        from core.virustotal_client import VTResult
 
         if not result.found:
             QMessageBox.information(

@@ -1,6 +1,6 @@
 # tests/test_app_catalog.py
-import json, os, pytest
-from unittest.mock import patch, MagicMock
+import os
+import pytest
 
 
 @pytest.fixture
@@ -234,7 +234,6 @@ class _WingetRecorder:
     def popen(self, args, **kwargs):
         self.calls.append(args)
         rc, out, _ = self.answers.pop(0)
-        recorder = self
 
         class _P:
             stdout = out.splitlines(keepends=True)

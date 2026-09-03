@@ -1,7 +1,6 @@
 """The log viewer's table model: colouring, filtering, the cap, and find."""
 from datetime import datetime
 
-import pytest
 from PyQt6.QtCore import Qt
 
 from core.types import LogEntry
@@ -37,7 +36,6 @@ def test_rows_and_columns(qapp):
 
 def test_each_column_shows_its_field(qapp):
     model = _model([_entry("hello", level="Error", source="Comp", thread="77")])
-    row = model.index(0, 0)
     assert model.data(model.index(0, SEVERITY)) == "Error"
     assert model.data(model.index(0, COMPONENT)) == "Comp"
     assert model.data(model.index(0, THREAD)) == "77"

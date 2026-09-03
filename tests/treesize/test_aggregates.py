@@ -1,5 +1,4 @@
 """Spec 4.3: per-view aggregates."""
-import pytest
 
 from modules.treesize.store.aggregates import (
     AGE_BUCKETS, AggregateCache, FILETIME_TICKS_PER_DAY, Row, by_age,

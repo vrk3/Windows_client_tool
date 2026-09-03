@@ -1,5 +1,4 @@
 """Tests for per-module search providers: CBS, DISM, WU, CrashDumps, EventViewer."""
-import pytest
 from datetime import datetime
 
 from core.types import LogEntry

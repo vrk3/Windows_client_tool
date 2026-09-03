@@ -7,7 +7,6 @@ which is the worst answer a log viewer can give, because it is believed.
 The awkward part is the read boundary: a needle that straddles two blocks is
 invisible unless the blocks overlap. There is a test for exactly that.
 """
-import pytest
 
 from modules.log_viewer.filescan import scan_file
 

@@ -3,7 +3,7 @@ import pytest
 
 from modules.security_dashboard.catalog import load_catalog
 from modules.security_dashboard.catalog.model import (
-    Category, Risk, SecurityControl,
+    Category, SecurityControl,
 )
 
 

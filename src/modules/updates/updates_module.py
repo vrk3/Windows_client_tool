@@ -3,17 +3,9 @@ import subprocess
 import sys
 from typing import List, Optional
 
-
-def _widget_valid(w):
-    try:
-        import sip
-        return not sip.isdeleted(w)
-    except Exception:
-        return True
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTabWidget,
-    QTableWidget, QTableWidgetItem, QHeaderView, QPlainTextEdit,
+    QTableWidget, QHeaderView, QPlainTextEdit,
     QCheckBox, QTimeEdit, QComboBox, QProgressBar, QLineEdit, QMessageBox,
     QGroupBox, QScrollArea, QSpinBox,
 )
@@ -26,7 +18,7 @@ from core.worker import Worker, COMWorker
 from core.windows_utils import is_reboot_pending
 from core.blocklist import add_pattern, normalize_patterns
 from core.events import NOTIFY_BALLOON, BalloonNotifyData
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from modules.updates.winget_updater import (
     fetch_updates, install_update, show_package_details, AppUpdate,
 )
@@ -39,6 +31,15 @@ from modules.updates.run_all_tab import _RunAllTab
 import logging
 from core.semantic_colors import semantic
 logger = logging.getLogger(__name__)
+
+
+def _widget_valid(w):
+    try:
+        import sip
+        return not sip.isdeleted(w)
+    except Exception:
+        return True
+
 
 UNATTENDED_TASK_NAME = "WinClientTool_UnattendedMaintenance"
 LEGACY_TASK_NAME = "WinClientTool_UpdateCheck"

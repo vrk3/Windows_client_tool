@@ -5,15 +5,15 @@ from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QLabel,
-    QProgressBar, QFileDialog, QMessageBox,
+    QTableWidget, QHeaderView, QLineEdit, QLabel,
+    QProgressBar, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtGui import QColor
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import COMWorker, Worker
 from modules.driver_manager.driver_reader import DriverInfo, fetch_drivers
 
@@ -263,8 +263,7 @@ class DriverModule(BaseModule):
         if self._progress:
             self._progress.hide()
         if returncode == 0:
-            count = output.strip().count("\n")
-            msg = f"Driver backup complete — exported to selected folder."
+            msg = "Driver backup complete — exported to selected folder."
         else:
             msg = f"Driver backup finished with code {returncode}."
         if self._status_lbl:

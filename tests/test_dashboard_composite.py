@@ -41,7 +41,6 @@ def test_process_explorer_is_no_longer_registered_on_its_own(qapp):
     """The absorption, checked where it actually matters: the sidebar."""
     import inspect
 
-    from modules.dashboard import dashboard_module
     import main
 
     source = inspect.getsource(main.register_modules) \

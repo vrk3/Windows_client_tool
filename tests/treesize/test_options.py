@@ -1,5 +1,4 @@
 """Options dialog: settings that actually change behaviour."""
-import pytest
 
 from modules.treesize.ui.formatting import Mode, Unit
 from modules.treesize.ui.options_dialog import (

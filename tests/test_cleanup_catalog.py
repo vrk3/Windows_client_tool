@@ -10,7 +10,6 @@ engine, with one structural test that asks every entry a question at once.
 These are those questions, and none of them could be asked reliably by
 reading 538 functions.
 """
-import os
 
 import pytest
 

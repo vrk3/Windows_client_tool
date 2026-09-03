@@ -6,7 +6,6 @@ recycling works is a test suite that will eventually recycle the wrong thing.
 """
 import os
 
-import pytest
 
 from modules.treesize.actions import file_ops
 from modules.treesize.actions.file_ops import Preflight, execute, plan

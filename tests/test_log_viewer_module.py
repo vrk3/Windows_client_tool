@@ -807,7 +807,6 @@ def test_a_failed_export_leaves_a_previous_file_intact(qapp, threaded_log,
 
         def failing_fdopen(fd, *args, **kwargs):
             result = original_fdopen(fd, *args, **kwargs)
-            original_write = result.write
             def failing_write(text):
                 result.close()  # Close before raising to avoid resource leak
                 raise OSError("Simulated disk full")
@@ -839,7 +838,6 @@ def test_a_failed_export_leaves_no_stray_file_at_target(qapp, threaded_log,
 
         def failing_fdopen(fd, *args, **kwargs):
             result = original_fdopen(fd, *args, **kwargs)
-            original_write = result.write
             def failing_write(text):
                 result.close()  # Close before raising to avoid resource leak
                 raise OSError("Simulated disk full")

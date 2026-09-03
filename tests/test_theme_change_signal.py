@@ -10,7 +10,6 @@ dark-theme coloured forever.
 import os
 import tempfile
 
-import pytest
 
 from core.theme_manager import ThemeManager
 

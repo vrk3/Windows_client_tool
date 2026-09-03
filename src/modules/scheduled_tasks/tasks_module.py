@@ -4,15 +4,15 @@ from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QSplitter,
+    QTableWidget, QTreeWidget, QTreeWidgetItem, QSplitter,
     QPlainTextEdit, QHeaderView, QProgressBar, QLabel, QMessageBox,
-    QFileDialog, QSizePolicy,
+    QFileDialog,
 )
 from PyQt6.QtCore import Qt, QThreadPool
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.table_ui import centered_item, center_header, fit_table
+from core.table_ui import centered_item, center_header
 from core.worker import COMWorker
 from modules.scheduled_tasks.tasks_reader import (
     TaskInfo, TaskFolder, get_folder_tree, get_tasks_in_folder,

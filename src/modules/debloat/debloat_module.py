@@ -7,9 +7,8 @@ from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QFrame, QGridLayout, QGroupBox,
-    QHeaderView, QLabel, QProgressBar, QPushButton, QScrollArea,
-    QSizePolicy, QStackedWidget, QStyle, QTableWidget, QTableWidgetItem,
+    QGridLayout, QHeaderView, QLabel, QProgressBar, QPushButton, QScrollArea,
+    QTableWidget, QTableWidgetItem,
     QTabWidget, QVBoxLayout, QWidget, QMessageBox,
 )
 from PyQt6.QtGui import QColor

@@ -10,7 +10,6 @@ selected, so switching to Allocated space on a volume whose sparse and
 compressed files make size and allocated differ by 240 GB redrew exactly the
 same picture.
 """
-import pytest
 
 from modules.treesize.store.node_store import NodeStore, DIR, EXCLUDED
 from modules.treesize.store.rollup import rollup

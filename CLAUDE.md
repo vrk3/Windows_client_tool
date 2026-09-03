@@ -203,9 +203,11 @@ When a worker fires after its host widget has been deleted (e.g. user switched t
 ```python
 try:
     import sip
-    _widget_is_valid = lambda w: not sip.isdeleted(w)
+    def _widget_is_valid(w):
+        return not sip.isdeleted(w)
 except ImportError:
-    _widget_is_valid = lambda w: True  # fallback
+    def _widget_is_valid(w):  # fallback
+        return True
 
 def set_entries(self, entries):
     if not _widget_is_valid(self._status):

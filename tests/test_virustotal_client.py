@@ -1,9 +1,8 @@
 # tests/test_virustotal_client.py
 import hashlib
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from core.virustotal_client import (
-    compute_sha256, VTResult, check_hash, VTClient,
+    compute_sha256, check_hash, VTClient,
 )
 
 

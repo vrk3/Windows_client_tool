@@ -1,8 +1,8 @@
 import logging
 from collections import deque
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QLabel
-from PyQt6.QtCore import Qt, QRectF, QPointF
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget
+from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QFont, QPainterPath
 
 logger = logging.getLogger(__name__)

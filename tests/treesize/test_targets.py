@@ -12,7 +12,7 @@ from modules.treesize.store.node_store import NodeStore, DIR
 from modules.treesize.store.rollup import rollup
 from modules.treesize.targets import base, remote
 from modules.treesize.targets.base import (
-    Credentials, RemoteEnumerator, ScanTarget, TargetError,
+    Credentials, RemoteEnumerator, TargetError,
 )
 from modules.treesize.targets.remote import (
     SshTarget, WebDavTarget, unix_to_filetime,
