@@ -234,7 +234,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 541 scanners are now reachable. 404 of them were not: they loaded,
+# All 542 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
@@ -242,12 +242,17 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 # without anyone noticing — nobody was looking, because nobody could.
 #
 # The catalog-backed 461 come from `scanners_for(category)`, so a scanner
-# is offered as soon as it is defined. The 80 hand-written ones are named
+# is offered as soon as it is defined. The 81 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
+#: 542 once scan_virtual_disk_images split in two: an image whose
+#: hypervisor is installed wants COMPACTING, one whose hypervisor is
+#: gone is an orphan. The 11.05 GB .vdi here is the second kind —
+#: VirtualBox was uninstalled and left it behind.
+#:
 #: 541 with the categories that had no scanner at all: package_cache and
 #: minidump in the catalog, scan_orphaned_installer_packages (C:\Windows#: Installer was 1.02 GB and only its $PatchCache$ was covered) and
 #: scan_virtual_disk_images (11.05 GB in one .vdi here) in code.
@@ -267,7 +272,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 #: Windows servicing lock, to produce something the Large Items "Analyze
 #: WinSxS" button already produces on purpose. See
 #: tests/test_cleanup_no_servicing_lock.py.
-REACHABLE_SCANNERS = 541
+REACHABLE_SCANNERS = 542
 
 
 def _scanners_the_tabs_offer():

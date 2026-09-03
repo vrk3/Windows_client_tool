@@ -89,7 +89,10 @@ def test_orphans_are_caution_never_safe():
 
 def test_virtual_disks_are_reported_but_never_pre_selected(
         tmp_path, monkeypatch):
+    """An image whose hypervisor IS installed. The other case — nothing on
+    the machine can open it — is tests/test_cleanup_orphaned_disks.py."""
     from modules.cleanup.cleanup_scanner import scanners_system as ss
+    from modules.cleanup.cleanup_scanner import virtual_disks
 
     disk = tmp_path / "ext4.vhdx"
     with open(disk, "wb") as handle:
@@ -97,6 +100,8 @@ def test_virtual_disks_are_reported_but_never_pre_selected(
         handle.write(b"\0")
 
     monkeypatch.setattr(ss.drives, "fixed_drive_roots", lambda: [str(tmp_path)])
+    monkeypatch.setattr(virtual_disks, "installed_hypervisors",
+                        lambda: {"hyperv"})
 
     items = ss.scan_virtual_disk_images().items
     assert any(item.path.lower().endswith("ext4.vhdx") for item in items)
@@ -108,11 +113,15 @@ def test_virtual_disks_are_reported_but_never_pre_selected(
 
 def test_a_small_virtual_disk_is_not_worth_reporting(tmp_path, monkeypatch):
     from modules.cleanup.cleanup_scanner import scanners_system as ss
+    from modules.cleanup.cleanup_scanner import virtual_disks
 
     small = tmp_path / "tiny.vhdx"
     small.write_bytes(b"\0" * 1024)
     monkeypatch.setattr(ss.drives, "fixed_drive_roots", lambda: [str(tmp_path)])
+    monkeypatch.setattr(virtual_disks, "installed_hypervisors",
+                        lambda: {"hyperv"})
     assert ss.scan_virtual_disk_images().items == []
+    assert ss.scan_orphaned_virtual_disks().items == []
 
 
 # ── new catalog entries ────────────────────────────────────────────────

@@ -123,6 +123,10 @@ LARGE_EXTRA = {
     # Reported, never pre-selected: deleting one destroys a VM. The way
     # to reclaim this space is to COMPACT the image.
     cs.scan_virtual_disk_images: ('Virtual Disk Images', 'danger'),
+    # Nothing installed here can open these, so there is no VM to
+    # destroy and nothing to compact them with. Still not pre-selected.
+    cs.scan_orphaned_virtual_disks: (
+        'Orphaned Virtual Disks (no hypervisor installed)', 'caution'),
     cs.scan_old_files: ('Old Files', 'caution'),
     cs.scan_usb_shadow_copies: ('Usb Shadow Copies', 'safe'),
     cs.scan_virtual_drives: ('Virtual Drives', 'caution'),

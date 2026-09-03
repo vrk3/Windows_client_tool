@@ -13,7 +13,8 @@ from modules.cleanup.cleanup_scanner._common import (
     ScanItem, ScanResult, get_dir_size, _make_item, _make_item_with_age,
 )
 
-from modules.cleanup.cleanup_scanner import drives, known_folders
+from modules.cleanup.cleanup_scanner import (
+    drives, known_folders, virtual_disks)
 
 logger = logging.getLogger(__name__)
 
@@ -1883,25 +1884,12 @@ def scan_orphaned_installer_packages(min_age_days: int = 0) -> ScanResult:
 VIRTUAL_DISK_MIN_BYTES = 1024 * 1024 * 1024
 
 
-def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
-    r"""Large .vhd/.vhdx/.vdi/.vmdk images, reported and never pre-selected.
-
-    E:\vms\ubuntu held 11.05 GB in ten files here, and nothing in the
-    cleaner looked at it. A virtual disk grows and does not shrink back on
-    its own -- a WSL ext4.vhdx that briefly held 40 GB stays 40 GB -- so
-    this is real reclaimable space, but the way to reclaim it is to COMPACT
-    the image, never to delete it. Deleting one destroys a virtual machine.
-
-    Hence danger, and `selected=False` on every item: this is a "here is
-    where the space went" report on the Large Items tab, alongside
-    scan_large_files, not a cleanup target.
-    """
-    result = ScanResult()
+def _collect_virtual_disks(min_age_days: int = 0):
+    """Every large disk image on a fixed drive, as (path, size) pairs."""
     suffixes = (".vhd", ".vhdx", ".vdi", ".vmdk", ".qcow2")
-
+    found = []
     for root in drives.fixed_drive_roots():
         for directory, dirnames, filenames in os.walk(root):
-            # Depth-limited, and never into the places that hold the OS.
             depth = directory.rstrip(os.sep).count(os.sep)
             if depth - root.rstrip(os.sep).count(os.sep) >= 5:
                 dirnames[:] = []
@@ -1917,16 +1905,56 @@ def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
                 except OSError:
                     logger.debug("Could not size %s", path, exc_info=True)
                     continue
-                if size < VIRTUAL_DISK_MIN_BYTES:
-                    continue
-                result.items.append(ScanItem(
-                    path=path, size=size, is_dir=False,
-                    selected=False, safety="danger"))
-                result.total_size += size
-    result.items.sort(key=lambda i: i.size, reverse=True)
+                if size >= VIRTUAL_DISK_MIN_BYTES:
+                    found.append((path, size))
+    found.sort(key=lambda row: row[1], reverse=True)
+    return found
+
+
+def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
+    r"""Large disk images whose hypervisor IS installed here.
+
+    Reported and never pre-selected. A virtual disk grows and does not
+    shrink back on its own -- a WSL ext4.vhdx that briefly held 40 GB stays
+    40 GB -- so this is real reclaimable space, but the way to reclaim it
+    is to COMPACT the image. Deleting one destroys a working VM, hence
+    danger.
+    """
+    result = ScanResult()
+    for path, size in _collect_virtual_disks(min_age_days):
+        if virtual_disks.is_orphaned(path):
+            continue
+        result.items.append(ScanItem(path=path, size=size, is_dir=False,
+                                     selected=False, safety="danger"))
+        result.total_size += size
+    return result
+
+
+def scan_orphaned_virtual_disks(min_age_days: int = 0) -> ScanResult:
+    r"""Large disk images nothing on this machine can open.
+
+    E:\VMs\Ubuntu\Ubuntu.vdi was 11.05 GB here, dated Feb 2026, with no
+    HKLM\SOFTWARE\Oracle, no ~\.VirtualBox, no "~\VirtualBox VMs" and no
+    VBoxManage.exe anywhere: VirtualBox had been uninstalled and left the
+    disk behind. There is no VM to destroy and no tool present to compact
+    it, so "compact, do not delete" -- what scan_virtual_disk_images says
+    -- is exactly the wrong advice for it.
+
+    Caution rather than danger, and still never pre-selected: nothing is
+    using it, but it is somebody's disk image and only they know whether
+    the contents still matter.
+    """
+    result = ScanResult()
+    for path, size in _collect_virtual_disks(min_age_days):
+        if not virtual_disks.is_orphaned(path):
+            continue
+        result.items.append(ScanItem(path=path, size=size, is_dir=False,
+                                     selected=False, safety="caution"))
+        result.total_size += size
     return result
 
 __all__ = [
+    'scan_orphaned_virtual_disks',
     'scan_orphaned_installer_packages',
     'scan_virtual_disk_images',
     '_find_empty_folders',
