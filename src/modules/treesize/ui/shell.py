@@ -520,7 +520,7 @@ class TreeSizeShell(QWidget):
                  "Expand folders larger than (MB):")
         value, ok = QInputDialog.getDouble(
             self, "Expand to size", label,
-            100.0 if counting else 100.0, 0.0, 1e9, 0 if counting else 1)
+            100.0, 0.0, 1e9, 0 if counting else 1)
         if not ok:
             return 0
         threshold = value if counting else value * (1024 ** 2)
