@@ -13,6 +13,8 @@ from modules.cleanup.cleanup_scanner._common import (
     ScanItem, ScanResult, get_dir_size, _make_item, _make_item_with_age,
 )
 
+from modules.cleanup.cleanup_scanner import known_folders
+
 logger = logging.getLogger(__name__)
 
 def scan_prefetch(min_age_days: int = 0) -> ScanResult:
@@ -789,12 +791,11 @@ def scan_old_restore_points(min_age_days: int = 0) -> ScanResult:
 def scan_iso_vhd_files(min_age_days: int = 0) -> ScanResult:
     """Orphaned .iso and .vhd files in common download folders."""
     result = ScanResult()
-    home = os.path.expanduser("~")
-    targets = [
-        os.path.join(home, r"Downloads\*.iso"),
-        os.path.join(home, r"Downloads\*.vhd"),
-        os.path.join(home, r"Downloads\*.vhdx"),
-    ]
+    downloads = known_folders.known_folder("Downloads")
+    if not downloads:
+        return result
+    targets = [os.path.join(downloads, pattern)
+               for pattern in ("*.iso", "*.vhd", "*.vhdx")]
     for t in targets:
         dir_path, pattern = os.path.split(t)
         if not os.path.isdir(dir_path):
@@ -1050,9 +1051,8 @@ def scan_userprofile_temp(min_age_days: int = 0) -> ScanResult:
 def scan_downloads_folder_old(min_age_days: int = 0) -> ScanResult:
     """Old files in the Downloads folder (recursive) older than min_age_days."""
     result = ScanResult()
-    home = os.path.expanduser("~")
-    dl = os.path.join(home, "Downloads")
-    if not os.path.isdir(dl):
+    dl = known_folders.known_folder("Downloads")
+    if not dl or not os.path.isdir(dl):
         return result
     for entry in os.scandir(dl):
         try:
@@ -1316,14 +1316,9 @@ def scan_large_files(min_age_days: int = 0, min_size_mb: int = 100) -> ScanResul
     Uses os.scandir() for performance — does NOT follow symlinks.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
     min_bytes = min_size_mb * 1024 * 1024
     # Use scandir for performance, walk for depth
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Videos"),
-        os.path.join(home, "Desktop"),
+    scan_dirs = known_folders.user_data_dirs() + [
         os.environ.get("LOCALAPPDATA", ""),
         os.environ.get("PROGRAMFILES", r"C:\Program Files"),
         os.path.join(os.environ.get("PROGRAMFILES(x86)", r"C:\Program Files (x86)"), "Steam", "steamapps", "common"),
@@ -1377,14 +1372,7 @@ def scan_duplicate_files(min_age_days: int = 0, min_size_kb: int = 100, max_dept
     Only scans user directories to avoid system files.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
-        os.path.join(home, "Videos"),
-    ]
+    scan_dirs = known_folders.user_data_dirs()
     min_bytes = min_size_kb * 1024
 
     # Phase 1: Group by size
@@ -1443,8 +1431,17 @@ def _group_by_size_recursive(directory: str, size_groups: dict, min_bytes: int, 
         logger.debug("Ignored OSError", exc_info=True)
 
 def _hash_file_fast(path: str, chunk_size: int = 8192) -> Optional[str]:
-    """Fast hash: only hash first 64KB + last 64KB + file size for speed."""
+    """Fast hash: only hash first 64KB + last 64KB + file size for speed.
+
+    A OneDrive Files On-Demand placeholder is skipped rather than opened:
+    opening one downloads the whole file. Duplicate detection hashes every
+    member of a size-collision group, so without this the scan quietly
+    pulls gigabytes over the network — and now that the scanners reach the
+    real (redirected) Documents and Pictures, that is where they look.
+    """
     import hashlib
+    if known_folders.is_cloud_placeholder(path):
+        return None
     try:
         size = os.path.getsize(path)
         h = hashlib.md5()
@@ -1464,12 +1461,7 @@ def scan_empty_folders(min_age_days: int = 0, min_depth: int = 2, max_depth: int
     Scans user directories recursively between min_depth and max_depth levels.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
+    scan_dirs = known_folders.user_data_dirs() + [
         os.environ.get("LOCALAPPDATA", ""),
     ]
     _find_empty_folders(result, scan_dirs, min_depth, max_depth)
@@ -1518,16 +1510,8 @@ def scan_old_files(min_age_days: int = 0, min_age_months: int = 6) -> ScanResult
     Uses mtime (last modified) — Windows atime is unreliable so mtime is more practical.
     """
     result = ScanResult()
-    home = os.path.expanduser("~")
     min_age_seconds = min_age_months * 30 * 86400
-    scan_dirs = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Pictures"),
-        os.path.join(home, "Videos"),
-        os.path.join(home, "Music"),
-    ]
+    scan_dirs = known_folders.user_data_dirs()
     _scan_old_recursive(result, scan_dirs, min_age_seconds, depth=4)
     return result
 
