@@ -1,0 +1,92 @@
+Microsoft PnP Utility
+
+Published Name:     oem49.inf
+Original Name:      amd3dvcache.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         System
+Class GUID:         {4d36e97d-e325-11ce-bfc1-08002be10318}
+Driver Version:     09/26/2025 1.0.0.12
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem35.inf
+Original Name:      amd3dvcache.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         System
+Class GUID:         {4d36e97d-e325-11ce-bfc1-08002be10318}
+Driver Version:     09/09/2025 1.0.0.11
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem10.inf
+Original Name:      amdafd.inf
+Provider Name:      AMD
+Class Name:         System
+Class GUID:         {4d36e97d-e325-11ce-bfc1-08002be10318}
+Driver Version:     08/21/2025 25.30.0.1
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Legacy
+WHCP Version:       Unknown
+
+Published Name:     oem7.inf
+Original Name:      amdocl.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         Display
+Class GUID:         {4d36e968-e325-11ce-bfc1-08002be10318}
+Driver Version:     11/12/2025 32.0.21036.18
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem56.inf
+Original Name:      amdocl.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         Display
+Class GUID:         {4d36e968-e325-11ce-bfc1-08002be10318}
+Driver Version:     04/17/2026 32.0.21042.62
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem62.inf
+Original Name:      amdocl.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         Display
+Class GUID:         {4d36e968-e325-11ce-bfc1-08002be10318}
+Driver Version:     04/17/2026 32.0.23034.4
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem60.inf
+Original Name:      amdxe.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         System
+Class GUID:         {4d36e97d-e325-11ce-bfc1-08002be10318}
+Driver Version:     09/09/2025 25.20.0.11
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem53.inf
+Original Name:      amdxe.inf
+Provider Name:      Advanced Micro Devices, Inc.
+Class Name:         System
+Class GUID:         {4d36e97d-e325-11ce-bfc1-08002be10318}
+Driver Version:     09/23/2025 25.10.0.1
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Universal
+WHCP Version:       Unknown
+
+Published Name:     oem18.inf
+Original Name:      nvhda.inf
+Provider Name:      NVIDIA Corporation
+Class Name:         MEDIA
+Class GUID:         {4d36e96c-e325-11ce-bfc1-08002be10318}
+Driver Version:     03/04/2026 1.4.4.0
+Signer Name:        Microsoft Windows Hardware Compatibility Publisher
+Attributes:         Extension
+Extension ID:       {6c1a2b7d-0f4e-4a1c-9c8a-3f1e2d4b5a60}
+WHCP Version:       Unknown
