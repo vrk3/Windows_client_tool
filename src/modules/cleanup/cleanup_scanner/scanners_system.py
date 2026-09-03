@@ -1743,6 +1743,27 @@ def delete_items(items: List[ScanItem],
         return _do_delete()
 
 
+def _enum_subkeys(handle):
+    """Yield a registry key's subkey names.
+
+    winreg has no "how many subkeys" call that is worth using here: the
+    idiom is to index upward until it raises. That makes an exception the
+    loop's normal terminator, which is fine — but it belongs in one place
+    with one explanation, not repeated as a bare `break` that reads like a
+    swallowed error.
+    """
+    import winreg
+
+    index = 0
+    while True:
+        try:
+            yield winreg.EnumKey(handle, index)
+        except OSError:
+            logger.debug("End of subkey enumeration at index %d", index)
+            return
+        index += 1
+
+
 def _installer_cache_dir() -> str:
     r"""Where Windows keeps the packages it needs to repair and uninstall."""
     return os.path.join(os.environ.get("windir", r"C:\Windows"),
@@ -1787,23 +1808,16 @@ def _referenced_installer_packages():
         return None
 
     with userdata:
-        for sid_index in range(0, 4096):
-            try:
-                sid = winreg.EnumKey(userdata, sid_index)
-            except OSError:
-                break
+        for sid in _enum_subkeys(userdata):
             for bucket in ("Products", "Patches"):
                 try:
                     container = winreg.OpenKey(userdata, sid + "\\" + bucket)
                 except OSError:
+                    logger.debug("No %s under %s", bucket, sid, exc_info=True)
                     continue
                 with container:
                     read_anything = True
-                    for item_index in range(0, 65536):
-                        try:
-                            code = winreg.EnumKey(container, item_index)
-                        except OSError:
-                            break
+                    for code in _enum_subkeys(container):
                         candidates = ([code + r"\InstallProperties"]
                                       if bucket == "Products" else [code])
                         for candidate in candidates:
@@ -1901,6 +1915,7 @@ def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
                 try:
                     size = os.path.getsize(path)
                 except OSError:
+                    logger.debug("Could not size %s", path, exc_info=True)
                     continue
                 if size < VIRTUAL_DISK_MIN_BYTES:
                     continue

@@ -86,6 +86,10 @@ _OV_GROUPS = [
     ]),
 ]
 
+#: Rows that are scaffolding rather than a reading — see
+#: _scan_tab.MUTED, which this deliberately mirrors.
+MUTED = _scan_tab_muted = "#888888"
+
 _OV_COLS = ["Group", "Total Size", "Safe Size", "Items", "Status"]
 
 
@@ -165,7 +169,7 @@ class _OverviewTab(QWidget):
             self._table.setItem(row, 2, centered_item("—"))
             self._table.setItem(row, 3, centered_item("—"))
             status = centered_item("Pending…")
-            status.setForeground(QColor("#888888"))
+            status.setForeground(QColor(MUTED))
             self._table.setItem(row, 4, status)
 
     def _update_row(self, group_name: str, total: int, safe: int, count: int):
@@ -429,4 +433,4 @@ class _OverviewTab(QWidget):
             item = self._table.item(row, 4)
             if item is not None and item.text() == "Scanning…":
                 item.setText("Cancelled")
-                item.setForeground(QColor("#888888"))
+                item.setForeground(QColor(MUTED))

@@ -28,6 +28,12 @@ SAFETY_STYLES = {
 
 CONFIRM_BYTES = 500 * 1024 * 1024   # 500 MB
 
+#: Rows that are scaffolding rather than a reading — "Measuring…",
+#: "Expand to see what is inside…" — and the fallback for an unknown
+#: safety level. Not a semantic colour: it carries no meaning to convey,
+#: which is the point of it.
+MUTED = "#888888"
+
 # Column-1 UserRole markers for the lazy breakdown of an oversized item.
 _NEEDS_BREAKDOWN = "needs-breakdown"
 _BREAKDOWN_RUNNING = "breakdown-running"
@@ -49,7 +55,7 @@ except ImportError:                                   # pragma: no cover
 
 
 def _sc(level: str) -> str:
-    return SAFETY_STYLES.get(level, ("#888888", ""))[0]
+    return SAFETY_STYLES.get(level, (MUTED, ""))[0]
 
 
 def _confirm_large(parent: QWidget, nbytes: int) -> bool:
@@ -297,7 +303,7 @@ class _ScanTab(QWidget):
         node.takeChildren()
         measuring = QTreeWidgetItem(["Measuring…", ""])
         measuring.setFlags(Qt.ItemFlag.NoItemFlags)
-        measuring.setForeground(0, QBrush(QColor("#888888")))
+        measuring.setForeground(0, QBrush(QColor(MUTED)))
         node.addChild(measuring)
 
         path = scan_item.path
@@ -314,7 +320,7 @@ class _ScanTab(QWidget):
             if not rows:
                 empty = QTreeWidgetItem(["(nothing readable inside)", ""])
                 empty.setFlags(Qt.ItemFlag.NoItemFlags)
-                empty.setForeground(0, QBrush(QColor("#888888")))
+                empty.setForeground(0, QBrush(QColor(MUTED)))
                 node.addChild(empty)
                 return
             color = _sc(safety)
@@ -419,7 +425,7 @@ class _ScanTab(QWidget):
                     child.setData(1, Qt.ItemDataRole.UserRole, _NEEDS_BREAKDOWN)
                     placeholder = QTreeWidgetItem(["Expand to see what is inside…", ""])
                     placeholder.setFlags(Qt.ItemFlag.NoItemFlags)
-                    placeholder.setForeground(0, QBrush(QColor("#888888")))
+                    placeholder.setForeground(0, QBrush(QColor(MUTED)))
                     child.addChild(placeholder)
 
         total_safe = sum(1 for i in merged.items if i.safety == "safe")
