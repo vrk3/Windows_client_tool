@@ -1,8 +1,8 @@
 """Drive the real pane with a REAL, LARGE scan and time everything.
 
-    .venv\Scripts\python.exe tools\treesize_ui_scale_check.py [target] [outdir]
+    .venv\\Scripts\\python.exe tools\treesize_ui_scale_check.py [target] [outdir]
 
-Defaults to C:\Windows. Exits 1 if anything fails or blows its budget.
+Defaults to C:\\Windows. Exits 1 if anything fails or blows its budget.
 Needs no display: it runs on the offscreen Qt platform.
 
 The views, the treemap, sorting, search and the duplicate finder have only

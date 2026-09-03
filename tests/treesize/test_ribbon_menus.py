@@ -71,7 +71,7 @@ def test_every_dropdown_button_has_a_menu(qapp):
 
 def test_declared_dropdowns_all_have_menu_contents(qapp):
     """Every button flagged as a dropdown in RIBBON must appear in MENUS."""
-    ribbon = Ribbon()
+    ribbon = Ribbon()  # noqa: F841 -- constructing it is the assertion
     flagged = {action_id for _tab, groups in RIBBON for _c, buttons in groups
                for action_id, _l, _lg, dropdown in buttons if dropdown}
     missing = {i for i in flagged if i not in MENUS}

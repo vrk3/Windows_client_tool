@@ -1,7 +1,9 @@
 import logging
 logger = logging.getLogger(__name__)
 
-import os, subprocess, winreg
+import os
+import subprocess
+import winreg
 import psutil
 from typing import List, Optional
 

@@ -315,7 +315,6 @@ class ProcessCollector(QObject):
             # Nothing on the FIRST snapshot is new: 270 processes were all
             # running before this pane opened, and flashing every one of
             # them green says the machine just booted.
-            now = time.monotonic()
             self._first_seen = {pid: 0.0 for pid in new_snapshot}
             self._snapshot = new_snapshot
             self._first = False

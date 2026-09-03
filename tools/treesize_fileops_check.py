@@ -1,6 +1,6 @@
 """file_ops end to end through the REAL IFileOperation primary path (spec 7.1).
 
-    .venv\Scripts\python.exe tools\treesize_fileops_check.py
+    .venv\\Scripts\\python.exe tools\treesize_fileops_check.py
 
 Exits 1 if any check fails. Permanent deletes and moves ONLY -- nothing here
 goes near the Recycle Bin, because a check that leaves items in the machine's

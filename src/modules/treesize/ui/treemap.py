@@ -120,7 +120,7 @@ def build_treemap(store, root: int, width: float, height: float,
     from ..store.node_store import DIR, EXCLUDED
 
     out: list[Rect] = []
-    stack = [(root, x_y_w_h := (0.0, 0.0, width, height), 0)]
+    stack = [(root, (0.0, 0.0, width, height), 0)]
     out.append(Rect(0.0, 0.0, width, height, root, 0))
     while stack:
         node, (x, y, w, h), depth = stack.pop()

@@ -405,7 +405,6 @@ def check_smartscreen() -> Dict[str, Any]:
     key = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\System"
     try:
         val = _reg_read(key, "EnableSmartScreen")
-        details = []
         if val == 1:
             return {"status": "Enabled", "color": "green", "details": [("SmartScreen", "On")], "enabled": True}
         elif val == 0:
@@ -1536,7 +1535,6 @@ def check_defender_scanning_history() -> Dict[str, Any]:
             return {"status": "Unknown", "color": "amber", "available": False,
                     "details": [("Scan History", f"Could not read: {reason}")]}
         quick = str(status.get("QuickScanEndTime", "Never"))
-        full = str(status.get("FullScanEndTime", "Never"))
         sig = str(status.get("QuickScanSignatureVersion", "?"))
         return {"status": "History Available" if quick != "Never" else "No History",
                 "color": "green" if quick != "Never" else "amber",
@@ -3559,10 +3557,8 @@ def check_meltdown() -> Dict[str, Any]:
         if unavailable is not None:
             return unavailable
         hw_vuln = d.get("RdclHardwareProtectedReported") and not d.get("RdclHardwareProtected", True)
-        kva_present = d.get("KVAShadowWindowsSupportPresent", False)
         kva_enabled = d.get("KVAShadowWindowsSupportEnabled", False)
         kva_required = d.get("KVAShadowRequired", False)
-        enabled = kva_present and kva_enabled
         if not hw_vuln and not kva_required:
             return {"status": "Not vulnerable (HW)", "color": "green", "available": True,
                     "details": [("Hardware", "Not vulnerable to Meltdown")], "enabled": True}

@@ -263,8 +263,7 @@ class DriverModule(BaseModule):
         if self._progress:
             self._progress.hide()
         if returncode == 0:
-            count = output.strip().count("\n")
-            msg = f"Driver backup complete — exported to selected folder."
+            msg = "Driver backup complete — exported to selected folder."
         else:
             msg = f"Driver backup finished with code {returncode}."
         if self._status_lbl:

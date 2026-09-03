@@ -215,7 +215,7 @@ def test_a_helper_that_reported_nothing_is_not_reported_as_success(module):
     written everything before dying."""
     refreshed = []
     module._manual_refresh = lambda: refreshed.append(1)
-    control = _stage_one(module)
+    _stage_one(module)
     module._on_batch_result(None)
     assert refreshed == [1]
     assert len(module.changeset) == 1, "nothing was applied, so nothing clears"

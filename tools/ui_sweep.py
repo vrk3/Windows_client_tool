@@ -113,7 +113,7 @@ def main():
     from app import App
     from main import register_all_modules
 
-    qapp = QApplication(sys.argv)
+    qapp = QApplication(sys.argv)  # noqa: F841 -- bound: an unnamed one is collected
     app = App()
     register_all_modules(app)
     mods = list(app.module_registry.modules)

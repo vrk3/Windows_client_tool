@@ -29,7 +29,7 @@ from modules.security_dashboard.security_module import (  # noqa: E402
 
 
 def main() -> int:
-    app = QApplication(sys.argv)  # bound: an unnamed one is collected
+    app = QApplication(sys.argv)  # noqa: F841 -- bound: an unnamed one is collected
     module = SecurityDashboardModule()
 
     t0 = time.time()

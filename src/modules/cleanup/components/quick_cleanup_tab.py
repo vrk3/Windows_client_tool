@@ -993,7 +993,7 @@ class QuickCleanupTab(QWidget):
         def _done(result):
             status, msg = result
             if status == "ok":
-                self._action_status_lbl.setText(f"✅ WinSxS cleanup complete")
+                self._action_status_lbl.setText("✅ WinSxS cleanup complete")
                 self._action_status_lbl.setStyleSheet(f"color: {semantic('success')}; font-size: 11px;")
             elif status == "timeout":
                 self._action_status_lbl.setText(f"⏱ WinSxS cleanup: {msg}")

@@ -28,7 +28,8 @@ class DISMLogModule(LogReaderModule):
     provider_class = DISMSearchProvider
 
     def load_entries(self, worker):
-        import os, subprocess
+        import os
+        import subprocess
 
         if not os.path.exists(DISM_LOG_PATH):
             # DISM text log not found — try DISM API via PowerShell (non-admin: get hotfixes)

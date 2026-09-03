@@ -78,7 +78,6 @@ def test_two_saves_do_not_collide_on_one_backup(tmp_path, monkeypatch):
     manager = cc.CleanupConfig()
     monkeypatch.setattr(manager, "_CONFIG_PATH", config_path, raising=False)
 
-    real_strftime = datetime.datetime.strftime
     stamps = iter(["20260902_120000", "20260902_120001"])
     monkeypatch.setattr(
         cc.datetime, "datetime",

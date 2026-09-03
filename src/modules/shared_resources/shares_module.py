@@ -87,7 +87,8 @@ def get_mapped_drives() -> List[Dict]:
         logger.debug("Ignored OSError", exc_info=True)
     # Also try win32wnet if available
     try:
-        import win32wnet, win32netcon
+        import win32wnet
+        import win32netcon
         resource = win32wnet.WNetOpenEnum(win32netcon.RESOURCE_CONNECTED,
                                           win32netcon.RESOURCETYPE_DISK, 0, None)
         while True:

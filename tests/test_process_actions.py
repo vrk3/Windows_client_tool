@@ -64,7 +64,7 @@ def test_kill_tree_success():
     mock_proc = MagicMock()
     mock_proc.children.return_value = [mock_child]
     with patch("modules.process_explorer.process_actions.psutil.Process", return_value=mock_proc):
-        with patch("modules.process_explorer.process_actions.kill_process", return_value=(True, "")) as mock_kill:
+        with patch("modules.process_explorer.process_actions.kill_process", return_value=(True, "")):
             ok, errors = kill_tree(1234)
     assert ok is True
     assert errors == []

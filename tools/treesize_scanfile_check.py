@@ -1,8 +1,8 @@
 """Round-trip a REAL, LARGE scan through the saved-scan format.
 
-    .venv\Scripts\python.exe tools\treesize_scanfile_check.py [target]
+    .venv\\Scripts\\python.exe tools\treesize_scanfile_check.py [target]
 
-Defaults to C:\Windows. Exits 1 on any mismatch.
+Defaults to C:\\Windows. Exits 1 on any mismatch.
 
 Every existing test uses a handful of nodes. The format has never carried a
 real store: hundreds of thousands of nodes and a name blob in the tens of

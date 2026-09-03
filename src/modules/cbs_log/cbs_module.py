@@ -29,7 +29,9 @@ class CBSLogModule(LogReaderModule):
     provider_class = CBSSearchProvider
 
     def load_entries(self, worker):
-        import os, subprocess, tempfile
+        import os
+        import subprocess
+        import tempfile
 
         # Windows 11 stores CBS in .cab files under C:\Windows\Logs\CBS\
         if not os.path.exists(CBS_LOG_PATH):

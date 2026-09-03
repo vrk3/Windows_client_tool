@@ -638,7 +638,7 @@ class EnhancedBrowserScanner:
                     else:
                         cat.path.unlink()
                     freed += cat.size_bytes
-                except Exception as e:
+                except Exception:
                     errors += 1
             if progress_cb:
                 progress_cb(i + 1)

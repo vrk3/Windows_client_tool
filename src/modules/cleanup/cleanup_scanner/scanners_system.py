@@ -349,8 +349,6 @@ def scan_ide_caches(min_age_days: int = 0) -> ScanResult:
     result = ScanResult()
     local = os.environ.get("LOCALAPPDATA", "")
     appdata = os.environ.get("APPDATA", "")
-    home = os.path.expanduser("~")
-    temp = os.environ.get("TEMP", "")
 
     # JetBrains IDEs (find all IDE folders under JetBrains)
     jb_root = os.path.join(local, r"JetBrains")
@@ -553,7 +551,6 @@ def scan_backup_files(min_age_days: int = 0) -> ScanResult:
     result = ScanResult()
     windir = os.environ.get("windir", r"C:\Windows")
     local = os.environ.get("LOCALAPPDATA", "")
-    temp = os.environ.get("TEMP", "")
     targets = [
         os.path.join(windir, r"*.bak"),
         os.path.join(windir, r"*.old"),
@@ -743,7 +740,6 @@ def scan_msi_logs(min_age_days: int = 0) -> ScanResult:
     r"""MSI installer verbose logs in Windows\Logs\MSI and Temp."""
     result = ScanResult()
     windir = os.environ.get("windir", r"C:\Windows")
-    temp = os.environ.get("TEMP", "")
     targets = [
         os.path.join(windir, r"Logs\MSI"),
         os.path.join(windir, r"Logs\WindowsUpdate"),
