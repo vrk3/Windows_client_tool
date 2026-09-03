@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
-from modules.cleanup.cleanup_scanner import scan_cache
+from modules.cleanup.cleanup_scanner import breakdown, scan_cache
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,25 @@ SAFETY_STYLES = {
 }
 
 CONFIRM_BYTES = 500 * 1024 * 1024   # 500 MB
+
+# Column-1 UserRole markers for the lazy breakdown of an oversized item.
+_NEEDS_BREAKDOWN = "needs-breakdown"
+_BREAKDOWN_RUNNING = "breakdown-running"
+_BREAKDOWN_DONE = "breakdown-done"
+
+
+# A breakdown worker can finish after this tab is gone. See the same guard,
+# and the reason for `from PyQt6 import sip` rather than `import sip`, in
+# _overview_tab.py.
+try:
+    from PyQt6 import sip as _sip
+
+    def _alive(widget) -> bool:
+        return widget is not None and not _sip.isdeleted(widget)
+except ImportError:                                   # pragma: no cover
+    def _alive(widget) -> bool:
+        return widget is not None
+
 
 
 def _sc(level: str) -> str:
@@ -140,6 +159,7 @@ class _ScanTab(QWidget):
         self._tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._ctx_menu)
+        self._tree.itemExpanded.connect(self._on_item_expanded)
         layout.addWidget(self._tree, 1)
 
         # Safety legend
@@ -257,6 +277,78 @@ class _ScanTab(QWidget):
             self._scan_worker.cancel()
         self._cancel_all()
 
+    # ── Breakdown of an oversized item ──
+
+    def _on_item_expanded(self, node: QTreeWidgetItem) -> None:
+        if node.data(1, Qt.ItemDataRole.UserRole) == _NEEDS_BREAKDOWN:
+            self._fill_breakdown(node)
+
+    def _fill_breakdown(self, node: QTreeWidgetItem) -> None:
+        """Replace the placeholder with what is actually inside.
+
+        Measured on a worker: a breakdown of %TEMP% walks 46,825
+        directories, and doing that on the UI thread freezes the app for
+        the three seconds it takes.
+        """
+        scan_item = node.data(0, Qt.ItemDataRole.UserRole)
+        if scan_item is None:
+            return
+        node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_RUNNING)
+        node.takeChildren()
+        measuring = QTreeWidgetItem(["Measuring…", ""])
+        measuring.setFlags(Qt.ItemFlag.NoItemFlags)
+        measuring.setForeground(0, QBrush(QColor("#888888")))
+        node.addChild(measuring)
+
+        path = scan_item.path
+        safety = scan_item.safety
+
+        def _run(_worker):
+            return breakdown.children_by_size(path)
+
+        def _done(rows):
+            if not _alive(self):
+                return
+            node.takeChildren()
+            node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_DONE)
+            if not rows:
+                empty = QTreeWidgetItem(["(nothing readable inside)", ""])
+                empty.setFlags(Qt.ItemFlag.NoItemFlags)
+                empty.setForeground(0, QBrush(QColor("#888888")))
+                node.addChild(empty)
+                return
+            color = _sc(safety)
+            for child_path, size in rows:
+                inner = cs.ScanItem(path=child_path, size=size,
+                                    is_dir=os.path.isdir(child_path),
+                                    selected=False, safety=safety)
+                row = QTreeWidgetItem(
+                    [os.path.basename(child_path) or child_path,
+                     cs.format_size(size)])
+                row.setCheckState(0, Qt.CheckState.Unchecked)
+                row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                row.setData(0, Qt.ItemDataRole.UserRole, inner)
+                row.setForeground(0, QBrush(QColor(color)))
+                row.setToolTip(0, child_path)
+                row.setTextAlignment(
+                    1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                node.addChild(row)
+
+        def _err(message: str):
+            if not _alive(self):
+                return
+            node.takeChildren()
+            node.setData(1, Qt.ItemDataRole.UserRole, _BREAKDOWN_DONE)
+            failed = QTreeWidgetItem([f"(could not read: {message})", ""])
+            failed.setFlags(Qt.ItemFlag.NoItemFlags)
+            node.addChild(failed)
+
+        worker = Worker(_run)
+        worker.signals.result.connect(_done)
+        worker.signals.error.connect(_err)
+        self._workers.append(worker)
+        self._thread_pool.start(worker)
+
     def _on_scan_result(self, data):
         merged, per_scanner = data
         self._watchdog.stop()
@@ -318,6 +410,18 @@ class _ScanTab(QWidget):
                 child.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 parent.addChild(child)
 
+                # A directory too big to be a single checkbox gets a
+                # placeholder, filled in when someone opens it. %TEMP% here
+                # is 47.36 GB in one row; measuring every such item up front
+                # would repeat the most expensive part of the sweep for rows
+                # nobody expands.
+                if breakdown.is_worth_expanding(item):
+                    child.setData(1, Qt.ItemDataRole.UserRole, _NEEDS_BREAKDOWN)
+                    placeholder = QTreeWidgetItem(["Expand to see what is inside…", ""])
+                    placeholder.setFlags(Qt.ItemFlag.NoItemFlags)
+                    placeholder.setForeground(0, QBrush(QColor("#888888")))
+                    child.addChild(placeholder)
+
         total_safe = sum(1 for i in merged.items if i.safety == "safe")
         logger.info(
             "Cleanup scan complete: %d item(s) (%d safe), %s",
@@ -341,15 +445,33 @@ class _ScanTab(QWidget):
     # ── Clean ──
 
     def _get_selected_items(self) -> list:
+        """Every ScanItem in the tree, `selected` set from its checkbox.
+
+        Breakdown rows are ScanItems too, so a path can appear twice: once
+        as `%TEMP%` and once as `%TEMP%\\wct_p3l` inside it. Anything
+        already covered by a selected ancestor is dropped, or the same
+        bytes get counted twice in the "about to delete N" confirmation and
+        queued for deletion twice.
+        """
         items = []
         for i in range(self._tree.topLevelItemCount()):
-            tw = self._tree.topLevelItem(i)
-            for j in range(tw.childCount()):
-                child = tw.child(j)
-                si = child.data(0, Qt.ItemDataRole.UserRole)
-                if si is not None:
-                    si.selected = child.checkState(0) == Qt.CheckState.Checked
-                    items.append(si)
+            group = self._tree.topLevelItem(i)
+            for j in range(group.childCount()):
+                child = group.child(j)
+                scan_item = child.data(0, Qt.ItemDataRole.UserRole)
+                if scan_item is None:
+                    continue
+                scan_item.selected = child.checkState(0) == Qt.CheckState.Checked
+                items.append(scan_item)
+                for k in range(child.childCount()):
+                    grandchild = child.child(k)
+                    inner = grandchild.data(0, Qt.ItemDataRole.UserRole)
+                    if inner is None:
+                        continue
+                    inner.selected = (
+                        grandchild.checkState(0) == Qt.CheckState.Checked
+                        and not scan_item.selected)
+                    items.append(inner)
         return items
 
     def _do_clean(self):
