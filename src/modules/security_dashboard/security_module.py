@@ -55,14 +55,9 @@ from modules.security_dashboard.security_reader import (
 )
 
 logger = logging.getLogger(__name__)
+from core.widget_life import widget_is_valid
 
-try:
-    import sip as _sip
-    def _widget_valid(w):
-        return w is not None and not _sip.isdeleted(w)
-except ImportError:
-    def _widget_valid(w):
-        return w is not None
+_widget_valid = widget_is_valid
 
 COLOR_MAP = {
     "green": "#27AE60",

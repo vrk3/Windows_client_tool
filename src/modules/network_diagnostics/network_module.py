@@ -5,7 +5,6 @@ import logging
 from typing import Optional
 
 from PyQt6.QtCore import QTimer, QThreadPool
-from PyQt6 import sip
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (
     QWidget,
@@ -32,6 +31,7 @@ from core.base_module import BaseModule
 from core.composite_module import CompositeModule
 from core.module_groups import ModuleGroup
 from core.table_ui import center_header, centered_item, set_role
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.network_diagnostics import network_tools
 from modules.perfmon.perfmon_charts import _QtLineChart
@@ -42,8 +42,7 @@ _WARN_BRUSH = QBrush(QColor("#ffcc66"))
 
 logger = logging.getLogger(__name__)
 
-def _widget_valid(w):
-    return not sip.isdeleted(w)
+_widget_valid = widget_is_valid
 
 
 # ---------------------------------------------------------------------------

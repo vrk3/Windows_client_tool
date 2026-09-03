@@ -19,6 +19,7 @@ from core.windows_utils import is_reboot_pending
 from core.blocklist import add_pattern, normalize_patterns
 from core.events import NOTIFY_BALLOON, BalloonNotifyData
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 from modules.updates.winget_updater import (
     fetch_updates, install_update, show_package_details, AppUpdate,
 )
@@ -33,12 +34,7 @@ from core.semantic_colors import semantic
 logger = logging.getLogger(__name__)
 
 
-def _widget_valid(w):
-    try:
-        import sip
-        return not sip.isdeleted(w)
-    except Exception:
-        return True
+_widget_valid = widget_is_valid
 
 
 UNATTENDED_TASK_NAME = "WinClientTool_UnattendedMaintenance"

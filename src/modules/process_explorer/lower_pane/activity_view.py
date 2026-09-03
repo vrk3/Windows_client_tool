@@ -6,7 +6,6 @@ import time
 from typing import Optional, Set, Tuple
 
 import psutil
-from PyQt6 import sip
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -14,6 +13,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QHeaderView)
 
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,7 @@ _MAX_ROWS = 500
 _OPEN_BRUSH = QBrush(QColor("#88cc88"))
 _CLOSE_BRUSH = QBrush(QColor("#cc8888"))
 
-def _widget_valid(w):
-    return not sip.isdeleted(w)
+_widget_valid = widget_is_valid
 
 ConnKey = Tuple[str, str, str, str]  # laddr, raddr, type, status
 

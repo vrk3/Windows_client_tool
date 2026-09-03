@@ -18,18 +18,14 @@ from PyQt6.QtWidgets import (
 )
 
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 from core.worker import COMWorker, Worker
 from modules.updates.winget_updater import AppUpdate
 
 logger = logging.getLogger(__name__)
 
 
-def _widget_valid(w):
-    try:
-        import sip
-        return not sip.isdeleted(w)
-    except Exception:
-        return True
+_widget_valid = widget_is_valid
 
 
 class _StoreUpdatesTab(QWidget):

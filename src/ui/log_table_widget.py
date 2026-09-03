@@ -2,13 +2,7 @@ import csv
 import logging
 from typing import List
 
-try:
-    import sip
-    def _widget_is_valid(w):
-        return not sip.isdeleted(w)
-except ImportError:
-    def _widget_is_valid(w):  # fallback: assume valid
-        return True
+from core.widget_life import widget_is_valid as _widget_is_valid
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel

@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.long_op_pool import get_long_op_pool
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup.components.category_group import CategoryGroup
 from core.semantic_colors import semantic
@@ -38,14 +39,7 @@ CREATE_NO_WINDOW = 0x08000000
 # `from PyQt6 import sip`, not `import sip`: the bare form does not exist
 # under PyQt6, so a guard written that way silently falls back to
 # "always valid" and protects nothing.
-try:
-    from PyQt6 import sip as _sip
-
-    def _alive(widget) -> bool:
-        return widget is not None and not _sip.isdeleted(widget)
-except ImportError:                                   # pragma: no cover
-    def _alive(widget) -> bool:
-        return widget is not None
+_alive = widget_is_valid
 
 
 # ── Advanced Categories ────────────────────────────────────────────────────────

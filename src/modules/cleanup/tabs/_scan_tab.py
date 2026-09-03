@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
 from modules.cleanup.cleanup_scanner import breakdown, scan_cache
@@ -43,14 +44,7 @@ _BREAKDOWN_DONE = "breakdown-done"
 # A breakdown worker can finish after this tab is gone. See the same guard,
 # and the reason for `from PyQt6 import sip` rather than `import sip`, in
 # _overview_tab.py.
-try:
-    from PyQt6 import sip as _sip
-
-    def _alive(widget) -> bool:
-        return widget is not None and not _sip.isdeleted(widget)
-except ImportError:                                   # pragma: no cover
-    def _alive(widget) -> bool:
-        return widget is not None
+_alive = widget_is_valid
 
 
 

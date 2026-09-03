@@ -14,6 +14,7 @@ Two things are deliberate:
   mode that makes a process manager untrustworthy.
 """
 import logging
+from core.widget_life import widget_is_valid
 import os
 import subprocess
 import webbrowser
@@ -41,11 +42,7 @@ def _widget_valid(widget) -> bool:
     panes use -- because a Qt call on a deleted object is a dead process,
     not a traceback.
     """
-    try:
-        import sip
-    except ImportError:  # pragma: no cover
-        return widget is not None
-    return widget is not None and not sip.isdeleted(widget)
+    return widget_is_valid(widget)
 
 
 class ProcessMenu(QObject):

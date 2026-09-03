@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.table_ui import centered_item, center_header
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.cleanup import cleanup_scanner as cs
 from modules.cleanup.cleanup_scanner import scan_cache
@@ -28,14 +29,7 @@ logger = logging.getLogger(__name__)
 # `from PyQt6 import sip`, not `import sip`: the bare form does not exist
 # under PyQt6, so a guard written that way silently falls back to
 # "always valid" and protects nothing.
-try:
-    from PyQt6 import sip as _sip
-
-    def _alive(widget) -> bool:
-        return widget is not None and not _sip.isdeleted(widget)
-except ImportError:                                   # pragma: no cover
-    def _alive(widget) -> bool:
-        return widget is not None
+_alive = widget_is_valid
 
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from PyQt6 import sip
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QSplitter,
                               QTabWidget, QTreeView, QToolBar, QComboBox,
                               QLabel, QLineEdit, QPushButton, QMenu,
@@ -13,6 +12,7 @@ from PyQt6.QtGui import QAction
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
+from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.process_explorer.process_node import ProcessNode
 from modules.process_explorer.process_collector import ProcessCollector
@@ -33,8 +33,7 @@ from modules.process_explorer.lower_pane.activity_view import ActivityView
 
 logger = logging.getLogger(__name__)
 
-def _widget_valid(w):
-    return w is not None and not sip.isdeleted(w)
+_widget_valid = widget_is_valid
 
 
 class ProcessExplorerModule(BaseModule):
