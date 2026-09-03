@@ -173,46 +173,6 @@ def scan_dmf_logs(min_age_days: int = 0) -> ScanResult:
                 result.total_size += item.size
     return result
 
-def scan_winsxs_cleanup(min_age_days: int = 0) -> ScanResult:
-    """Analyze WinSxS component store for superseded updates.
-
-    Dism.exe /AnalyzeComponentStore reports superseded component space.
-    Items with > 1 MB superseded space are flagged as 'caution'.
-    """
-    result = ScanResult()
-    windir = os.environ.get("windir", r"C:\Windows")
-    winsxs_path = os.path.join(windir, "WinSxS")
-    if not os.path.isdir(winsxs_path):
-        return result
-    try:
-        proc = subprocess.run(
-            ["Dism.exe", "/Online", "/Cleanup-Image", "/AnalyzeComponentStore"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=120,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        output = proc.stdout
-        for line in output.splitlines():
-            m = re.search(r"\[(\w+)\]\s*:\s*([\d.]+)\s*(\w+)", line)
-            if not m:
-                continue
-            label, size_val, unit = m.group(1), float(m.group(2)), m.group(3)
-            bytes_size = size_val * (
-                1024 ** 3 if unit == "GB" else 1024 ** 2 if unit == "MB" else 1
-            )
-            if label == "Superseded" and bytes_size > 1024 * 1024:  # > 1 MB
-                result.items.append(ScanItem(
-                    path=winsxs_path,
-                    size=int(bytes_size),
-                    is_dir=True,
-                    safety="caution",
-                ))
-                result.total_size = int(bytes_size)
-                break
-    except Exception as e:
-        logger.warning("WinSxS component store analysis failed: %s", e)
-    return result
-
 def cleanup_winsxs(progress_cb: Optional[Callable[[int, int], None]] = None) -> bool:
     """Run Dism.exe /StartComponentCleanup to reduce WinSxS superseded components.
 
@@ -1889,6 +1849,5 @@ __all__ = [
     'scan_windows_shell_cache',
     'scan_windows_terminal_cache',
     'scan_windows_terminal_settings_cache',
-    'scan_winsxs_cleanup',
     'scan_wmi_logs',
 ]

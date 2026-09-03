@@ -230,7 +230,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 537 scanners are now reachable. 404 of them were not: they loaded,
+# All 536 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
@@ -238,13 +238,18 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 # without anyone noticing — nobody was looking, because nobody could.
 #
 # The catalog-backed 456 come from `scanners_for(category)`, so a scanner
-# is offered as soon as it is defined. The 81 hand-written ones are named
+# is offered as soon as it is defined. The 80 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
-REACHABLE_SCANNERS = 537
+#: 537 until scan_winsxs_cleanup was deleted. It ran DISM
+#: /AnalyzeComponentStore from inside a SCAN — 25-30s elevated, holding the
+#: Windows servicing lock, to produce something the Large Items "Analyze
+#: WinSxS" button already produces on purpose. See
+#: tests/test_cleanup_no_servicing_lock.py.
+REACHABLE_SCANNERS = 536
 
 
 def _scanners_the_tabs_offer():
@@ -333,6 +338,6 @@ def test_no_scanner_was_lost_in_the_conversion(catalog):
 
     both = sorted(in_catalog & in_code)
     assert both == [], f"defined twice — the catalog shadows the function: {both}"
-    assert len(in_catalog) + len(in_code) == 537, (
+    assert len(in_catalog) + len(in_code) == REACHABLE_SCANNERS, (
         f"{len(in_catalog)} specs + {len(in_code)} functions = "
-        f"{len(in_catalog) + len(in_code)}, expected 537")
+        f"{len(in_catalog) + len(in_code)}, expected {REACHABLE_SCANNERS}")

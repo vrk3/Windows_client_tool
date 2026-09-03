@@ -79,7 +79,11 @@ SYSTEM_EXTRA = {
     cs.scan_windows_shell_cache: ('Windows Shell Cache', 'safe'),
     cs.scan_windows_terminal_cache: ('Windows Terminal Cache', 'safe'),
     cs.scan_windows_terminal_settings_cache: ('Windows Terminal Settings Cache', 'safe'),
-    cs.scan_winsxs_cleanup: ('Winsxs Cleanup', 'caution'),
+    # No scan_winsxs_cleanup here, deliberately: it ran
+    # `Dism /Online /Cleanup-Image /AnalyzeComponentStore`, which is 25-30s
+    # elevated (0.03s unelevated, because DISM refuses — which is how it hid)
+    # and takes the Windows servicing lock. Large Items has an explicit
+    # "Analyze WinSxS" button for that, on its own long-operation pool.
 }
 
 LOGS_EXTRA = {
