@@ -13,6 +13,7 @@ Handles:
 - Default rule merging
 """
 
+import copy
 import datetime
 import json
 import logging
@@ -67,25 +68,40 @@ class CleanupConfig:
         os.environ.get("APPDATA", ""), "WindowsTweaker", "cleanup_config.json"
     )
 
+    #: Was a literal inside __init__, which left reset_to_defaults with no
+    #: settings to reset TO -- _DEFAULT_CONFIG has no "settings" key, so it
+    #: blanked them instead.
+    _DEFAULT_SETTINGS: Dict[str, Any] = {
+        "auto_refresh": True,
+        "refresh_interval": 30,
+        "show_suggestions": True,
+        "export_csv": True,
+        "export_pdf": True,
+        "trash_retention_days": 30,
+        "background_scan": True,
+        "size_threshold_mb": 0,
+        "age_threshold_days": 0,
+        "expand_all_enabled": True,
+    }
+
     def __init__(self):
-        self._config: Dict[str, Any] = {
-            **self._DEFAULT_CONFIG,
-            "presets": [],
-            "settings": {
-                "auto_refresh": True,
-                "refresh_interval": 30,
-                "show_suggestions": True,
-                "export_csv": True,
-                "export_pdf": True,
-                "trash_retention_days": 30,
-                "background_scan": True,
-                "size_threshold_mb": 0,
-                "age_threshold_days": 0,
-                "expand_all_enabled": True,
-            },
-        }
+        self._config: Dict[str, Any] = self._fresh_defaults()
         self._last_config: Dict[str, Any] = None
         self._load_config()
+
+    def _fresh_defaults(self) -> Dict[str, Any]:
+        """A config nobody else holds a reference into.
+
+        `{**self._DEFAULT_CONFIG}` is a SHALLOW copy: the group dicts under
+        the top-level keys are the very objects hanging off the class, and
+        `update_category` writes straight through one of them. Toggling a
+        category therefore edited the default it would later be compared
+        against and reset to.
+        """
+        config = copy.deepcopy(self._DEFAULT_CONFIG)
+        config["presets"] = []
+        config["settings"] = copy.deepcopy(self._DEFAULT_SETTINGS)
+        return config
 
     def _load_config(self) -> None:
         """Load configuration from file."""
@@ -377,20 +393,10 @@ class CleanupConfig:
 
         Preserves presets.
         """
-        self._config = {
-            **self._DEFAULT_CONFIG,
-            "presets": self._config.get("presets", []),
-            "settings": self._copy_settings_from_last(),
-        }
+        presets = self._config.get("presets", [])
+        self._config = self._fresh_defaults()
+        self._config["presets"] = presets
         self._save_config()
-
-    def _copy_settings_from_last(self) -> Dict[str, Any]:
-        """Copy settings from last configuration.
-
-        Returns:
-            Settings dictionary.
-        """
-        return self._DEFAULT_CONFIG.get("settings", {})
 
 
 #: The name this class had until it was disambiguated from
