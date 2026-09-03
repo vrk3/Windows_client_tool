@@ -13,7 +13,7 @@ from modules.cleanup.cleanup_scanner._common import (
     ScanItem, ScanResult, get_dir_size, _make_item, _make_item_with_age,
 )
 
-from modules.cleanup.cleanup_scanner import known_folders
+from modules.cleanup.cleanup_scanner import drives, known_folders
 
 logger = logging.getLogger(__name__)
 
@@ -1742,7 +1742,178 @@ def delete_items(items: List[ScanItem],
     else:
         return _do_delete()
 
+
+def _installer_cache_dir() -> str:
+    r"""Where Windows keeps the packages it needs to repair and uninstall."""
+    return os.path.join(os.environ.get("windir", r"C:\Windows"),
+                        "Installer")
+
+
+def _referenced_installer_packages():
+    r"""Every cached .msi/.msp an installed product still points at.
+
+    Returns None when the reference list could not be read, and that
+    distinction is the whole safety property of this scanner: an empty set
+    means "nothing references anything" (so everything is an orphan), while
+    None means "we could not look". Reporting the second as the first
+    offers the entire installer cache for deletion, which is every
+    installed product's repair and uninstall data.
+
+    The list lives under Installer\UserData\<SID>\Products\<code>, in
+    InstallProperties:LocalPackage for products and Patches:LocalPackage
+    for patches. Reading it needs no elevation on a normal machine, but a
+    locked-down one can refuse, hence the guard.
+    """
+    import winreg
+
+    root = (r"SOFTWARE\Microsoft\Windows\CurrentVersion"
+            r"\Installer\UserData")
+    referenced = set()
+    read_anything = False
+
+    def _local_package(key, subpath):
+        try:
+            with winreg.OpenKey(key, subpath) as handle:
+                value, _ = winreg.QueryValueEx(handle, "LocalPackage")
+        except OSError:
+            return None
+        return value
+
+    try:
+        userdata = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, root)
+    except OSError:
+        logger.warning("Installer UserData not readable; reporting no orphans",
+                       exc_info=True)
+        return None
+
+    with userdata:
+        for sid_index in range(0, 4096):
+            try:
+                sid = winreg.EnumKey(userdata, sid_index)
+            except OSError:
+                break
+            for bucket in ("Products", "Patches"):
+                try:
+                    container = winreg.OpenKey(userdata, sid + "\\" + bucket)
+                except OSError:
+                    continue
+                with container:
+                    read_anything = True
+                    for item_index in range(0, 65536):
+                        try:
+                            code = winreg.EnumKey(container, item_index)
+                        except OSError:
+                            break
+                        candidates = ([code + r"\InstallProperties"]
+                                      if bucket == "Products" else [code])
+                        for candidate in candidates:
+                            package = _local_package(container, candidate)
+                            if package:
+                                referenced.add(os.path.normcase(
+                                    os.path.normpath(package)))
+
+    if not read_anything:
+        logger.warning("Installer UserData held no readable product list; "
+                       "reporting no orphans")
+        return None
+    return referenced
+
+
+def scan_orphaned_installer_packages(min_age_days: int = 0) -> ScanResult:
+    r"""Cached .msi/.msp files no installed product references any more.
+
+    C:\Windows\Installer was 1.02 GB here and nothing covered it -- only
+    its $PatchCache$ subfolder had a scanner. It cannot be swept as a
+    directory: these files are what Windows uses to repair and uninstall
+    everything on the machine, and deleting a referenced one leaves a
+    product that can neither be repaired nor removed.
+
+    So this is a set difference against the registry, and it fails CLOSED:
+    if the reference list cannot be read, nothing is offered.
+    """
+    result = ScanResult()
+    referenced = _referenced_installer_packages()
+    if referenced is None:
+        return result
+
+    cache = _installer_cache_dir()
+    if not os.path.isdir(cache):
+        return result
+
+    try:
+        entries = list(os.scandir(cache))
+    except OSError:
+        logger.debug("Installer cache not readable", exc_info=True)
+        return result
+
+    for entry in entries:
+        try:
+            if not entry.is_file(follow_symlinks=False):
+                continue
+            if os.path.splitext(entry.name)[1].lower() not in (".msi", ".msp"):
+                continue
+            if os.path.normcase(os.path.normpath(entry.path)) in referenced:
+                continue
+            item = _make_item_with_age(entry.path, safety="caution",
+                                       min_age_days=min_age_days)
+            if item:
+                result.items.append(item)
+                result.total_size += item.size
+        except OSError:
+            logger.debug("Ignored OSError", exc_info=True)
+    result.items.sort(key=lambda i: i.size, reverse=True)
+    return result
+
+
+#: Below this, a virtual disk is not worth putting in front of anyone.
+VIRTUAL_DISK_MIN_BYTES = 1024 * 1024 * 1024
+
+
+def scan_virtual_disk_images(min_age_days: int = 0) -> ScanResult:
+    r"""Large .vhd/.vhdx/.vdi/.vmdk images, reported and never pre-selected.
+
+    E:\vms\ubuntu held 11.05 GB in ten files here, and nothing in the
+    cleaner looked at it. A virtual disk grows and does not shrink back on
+    its own -- a WSL ext4.vhdx that briefly held 40 GB stays 40 GB -- so
+    this is real reclaimable space, but the way to reclaim it is to COMPACT
+    the image, never to delete it. Deleting one destroys a virtual machine.
+
+    Hence danger, and `selected=False` on every item: this is a "here is
+    where the space went" report on the Large Items tab, alongside
+    scan_large_files, not a cleanup target.
+    """
+    result = ScanResult()
+    suffixes = (".vhd", ".vhdx", ".vdi", ".vmdk", ".qcow2")
+
+    for root in drives.fixed_drive_roots():
+        for directory, dirnames, filenames in os.walk(root):
+            # Depth-limited, and never into the places that hold the OS.
+            depth = directory.rstrip(os.sep).count(os.sep)
+            if depth - root.rstrip(os.sep).count(os.sep) >= 5:
+                dirnames[:] = []
+            dirnames[:] = [d for d in dirnames if d.lower() not in (
+                "windows", "$recycle.bin", "system volume information",
+                "program files", "program files (x86)", "programdata")]
+            for name in filenames:
+                if not name.lower().endswith(suffixes):
+                    continue
+                path = os.path.join(directory, name)
+                try:
+                    size = os.path.getsize(path)
+                except OSError:
+                    continue
+                if size < VIRTUAL_DISK_MIN_BYTES:
+                    continue
+                result.items.append(ScanItem(
+                    path=path, size=size, is_dir=False,
+                    selected=False, safety="danger"))
+                result.total_size += size
+    result.items.sort(key=lambda i: i.size, reverse=True)
+    return result
+
 __all__ = [
+    'scan_orphaned_installer_packages',
+    'scan_virtual_disk_images',
     '_find_empty_folders',
     '_group_by_size_recursive',
     '_hash_file_fast',

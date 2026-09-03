@@ -63,6 +63,8 @@ SYSTEM_EXTRA = {
     cs.scan_powershell_modules_cache: ('Powershell Modules Cache', 'safe'),
     cs.scan_printer_driver_cache: ('Printer Driver Cache', 'caution'),
     cs.scan_search_index: ('Search Index', 'caution'),
+    cs.scan_orphaned_installer_packages: (
+        'Orphaned Installer Packages', 'caution'),
     cs.scan_triumph_cache: ('Triumph Cache', 'safe'),
     cs.scan_userprofile_temp: ('Userprofile Temp', 'safe'),
     cs.scan_winSxS_temp: ('Winsxs Temp', 'caution'),
@@ -114,6 +116,9 @@ LARGE_EXTRA = {
     cs.scan_duplicate_files: ('Duplicate Files', 'caution'),
     cs.scan_iso_vhd_files: ('Iso Vhd Files', 'caution'),
     cs.scan_large_files: ('Large Files', 'caution'),
+    # Reported, never pre-selected: deleting one destroys a VM. The way
+    # to reclaim this space is to COMPACT the image.
+    cs.scan_virtual_disk_images: ('Virtual Disk Images', 'danger'),
     cs.scan_old_files: ('Old Files', 'caution'),
     cs.scan_usb_shadow_copies: ('Usb Shadow Copies', 'safe'),
     cs.scan_virtual_drives: ('Virtual Drives', 'caution'),

@@ -195,6 +195,15 @@
       "description": "Microsoft Office/Windows cached document templates."
     },
     {
+      "id": "minidump",
+      "label": "Kernel minidumps (small memory dumps from bugchecks)",
+      "paths": [
+        "%windir%\\Minidump"
+      ],
+      "safety": "caution",
+      "description": "One small dump per blue screen, kept forever. The full MEMORY.DMP had a scanner; this folder did not. Caution because these are the only evidence of a past bugcheck - clear them after a crash is diagnosed, not before."
+    },
+    {
       "id": "ms_store_cache",
       "label": "Microsoft Store cache and downloaded packages",
       "paths": [
@@ -221,6 +230,15 @@
       ],
       "safety": "safe",
       "description": "Windows notification history and toast cache."
+    },
+    {
+      "id": "package_cache",
+      "label": "Installer payload cache (Visual Studio, .NET, redistributables)",
+      "paths": [
+        "%ProgramData%\\Package Cache"
+      ],
+      "safety": "caution",
+      "description": "Setup payloads kept by Visual Studio, .NET and the VC++ redistributables so they can repair or modify themselves without the original download. Routinely several GB on a dev machine and covered by nothing before this. Caution, not safe: removing it means the next repair re-downloads. No age floor, deliberately: min_age_default tests the DIRECTORY's own mtime, so any recent write inside hides the whole folder from the report. Safety level is what conveys the caution here."
     },
     {
       "id": "panther_logs",
@@ -257,8 +275,7 @@
         "%FIXED_DRIVES%\\tmp"
       ],
       "safety": "caution",
-      "min_age_default": 1,
-      "description": "A \\temp or \\tmp folder at the root of any fixed drive. Every other temp scanner is %TEMP% or %windir%\\Temp, both on C:; E:\\temp held 20.36 GB on the machine this was written for, which nothing in the cleaner could find. Caution rather than safe: a drive-root temp folder is one somebody made on purpose, unlike %TEMP%, and the age floor keeps today's files out of it."
+      "description": "A \\temp or \\tmp folder at the root of any fixed drive. Every other temp scanner is %TEMP% or %windir%\\Temp, both on C:; E:\\temp held 20.36 GB on the machine this was written for, which nothing in the cleaner could find. Caution rather than safe: a drive-root temp folder is one somebody made on purpose, unlike %TEMP%, and the age floor keeps today's files out of it. No age floor, deliberately: min_age_default tests the DIRECTORY's own mtime, so any recent write inside hides the whole folder from the report. Safety level is what conveys the caution here."
     },
     {
       "id": "photoscan_cache",

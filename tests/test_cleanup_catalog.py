@@ -234,20 +234,24 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 
 # ── reach ──────────────────────────────────────────────────────────────
 #
-# All 537 scanners are now reachable. 404 of them were not: they loaded,
+# All 541 scanners are now reachable. 404 of them were not: they loaded,
 # they were exported, and no tab offered them, because the UI wired its
 # categories by hand in four files and everything else simply existed.
 # That is why 62 scanners could carry a glob bug that meant they never
 # matched anything, and why ten pairs could point at identical paths,
 # without anyone noticing — nobody was looking, because nobody could.
 #
-# The catalog-backed 459 come from `scanners_for(category)`, so a scanner
-# is offered as soon as it is defined. The 78 hand-written ones are named
+# The catalog-backed 461 come from `scanners_for(category)`, so a scanner
+# is offered as soon as it is defined. The 80 hand-written ones are named
 # explicitly in cleanup_module's SYSTEM_EXTRA / LOGS_EXTRA / LARGE_EXTRA,
 # split by what they RETURN rather than where they look: scan_large_files
 # finds 42 GB of the user's own documents, so it sits on Large Items with
 # the other user-data scanners, never on a cache tab.
 
+#: 541 with the categories that had no scanner at all: package_cache and
+#: minidump in the catalog, scan_orphaned_installer_packages (C:\Windows#: Installer was 1.02 GB and only its $PatchCache$ was covered) and
+#: scan_virtual_disk_images (11.05 GB in one .vdi here) in code.
+#:
 #: 537 after two dead scanners were deleted: scan_old_restore_points
 #: (measured the Win+X shortcuts folder while claiming to measure System
 #: Restore shadow storage) and scan_recycle_bin_drive (byte-identical to
@@ -263,7 +267,7 @@ def test_no_scanner_lists_the_same_path_twice(catalog):
 #: Windows servicing lock, to produce something the Large Items "Analyze
 #: WinSxS" button already produces on purpose. See
 #: tests/test_cleanup_no_servicing_lock.py.
-REACHABLE_SCANNERS = 537
+REACHABLE_SCANNERS = 541
 
 
 def _scanners_the_tabs_offer():
