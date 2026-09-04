@@ -102,19 +102,123 @@ def run_apply(snapshot: Callable[[], Any], apply: Callable[[], Any],
 
 # ── the Qt half ────────────────────────────────────────────────────────
 
-def build_countdown(parent_screen, seconds: int = COUNTDOWN_SECONDS):
-    """A countdown panel on `parent_screen`, or None if there is nowhere.
+class RevertCountdown:
+    """"Keep these changes?", counting down to no.
 
-    Imported lazily so the decision logic above stays importable — and
-    testable — with no Qt and no display.
+    Doing nothing REVERTS. That is the whole design: a mode the monitor
+    cannot show leaves someone looking at a black screen, unable to click
+    anything, and the safe outcome has to be the one that needs no input.
+
+    Not a QDialog: `exec()` would block the caller inside a modal loop while
+    the display is in an unknown state. It is a frameless always-on-top
+    window driven by a QTimer, so the app keeps running and the revert fires
+    from the event loop like anything else.
     """
-    if parent_screen is None:
-        return None
-    from modules.monitor_control._screen_overlay import ScreenOverlay
 
-    overlay = ScreenOverlay(parent_screen, interactive=True)
-    overlay.show_text(str(seconds), "Keep these changes?")
-    return overlay
+    def __init__(self, seconds: int = COUNTDOWN_SECONDS, on_resolve=None,
+                 summary: str = ""):
+        self._total = seconds
+        self.remaining_seconds = seconds
+        self._on_resolve = on_resolve or (lambda _kept: None)
+        self._summary = summary
+        self._resolved = False
+        self._window = None
+        self._label = None
+        self._timer = None
+
+    # -- what it says --
+
+    def message(self) -> str:
+        plural = "" if self.remaining_seconds == 1 else "s"
+        return ("Keep these display changes?\n"
+                f"Reverting in {self.remaining_seconds} second{plural}")
+
+    # -- lifecycle --
+
+    def start(self, affected_screen=None) -> None:
+        from PyQt6.QtCore import Qt, QTimer
+        from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout, QWidget)
+
+        screen = choose_confirm_screen(affected_screen, present_screens())
+
+        self._window = QWidget(
+            None,
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool)
+        self._window.setObjectName("revertCountdown")
+        layout = QVBoxLayout(self._window)
+        layout.setContentsMargins(20, 16, 20, 16)
+
+        if self._summary:
+            summary = QLabel(self._summary)
+            summary.setObjectName("muted")
+            summary.setWordWrap(True)
+            layout.addWidget(summary)
+
+        self._label = QLabel(self.message())
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._label)
+
+        buttons = QHBoxLayout()
+        keep = QPushButton("Keep changes")
+        revert = QPushButton("Revert now")
+        keep.clicked.connect(self.keep)
+        revert.clicked.connect(self.revert_now)
+        buttons.addWidget(revert)
+        buttons.addStretch()
+        buttons.addWidget(keep)
+        layout.addLayout(buttons)
+
+        self._window.adjustSize()
+        if screen is not None:
+            area = screen.geometry()
+            size = self._window.size()
+            self._window.move(
+                area.x() + (area.width() - size.width()) // 2,
+                area.y() + (area.height() - size.height()) // 3)
+        self._window.show()
+        self._window.raise_()
+
+        self._timer = QTimer()
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+
+    def _tick(self) -> None:
+        self.remaining_seconds -= 1
+        if self.remaining_seconds <= 0:
+            self._resolve(kept=False)
+            return
+        if self._label is not None:
+            self._label.setText(self.message())
+
+    # -- outcomes --
+
+    def keep(self) -> None:
+        self._resolve(kept=True)
+
+    def revert_now(self) -> None:
+        self._resolve(kept=False)
+
+    def _resolve(self, kept: bool) -> None:
+        """Exactly once. Clicking Keep as the timer fires must not do both."""
+        if self._resolved:
+            return
+        self._resolved = True
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+        if self._window is not None:
+            self._window.close()
+            self._window.deleteLater()
+            self._window = None
+        self._on_resolve(kept)
+
+    def geometry(self):
+        from PyQt6.QtCore import QRect
+        return self._window.geometry() if self._window else QRect()
 
 
 def present_screens() -> List[Any]:
