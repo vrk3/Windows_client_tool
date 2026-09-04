@@ -227,3 +227,66 @@ def set_target_active(target_id: int, active: bool) -> Tuple[bool, str]:
     if reason:                                # an "already" no-op
         return True, reason
     return dc.apply_target_active(target_id, active)
+
+
+# -- arrangement, i.e. what Win+P offers ------------------------------------
+
+#: SDC_TOPOLOGY_*. Alternatives, never combined: Windows treats these as one
+#: choice, and OR-ing two is not "either of these", it is invalid.
+SDC_TOPOLOGY_INTERNAL = 0x00000001
+SDC_TOPOLOGY_CLONE = 0x00000002
+SDC_TOPOLOGY_EXTEND = 0x00000004
+SDC_TOPOLOGY_EXTERNAL = 0x00000008
+
+ARRANGEMENTS = {
+    "internal": SDC_TOPOLOGY_INTERNAL,
+    "clone": SDC_TOPOLOGY_CLONE,
+    "extend": SDC_TOPOLOGY_EXTEND,
+    "external": SDC_TOPOLOGY_EXTERNAL,
+}
+
+#: Human labels, in the order Win+P shows them.
+ARRANGEMENT_LABELS = [
+    ("internal", "Primary only"),
+    ("clone", "Duplicate"),
+    ("extend", "Extend"),
+    ("external", "Second screen only"),
+]
+
+
+def can_set_arrangement(name: str) -> Tuple[bool, str]:
+    """`(ok, reason)`. An unknown name is refused rather than guessed."""
+    if name not in ARRANGEMENTS:
+        known = ", ".join(sorted(ARRANGEMENTS))
+        return False, f"unknown arrangement {name!r} (known: {known})"
+    return True, ""
+
+
+def set_arrangement(name: str) -> Tuple[bool, str]:
+    """Switch between extend / duplicate / one-screen-only.
+
+    Uses the topology flags rather than shelling out to DisplaySwitch.exe:
+    the flag form returns a result that can be reported, where the exe
+    returns before Windows has finished and tells you nothing.
+
+    SDC_TOPOLOGY_* is passed WITHOUT SDC_USE_SUPPLIED_DISPLAY_CONFIG — they
+    are two different ways of saying what to apply, and combining them is
+    ERROR_INVALID_PARAMETER.
+    """
+    ok, reason = can_set_arrangement(name)
+    if not ok:
+        return False, reason
+
+    flag = ARRANGEMENTS[name]
+    user32 = ctypes.windll.user32
+    rc = user32.SetDisplayConfig(0, None, 0, None,
+                                 flag | dc.SDC_APPLY | dc.SDC_VALIDATE)
+    if rc != 0:
+        return False, (f"Windows will not arrange the displays that way: "
+                       f"{dc.win32_error_name(rc)}")
+    rc = user32.SetDisplayConfig(0, None, 0, None,
+                                 flag | dc.SDC_APPLY | dc.SDC_SAVE_TO_DATABASE)
+    if rc != 0:
+        return False, f"SetDisplayConfig: {dc.win32_error_name(rc)}"
+    logger.info("Display arrangement set to %s", name)
+    return True, ""

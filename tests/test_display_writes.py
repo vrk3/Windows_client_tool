@@ -167,3 +167,33 @@ def test_a_staged_mode_change_does_not_reset_on_each_device():
     assert dw.CDS_NORESET & dw.STAGE_FLAGS
     assert dw.CDS_UPDATEREGISTRY & dw.STAGE_FLAGS
     assert dw.CDS_NORESET & dw.COMMIT_FLAGS == 0
+
+
+# ── arrangement (the Win+P options) ────────────────────────────────────
+
+def test_every_arrangement_maps_to_one_topology_flag():
+    for name in ("extend", "clone", "internal", "external"):
+        flag = dw.ARRANGEMENTS[name]
+        assert flag, f"{name} has no flag"
+        # Exactly one topology bit, never a combination: Windows treats
+        # these as alternatives and OR-ing two is not "either".
+        assert bin(flag).count("1") == 1, name
+
+
+def test_an_unknown_arrangement_is_refused_not_guessed():
+    ok, reason = dw.can_set_arrangement("sideways")
+    assert ok is False
+    assert "sideways" in reason
+
+
+def test_a_known_arrangement_is_allowed():
+    ok, reason = dw.can_set_arrangement("extend")
+    assert ok is True and reason == ""
+
+
+def test_the_topology_flags_are_not_mixed_with_the_supplied_config_flags():
+    """SDC_TOPOLOGY_* and SDC_USE_SUPPLIED_DISPLAY_CONFIG are mutually
+    exclusive ways of describing what to apply; combining them is
+    ERROR_INVALID_PARAMETER."""
+    for flag in dw.ARRANGEMENTS.values():
+        assert flag & dc.SDC_USE_SUPPLIED_DISPLAY_CONFIG == 0

@@ -1,10 +1,18 @@
 r"""Monitor Control — one place for what your displays are doing.
 
-Read-only in this stage: it shows the truth and offers Identify and a
-refresh. Every write path (enable/disable, mode changes, arrangement, audio
-toggles, DDC) is implemented in the engines beneath and is deliberately not
-wired to a button yet — each needs a supervised first run, because getting
-one wrong leaves someone looking at a black screen.
+Shows what the displays are doing, and changes them.
+
+**Every change goes through `_apply_guard`** — snapshot, apply, then a
+15-second countdown that puts it back unless someone confirms. Nothing here
+calls a write function directly, because the failure being designed around
+is a mode the monitor cannot show: the screen goes dark and the control
+that would undo it is on that screen. Doing nothing has to be the safe
+answer, so doing nothing reverts.
+
+Wired: raise every display to its best refresh rate, the four Win+P
+arrangements, and connect/disconnect per monitor. Not yet wired: audio
+endpoint toggles and DDC brightness/input, which need their own supervised
+first run.
 
 `requires_admin` with `read_only_unelevated`: display and DDC work needs no
 elevation at all, and only the audio endpoint writes do. Gating the whole
@@ -16,7 +24,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
@@ -27,6 +35,9 @@ from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
 from core.widget_life import widget_is_valid
 from core.worker import Worker
+from modules.monitor_control import _apply_guard as guard
+from modules.monitor_control import display_config as dc
+from modules.monitor_control import display_writes as dw
 from modules.monitor_control import view_model as vm
 from modules.monitor_control._arrangement_canvas import ArrangementCanvas
 from modules.monitor_control._screen_overlay import IdentifyOverlays
@@ -36,6 +47,9 @@ logger = logging.getLogger(__name__)
 
 class _MonitorCard(QFrame):
     """One monitor: what it is, what it is doing, what it could do."""
+
+    #: (target_id, activate)
+    toggle_requested = pyqtSignal(int, bool)
 
     def __init__(self, view, parent=None):
         super().__init__(parent)
@@ -85,6 +99,18 @@ class _MonitorCard(QFrame):
             note.setObjectName("statusWarning")
             layout.addWidget(note)
 
+        actions = QHBoxLayout()
+        actions.addStretch()
+        toggle = QPushButton("Disconnect" if view.active else "Connect")
+        toggle.setToolTip(
+            "Remove this display from the desktop"
+            if view.active else "Add this display to the desktop")
+        toggle.clicked.connect(
+            lambda _checked=False, t=view.target_id, a=not view.active:
+                self.toggle_requested.emit(t, a))
+        actions.addWidget(toggle)
+        layout.addLayout(actions)
+
 
 class MonitorControlModule(BaseModule):
     """The Monitor Control tab."""
@@ -119,6 +145,15 @@ class MonitorControlModule(BaseModule):
         self._banner.hide()
         layout.addWidget(self._banner)
 
+        self._fix_btn = QPushButton("Use highest refresh rate")
+        self._fix_btn.setToolTip(
+            "Raise every display to the fastest rate it offers AT the "
+            "resolution it is already using. Reverts itself in 15 seconds "
+            "unless you confirm.")
+        self._fix_btn.clicked.connect(self._do_raise_refresh)
+        self._fix_btn.hide()
+        layout.addWidget(self._fix_btn, 0, Qt.AlignmentFlag.AlignLeft)
+
         bar = QHBoxLayout()
         self._refresh_btn = QPushButton("Refresh")
         self._identify_btn = QPushButton("Identify")
@@ -128,6 +163,18 @@ class MonitorControlModule(BaseModule):
         self._status.setObjectName("muted")
         bar.addWidget(self._refresh_btn)
         bar.addWidget(self._identify_btn)
+
+        # Win+P, as four buttons. What people actually want most of the time.
+        bar.addSpacing(16)
+        self._arrangement_buttons = {}
+        for key, label in dw.ARRANGEMENT_LABELS:
+            button = QPushButton(label)
+            button.setToolTip(f"Switch the desktop to: {label}")
+            button.clicked.connect(
+                lambda _checked=False, k=key, t=label: self._do_arrangement(k, t))
+            bar.addWidget(button)
+            self._arrangement_buttons[key] = button
+
         bar.addStretch()
         bar.addWidget(self._status)
         layout.addLayout(bar)
@@ -209,13 +256,91 @@ class MonitorControlModule(BaseModule):
         self._status.setText(f"{active} of {len(self._views)} monitors active")
 
         self._canvas.set_views(self._views)
+        self._fix_btn.setVisible(bool(vm.raise_refresh_plan(self._views)))
 
         while self._cards_layout.count() > 1:
             item = self._cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         for index, view in enumerate(self._views):
-            self._cards_layout.insertWidget(index, _MonitorCard(view))
+            card = _MonitorCard(view)
+            card.toggle_requested.connect(self._do_toggle_monitor)
+            self._cards_layout.insertWidget(index, card)
+
+    # ── changing things ──
+    #
+    # Everything below goes through `_apply_guard`: snapshot, apply, then a
+    # countdown that puts it back unless someone says otherwise. Nothing
+    # here calls a write function directly.
+
+    def _guarded(self, apply_fn, summary: str) -> None:
+        """Apply a display change with the revert countdown around it."""
+        def _snapshot():
+            return dc.raw_topology_arrays()
+
+        def _restore(arrays):
+            paths, modes, npath, nmode = arrays
+            ok, reason = dc.apply_raw_topology(paths, modes, npath, nmode)
+            if not ok:
+                raise OSError(reason)
+
+        def _start(before):
+            def _resolved(kept):
+                outcome = guard.resolve(kept, before, _restore)
+                self._status.setText(
+                    "Change kept" if outcome is guard.Outcome.KEPT
+                    else "Reverted" if outcome is guard.Outcome.REVERTED
+                    else "COULD NOT REVERT — see the log")
+                if outcome is guard.Outcome.REVERT_FAILED:
+                    logger.error("Reverting a display change failed")
+                self.refresh_data()
+
+            self._countdown = guard.RevertCountdown(
+                seconds=guard.COUNTDOWN_SECONDS, on_resolve=_resolved,
+                summary=summary)
+            self._countdown.start()
+
+        result = guard.run_apply(snapshot=_snapshot, apply=apply_fn,
+                                 start_countdown=_start)
+        if not result.applied:
+            self._status.setText(result.error or "the change was refused")
+            logger.info("Display change refused: %s", result.error)
+
+    def _do_raise_refresh(self) -> None:
+        plan = vm.raise_refresh_plan(self._views)
+        if not plan:
+            return
+        changes = [(fix.device_name, fix.resolution[0], fix.resolution[1],
+                    fix.to_rate) for fix in plan if fix.device_name]
+        summary = ", ".join(f"{f.name} to {f.to_rate:g} Hz" for f in plan)
+
+        def _apply():
+            ok, reason = dw.apply_modes(changes)
+            if not ok:
+                raise OSError(reason)
+
+        self._guarded(_apply, summary)
+
+    def _do_arrangement(self, key: str, label: str) -> None:
+        def _apply():
+            ok, reason = dw.set_arrangement(key)
+            if not ok:
+                raise OSError(reason)
+
+        self._guarded(_apply, f"Display arrangement: {label}")
+
+    def _do_toggle_monitor(self, target_id: int, activate: bool) -> None:
+        view = next((v for v in self._views if v.target_id == target_id), None)
+        name = view.name if view else f"target {target_id}"
+
+        def _apply():
+            ok, reason = dw.set_target_active(target_id, activate)
+            if not ok:
+                raise OSError(reason)
+
+        self._guarded(
+            _apply,
+            f"{name}: {'connected' if activate else 'disconnected'}")
 
     # ── actions ──
 
