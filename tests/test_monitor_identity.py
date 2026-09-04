@@ -15,10 +15,16 @@ breaks both of them cheerfully: a non-zero return is a refusal and must not
 surface as a blank name, and `rc == 0` with a zeroed buffer is not an answer
 either.
 """
+import json
+import pathlib
+
 import pytest
 
 from modules.monitor_control import display_config as dc
 from modules.monitor_control import monitor_identity as mi
+
+EDID_FIXTURE = (pathlib.Path(__file__).resolve().parent / "data"
+                / "edid_blobs.json")
 
 
 # -- the byte swap, which is the whole trap ----------------------------
@@ -162,6 +168,92 @@ def test_rc_zero_still_returns_a_record_when_the_buffer_has_content(monkeypatch)
     assert record.manufacturer_id == "DEL"
 
 
+# -- the EDID, against three real blobs --------------------------------
+#
+# Captured from this machine's registry into tests/data/edid_blobs.json,
+# complete and unmodified, the way the topology fixture was captured. A
+# synthetic blob would agree with whatever the parser did.
+
+EDID_BLOBS = json.loads(EDID_FIXTURE.read_text(encoding="utf-8"))["monitors"]
+
+#: The panels' real native resolutions. The Dell and the Gigabyte are 1440p;
+#: the LG is an ultrawide, which is exactly why "biggest enumerated mode" is
+#: not a usable definition of native.
+NATIVE = {"DELD0E6": (2560, 1440),
+          "GBT273C": (2560, 1440),
+          "GSM59F1": (2560, 1080)}
+
+
+def _blob(pnp):
+    return bytes.fromhex(EDID_BLOBS[pnp]["edid_hex"])
+
+
+@pytest.mark.parametrize("pnp", sorted(NATIVE))
+def test_the_preferred_timing_is_the_panel_native_resolution(pnp):
+    assert mi.parse_edid_preferred_timing(_blob(pnp)) == NATIVE[pnp]
+
+
+def test_a_blob_with_an_extension_block_is_still_read():
+    """The Gigabyte's blob is 384 bytes; the base block is the first 128."""
+    assert len(_blob("GBT273C")) == 384
+    assert mi.parse_edid_preferred_timing(_blob("GBT273C")) == (2560, 1440)
+
+
+def test_a_broken_header_is_not_trusted():
+    corrupt = bytearray(_blob("DELD0E6"))
+    corrupt[0] = 0x01
+    assert mi.parse_edid_preferred_timing(bytes(corrupt)) is None
+
+
+def test_a_failed_checksum_is_not_trusted():
+    """The bytes still decode to a plausible 2560x1440. They are not believed."""
+    corrupt = bytearray(_blob("DELD0E6"))
+    corrupt[100] ^= 0xFF
+    assert sum(corrupt[:128]) % 256 != 0
+    assert mi.parse_edid_preferred_timing(bytes(corrupt)) is None
+
+
+@pytest.mark.parametrize("blob", [b"", b"\x00" * 64,
+                                  bytes.fromhex("00ffffffffffff00") + b"\x00" * 40])
+def test_a_short_or_empty_blob_is_none(blob):
+    assert mi.parse_edid_preferred_timing(blob) is None
+
+
+def test_an_all_zero_descriptor_is_not_a_zero_by_zero_panel():
+    """A base block that checksums but carries no timing must answer None."""
+    blob = bytearray(128)
+    blob[0:8] = bytes.fromhex("00ffffffffffff00")
+    blob[127] = (-sum(blob[:127])) % 256
+    assert sum(blob) % 256 == 0
+    assert mi.parse_edid_preferred_timing(bytes(blob)) is None
+
+
+# -- finding the blob from the device path ------------------------------
+
+@pytest.mark.parametrize("pnp", sorted(NATIVE))
+def test_the_registry_instance_comes_out_of_the_device_path(pnp):
+    entry = EDID_BLOBS[pnp]
+    assert mi.device_instance_from_path(entry["device_path"]) == \
+        entry["registry_instance"]
+
+
+@pytest.mark.parametrize("path", ["", "nonsense", r"\\?\USB#VID_046D#5&1#{g}",
+                                  r"\\?\DISPLAY#DELD0E6"])
+def test_a_path_that_is_not_a_display_instance_is_none(path):
+    assert mi.device_instance_from_path(path) is None
+
+
+def test_an_unreadable_edid_is_none_not_a_resolution(monkeypatch):
+    monkeypatch.setattr(mi, "read_edid", lambda device_path: None)
+    assert mi.native_resolution(
+        EDID_BLOBS["DELD0E6"]["device_path"]) is None
+
+
+def test_native_resolution_parses_what_the_registry_returned(monkeypatch):
+    monkeypatch.setattr(mi, "read_edid", lambda device_path: _blob("GSM59F1"))
+    assert mi.native_resolution("anything") == (2560, 1080)
+
+
 # -- against the real machine ------------------------------------------
 
 EXPECTED_NAMES = {256: "S2719DGF", 264: "MO27Q28G", 265: "LG ULTRAWIDE"}
@@ -227,6 +319,60 @@ def test_live_the_gdi_bridge_is_not_the_display_number():
     if 1 in seen:
         assert seen[1] == "\\\\.\\DISPLAY2"
     assert len(set(seen.values())) == len(seen), "two sources, one GDI name"
+
+
+EXPECTED_NATIVE = {256: (2560, 1440), 264: (2560, 1440), 265: (2560, 1080)}
+
+
+@pytest.mark.parametrize("target_id", sorted(EXPECTED_NATIVE))
+def test_live_the_native_resolution_comes_from_the_real_edid(target_id):
+    monitor = _live_monitor(target_id)
+    record = mi.target_name(monitor.adapter, target_id)
+    assert record is not None
+    assert mi.native_resolution(record.device_path) == EXPECTED_NATIVE[target_id]
+
+
+def test_live_the_edid_read_is_a_real_registry_read():
+    """Guard against the live test above passing off the fixture as a read."""
+    monitor = _live_monitor(256)
+    record = mi.target_name(monitor.adapter, 256)
+    blob = mi.read_edid(record.device_path)
+    assert blob is not None, "the EDID could not be read from the registry"
+    assert blob[:8] == bytes.fromhex("00ffffffffffff00")
+    assert sum(blob[:128]) % 256 == 0
+
+
+def test_live_the_native_resolution_is_not_the_biggest_mode_offered():
+    r"""The whole reason this exists.
+
+    The Dell enumerates 3840x2160 because the AMD driver will downsample to
+    it. The panel is 2560x1440, and a "best mode" built on the enumeration
+    alone recommends the blurrier, slower one.
+    """
+    from modules.monitor_control import display_modes as dm
+
+    # Whichever panel currently exercises it, not a hardcoded target. Which
+    # monitor offers downsampled modes is not fixed: on this machine the
+    # panel doing so changed during a single session, along with the
+    # `\\.\DISPLAYn` names and the mode lists themselves.
+    for path in dc.query().active_paths():
+        record = mi.target_name(path.adapter, path.target_id)
+        gdi = mi.source_gdi_name(path.adapter, path.source_id)
+        if record is None or gdi is None:
+            continue
+        native = mi.native_resolution(record.device_path)
+        offered = dm.resolutions(gdi)
+        if not native or not offered:
+            continue
+        biggest = offered[0]
+        if biggest == native:
+            continue
+        # Found one: the driver offers more pixels than the glass has.
+        assert biggest[0] * biggest[1] > native[0] * native[1]
+        assert dm.best_mode(gdi, native=native).resolution == native
+        assert dm.best_mode(gdi).resolution == biggest
+        return
+    pytest.skip("no panel here is currently offered a mode above its native")
 
 
 def test_live_the_adapter_is_named():

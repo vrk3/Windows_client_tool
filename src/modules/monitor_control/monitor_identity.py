@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import winreg
 from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -49,6 +50,18 @@ DEVICE_INFO_GET_ADAPTER_NAME = 4
 TARGET_NAME_FLAG_FRIENDLY_NAME_FROM_EDID = 0x1
 TARGET_NAME_FLAG_FRIENDLY_NAME_FORCED = 0x2
 TARGET_NAME_FLAG_EDID_IDS_VALID = 0x4
+
+#: Every EDID base block starts with these eight bytes.
+EDID_HEADER = bytes.fromhex("00FFFFFFFFFFFF00")
+
+#: The base block is 128 bytes and must sum to 0 mod 256. A blob can be
+#: longer -- the Gigabyte here is 384, carrying CTA-861 extension blocks --
+#: and the extra blocks have their own checksums, which are not our problem.
+EDID_BASE_BLOCK_SIZE = 128
+
+#: The first detailed timing descriptor, which by spec is the PREFERRED
+#: timing: the resolution the panel is actually made of.
+EDID_PREFERRED_TIMING_OFFSET = 54
 
 
 # -- the pure part -----------------------------------------------------
@@ -135,6 +148,134 @@ def build_target_name(*, target_id: int, flags: int, output_technology: int,
         connector_instance=connector_instance,
         edid_valid=edid_valid,
     )
+
+
+# -- the panel's own resolution, out of the EDID -----------------------
+#
+# Neither CCD nor GDI will tell you this. `EnumDisplaySettingsExW` reports
+# what the DRIVER will accept, which on this machine includes 3840x2160 on a
+# 1440p Dell -- AMD's Virtual Super Resolution, rendered high and downscaled
+# to the panel. It is larger, softer, and caps at 120 Hz where the panel
+# itself does 280. Anything calling the biggest enumerated mode "best"
+# recommends the worst of both, so the panel's real resolution has to come
+# from the panel: the EDID's preferred timing.
+
+
+def edid_base_block_ok(blob: bytes) -> bool:
+    """Is this really an EDID, and did it survive the trip?
+
+    Both checks matter and neither is theatre. A partially-written or
+    absent blob still yields two 12-bit numbers when read at the timing
+    offset, and a resolution nobody can trace back is worse than no answer.
+    """
+    if blob is None or len(blob) < EDID_BASE_BLOCK_SIZE:
+        return False
+    if bytes(blob[:8]) != EDID_HEADER:
+        return False
+    return sum(blob[:EDID_BASE_BLOCK_SIZE]) % 256 == 0
+
+
+def parse_edid_preferred_timing(blob: bytes) -> Optional[Tuple[int, int]]:
+    """The panel's native resolution from an EDID blob, or `None`.
+
+    The first detailed timing descriptor lives at byte 54 and is 18 bytes.
+    Both active counts are 12-bit values split across two fields: the low
+    byte, and the high nibble of a shared byte four positions on.
+
+    `None` for anything that does not validate, and for a descriptor that
+    decodes to a zero dimension -- an EDID whose first descriptor is a
+    monitor name or a blank filler, which is legal, and which would
+    otherwise be read as a 0-pixel panel.
+    """
+    if not edid_base_block_ok(blob):
+        logger.debug("EDID blob failed the header or checksum check")
+        return None
+
+    base = EDID_PREFERRED_TIMING_OFFSET
+    horizontal = blob[base + 2] | ((blob[base + 4] & 0xF0) << 4)
+    vertical = blob[base + 5] | ((blob[base + 7] & 0xF0) << 4)
+    if not horizontal or not vertical:
+        logger.debug("EDID preferred timing decodes to %sx%s -- not a panel",
+                     horizontal, vertical)
+        return None
+    return (horizontal, vertical)
+
+
+def device_instance_from_path(device_path: str) -> Optional[str]:
+    r"""`\\?\DISPLAY#DELD0E6#7&327e9bec&0&UID256#{guid}` ->
+    `DISPLAY\DELD0E6\7&327e9bec&0&UID256`.
+
+    The device path GET_TARGET_NAME returns is the same identity the PnP
+    enumerator uses, with `#` where the registry uses `\` and an interface
+    GUID appended. `None` for anything that is not a display interface
+    path -- guessing a registry key from an unrecognised string is how a
+    read ends up pointed at the wrong device.
+    """
+    if not device_path:
+        return None
+    path = device_path.strip()
+    for prefix in ("\\\\?\\", "\\\\.\\"):
+        if path.startswith(prefix):
+            path = path[len(prefix):]
+            break
+    else:
+        return None
+
+    parts = path.split("#")
+    if len(parts) < 3 or parts[0].upper() != "DISPLAY":
+        return None
+    if not parts[1] or not parts[2]:
+        return None
+    return "\\".join(parts[:3])
+
+
+def read_edid(device_path: str) -> Optional[bytes]:
+    """The raw EDID Windows cached for this monitor, or `None`.
+
+    A read of `HKLM\\SYSTEM\\CurrentControlSet\\Enum\\...\\Device
+    Parameters\\EDID`, which is readable by an ordinary user -- measured
+    unelevated on all three monitors here. `None` distinguishes nothing
+    from nothing: a path we could not map, a key that is not there, and a
+    read that was refused are all "we could not look", and each is logged
+    with its reason rather than collapsed into an empty blob.
+    """
+    instance = device_instance_from_path(device_path)
+    if instance is None:
+        logger.warning("cannot derive a registry instance from device path %r",
+                       device_path)
+        return None
+
+    subkey = f"SYSTEM\\CurrentControlSet\\Enum\\{instance}\\Device Parameters"
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey) as key:
+            blob, kind = winreg.QueryValueEx(key, "EDID")
+    except FileNotFoundError:
+        logger.info("no cached EDID under %s", subkey)
+        return None
+    except OSError as exc:
+        logger.warning("could not read the EDID under %s: %s", subkey, exc)
+        return None
+
+    if kind != winreg.REG_BINARY or not blob:
+        logger.warning("EDID under %s is not a non-empty binary value", subkey)
+        return None
+    return bytes(blob)
+
+
+def native_resolution(device_path: str) -> Optional[Tuple[int, int]]:
+    """The panel's own resolution, or `None` when it cannot be established.
+
+    `None` means exactly that. It is never the largest mode the driver
+    offers, and never the resolution the display happens to be running.
+    """
+    blob = read_edid(device_path)
+    if blob is None:
+        return None
+    resolution = parse_edid_preferred_timing(blob)
+    if resolution is None:
+        logger.warning("the EDID for %r did not yield a preferred timing",
+                       device_path)
+    return resolution
 
 
 # -- the ctypes edge ---------------------------------------------------
