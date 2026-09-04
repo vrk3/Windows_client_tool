@@ -19,6 +19,11 @@ documentation alone, and both are handled here rather than discovered later:
 * **Active/inactive is a property of a TARGET, not of a path.** Each target
   appears on up to five source paths; targets can have active and inactive
   paths at once. Only aggregating per target gives the right answer.
+
+Reading is the bulk of this file. The one exception is the small apply
+section at the bottom, which lives here because it needs these ctypes
+structures — everything that DECIDES whether a change is allowed is in
+`display_writes.py`, which is the file to read for that reasoning.
 """
 from __future__ import annotations
 
@@ -381,3 +386,123 @@ def query(all_paths: bool = True) -> DisplayTopology:
     """The current topology, parsed."""
     raw_paths, raw_modes = raw_query(all_paths)
     return parse_topology(raw_paths, raw_modes)
+
+
+# -- applying a topology ------------------------------------------------
+#
+# The only write in this module. It lives here because it needs the ctypes
+# structures above; everything that DECIDES whether a change is allowed is
+# in `display_writes.py`, which is the file to read for the reasoning.
+
+SDC_VALIDATE = 0x00000040
+SDC_APPLY = 0x00000080
+SDC_USE_SUPPLIED_DISPLAY_CONFIG = 0x00000020
+SDC_ALLOW_CHANGES = 0x00000400
+SDC_SAVE_TO_DATABASE = 0x00000200
+
+#: Validate is deliberately NOT in here: it is a separate call made first,
+#: so an impossible arrangement is refused before it is attempted rather
+#: than after half of it has happened.
+APPLY_FLAGS = (SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG
+               | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE)
+
+
+def apply_target_active(target_id: int, active: bool):
+    """Flip DISPLAYCONFIG_PATH_ACTIVE on one target and apply the result.
+
+    `(ok, reason)`. Validated before it is applied; a validation failure is
+    returned by name and nothing is changed.
+
+    Windows decides the modes: the mode array is passed as NULL and
+    SDC_ALLOW_CHANGES lets it pick. Supplying stale mode indices for a
+    topology that is about to change is how a "just turn that monitor on"
+    becomes ERROR_INVALID_PARAMETER.
+    """
+    user32 = ctypes.windll.user32
+    flags = QDC_ALL_PATHS
+
+    npath = wintypes.UINT()
+    nmode = wintypes.UINT()
+    rc = user32.GetDisplayConfigBufferSizes(flags, ctypes.byref(npath),
+                                            ctypes.byref(nmode))
+    if rc != 0:
+        return False, f"GetDisplayConfigBufferSizes: {win32_error_name(rc)}"
+
+    paths = (_PATH_INFO * npath.value)()
+    modes = (_MODE_INFO * nmode.value)()
+    rc = user32.QueryDisplayConfig(flags, ctypes.byref(npath), paths,
+                                   ctypes.byref(nmode), modes, None)
+    if rc != 0:
+        return False, f"QueryDisplayConfig: {win32_error_name(rc)}"
+
+    touched = 0
+    for path in paths:
+        if path.targetInfo.id != target_id:
+            continue
+        if active:
+            # Only a path whose target is actually available can be lit.
+            if not path.targetInfo.targetAvailable:
+                continue
+            path.flags |= PATH_ACTIVE
+            touched += 1
+            break                     # one source drives it; that is enough
+        if path.flags & PATH_ACTIVE:
+            path.flags &= ~PATH_ACTIVE
+            touched += 1
+
+    if not touched:
+        return False, (f"no path for target {target_id} could be "
+                       f"{'activated' if active else 'deactivated'}")
+
+    rc = user32.SetDisplayConfig(npath, paths, nmode, modes,
+                                 SDC_VALIDATE | SDC_USE_SUPPLIED_DISPLAY_CONFIG
+                                 | SDC_ALLOW_CHANGES)
+    if rc != 0:
+        return False, (f"Windows refused this arrangement: "
+                       f"{win32_error_name(rc)}")
+
+    rc = user32.SetDisplayConfig(npath, paths, nmode, modes, APPLY_FLAGS)
+    if rc != 0:
+        return False, f"SetDisplayConfig: {win32_error_name(rc)}"
+    logger.info("Target %s is now %s", target_id,
+                "active" if active else "inactive")
+    return True, ""
+
+
+def apply_raw_topology(paths, modes, npath, nmode):
+    """Apply a previously captured path/mode array. Used to REVERT.
+
+    Takes the arrays as `raw_topology_arrays` returned them, so the revert
+    puts back exactly what was there rather than something reconstructed
+    from a parsed copy.
+    """
+    rc = ctypes.windll.user32.SetDisplayConfig(npath, paths, nmode, modes,
+                                               APPLY_FLAGS)
+    if rc != 0:
+        return False, f"SetDisplayConfig: {win32_error_name(rc)}"
+    return True, ""
+
+
+def raw_topology_arrays():
+    """The live path/mode arrays, kept for an exact revert.
+
+    `query()` returns a parsed copy, which is the right thing to read and
+    the wrong thing to restore: rebuilding the structures from it would
+    reconstruct an arrangement rather than replay the one that was there.
+    """
+    user32 = ctypes.windll.user32
+    npath = wintypes.UINT()
+    nmode = wintypes.UINT()
+    rc = user32.GetDisplayConfigBufferSizes(QDC_ALL_PATHS, ctypes.byref(npath),
+                                            ctypes.byref(nmode))
+    if rc != 0:
+        raise DisplayConfigError(
+            f"GetDisplayConfigBufferSizes failed: {win32_error_name(rc)}")
+    paths = (_PATH_INFO * npath.value)()
+    modes = (_MODE_INFO * nmode.value)()
+    rc = user32.QueryDisplayConfig(QDC_ALL_PATHS, ctypes.byref(npath), paths,
+                                   ctypes.byref(nmode), modes, None)
+    if rc != 0:
+        raise DisplayConfigError(
+            f"QueryDisplayConfig failed: {win32_error_name(rc)}")
+    return paths, modes, npath, nmode
