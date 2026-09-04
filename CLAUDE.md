@@ -337,6 +337,81 @@ plus a generated ConfigMgr one, including a rollover. **The CMTrace path has
 never read a genuine SCCM or Intune log** — no ConfigMgr client on the dev
 machine — so that check is still owed.
 
+### Monitor Control (`src/modules/monitor_control/`)
+
+One sidebar pane over displays, modes, monitor audio and DDC/CI.
+`requires_admin = True` with `read_only_unelevated = True`: display and DDC
+work needs no elevation at all, only the audio endpoint writes do. **No PyQt6
+below the UI layer** — `display_config`, `display_modes`, `monitor_identity`,
+`display_audio`, `ddc`, `profiles`, `window_layout`, `window_census` and
+`view_model` are all testable headless, which is why 330+ tests run with no
+display attached.
+
+**`QueryDisplayConfig` is the only source of truth for display state.** The
+obvious alternatives both lie, and both were measured lying on this machine:
+
+- **`WmiMonitorID.Active` is `True` for every monitor with a valid EDID**,
+  including one that is connected and switched off — it reported 3 active
+  where 2 were on the desktop.
+- **`Win32_VideoController.CurrentRefreshRate` reports per ADAPTER**, not per
+  display: 60 Hz for a card driving panels at two different rates.
+
+Rules that each cost a real defect:
+
+- **`\\.\DISPLAYn` names are NOT STABLE, and neither are mode lists.** Measured
+  inside one session: DISPLAY1 and DISPLAY2 swapped (226 modes/primary became
+  117/not-primary) while the CCD targets did not move at all, and the
+  Gigabyte's 1440p ceiling fell from 280 Hz to 120 Hz — a link renegotiating
+  to less bandwidth. So: key everything on the CCD target or the EDID, resolve
+  the GDI name at the moment you need it, and never write a test that pins a
+  device name, a mode count or a refresh rate.
+- **`modeInfoIdx` is only meaningful on an ACTIVE path.** 103 inactive paths
+  carry the `0xFFFFFFFF` marker and **20 carry a valid-looking index pointing
+  at another display's mode**. Resolving it blindly gives a switched-off
+  monitor someone else's resolution.
+- **Active/inactive is a property of a TARGET, not a path.** Each target
+  appears on up to five source paths and can have active and inactive ones at
+  once. Aggregate per target.
+- **`DISPLAYCONFIG_MODE_INFO_TYPE` is SOURCE=1, TARGET=2.** Inverted, a
+  target's 64-bit `pixelRate` reads as a source's width and you get a
+  "resolution" of 241500000x0 rather than an error.
+- **`edidManufactureId` must be BYTE-SWAPPED before decoding** — raw `0xAC10`
+  → `0x10AC` → "DEL"; unswapped it decodes to `'K@P'`. Manufacturer and product
+  are `None` when the driver clears `edidIdsValid`, never a plausible string.
+- **"Best mode" means the panel's NATIVE resolution at its highest refresh**,
+  not the largest mode enumerated. AMD VSR offers 3840x2160 on a 1440p panel,
+  so largest-first recommends something both softer AND slower than the glass
+  can do. Native comes from the EDID preferred timing; pass it to `best_mode`.
+- **Audio `DeviceState` carries undocumented high bits** — `0x10000001` is
+  ACTIVE with `0x10000000` set — so MASK the documented bits, never compare
+  equal. Endpoint→monitor matching is by name and **duplicate names are real
+  here** ("2 - MO27Q28G" ACTIVE alongside "4 - MO27Q28G" NOTPRESENT), so
+  matching narrows by state and reports genuine ambiguity rather than guessing.
+- **`IPolicyConfig::SetEndpointVisibility` is at vtable index 14, not 12.**
+  Index 12 is `SetPropertyValue(PCWSTR, const PROPERTYKEY&, PROPVARIANT*)`.
+  The write path is implemented and **has never been executed** — it needs a
+  supervised disable → re-read → re-enable → re-read round-trip.
+- **DDC/CI: not every monitor answers**, so `probe()` records `responded` with
+  a reason and a mute monitor gets no control rather than a dead slider. Input
+  source (0x60) is an ENUMERATION — offer only values the capabilities string
+  claims, and verify a write against the **low byte only**, because panels
+  mirror the value into the high byte (the Dell reports DisplayPort-1 as
+  `0x0F0F`) and a whole-word comparison calls a successful switch "ignored".
+  Physical monitor handles must go back through `DestroyPhysicalMonitors`.
+- **Profiles key on EDID identity**, never on a device name or a path index,
+  and refuse (naming what is missing) rather than partially applying. Window
+  restore uses `SetWindowPlacement`, not `MoveWindow`, or a maximised window
+  comes back the wrong size; cloaked UWP windows are excluded from per-monitor
+  counts via `DWMWA_CLOAKED`.
+- **Every display change goes through `_apply_guard`**: snapshot, apply, then a
+  15s countdown that reverts unless confirmed. The confirm must land on a
+  screen that still exists AFTER the change, and a change whose snapshot could
+  not be taken is refused outright — no undo, no change.
+
+`tools/monitor_control_check.py` is the read-only real-machine harness (the
+sibling of `treesize_scan.py` and `cleanup_reader_sweep.py`); it exits non-zero
+when anything came back unreadable.
+
 ### Cleanup Module (`src/modules/cleanup/`)
 
 **Scanner** (`cleanup_scanner.py`): functions take `min_age_days: int = 0` and return `ScanResult`. `ScanItem` fields: `path`, `size`, `is_dir`, `selected`, `safety` ("safe"/"caution"/"danger") — **no `name` field** (passing `name=` raises `TypeError`).

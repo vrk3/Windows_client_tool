@@ -345,7 +345,11 @@ def read_endpoint_rows(subkey: str = MMDEVICES_RENDER_KEY) -> List[dict]:
             try:
                 guid = winreg.EnumKey(root, index)
             except OSError:
-                break  # ERROR_NO_MORE_ITEMS
+                # ERROR_NO_MORE_ITEMS: winreg has no count call worth using,
+                # so the exception IS the loop's terminator. Logged rather
+                # than left bare so it does not read as a swallowed error.
+                logger.debug("End of endpoint enumeration at index %d", index)
+                break
             index += 1
             rows.append(_read_one_endpoint(root, guid, subkey))
     return rows

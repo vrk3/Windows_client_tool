@@ -19,7 +19,16 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QPainter, QScreen
 from PyQt6.QtWidgets import QApplication, QWidget
 
+from core.semantic_colors import chrome
+
 logger = logging.getLogger(__name__)
+
+
+def _translucent(hex_colour: str, alpha: int) -> QColor:
+    """The overlay panel, dark enough to read against anything."""
+    colour = QColor(hex_colour)
+    colour.setAlpha(alpha)
+    return colour
 
 
 class ScreenOverlay(QWidget):
@@ -69,10 +78,10 @@ class ScreenOverlay(QWidget):
                             -(rect.height() - box_h) // 2)
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(20, 20, 20, 225))
+        painter.setBrush(_translucent(chrome('overlay_surface'), 225))
         painter.drawRoundedRect(box, 24, 24)
 
-        painter.setPen(QColor("#f0f0f0"))
+        painter.setPen(QColor(chrome("overlay_text")))
         font = QFont(self.font())
         font.setPointSize(max(48, box_h // 4))
         font.setBold(True)
@@ -83,7 +92,7 @@ class ScreenOverlay(QWidget):
             font.setPointSize(max(11, box_h // 20))
             font.setBold(False)
             painter.setFont(font)
-            painter.setPen(QColor("#b0b0b0"))
+            painter.setPen(QColor(chrome("overlay_text_muted")))
             footer = box.adjusted(16, box.height() - box_h // 4, -16, -20)
             painter.drawText(footer, Qt.AlignmentFlag.AlignHCenter
                              | Qt.AlignmentFlag.AlignBottom, self._subtitle)

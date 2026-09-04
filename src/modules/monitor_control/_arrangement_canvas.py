@@ -19,13 +19,11 @@ from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from core.semantic_colors import semantic
+from core.semantic_colors import chrome, semantic
 from modules.monitor_control import _arrangement_geometry as geo
 
 logger = logging.getLogger(__name__)
 
-#: Scaffolding, not a reading — the same role `_scan_tab.MUTED` names.
-MUTED = "#858585"
 _PARKED_STRIP = 74
 
 
@@ -92,7 +90,7 @@ class ArrangementCanvas(QWidget):
         self._rebuild_transform()
 
         if not self._views:
-            painter.setPen(QColor(MUTED))
+            painter.setPen(QColor(chrome("text_muted")))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
                              "No displays detected")
             return
@@ -114,11 +112,11 @@ class ArrangementCanvas(QWidget):
         chosen = view.target_id == self._selected_id
 
         if active:
-            fill = QColor("#2f3b33") if chosen else QColor("#2b2b2b")
-            edge = QColor(semantic("success")) if chosen else QColor("#5a5a5a")
+            fill = QColor(chrome("surface_selected")) if chosen else QColor(chrome("surface"))
+            edge = QColor(semantic("success")) if chosen else QColor(chrome("outline"))
         else:
-            fill = QColor("#262626")
-            edge = QColor(MUTED)
+            fill = QColor(chrome("surface_inactive"))
+            edge = QColor(chrome("text_muted"))
 
         painter.setBrush(QBrush(fill))
         pen = QPen(edge)
@@ -131,14 +129,14 @@ class ArrangementCanvas(QWidget):
         font = QFont(self.font())
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QColor("#e0e0e0") if active else QColor(MUTED))
+        painter.setPen(QColor(chrome("text")) if active else QColor(chrome("text_muted")))
         painter.drawText(rect.adjusted(6, 6, -6, -6),
                          Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                          view.name)
 
         font.setBold(False)
         painter.setFont(font)
-        painter.setPen(QColor(MUTED))
+        painter.setPen(QColor(chrome("text_muted")))
         if active and view.resolution:
             detail = (f"{view.resolution[0]}x{view.resolution[1]}\n"
                       f"{view.refresh_hz:g} Hz")
@@ -150,7 +148,7 @@ class ArrangementCanvas(QWidget):
     def _draw_parked(self, painter, parked):
         """Connected monitors that are not on the desktop, below the map."""
         top = self.height() - _PARKED_STRIP + 8
-        painter.setPen(QColor(MUTED))
+        painter.setPen(QColor(chrome("text_muted")))
         painter.drawText(10, top - 4, "Connected, not in use:")
 
         width = 150
@@ -161,11 +159,9 @@ class ArrangementCanvas(QWidget):
     # ── interaction ──
 
     def mousePressEvent(self, event):  # noqa: N802 - Qt naming
+        event.accept()
         target_id = self._target_at(event.position())
         if target_id is None:
-            for view in self._views:
-                if view.target_id not in self._rects:
-                    continue
             self._selected_id = None
             self.update()
             return
@@ -180,7 +176,9 @@ class ArrangementCanvas(QWidget):
 
     def mouseMoveEvent(self, event):  # noqa: N802 - Qt naming
         if self._dragging is None or self._transform is None:
+            event.ignore()
             return
+        event.accept()
         rect = self._rects[self._dragging]
         corner = (event.position().x() - self._drag_offset[0],
                   event.position().y() - self._drag_offset[1])
@@ -193,7 +191,9 @@ class ArrangementCanvas(QWidget):
 
     def mouseReleaseEvent(self, event):  # noqa: N802 - Qt naming
         if self._dragging is None:
+            event.ignore()
             return
+        event.accept()
         rect = self._rects[self._dragging]
         self.moved.emit(self._dragging, rect[0], rect[1])
         self._dragging = None

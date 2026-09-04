@@ -25,7 +25,6 @@ from PyQt6.QtWidgets import (
 
 from core.base_module import BaseModule
 from core.module_groups import ModuleGroup
-from core.semantic_colors import semantic
 from core.widget_life import widget_is_valid
 from core.worker import Worker
 from modules.monitor_control import view_model as vm
@@ -33,8 +32,6 @@ from modules.monitor_control._arrangement_canvas import ArrangementCanvas
 from modules.monitor_control._screen_overlay import IdentifyOverlays
 
 logger = logging.getLogger(__name__)
-
-MUTED = "#858585"
 
 
 class _MonitorCard(QFrame):
@@ -50,8 +47,8 @@ class _MonitorCard(QFrame):
 
         title = QLabel(f"<b>{view.name}</b>")
         state = QLabel("● Active" if view.active else "○ Not in use")
-        state.setStyleSheet(
-            f"color: {semantic('success') if view.active else MUTED};")
+        state.setObjectName("monitorActive" if view.active
+                            else "monitorInactive")
         header = QHBoxLayout()
         header.addWidget(title)
         header.addStretch()
@@ -85,7 +82,7 @@ class _MonitorCard(QFrame):
         if vm.is_below_best(view):
             best = vm.best_available_rate(view)
             note = QLabel(f"Could run at {best:g} Hz here")
-            note.setStyleSheet(f"color: {semantic('warning')};")
+            note.setObjectName("statusWarning")
             layout.addWidget(note)
 
 
@@ -118,9 +115,7 @@ class MonitorControlModule(BaseModule):
 
         self._banner = QLabel("")
         self._banner.setWordWrap(True)
-        self._banner.setStyleSheet(
-            f"color: {semantic('warning')}; padding: 6px 10px;"
-            " border: 1px solid #4a4335; border-radius: 4px;")
+        self._banner.setObjectName("noticeBanner")
         self._banner.hide()
         layout.addWidget(self._banner)
 
